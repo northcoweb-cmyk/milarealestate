@@ -157,7 +157,8 @@ class SupabaseStore implements Store {
     return (data ?? null) as TableMap[K] | null;
   }
   async insert<K extends TableName>(table: K, userId: string, data: NewRow<K>) {
-    const row = prepare(table, userId, data);
+    const row = { ...prepare(table, userId, data) } as unknown as Record<string, unknown>;
+    if (table === "profiles") delete row.user_id; // profiles are keyed by id (= auth user id) and have no user_id column
     const { data: out, error } = await this.sb.from(table).insert(row).select("*").single();
     this.fail(error, `insert ${table}`);
     return out as TableMap[K];
