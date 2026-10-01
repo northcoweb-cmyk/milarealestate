@@ -1,3 +1,4 @@
+import { supabaseUrl } from "./supabase-url";
 import fs from "node:fs";
 import path from "node:path";
 import { supabaseConfigured } from "./db/store";
@@ -14,7 +15,7 @@ const safe = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_");
 export async function putFile(userId: string, id: string, data: Buffer, mime: string): Promise<string> {
   const rel = `${safe(userId)}/${safe(id)}`;
   if (supabaseConfigured()) {
-    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/${BUCKET}/${rel}`, {
+    const r = await fetch(`${supabaseUrl()}/storage/v1/object/${BUCKET}/${rel}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": mime, "x-upsert": "true" },
       body: new Uint8Array(data),
@@ -30,7 +31,7 @@ export async function putFile(userId: string, id: string, data: Buffer, mime: st
 
 export async function getFile(storagePath: string): Promise<Buffer | null> {
   if (supabaseConfigured()) {
-    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
+    const r = await fetch(`${supabaseUrl()}/storage/v1/object/${BUCKET}/${storagePath}`, {
       headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
     });
     return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
@@ -42,7 +43,7 @@ export async function getFile(storagePath: string): Promise<Buffer | null> {
 
 export async function deleteFile(storagePath: string) {
   if (supabaseConfigured()) {
-    await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, { method: "DELETE", headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` } });
+    await fetch(`${supabaseUrl()}/storage/v1/object/${BUCKET}/${storagePath}`, { method: "DELETE", headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` } });
     return;
   }
   try { fs.unlinkSync(path.join(dir(), "files", storagePath)); } catch { /* already gone */ }

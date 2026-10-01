@@ -1,3 +1,4 @@
+import { supabaseUrl } from "@/lib/supabase-url";
 import { NextResponse } from "next/server";
 import { authMode, createProfile, localAuthAllowed, setLocalSession, setSupabaseSession } from "@/lib/auth";
 import { getStore } from "@/lib/db/store";
@@ -6,7 +7,7 @@ export async function POST(req: Request) {
   const { email, password } = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
   if (!email) return NextResponse.json({ error: "Enter your email." }, { status: 400 });
   if (authMode() === "supabase") {
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL!, anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const base = supabaseUrl(), anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const r = await fetch(`${base}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: anon, "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
     const d = await r.json();
     if (!r.ok) return NextResponse.json({ error: "That email and password don't match." }, { status: 401 });

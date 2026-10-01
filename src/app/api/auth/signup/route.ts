@@ -1,3 +1,4 @@
+import { supabaseUrl } from "@/lib/supabase-url";
 import { NextResponse } from "next/server";
 import { authMode, createProfile, localSignIn, setSupabaseSession } from "@/lib/auth";
 import { getStore } from "@/lib/db/store";
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
   try {
     if (authMode() === "supabase") {
       if (!password || password.length < 8) return NextResponse.json({ error: "Use a password of at least 8 characters." }, { status: 400 });
-      const base = process.env.NEXT_PUBLIC_SUPABASE_URL!, anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const base = supabaseUrl(), anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
       const r = await fetch(`${base}/auth/v1/signup`, { method: "POST", headers: { apikey: anon, "content-type": "application/json" }, body: JSON.stringify({ email, password, data: { full_name: name } }) });
       const d = await r.json();
       if (!r.ok) return NextResponse.json({ error: d.msg || d.error_description || "Couldn't create your account." }, { status: 400 });

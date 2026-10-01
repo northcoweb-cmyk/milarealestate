@@ -1,3 +1,4 @@
+import { supabaseUrl } from "../supabase-url";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -204,7 +205,7 @@ class SupabaseStore implements Store {
 const g = globalThis as unknown as { __milaStore?: Store };
 
 export function supabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(supabaseUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export function getStore(): Store {
@@ -212,7 +213,7 @@ export function getStore(): Store {
   if (supabaseConfigured()) {
     // Lazy require keeps the client out of the bundle graph for local mode.
     const { createClient } = require("@supabase/supabase-js");
-    const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    const client = createClient(supabaseUrl(), process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     g.__milaStore = new SupabaseStore(client);

@@ -1,3 +1,4 @@
+import { supabaseUrl } from "./supabase-url";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -78,7 +79,7 @@ const tokenCache = new Map<string, { id: string; exp: number }>();
 async function supabaseUserId(): Promise<string | null> {
   const jar = await cookies();
   const token = jar.get(SB_COOKIE)?.value;
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL!, anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const base = supabaseUrl(), anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   if (token) {
     const hit = tokenCache.get(token);
     if (hit && hit.exp > Date.now()) return hit.id;
