@@ -9,6 +9,8 @@ import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { addDays, fmtRange, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
+import { ShowingsRail } from "@/components/ui/property-card";
+import type { ShowingCardData } from "@/lib/showings";
 
 interface Data { events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean } }
 const KIND_COLOR: Record<string, string> = { open_house: "#e0875f", showing: "#4a6cf7", call: "#7a5cf2", lunch: "#3aa57d", closing: "#d1444a", meeting: "#6a7fb8", other: "#8a93bd" };
@@ -22,6 +24,7 @@ export default function CalendarPage() {
   const [syncing, setSyncing] = useState(false);
   const from = today.toISOString(), to = addDays(today, 60, tz).toISOString();
   const { data, loading, reload } = useApi<Data>(`/api/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  const showings = useApi<{ showings: ShowingCardData[] }>("/api/showings?days=21");
   const days = useMemo(() => Array.from({ length: 21 }, (_, i) => addDays(today, i, tz)), [today, tz]);
   const key = (d: Date) => { const p = partsIn(d, tz); return `${p.y}-${p.m}-${p.d}`; };
   const byDay = useMemo(() => { const m = new Map<string, CalendarEvent[]>(); for (const e of data?.events ?? []) { const k = key(new Date(e.start_at)); m.set(k, [...(m.get(k) ?? []), e]); } return m; }, [data, tz]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -51,6 +54,7 @@ export default function CalendarPage() {
         })}
       </div>
       <h2 className="h2 mb-3">{dayLabel(days[sel], sel)}</h2>
+      {(() => { const todays = (showings.data?.showings ?? []).filter((x) => key(new Date(x.when.startIso)) === key(days[sel])); return todays.length ? <div className="mb-5"><ShowingsRail items={todays} /></div> : null; })()}
       {loading && !data ? <Skeleton className="h-40" /> : dayEvents.length ? (
         <ul className="space-y-3">
           {dayEvents.map((e) => (

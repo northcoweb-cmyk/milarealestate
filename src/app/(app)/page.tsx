@@ -3,6 +3,7 @@ import { buildCtx } from "@/lib/agent/engine";
 import { buildDebrief, greetingFor } from "@/lib/agent/debrief";
 import { fmtShortDate, fmtTime } from "@/lib/time";
 import { HomeClient, type HomeData } from "@/components/home-client";
+import { loadShowings } from "@/lib/showings";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function HomePage() {
     events: events.map((e) => ({ id: e.id, title: e.title, time: fmtTime(e.start_at, ctx.tz), day: new Date(e.start_at).getTime() - ctx.now.getTime() > 0 && fmtShortDate(e.start_at, ctx.tz) !== fmtShortDate(ctx.now, ctx.tz) ? "Tomorrow" : "Today", where: e.location })),
     approvals: approvals.slice(0, 3).map((a) => ({ id: a.id, title: a.title, summary: a.summary })),
     approvalCount: approvals.length,
+    showings: await loadShowings(ctx, 10, 6),
     noticed: d.noticed,
     counts: d.counts,
     isDemo: profile.is_demo,

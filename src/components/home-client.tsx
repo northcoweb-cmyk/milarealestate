@@ -14,12 +14,16 @@ import { useApp } from "./app-context";
 import { InstallBanner } from "./install";
 import { Confirm, jfetch } from "./ui";
 import { Orb } from "./orb";
+import { ShowingsRail } from "./ui/property-card";
+import { LiquidGlassCard } from "./ui/liquid-weather-glass";
+import type { ShowingCardData } from "@/lib/showings";
 
 export interface HomeData {
   greeting: string; firstName: string; dateLine: string;
   attention: { id: string; title: string; subtitle: string | null; reason: string | null; href: string; priority: string }[];
   events: { id: string; title: string; time: string; day: string; where: string | null }[];
   approvals: { id: string; title: string; summary: string | null }[];
+  showings: ShowingCardData[];
   approvalCount: number; noticed: string[]; counts: { appointments: number; followups: number; approvals: number }; isDemo: boolean;
 }
 
@@ -246,12 +250,20 @@ function TodayPanel({ data }: { data: HomeData }) {
           <div className="mb-3 flex items-baseline justify-between"><p className="kicker">Needs your approval</p><Link href="/tasks" className="text-[13.5px] font-semibold text-accent">See all {data.approvalCount}</Link></div>
           <div className="space-y-3">
             {data.approvals.map((a) => (
-              <div key={a.id} className="glass p-4" style={{ borderRadius: 24 }}>
+              <LiquidGlassCard key={a.id} className="p-4" borderRadius="24px" shadowIntensity="xs" glowIntensity="sm">
                 <p className="font-semibold leading-tight">{a.title}</p>{a.summary && <p className="muted mt-0.5 text-[14px]">{a.summary}</p>}
                 <div className="mt-3 flex gap-2"><Link className="btn btn-sm" href={`/tasks?approval=${a.id}`}>Review</Link><button className="btn btn-primary btn-sm" disabled={busyId === a.id} onClick={() => approve(a.id)}>{busyId === a.id ? "Working…" : "Approve"}</button></div>
-              </div>
+              </LiquidGlassCard>
             ))}
           </div>
+        </section>
+      )}
+
+      {data.showings.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-baseline justify-between"><p className="kicker">Showings</p><Link href="/calendar" className="text-[13.5px] font-semibold text-accent">Calendar</Link></div>
+          <ShowingsRail items={data.showings} />
+          <p className="faint mt-1 px-1 text-[12.5px]">Tap a card to flip it.</p>
         </section>
       )}
 

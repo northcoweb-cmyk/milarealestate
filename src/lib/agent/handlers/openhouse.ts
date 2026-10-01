@@ -7,6 +7,7 @@ import { openHouseEmail, openHouseSocial, polish } from "../comms";
 import { parseAddress, parseWhen } from "../nlu";
 import { TOOLS, eventConflicts, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
+import { autoPhotos, explainPull, firstUrl } from "./photos";
 
 type Item = WorkflowRun["plan"][number];
 
@@ -43,7 +44,7 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
 
   ctx.steps.push("Checking your calendar");
   const conflicts = await eventConflicts(ctx, start.toISOString(), end.toISOString());
-  const draft = { __openHouse: true, address, start_at: start.toISOString(), end_at: end.toISOString(), assumedEnd: !w.end };
+  const draft = { __openHouse: true, text, address, start_at: start.toISOString(), end_at: end.toISOString(), assumedEnd: !w.end };
   if (conflicts.length) {
     const c = conflicts[0];
     ctx.state.pending = { kind: "calendar_conflict", draft, conflict_ids: conflicts.map((x) => x.id) };
@@ -127,6 +128,10 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
     } else plan.push({ label: "Open-house email", tool: "send_email", state: s.result.ok ? "done" : "failed", detail: s.result.ok ? "Sent" : s.result.message });
   } else plan.push({ label: "Open-house email", tool: "draft_email", state: "pending", detail: "Drafted — add contacts to send" });
 
+  // 6a. photos: pull from a listing link if we have one (never required; uploading is the last resort)
+  const link = firstUrl(String(draft.text ?? "")) ?? prop.listing_url;
+  const pulled = await autoPhotos(ctx, prop, link);
+
   // 6. social post
   ctx.steps.push("Designing the post");
   const images = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop.id).sort((a, b) => a.position - b.position).map((i) => i.id);
@@ -137,7 +142,7 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
   const pub = await invoke(ctx, "publish_social_post", { postId: post.id }, { runId: run.id });
   if (pub.status === "needs_approval") {
     await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
-    plan.push({ label: "Instagram carousel", tool: "publish_social_post", state: "needs_approval", detail: images.length ? `${plural(images.length, "photo")}` : "Add property photos to finish" }); pendingApprovals++;
+    plan.push({ label: "Instagram carousel", tool: "publish_social_post", state: "needs_approval", detail: images.length ? `${plural(images.length, "photo")}${pulled?.added ? ` from ${pulled.host}` : ""}` : pulled ? explainPull(pulled, prop.address) : "No photos yet — send a listing link and I'll pull them" }); pendingApprovals++;
   } else plan.push({ label: "Instagram carousel", tool: "publish_social_post", state: pub.result.ok ? "done" : "pending", detail: pub.result.ok ? "Published" : pub.result.message });
 
   // 7. tasks
@@ -156,7 +161,7 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
   await persistState(ctx);
 
   const missing: string[] = [];
-  if (!images.length) missing.push("property photos");
+  if (!images.length) missing.push("a listing link for photos");
   if (!prop.verified) missing.push("verified listing details");
   const items = plan.map((p) => ({ label: p.label, state: p.state, detail: p.detail }));
   blocks.push({

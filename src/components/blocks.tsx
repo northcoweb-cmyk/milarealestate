@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { AlertTriangle, Check, ChevronDown, Circle, Clock, MapPin, X, Info, CheckCircle2 } from "lucide-react";
 import type { ActionButton, Block } from "@/lib/types";
 import { Avatar } from "./ui";
+import { LiquidGlassCard } from "./ui/liquid-weather-glass";
 import clsx from "clsx";
 
 type OnAction = (a: NonNullable<ActionButton["action"]>) => void;
@@ -37,7 +38,7 @@ export function BlockView(p: Props) {
   switch (b.type) {
     case "workflow":
       return (
-        <div className="glass-strong p-5 sm:p-6">
+        <LiquidGlassCard className="p-5 sm:p-6" borderRadius="28px" glowIntensity="md" shadowIntensity="sm">
           <p className="kicker">{b.kicker}</p>
           <h3 className="display mt-1 text-[32px]">{b.title}</h3>
           <p className="muted mt-0.5 text-[15px]">{b.subtitle}</p>
@@ -54,7 +55,7 @@ export function BlockView(p: Props) {
           </ul>
           {b.footer && <p className="muted hairline mt-5 pt-4 text-[14.5px]">{b.footer}</p>}
           <Buttons buttons={b.buttons} {...btns} />
-        </div>
+        </LiquidGlassCard>
       );
     case "notice": {
       const tone = { info: "var(--accent)", warn: "var(--warn)", error: "var(--danger)", success: "var(--ok)" }[b.tone];

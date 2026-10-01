@@ -360,6 +360,21 @@ export function buildScenarios(): Scenario[] {
     } }] });
   }
 
+
+  // ---------------------------------------------------------------- listing links (photos): hostile, blocked and normal
+  const LINKS = ["https://www.zillow.com/homedetails/123-Main-St/1_zpid/", "https://www.redfin.com/MD/Gaithersburg/123-Main-St/home/1", "http://169.254.169.254/latest/meta-data/", "http://localhost:3000/admin", "http://127.0.0.1:22", "http://[::1]/", "file:///etc/passwd", "javascript:alert(1)", "https://user:pass@example.com/", "http://10.0.0.1/listing", "https://does-not-exist-mila-test.invalid/listing/1", "https://example.com/", "not a link at all", "ftp://example.com/x.jpg", "http://0x7f000001/", "http://2130706433/"];
+  for (const link of LINKS) for (let k = 0; k < 4; k++) {
+    const { now, tz } = randomClock(r);
+    const msg = pick(r, [`Here's the listing for ${pick(r, ADDRS)}: ${link}`, `${link}`, `photos for ${pick(r, ADDRS)} ${link}`, `Open house at ${pick(r, ADDRS)} Sunday at 1 PM, listing ${link}`]);
+    S.push({ id: id("listing_link"), cat: "listing_link", now, tz, steps: [{ say: msg, allow: { overlap: true }, check: async (res, a) => {
+      const T = text(res);
+      const imgs = (await store.list("property_images", a.id)).length;
+      if (imgs) return `pulled images from a link that must be refused: ${link}`;
+      if (/open house at/i.test(msg) && !/passed|already/i.test(T)) { const oh = (await events(a)).filter((e: any) => e.kind === "open_house" && !a.seedIds.has(e.id)); if (!oh.length && !blocks(res, "choice").length && !/\?/.test(res.milaMessage.content)) return `open house + link: no event created and no question: ${res.milaMessage.content.slice(0, 100)}`; }
+      if (/stack|ECONN|fetch failed|TypeError|ENOTFOUND|undefined/i.test(T)) return `raw error leaked to the user: ${res.milaMessage.content.slice(0, 120)}`;
+    } }] });
+  }
+
   // ---------------------------------------------------------------- isolation + concurrency (custom)
   for (let i = 0; i < 6; i++) {
     const { now, tz } = randomClock(r);

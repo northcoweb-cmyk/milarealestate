@@ -1,9 +1,9 @@
 export type Intent =
   | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
   | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "recall" | "save_memory"
-  | "find_property" | "delete_data" | "smalltalk" | "general";
+  | "find_property" | "delete_data" | "listing_link" | "smalltalk" | "general";
 
-export const INTENTS: Intent[] = ["open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "recall", "save_memory", "find_property", "delete_data", "smalltalk", "general"];
+export const INTENTS: Intent[] = ["open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "recall", "save_memory", "find_property", "delete_data", "listing_link", "smalltalk", "general"];
 
 export interface Detected { intent: Intent; declared?: boolean }
 
@@ -41,6 +41,7 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   if (/\b(what do you know about|tell me about|what('?s| is) .*(preferences?|looking for)|what does .* (want|like))\b/.test(t) && /\b[a-z]+\b/.test(t) && /(about|does|preferences)/.test(t)) return { intent: "recall" };
   if (/\b(remember that|remember:|note that|keep in mind)\b/.test(t)) return { intent: "save_memory" };
   if (/\b(draft|write|compose|send|prepare)\b.*\b(email|message|note|follow.?up|text)\b/.test(t) || /\bemail\b.+\b(about|regarding)\b/.test(t)) return { intent: "draft_email" };
+  if (/https?:\/\/\S+/i.test(raw)) return { intent: "listing_link" };
   if (hasAttachments) return { intent: "signin_paste" };
   if (/^[^\n]+(,|\t)[^\n]*@[^\n]+/m.test(raw) && raw.split("\n").length >= 2) return { intent: "signin_paste" };
   return { intent: "general" };

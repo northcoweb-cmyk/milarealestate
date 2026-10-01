@@ -15,6 +15,7 @@ import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler } from "./handlers/openhouse";
+import { listingLinkHandler } from "./handlers/photos";
 import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
@@ -158,6 +159,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     case "find_contacts": return findContactsHandler(ctx, text);
     case "recall": return recallHandler(ctx, text);
     case "delete_data": return deleteHandler(ctx, text);
+    case "listing_link": return listingLinkHandler(ctx, text);
     case "save_memory": return saveMemoryHandler(ctx, text);
     case "find_property": return findPropertyForContactHandler(ctx, text);
     case "signin_paste": return pastedListHandler(ctx, text);

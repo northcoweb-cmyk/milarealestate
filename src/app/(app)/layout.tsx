@@ -7,6 +7,7 @@ import { googleConfigured } from "@/lib/integrations/google";
 import { AppProvider } from "@/components/app-context";
 import { Shell } from "@/components/shell";
 import { Sky } from "@/components/sky";
+import { LiquidGlassDefs } from "@/components/ui/liquid-weather-glass";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppProvider initial={{ profile, admin: isAdmin(profile), credits: { balance: credits.balance, allowance: credits.allowance, resetsAt: credits.resetsAt }, capabilities: { ai: aiAvailable(), google: googleConfigured() } }}>
       <Sky initialNow={new Date().toISOString()} tz={profile.timezone} lat={profile.lat} lng={profile.lng} theme={profile.settings.appearance.theme} reduceMotion={profile.settings.appearance.reduce_motion} />
+      <LiquidGlassDefs />
       <Shell approvals={approvals}>{children}</Shell>
     </AppProvider>
   );

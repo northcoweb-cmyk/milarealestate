@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ImagePlus, Trash2 } from "lucide-react";
+import { ArrowLeft, ImagePlus, Search, Trash2 } from "lucide-react";
 import type { CalendarEvent, Property, PropertyImage } from "@/lib/types";
 import { Empty, PageHeader, Pill, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -34,6 +34,7 @@ function PropertyDetail({ id }: { id: string }) {
   const { toast } = useApp();
   const [f, setF] = useState({ city: "", state: "", zip: "", county: "", list_price: "", beds: "", baths: "", sqft: "", listing_url: "", verified: false });
   const [busy, setBusy] = useState(false);
+  const [pullMsg, setPullMsg] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { const p = data?.property; if (p) setF({ city: p.city ?? "", state: p.state ?? "", zip: p.zip ?? "", county: p.county ?? "", list_price: p.list_price?.toString() ?? "", beds: p.beds?.toString() ?? "", baths: p.baths?.toString() ?? "", sqft: p.sqft?.toString() ?? "", listing_url: p.listing_url ?? "", verified: p.verified }); }, [data]);
   if (loading && !data) return <Page><Skeleton className="h-64" /></Page>;
@@ -43,6 +44,11 @@ function PropertyDetail({ id }: { id: string }) {
     e.preventDefault(); setBusy(true);
     try { await jfetch(`/api/properties/${id}`, { method: "PATCH", json: { city: f.city || null, state: f.state || null, zip: f.zip || null, county: f.county || null, list_price: num(f.list_price), beds: num(f.beds), baths: num(f.baths), sqft: num(f.sqft), listing_url: f.listing_url || null, verified: f.verified } }); toast("Saved.", "success"); reload(); }
     catch (er) { toast(er instanceof Error ? er.message : "Couldn't save.", "error"); } finally { setBusy(false); }
+  }
+  async function pull(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setPullMsg(null);
+    try { const r = await jfetch<{ message: string; added: number }>(`/api/properties/${id}/pull-photos`, { method: "POST", json: { url: f.listing_url.trim() } }); setPullMsg(r.message); if (r.added) reload(); }
+    catch (er) { setPullMsg(er instanceof Error ? er.message : "Couldn't read that link."); } finally { setBusy(false); }
   }
   async function upload(files: FileList | null) {
     if (!files?.length) return; setBusy(true);
@@ -55,10 +61,16 @@ function PropertyDetail({ id }: { id: string }) {
       <Link href="/properties/all" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />Properties</Link>
       <PageHeader title={p.address} sub={p.is_demo ? "Fictional demo property" : undefined} />
       <section className="glass mb-5 p-5 sm:p-6">
-        <div className="mb-3 flex items-center justify-between"><p className="kicker">Photos</p><button className="btn btn-sm" onClick={() => ref.current?.click()} disabled={busy}><ImagePlus size={16} />Upload photos</button></div>
+        <p className="kicker mb-1">Photos</p>
+        <p className="muted mb-3 text-[14px]">Paste the listing link and Mila pulls the photos for you. She only uses what the page itself shares publicly, and never stock images.</p>
+        <form className="flex flex-col gap-2 sm:flex-row" onSubmit={pull}>
+          <input className="field" type="url" inputMode="url" placeholder="https://your-brokerage.com/listing/123" value={f.listing_url} onChange={(e) => setF({ ...f, listing_url: e.target.value })} aria-label="Listing link" />
+          <button className="btn btn-primary shrink-0" disabled={busy || !f.listing_url.trim()}><Search size={16} />{busy ? "Looking…" : "Find photos"}</button>
+        </form>
+        {pullMsg && <p className="mt-3 rounded-2xl p-3 text-[14px]" style={{ background: "color-mix(in srgb, var(--ink) 6%, transparent)" }}>{pullMsg}</p>}
+        {data.images.length > 0 && <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">{data.images.map((im) => <div key={im.id} className="relative aspect-[4/3] overflow-hidden rounded-2xl">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={im.url} alt={im.caption ?? `Photo of ${p.address}`} className="h-full w-full object-cover" loading="lazy" /><button className="absolute right-2 top-2 rounded-full bg-black/45 p-1.5 text-white" aria-label="Remove photo" onClick={() => jfetch(`/api/properties/${id}/images?imageId=${im.id}`, { method: "DELETE" }).then(reload)}><Trash2 size={14} /></button>{im.caption && <span className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[10.5px] text-white">{im.caption}</span>}</div>)}</div>}
         <input ref={ref} type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
-        {data.images.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{data.images.map((im) => <div key={im.id} className="relative aspect-[4/3] overflow-hidden rounded-2xl">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={im.url} alt={im.caption ?? `Photo of ${p.address}`} className="h-full w-full object-cover" loading="lazy" /><button className="absolute right-2 top-2 rounded-full bg-black/45 p-1.5 text-white" aria-label="Remove photo" onClick={() => jfetch(`/api/properties/${id}/images?imageId=${im.id}`, { method: "DELETE" }).then(reload)}><Trash2 size={14} /></button></div>)}</div>
-          : <p className="muted text-[14.5px]">No photos yet. Mila never uses stock or placeholder images for a real property — upload yours and they'll appear in social posts. (Listing sites aren't scraped.)</p>}
+        <p className="faint mt-4 text-[13px]">No luck with a link? <button type="button" className="font-semibold text-accent underline" onClick={() => ref.current?.click()} disabled={busy}>Add your own photos</button> instead. Only use photos you have the right to share.</p>
       </section>
       <form onSubmit={save} className="glass p-5 sm:p-6">
         <p className="kicker mb-1">Facts</p><p className="muted mb-4 text-[14px]">Mila only puts price, beds, baths and size in emails and posts after you confirm they're accurate.</p>

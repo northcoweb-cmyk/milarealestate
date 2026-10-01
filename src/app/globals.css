@@ -54,6 +54,9 @@
   --sky-mid: #d9ebff;
   --sky-bottom: #fff1dc;
   --nav-h: 92px;
+  --edge-hi: rgba(255, 255, 255, 0.55);
+  --edge-lo: rgba(255, 255, 255, 0.28);
+  --glow: rgba(255, 255, 255, 0.18);
   color-scheme: light;
 }
 
@@ -75,6 +78,9 @@
   --sky-top: #070b24;
   --sky-mid: #0e1538;
   --sky-bottom: #1a2352;
+  --edge-hi: rgba(255, 255, 255, 0.16);
+  --edge-lo: rgba(255, 255, 255, 0.06);
+  --glow: rgba(140, 160, 255, 0.10);
   color-scheme: dark;
 }
 
@@ -89,12 +95,12 @@ body {
 
 /* ----------------------------------------------------------------- surfaces */
 .glass {
-  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--shadow);
+  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: inset 2px 2px 2px 0 var(--edge-hi), inset -2px -2px 2px 0 var(--edge-lo), var(--shadow);
   -webkit-backdrop-filter: blur(28px) saturate(1.5); backdrop-filter: blur(28px) saturate(1.5);
   border-radius: 28px;
 }
 .glass-strong {
-  background: var(--glass-strong); border: 1px solid var(--glass-border); box-shadow: var(--shadow);
+  background: var(--glass-strong); border: 1px solid var(--glass-border); box-shadow: inset 2px 2px 2px 0 var(--edge-hi), inset -2px -2px 2px 0 var(--edge-lo), var(--shadow);
   -webkit-backdrop-filter: blur(36px) saturate(1.6); backdrop-filter: blur(36px) saturate(1.6);
   border-radius: 28px;
 }
@@ -184,3 +190,24 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
   background: color-mix(in srgb, var(--accent) 24%, var(--glass-strong)) !important;
   box-shadow: 0 0 0 2px var(--accent), var(--shadow) !important;
 }
+
+/* ---------------------------------------------------------------- flip cards (touch-first)
+   Tap/click toggles data-flipped. Faces use -webkit- prefixes for iOS Safari. Reduced motion: crossfade. */
+.flip { perspective: 1800px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .22s cubic-bezier(.3,.7,.4,1); }
+.flip:active { transform: scale(.985); }
+.flip-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform .8s cubic-bezier(.22,.9,.28,1.02); will-change: transform; }
+.flip[data-flipped="true"] .flip-inner { transform: rotateY(180deg); }
+.flip-face { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: inherit; overflow: hidden; }
+.flip-back { transform: rotateY(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .flip-inner { transition: none; transform: none !important; }
+  .flip-face { transition: opacity .2s; -webkit-backface-visibility: visible; backface-visibility: visible; }
+  .flip-back { transform: none; opacity: 0; pointer-events: none; }
+  .flip[data-flipped="true"] .flip-front { opacity: 0; pointer-events: none; }
+  .flip[data-flipped="true"] .flip-back { opacity: 1; pointer-events: auto; }
+}
+:root[data-reduce-motion="1"] .flip-inner { transition: none; transform: none !important; }
+:root[data-reduce-motion="1"] .flip-face { -webkit-backface-visibility: visible; backface-visibility: visible; }
+:root[data-reduce-motion="1"] .flip-back { transform: none; opacity: 0; pointer-events: none; }
+:root[data-reduce-motion="1"] .flip[data-flipped="true"] .flip-front { opacity: 0; pointer-events: none; }
+:root[data-reduce-motion="1"] .flip[data-flipped="true"] .flip-back { opacity: 1; pointer-events: auto; }

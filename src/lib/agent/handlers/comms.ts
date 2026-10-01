@@ -36,7 +36,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
   if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
   const blocks: Block[] = [{ type: "draft_social", postId: post.id, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined }];
-  if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add property photos", body: "I never use stock photos for a real property. Upload photos and I'll put them in the carousel.", buttons: [{ label: "Upload photos", style: "secondary", href: `/properties/${prop.id}` }] });
+  if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Send me the listing link and I'll pull the photos. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
   return reply(`Here's a ${platform} carousel for ${prop.address}.`, blocks, "social_generation");
 }
 
