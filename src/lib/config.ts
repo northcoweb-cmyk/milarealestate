@@ -31,7 +31,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     { credits: 1000, price_usd: 27 },
     { credits: 2500, price_usd: 60 },
   ],
-  dev_credits: 100000, // effectively unlimited while developing; the ledger still records real usage
+  dev_credits: 600, // sized for a ~$2 AI test budget (about $0.003 of real cost per credit); the ledger records real usage either way
 };
 
 export const MAX_SOCIAL_POSTS_PER_DAY = 3;

@@ -109,7 +109,7 @@ export async function creditSummary(userId: string) {
 /** Owner-level margin report: credits, real AI cost, and revenue per user. */
 export async function marginReport() {
   const store = getStore();
-  const [profiles, usage, subs, cfg] = await Promise.all([store.listAll("profiles"), store.listAll("usage"), store.listAll("subscriptions"), store.getConfig()]);
+  const [profiles, usage, subs, cfg, tx] = await Promise.all([store.listAll("profiles"), store.listAll("usage"), store.listAll("subscriptions"), store.getConfig(), store.listAll("credit_transactions")]);
   return profiles.map((p) => {
     const u = usage.filter((x) => x.user_id === p.id);
     const sub = subs.find((s) => s.user_id === p.id);
@@ -118,6 +118,7 @@ export async function marginReport() {
     const cost = u.reduce((n, x) => n + x.est_cost_usd, 0);
     const credits = u.reduce((n, x) => n + x.credits, 0);
     return {
+      id: p.id, balance: tx.filter((t) => t.user_id === p.id).reduce((n, t) => n + t.delta, 0),
       user: p.full_name, email: p.email, credits_used: credits,
       ai_cost_usd: +cost.toFixed(4), revenue_usd: revenue,
       ai_cost_pct_of_revenue: revenue ? +((cost / revenue) * 100).toFixed(2) : null,

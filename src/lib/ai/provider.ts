@@ -36,6 +36,8 @@ export interface CompletionResult {
   json?: unknown;
   citations?: { title: string; url: string }[];
   usage: { inputTokens: number; outputTokens: number };
+  /** extra USD not captured by tokens (e.g. per-search tool fees) */
+  extraCostUsd?: number;
   info: ModelInfo;
 }
 
@@ -114,6 +116,7 @@ class AnthropicProvider implements AIProvider {
       json,
       citations: [...cites].map(([url, title]) => ({ title, url })),
       usage: { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 },
+      extraCostUsd: req.webSearch ? num(process.env.MILA_WEBSEARCH_FEE_USD, 0.03) : 0,
       info,
     };
   }
@@ -153,7 +156,7 @@ class OpenAIProvider implements AIProvider {
       for (const o of d.output ?? []) if (o.type === "message") for (const c of o.content ?? []) {
         if (c.type === "output_text") { text += c.text ?? ""; for (const a of c.annotations ?? []) if (a.type === "url_citation" && a.url) cites.set(a.url, a.title ?? a.url); }
       }
-      return { text, citations: [...cites].map(([url, title]) => ({ title, url })), usage: { inputTokens: d.usage?.input_tokens ?? 0, outputTokens: d.usage?.output_tokens ?? 0 }, info };
+      return { text, citations: [...cites].map(([url, title]) => ({ title, url })), usage: { inputTokens: d.usage?.input_tokens ?? 0, outputTokens: d.usage?.output_tokens ?? 0 }, extraCostUsd: num(process.env.MILA_WEBSEARCH_FEE_USD, 0.03), info };
     }
     const msgs: any[] = [{ role: "system", content: req.system }];
     req.messages.forEach((m, i) => {
