@@ -119,11 +119,78 @@ class AnthropicProvider implements AIProvider {
   }
 }
 
+// ---------------------------------------------------------------- OpenAI
+export function openaiModels(): Record<Tier, ModelInfo> {
+  const fast = { provider: "openai", model: process.env.MILA_OPENAI_MODEL_FAST || "gpt-4o-mini", inPerM: num(process.env.MILA_PRICE_FAST_IN, 0.15), outPerM: num(process.env.MILA_PRICE_FAST_OUT, 0.6) };
+  const standard = { provider: "openai", model: process.env.MILA_OPENAI_MODEL_STANDARD || "gpt-4o", inPerM: num(process.env.MILA_PRICE_STANDARD_IN, 2.5), outPerM: num(process.env.MILA_PRICE_STANDARD_OUT, 10) };
+  return { fast, standard, reasoning: standard, vision: standard, research: standard };
+}
+
+class OpenAIProvider implements AIProvider {
+  id = "openai";
+  private models = openaiModels();
+  available() { return Boolean(process.env.OPENAI_API_KEY); }
+  modelFor(tier: Tier) { return this.models[tier]; }
+
+  private async post(path: string, body: unknown) {
+    const res = await fetch(`https://api.openai.com/v1/${path}`, {
+      method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) throw new Error(`AI provider error ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return res.json() as Promise<any>;
+  }
+
+  async complete(req: CompletionRequest): Promise<CompletionResult> {
+    const info = this.modelFor(req.tier);
+    // Live web search goes through the Responses API.
+    if (req.webSearch) {
+      const d = await this.post("responses", {
+        model: info.model, instructions: req.system, max_output_tokens: req.maxTokens ?? 1500,
+        input: req.messages.map((m) => ({ role: m.role, content: m.content })), tools: [{ type: "web_search_preview" }],
+      });
+      let text = ""; const cites = new Map<string, string>();
+      for (const o of d.output ?? []) if (o.type === "message") for (const c of o.content ?? []) {
+        if (c.type === "output_text") { text += c.text ?? ""; for (const a of c.annotations ?? []) if (a.type === "url_citation" && a.url) cites.set(a.url, a.title ?? a.url); }
+      }
+      return { text, citations: [...cites].map(([url, title]) => ({ title, url })), usage: { inputTokens: d.usage?.input_tokens ?? 0, outputTokens: d.usage?.output_tokens ?? 0 }, info };
+    }
+    const msgs: any[] = [{ role: "system", content: req.system }];
+    req.messages.forEach((m, i) => {
+      const last = i === req.messages.length - 1;
+      if (last && m.role === "user" && (req.images?.length || req.documents?.length)) {
+        msgs.push({ role: "user", content: [
+          { type: "text", text: m.content },
+          ...(req.images ?? []).map((im) => ({ type: "image_url", image_url: { url: `data:${im.mediaType};base64,${im.dataBase64}` } })),
+          ...(req.documents ?? []).map((dc) => ({ type: "file", file: { filename: "document.pdf", file_data: `data:${dc.mediaType};base64,${dc.dataBase64}` } })),
+        ] });
+      } else msgs.push({ role: m.role, content: m.content });
+    });
+    const body: Record<string, unknown> = { model: info.model, messages: msgs, max_completion_tokens: req.maxTokens ?? 1024 };
+    if (req.jsonSchema) {
+      body.tools = [{ type: "function", function: { name: req.jsonSchema.name, description: req.jsonSchema.description, parameters: req.jsonSchema.schema } }];
+      body.tool_choice = { type: "function", function: { name: req.jsonSchema.name } };
+    }
+    const d = await this.post("chat/completions", body);
+    const msg = d.choices?.[0]?.message ?? {};
+    let json: unknown;
+    const args = msg.tool_calls?.[0]?.function?.arguments;
+    if (args) { try { json = JSON.parse(args); } catch { /* leave undefined */ } }
+    return { text: msg.content ?? "", json, usage: { inputTokens: d.usage?.prompt_tokens ?? 0, outputTokens: d.usage?.completion_tokens ?? 0 }, info };
+  }
+}
+
+/** Provider choice: AI_PROVIDER=openai|anthropic forces one; otherwise whichever API key is present (Anthropic first). */
 let provider: AIProvider | null = null;
 export function getProvider(): AIProvider {
-  return (provider ??= new AnthropicProvider());
+  if (provider) return provider;
+  const pref = (process.env.AI_PROVIDER ?? "").toLowerCase();
+  const a = new AnthropicProvider(), o = new OpenAIProvider();
+  provider = pref === "openai" ? o : pref === "anthropic" ? a : a.available() ? a : o.available() ? o : a;
+  return provider;
 }
 export function aiAvailable() { return getProvider().available(); }
+export function aiProviderName(): string | null { const p = getProvider(); return p.available() ? p.id : null; }
 
 export function estimateCost(info: ModelInfo, inTok: number, outTok: number) {
   return (inTok * info.inPerM + outTok * info.outPerM) / 1_000_000;

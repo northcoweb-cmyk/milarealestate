@@ -15,7 +15,7 @@ export const GET = api(async ({ profile }) => {
     { id: "google_calendar", name: "Google Calendar", description: "Check conflicts and add or move events.", status: gStatus === "connected" && !has("calendar") ? "disconnected" : gStatus, detail: g?.account_label ?? undefined, services: ["calendar"] },
     { id: "google_contacts", name: "Google Contacts", description: "Import people you already know.", status: gStatus === "connected" && !has("contacts") ? "disconnected" : gStatus, services: ["contacts"] },
     { id: "google_sheets", name: "Google Sheets", description: "Import contacts and sign-in sheets from a spreadsheet.", status: gStatus === "connected" && !has("spreadsheets") ? "disconnected" : gStatus, services: ["sheets"] },
-    { id: "ai", name: "Mila Intelligence", description: "Understands free-form requests, reads photos & PDFs, live market research.", status: aiAvailable() ? "connected" : "not_configured", detail: aiAvailable() ? "Active on this server" : "The server owner needs to add an AI provider key." },
+    { id: "ai", name: "Mila Intelligence", description: "Understands free-form requests, reads photos & PDFs, live market research.", status: aiAvailable() ? "connected" : "not_configured", detail: aiAvailable() ? "Active on this server" : "The server owner needs to add an AI key (OpenAI or Anthropic)." },
     { id: "outlook", name: "Outlook (Mail & Calendar)", description: "Microsoft email and calendar.", status: "coming_soon" },
     { id: "apple_calendar", name: "Apple Calendar", description: "iCloud calendar.", status: "coming_soon" },
     { id: "sms", name: "Text messaging (SMS)", description: "Send and receive texts with clients.", status: "coming_soon" },
