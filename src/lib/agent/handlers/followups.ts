@@ -64,15 +64,22 @@ export async function handleAttachments(ctx: Ctx, docs: DocumentRow[], text: str
   ctx.steps.push("Reading your file");
   const prop = await lastOpenHouseProperty(ctx, text);
   const all: Candidate[] = [];
+  const problems: { name: string; error: string }[] = [];
   for (const d of docs) {
     const r = await candidatesFromDocument(ctx, d);
-    if ("error" in r) return reply(r.error, [{ type: "notice", tone: "warn", title: "I couldn't read that file", body: r.error, buttons: [{ label: "Upload a CSV instead", style: "secondary", href: "/contacts" }] }], "smalltalk");
-    all.push(...r.candidates);
+    if ("error" in r) problems.push({ name: d.name, error: r.error }); // one unreadable file must not block the others
+    else all.push(...r.candidates);
+  }
+  if (!all.length && problems.length) {
+    const msg = problems.length === 1 ? problems[0].error : problems.map((x) => `${x.name}: ${x.error}`).join("\n");
+    return reply(problems[0].error, [{ type: "notice", tone: "warn", title: "I couldn't read that file", body: msg, buttons: [{ label: "Upload a CSV instead", style: "secondary", href: "/contacts" }] }], "smalltalk");
   }
   ctx.steps.push("Matching against your contacts");
   const meta = { source: prop ? `Open house — ${prop.address}` : "Upload", tag: prop ? `open-house:${prop.address}` : undefined, address: prop?.address };
   const res = await importCandidates(ctx, all, { source: meta.source, tag: meta.tag, propertyAddress: prop?.address });
-  return importResultReply(ctx, res, meta);
+  const out = await importResultReply(ctx, res, meta);
+  if (problems.length) out.blocks.push({ type: "notice", tone: "warn", title: `${problems.length === 1 ? "One file" : `${problems.length} files`} couldn't be read`, body: problems.map((x) => `${x.name}: ${x.error}`).join("\n") });
+  return out;
 }
 
 export async function lastOpenHouseProperty(ctx: Ctx, text = ""): Promise<Property | null> {

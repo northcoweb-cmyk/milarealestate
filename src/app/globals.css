@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -9,6 +10,26 @@
   --color-accent: var(--accent);
   --color-glass: var(--glass);
   --color-line: var(--line);
+
+  /* shadcn-compatible tokens, mapped onto Mila's sky-aware variables so shadcn/21st components inherit day/night */
+  --color-background: var(--sky-mid);
+  --color-foreground: var(--ink);
+  --color-card: var(--glass-strong);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--glass-strong);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-ink);
+  --color-secondary: var(--glass);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: color-mix(in srgb, var(--ink) 7%, transparent);
+  --color-muted-foreground: var(--ink-faint);
+  --color-accent-foreground: var(--accent-ink);
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent);
 }
 
 /* ------------------------------------------------------------------ tokens
@@ -152,3 +173,14 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
 :root[data-reduce-motion="1"] *, :root[data-reduce-motion="1"] *::before, :root[data-reduce-motion="1"] *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+
+/* thin scrollbars for the chat input's textarea and attachment tray */
+.prompt-scrollbar { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.prompt-scrollbar:hover { scrollbar-color: color-mix(in srgb, var(--ink) 25%, transparent) transparent; }
+
+/* Selected state for choice tiles (unlayered so it beats .glass's shadow, which swallowed Tailwind rings) */
+.is-selected {
+  border-color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 24%, var(--glass-strong)) !important;
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow) !important;
+}

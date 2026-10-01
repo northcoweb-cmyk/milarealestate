@@ -7,7 +7,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, ChevronDown, ChevronUp, Plus, Sparkles } from "lucide-react";
 import type { ActionButton, Block, Message } from "@/lib/types";
 import { BlockView } from "./blocks";
-import { Composer, type Attachment } from "./composer";
+import { PromptInput } from "./ui/ai-chat-input";
+
+interface Attachment { id: string; name: string; kind: string }
 import { useApp } from "./app-context";
 import { InstallBanner } from "./install";
 import { Confirm, jfetch } from "./ui";
@@ -91,7 +93,28 @@ export function HomeClient({ data }: { data: HomeData }) {
     } finally { setBusy(false); setSteps([]); }
   }, [convId, router, toast, setBalance]);
 
-  const send = (text: string, files: Attachment[]) => run({ message: text, attachmentIds: files.map((f) => f.id) }, text, files);
+  // Upload any attached files first, then hand the message to Mila. Returns false (keeping the draft) if the upload fails.
+  const send = async (text: string, files: File[]): Promise<boolean> => {
+    let docs: Attachment[] = [];
+    if (files.length) {
+      setBusy(true); setChat(true);
+      try {
+        const fd = new FormData();
+        for (const f of files) fd.append("file", f);
+        const r = await fetch("/api/upload", { method: "POST", body: fd });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error ?? "Upload failed.");
+        docs = (j.documents as { id: string; name: string; kind: string }[]).map((d) => ({ id: d.id, name: d.name, kind: d.kind }));
+      } catch (e) {
+        setBusy(false);
+        toast(e instanceof Error ? e.message : "Upload failed.", "error");
+        return false;
+      }
+      setBusy(false);
+    }
+    void run({ message: text, attachmentIds: docs.map((d) => d.id) }, text, docs);
+    return true;
+  };
   const onAction = async (a: NonNullable<ActionButton["action"]>) => {
     if (a.type === "prompt") return run({ message: String(a.text) }, String(a.text));
     if (a.type === "approve_run") {
@@ -123,7 +146,7 @@ export function HomeClient({ data }: { data: HomeData }) {
               <p className="kicker mb-5">{data.dateLine}</p>
               <h1 className="display text-[clamp(44px,9vw,76px)]">{data.greeting}</h1>
               <p className="muted mt-3 text-[clamp(18px,3.4vw,24px)]">What do you need to get done?</p>
-              <div className="mt-9 w-full max-w-2xl"><Composer onSend={send} disabled={busy} large autoFocus={false} onError={(m) => toast(m, "error")} /></div>
+              <div className="mt-9 w-full max-w-2xl"><PromptInput onSubmit={send} disabled={busy} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>
               <div className="no-scrollbar mt-5 flex max-w-full gap-2 overflow-x-auto px-2 pb-1">
                 {SHORT.map((s, i) => <button key={s} className="chip shrink-0" onClick={() => run({ message: SUGGESTIONS[i] }, SUGGESTIONS[i])}>{s}</button>)}
               </div>
@@ -140,7 +163,7 @@ export function HomeClient({ data }: { data: HomeData }) {
                 {messages.map((m, i) => <MessageView key={m.id} last={i === messages.length - 1} m={m} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
                 {busy && <Thinking steps={steps} />}
               </div>
-              <div className="pt-2"><Composer onSend={send} disabled={busy} onError={(m) => toast(m, "error")} placeholder="Ask Mila anything…" /></div>
+              <div className="pt-2"><PromptInput onSubmit={send} disabled={busy} placeholder="Ask Mila anything…" onError={(m) => toast(m, "error")} /></div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -78,11 +78,11 @@ export function OnboardingFlow({ name, googleConfigured }: { name: string; googl
           </>}
           {step === 2 && <>
             <h1 className="h1 mb-1">Where are you in your career?</h1><p className="muted mb-5">This shapes the suggestions I make.</p>
-            <div className="space-y-2.5">{LEVELS.map((l) => <button key={l.v} onClick={() => set("experience", l.v)} className={clsx("glass flex w-full items-center gap-4 p-4 text-left transition", f.experience === l.v && "ring-2 ring-[var(--accent)]")} style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">{l.t}</p><p className="muted text-[14px]">{l.d}</p></div>{f.experience === l.v && <Check size={20} style={{ color: "var(--accent)" }} />}</button>)}</div>
+            <div className="space-y-2.5">{LEVELS.map((l) => <button key={l.v} onClick={() => set("experience", l.v)} className={clsx("glass flex w-full items-center gap-4 p-4 text-left transition", f.experience === l.v && "is-selected")} style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">{l.t}</p><p className="muted text-[14px]">{l.d}</p></div>{f.experience === l.v && <Check size={20} style={{ color: "var(--accent)" }} />}</button>)}</div>
           </>}
           {step === 3 && <>
             <h1 className="h1 mb-1">What do you mostly do?</h1><p className="muted mb-5">Pick the closest fit. You can change it any time.</p>
-            <div className="grid grid-cols-2 gap-2.5">{BIZ.map(([v, l]) => <button key={v} onClick={() => set("business_type", v)} className={clsx("glass p-4 text-left font-semibold transition", f.business_type === v && "ring-2 ring-[var(--accent)]")} style={{ borderRadius: 20 }}>{l}</button>)}</div>
+            <div className="grid grid-cols-2 gap-2.5">{BIZ.map(([v, l]) => <button key={v} onClick={() => set("business_type", v)} aria-pressed={f.business_type === v} className={clsx("glass flex items-center justify-between p-4 text-left font-semibold transition", f.business_type === v && "is-selected")} style={{ borderRadius: 20 }}>{l}{f.business_type === v && <Check size={18} style={{ color: "var(--accent)" }} />}</button>)}</div>
           </>}
           {step === 4 && <>
             <h1 className="h1 mb-1">Connect your tools</h1><p className="muted mb-5">Optional — you can do this later in More → Settings.</p>
