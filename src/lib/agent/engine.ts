@@ -12,14 +12,14 @@ import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
 import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale } from "./handlers/calendar";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
-import { debriefHandler, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
+import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler } from "./handlers/openhouse";
 import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { importCandidates } from "./ingest";
-import { parseLocation } from "./nlu";
+import { invalidTimeToken, parseLocation } from "./nlu";
 
 export type Action = { type: string; [k: string]: any };
 
@@ -112,7 +112,10 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   if (pend?.kind === "clarify" && text) {
     const d = detectIntent(text);
     if (d.intent === "general" || d.intent === "smalltalk" || text.split(/\s+/).length < 7) {
-      text = `${(pend.slots as { text: string }).text} ${text}`;
+      const orig = (pend.slots as { text: string }).text;
+      // a bare "12" / "2:30" answering "what time?" means "at 12" / "at 2:30"
+      const bareTime = pend.missing === "time" && /^\s*\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)?\s*$/i.test(text);
+      text = `${orig} ${bareTime ? "at " : ""}${text}`;
       ctx.state.pending = null;
     } else ctx.state.pending = null;
   } else if (pend && text && pend.kind !== "stale_comms") {
@@ -139,6 +142,10 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
 
 async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolean): Promise<HandlerOut> {
   ctx.steps.push("Understanding request");
+  if (["open_house", "create_event", "move_event", "reminder", "general"].includes(intent)) {
+    const bad = invalidTimeToken(text);
+    if (bad) return reply(`“${bad}” isn't a real time, so I haven't changed anything. What time did you mean? (for example 2 PM or 14:00)`, [], "smalltalk");
+  }
   switch (intent) {
     case "open_house": return openHouseHandler(ctx, text);
     case "move_event": return moveEventHandler(ctx, text, declared);
@@ -150,6 +157,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     case "debrief": return debriefHandler(ctx);
     case "find_contacts": return findContactsHandler(ctx, text);
     case "recall": return recallHandler(ctx, text);
+    case "delete_data": return deleteHandler(ctx, text);
     case "save_memory": return saveMemoryHandler(ctx, text);
     case "find_property": return findPropertyForContactHandler(ctx, text);
     case "signin_paste": return pastedListHandler(ctx, text);
@@ -174,12 +182,20 @@ async function marketHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   if (!location) return reply("Which market should I look at?");
   ctx.steps.push("Searching current market data");
   const r = await marketResearch(ctx, location, text);
-  if ("error" in r) return reply(r.error, [{ type: "notice", tone: "warn", title: "Live data isn't available", body: r.error, buttons: r.connect ? [{ label: "See connections", style: "secondary", href: "/settings/connections" }] : undefined }], "smalltalk");
+  if ("error" in r) return reply("I can't give you live market numbers right now.", [{ type: "notice", tone: "warn", title: "Live data isn't available", body: r.error, buttons: r.connect ? [{ label: "See connections", style: "secondary", href: "/settings/connections" }] : undefined }], "smalltalk");
   return reply(r.cached ? "Here's the latest I pulled (cached for a few hours)." : "Here's what I found.", [r.block], r.cached ? "chat_simple" : "smalltalk");
 }
 
 async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const ai = await llmChat(ctx, text, await recentHistory(ctx));
+  // Questions that mention someone in the user's own data are answered from that data first.
+  const known = await mentionedContacts(ctx, text);
+  if (known.length && !aiAvailable()) return recallHandler(ctx, text);
+  let extra = "";
+  if (known.length) {
+    const { contactFacts } = await import("./memory");
+    extra = (await Promise.all(known.slice(0, 3).map(async (c) => `${c.name} (${c.type}, ${c.status}${c.location ? ", " + c.location : ""}): ${(await contactFacts(ctx, c)).join("; ") || "no saved details"}`))).join("\n");
+  }
+  const ai = await llmChat(ctx, text, await recentHistory(ctx), extra);
   if (ai) return reply(ai, [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   return reply("I'm not sure how to do that yet. Here are things I can do right now:", [{
     type: "choice", title: "Try one of these",

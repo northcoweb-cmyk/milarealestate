@@ -34,7 +34,7 @@ export default function ContactsPage() {
               <Avatar name={c.name} color={c.avatar_color} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2"><p className="truncate font-semibold leading-tight">{c.name}</p></div>
-                <p className="faint truncate text-[13.5px]">{c.next_action ?? c.location ?? "—"}</p>
+                <p className="faint truncate text-[13.5px]">{c.location ?? c.next_action ?? "—"}</p>
               </div>
               <div className="hidden flex-col items-end gap-1 sm:flex"><Pill tone="accent">{TYPE_LABEL[c.type]}</Pill><span className="faint text-[12.5px]">{ago(c.last_contact_at)}</span></div>
               <div className="flex flex-col items-end gap-1 sm:hidden"><Pill tone="accent">{TYPE_LABEL[c.type]}</Pill><span className="faint text-[12px]">{STATUS_LABEL[c.status]}</span></div>

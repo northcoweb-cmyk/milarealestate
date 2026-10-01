@@ -272,16 +272,24 @@ export const TOOLS: Record<string, ToolDef> = {
   cancel_calendar_event: {
     name: "cancel_calendar_event", status: "Preparing to cancel",
     gate: async (ctx, a) => {
-      const ev = await ctx.store.get("calendar_events", ctx.userId, a.id);
+      const ids: string[] = a.ids ?? [a.id];
+      const evs = (await Promise.all(ids.map((id) => ctx.store.get("calendar_events", ctx.userId, id)))).filter(Boolean) as CalendarEvent[];
+      if (evs.length > 1) return { key: null, risk: "high", action: "calendar_cancel", title: `Cancel ${evs.length} events`, summary: evs.slice(0, 3).map((e) => `${e.title} (${fmtDayTime(e.start_at, ctx.tz)})`).join("; ") + (evs.length > 3 ? ` and ${evs.length - 3} more` : "") };
+      const ev = evs[0];
       return { key: null, risk: "high", action: "calendar_cancel", title: `Cancel ${ev?.title ?? "event"}`, summary: ev ? `${fmtDayTime(ev.start_at, ctx.tz)} will be cancelled.` : "Cancel event", contactId: ev?.contact_id };
     },
     run: async (ctx, a) => {
-      const ev = await ctx.store.get("calendar_events", ctx.userId, a.id);
-      if (!ev) return fail("not_found", "I couldn't find that event.");
-      if (ev.external_id) { try { await gcal.remove(ctx.userId, ev.external_id); } catch { /* keep local state authoritative */ } }
-      await ctx.store.update("calendar_events", ctx.userId, ev.id, { status: "cancelled" });
-      await logContactEvent(ctx, ev.contact_id, "calendar_cancelled", `${ev.title} cancelled`);
-      return ok({ event: ev });
+      const ids: string[] = a.ids ?? [a.id];
+      let n = 0;
+      for (const id of ids) {
+        const ev = await ctx.store.get("calendar_events", ctx.userId, id);
+        if (!ev || ev.status === "cancelled") continue;
+        if (ev.external_id) { try { await gcal.remove(ctx.userId, ev.external_id); } catch { /* keep local state authoritative */ } }
+        await ctx.store.update("calendar_events", ctx.userId, ev.id, { status: "cancelled" });
+        await logContactEvent(ctx, ev.contact_id, "calendar_cancelled", `${ev.title} cancelled`);
+        n++;
+      }
+      return n ? ok({ cancelled: n }) : fail("not_found", "I couldn't find those events.");
     },
   },
 

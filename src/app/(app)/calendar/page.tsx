@@ -55,14 +55,14 @@ export default function CalendarPage() {
         <ul className="space-y-3">
           {dayEvents.map((e) => (
             <li key={e.id} className="glass flex gap-4 p-4" style={{ borderRadius: 24 }}>
-              <div className="w-[86px] shrink-0"><p className="font-semibold leading-tight">{fmtRange(e.start_at, e.end_at, tz)}</p></div>
+              <div className="w-[78px] shrink-0"><p className="font-semibold leading-tight">{fmtRange(e.start_at, e.end_at, tz)}</p></div>
               <div className="min-w-0 flex-1 border-l-[3px] pl-4" style={{ borderColor: KIND_COLOR[e.kind] ?? KIND_COLOR.other }}>
                 <p className="font-semibold leading-snug">{e.title}</p>
                 {e.location && <p className="faint truncate text-[13.5px]">{e.location}</p>}
+                {e.property_id && <Link href={`/properties/${e.property_id}`} className="mt-0.5 inline-block text-[13px] font-semibold text-accent">View property</Link>}
                 <p className="faint mt-1 text-[12px]">{e.source === "google" ? "From Google Calendar" : e.synced_at ? "In Google Calendar" : "Mila calendar"}</p>
                 {overlaps(e) && <p className="mt-1 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}
               </div>
-              {e.property_id && <Link href={`/properties/${e.property_id}`} className="btn btn-quiet btn-sm self-start">Property</Link>}
             </li>
           ))}
         </ul>

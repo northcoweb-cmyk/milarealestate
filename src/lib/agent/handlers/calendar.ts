@@ -79,6 +79,7 @@ export async function moveEventHandler(ctx: Ctx, text: string, declared: boolean
 }
 
 export async function applyMove(ctx: Ctx, event: CalendarEvent, start: Date, end: Date, declared: boolean, ignoreConflicts: boolean): Promise<HandlerOut> {
+  if (!declared && start.getTime() < ctx.now.getTime() - 60_000) return reply(`${fmtDayTime(start, ctx.tz)} has already passed, so I haven't moved anything. What other time works?`);
   ctx.steps.push("Checking your calendar");
   const conflicts = ignoreConflicts ? [] : await eventConflicts(ctx, start.toISOString(), end.toISOString(), event.id);
   if (conflicts.length) {
@@ -211,6 +212,7 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   } else if (!w.time) {
     return reply(`What time on ${fmtDay(start, ctx.tz)}?`);
   }
+  if (start.getTime() < ctx.now.getTime() - 60_000) return reply(`That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
   const end = w.end ?? new Date(start.getTime() + durMin * 60_000);
   const addr = parseAddress(text);
@@ -310,6 +312,13 @@ export async function findTimeForEvent(ctx: Ctx, eventId: string, durationMin: n
 }
 
 export async function cancelEventHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  if (/\b(all|every|everything)\b/i.test(text)) {
+    const upcoming = (await upcomingEvents(ctx)).filter((e) => new Date(e.end_at).getTime() > ctx.now.getTime());
+    if (!upcoming.length) return reply("You don't have any upcoming events to cancel.");
+    const out = await invoke(ctx, "cancel_calendar_event", { ids: upcoming.map((e) => e.id) });
+    if (out.status === "needs_approval") return reply(`That would cancel ${upcoming.length} upcoming ${upcoming.length === 1 ? "event" : "events"}, so I need your OK.`, [{ type: "notice", tone: "warn", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: `Confirm — cancel ${upcoming.length}`, style: "primary", approvalId: out.approval.id }, { label: "Never mind", style: "quiet", action: { type: "noop" } }] }]);
+    return reply(out.result.ok ? "Cancelled." : out.result.message);
+  }
   const { event, candidates } = await resolveEvent(ctx, text);
   if (!event) return candidates.length ? reply("Which one should I cancel?", [{ type: "choice", title: "Which event?", buttons: candidates.slice(0, 5).map((e) => ({ label: `${e.title} · ${fmtDayTime(e.start_at, ctx.tz)}`, style: "secondary" as const, action: { type: "cancel_pick", eventId: e.id } })) }]) : reply("I don't see a matching event on your calendar.");
   return cancelEvent(ctx, event);

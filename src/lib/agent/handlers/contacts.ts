@@ -134,18 +134,42 @@ export async function findContactsHandler(ctx: Ctx, text: string): Promise<Handl
   return reply(`I found ${plural(list.length, "person", "people")}.`, [{ type: "contacts", title: "Contacts", contacts: list.slice(0, 12).map((c) => ({ id: c.id, name: c.name, type: label(c.type), reason: c.next_action ?? undefined, color: c.avatar_color })), buttons: [{ label: "Open Contacts", style: "secondary", href: "/contacts" }] }]);
 }
 
+/** Contacts named in free text (case-insensitive). Full-name matches win; otherwise unique first-name matches. */
+export async function mentionedContacts(ctx: Ctx, text: string): Promise<Contact[]> {
+  const t = text.toLowerCase();
+  const all = await ctx.store.list("contacts", ctx.userId);
+  const full = all.filter((c) => t.includes(c.name.toLowerCase()));
+  if (full.length) return full;
+  const words = new Set(t.split(/[^a-z0-9'’-]+/).filter((w) => w.length >= 3));
+  const stop = new Set(["who", "the", "and", "for", "all", "tell", "about", "what", "contact", "contacts", "buyer", "seller", "lead", "client", "test"]);
+  return all.filter((c) => { const f = c.name.toLowerCase().split(/\s+/)[0]; return words.has(f) && !stop.has(f); });
+}
+
 export async function recallHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const names = capitalisedNames(text);
-  for (const n of names) {
-    const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any;
-    if (r.ok) {
-      const c = r.data.contacts[0] as Contact;
-      const facts = await contactFacts(ctx, c);
-      return reply(facts.length ? `Here's what I have on ${c.name}:\n${facts.map((f) => `• ${f}`).join("\n")}` : `I don't have details on ${c.name} yet.`, [{ type: "contacts", title: c.name, contacts: [{ id: c.id, name: c.name, type: label(c.type), color: c.avatar_color }] }]);
-    }
+  const found = await mentionedContacts(ctx, text);
+  if (found.length === 1) {
+    const c = found[0];
+    const facts = await contactFacts(ctx, c);
+    const line = [label(c.type), label(c.status), c.location].filter(Boolean).join(" · ");
+    return reply(`${c.name} — ${line}.${facts.length ? `\n${facts.map((f) => `• ${f}`).join("\n")}` : "\nI don't have more details yet."}${c.next_action ? `\nNext: ${c.next_action}` : ""}`, [{ type: "contacts", title: c.name, contacts: [{ id: c.id, name: c.name, type: label(c.type), color: c.avatar_color }], buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] }]);
   }
+  if (found.length > 1) return reply(`I have ${found.length} people who match.`, [{ type: "contacts", title: "Which one?", contacts: found.slice(0, 8).map((c) => ({ id: c.id, name: c.name, type: label(c.type), reason: c.location ?? undefined, color: c.avatar_color })) }]);
+  const names = capitalisedNames(text);
+  if (names.length) return reply(`I don't have anyone named ${names[0]} in your contacts yet. Want me to add them?`);
   const mem = await listMemories(ctx, { scope: "user" });
   return reply(mem.length ? `Here's what I remember about how you work:\n${mem.slice(0, 8).map((m) => `• ${m.key}: ${m.value}`).join("\n")}` : "I don't have anything saved yet. Tell me things worth remembering — preferences, how you like emails written — and I'll keep them. You can review everything in More → Memory.");
+}
+
+export async function deleteHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  if (/\b(all|every|everyone|everything)\b/i.test(text)) {
+    return reply("I won't delete in bulk from chat — it's too easy to get wrong and can't be undone.", [{ type: "notice", tone: "warn", title: "Deleting is always one at a time", body: "To remove one person, say “delete” and their name. To wipe your whole account, use More → Privacy → Delete all my data.", buttons: [{ label: "Open Contacts", style: "secondary", href: "/contacts" }] }], "smalltalk");
+  }
+  const found = await mentionedContacts(ctx, text);
+  if (!found.length) return reply("Who should I delete? Give me their name.", [], "smalltalk");
+  if (found.length > 1) return reply("Which one?", [{ type: "choice", title: "Which contact?", buttons: found.slice(0, 5).map((c) => ({ label: c.name, style: "secondary" as const, action: { type: "prompt", text: `delete ${c.name}` } })) }], "smalltalk");
+  const out = await invoke(ctx, "delete_contact", { id: found[0].id });
+  if (out.status === "needs_approval") return reply("Deleting always needs your confirmation.", [{ type: "notice", tone: "warn", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: "Confirm delete", style: "primary", approvalId: out.approval.id }, { label: "Keep them", style: "quiet", action: { type: "noop" } }] }], "smalltalk");
+  return reply(out.result.ok ? "Deleted." : out.result.message, [], "smalltalk");
 }
 
 export async function saveMemoryHandler(ctx: Ctx, text: string): Promise<HandlerOut> {

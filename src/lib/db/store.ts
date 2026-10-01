@@ -56,7 +56,7 @@ class FileStore implements Store {
   private timer: NodeJS.Timeout | null = null;
   private readonly file: string;
 
-  constructor(dir: string) {
+  constructor(dir: string, private readonly persistToDisk = true) {
     fs.mkdirSync(dir, { recursive: true });
     this.file = path.join(dir, "db.json");
     this.data = { tables: {}, config: null };
@@ -70,7 +70,7 @@ class FileStore implements Store {
   }
 
   private persist() {
-    if (this.timer) return;
+    if (!this.persistToDisk || this.timer) return;
     this.timer = setTimeout(() => {
       this.timer = null;
       const tmp = this.file + ".tmp";
@@ -225,7 +225,7 @@ export function getStore(): Store {
 }
 
 /** For tests: swap in an isolated store. */
-export function createTestStore(dir: string) {
-  g.__milaStore = new FileStore(dir);
+export function createTestStore(dir: string, memoryOnly = false) {
+  g.__milaStore = new FileStore(dir, !memoryOnly);
   return g.__milaStore;
 }

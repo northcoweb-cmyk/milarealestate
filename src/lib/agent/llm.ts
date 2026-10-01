@@ -28,18 +28,18 @@ export async function llmClassify(ctx: Ctx, text: string): Promise<Detected | nu
   }
 }
 
-export async function llmChat(ctx: Ctx, text: string, history: { role: "user" | "assistant"; content: string }[]): Promise<string | null> {
+export async function llmChat(ctx: Ctx, text: string, history: { role: "user" | "assistant"; content: string }[], extraContext = ""): Promise<string | null> {
   if (!aiAvailable()) return null;
   try {
     const mem = (await listMemories(ctx, { scope: "user" })).slice(0, 8).map((m) => `- ${m.key}: ${m.value}`).join("\n");
     const r = await getProvider().complete({
       tier: text.length > 280 || /\b(plan|strategy|analy[sz]e|compare|negotiat|why|explain)\b/i.test(text) ? "standard" : "fast", maxTokens: 700,
-      system: `You are Mila, a personal work assistant for ${ctx.profile.full_name}, a US real-estate agent (${ctx.profile.location || "location not set"}; ${ctx.profile.experience} agent; focus: ${ctx.profile.business_type}). Be warm, concise and practical. Never fabricate MLS data, listing facts, prices or statistics. Real-estate law, tax, disclosure and licensing rules vary by state/locality: when relevant, say so and suggest verifying with their broker, state real-estate commission or a licensed attorney/CPA instead of stating them as certain. You can't take actions in this reply; if the user wants something done (calendar, contacts, emails, tasks), tell them to ask plainly and you'll do it. What you know about the user:\n${mem || "(nothing saved yet)"}`,
+      system: `You are Mila, a personal work assistant for ${ctx.profile.full_name}, a US real-estate agent (${ctx.profile.location || "location not set"}; ${ctx.profile.experience} agent; focus: ${ctx.profile.business_type}). Be warm, concise and practical. Never fabricate MLS data, listing facts, prices or statistics. Real-estate law, tax, disclosure and licensing rules vary by state/locality: when relevant, say so and suggest verifying with their broker, state real-estate commission or a licensed attorney/CPA instead of stating them as certain. You can't take actions in this reply; if the user wants something done (calendar, contacts, emails, tasks), tell them to ask plainly and you'll do it. Reply like a chat message: no greeting line, no email-style sign-off (never end with \"Best,\" or your name). What you know about the user:\n${mem || "(nothing saved yet)"}${extraContext ? `\n\nThe user's own records relevant to this question (treat as authoritative):\n${extraContext}` : ""}`,
       messages: [...history.slice(-6), { role: "user", content: text }],
     });
     ctx.usage.aiCalls++;
     await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: "chat", creditKey: "chat_simple", creditsOverride: 0, tier: "fast", provider: r.info.provider, model: r.info.model, inputUnits: r.usage.inputTokens, outputUnits: r.usage.outputTokens, estCostUsd: estimateCost(r.info, r.usage.inputTokens, r.usage.outputTokens) });
-    return r.text.trim() || null;
+    return r.text.trim().replace(/\n+\s*(?:best(?: regards)?|regards|cheers|sincerely|thanks|warmly),?\s*\n?\s*mila\.?\s*$/i, "").trim() || null;
   } catch {
     return null;
   }
