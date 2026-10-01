@@ -135,10 +135,8 @@ class FileStore implements Store {
 
 class SupabaseStore implements Store {
   readonly kind = "supabase" as const;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private sb: any;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(client: any) { this.sb = client; }
 
   private col(t: TableName) { return t === "profiles" ? "id" : "user_id"; }
@@ -213,7 +211,6 @@ export function getStore(): Store {
   if (g.__milaStore) return g.__milaStore;
   if (supabaseConfigured()) {
     // Lazy require keeps the client out of the bundle graph for local mode.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createClient } = require("@supabase/supabase-js");
     const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -226,7 +223,7 @@ export function getStore(): Store {
 }
 
 /** For tests: swap in an isolated store. */
-export function useTestStore(dir: string) {
+export function createTestStore(dir: string) {
   g.__milaStore = new FileStore(dir);
   return g.__milaStore;
 }

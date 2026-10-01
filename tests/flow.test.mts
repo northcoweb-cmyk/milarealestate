@@ -11,8 +11,8 @@ delete process.env.ANTHROPIC_API_KEY;
 // Thursday Oct 1 2026, 9:00 AM ET
 (globalThis as any).__milaNow = new Date("2026-10-01T13:00:00Z");
 
-const { useTestStore } = await import("../src/lib/db/store");
-const store = useTestStore(dir);
+const { createTestStore } = await import("../src/lib/db/store");
+const store = createTestStore(dir);
 const { createProfile } = await import("../src/lib/users");
 const { seedDemoData } = await import("../src/lib/db/seed");
 const { handleTurn } = await import("../src/lib/agent/engine");
