@@ -189,7 +189,7 @@ export function SlidePreview({ slide, index, total }: { slide: { headline: strin
         <p className="display text-[24px] leading-[1.05]">{slide.headline}</p>
         {slide.sub && <p className="mt-1 text-[12px] opacity-90">{slide.sub}</p>}
       </div>
-      {!slide.image_id && slide.role === "hero" && <p className="absolute left-4 top-4 rounded-full bg-black/25 px-2.5 py-1 text-[10px] font-semibold backdrop-blur">Add photos to finish</p>}
+      {!slide.image_id && slide.role === "hero" && <p className="absolute left-4 top-4 rounded-full bg-black/25 px-2.5 py-1 text-[10px] font-semibold">Add photos to finish</p>}
       <p className="absolute right-3 top-3 text-[10px] font-semibold opacity-80">{index + 1}/{total}</p>
     </div>
   );

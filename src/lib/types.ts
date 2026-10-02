@@ -44,7 +44,7 @@ export interface NotificationPrefs {
 export interface ProfileSettings {
   autonomy: Autonomy;
   notifications: NotificationPrefs;
-  appearance: { theme: "auto" | "day" | "night"; reduce_motion: boolean };
+  appearance: { theme: "auto" | "day" | "night"; reduce_motion: boolean; animated_sky?: boolean };
   privacy: { store_conversations: boolean };
 }
 

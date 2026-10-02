@@ -26,7 +26,7 @@ export interface LiquidGlassCardProps extends Omit<React.HTMLAttributes<HTMLDivE
   glowIntensity?: Level;
   borderRadius?: string;
   /** "auto": only on desktop Chromium. */
-  distortion?: "auto" | "on" | "off";
+  distortion?: "auto" | "on" | "off"; // default "off": the distortion + blur layer is costly; opt in per card
   /** Tint strength under the content (keeps text legible on bright skies). */
   tint?: "light" | "regular" | "strong";
 }
@@ -80,7 +80,7 @@ function useDistortion(mode: "auto" | "on" | "off") {
 }
 
 export const LiquidGlassCard = React.forwardRef<HTMLDivElement, LiquidGlassCardProps>(function LiquidGlassCard(
-  { children, className, draggable = false, interactive = false, blurIntensity = "xl", shadowIntensity = "sm", glowIntensity = "sm", borderRadius = "28px", distortion = "auto", tint = "regular", style, ...props },
+  { children, className, draggable = false, interactive = false, blurIntensity = "xl", shadowIntensity = "sm", glowIntensity = "sm", borderRadius = "28px", distortion = "off", tint = "regular", style, ...props },
   ref,
 ) {
   const distort = useDistortion(distortion);
@@ -95,7 +95,7 @@ export const LiquidGlassCard = React.forwardRef<HTMLDivElement, LiquidGlassCardP
   return (
     <Comp ref={ref} className={cn("relative text-ink", draggable && "cursor-grab active:cursor-grabbing", className)} style={{ borderRadius, ...style }} {...motionProps} {...props}>
       {/* bend layer: backdrop blur (+ optional liquid distortion) */}
-      <div aria-hidden className={cn("pointer-events-none absolute inset-0 z-0", blur[blurIntensity])} style={{ borderRadius, filter: distort ? "url(#mila-liquid-glass)" : undefined }} />
+      {distort && <div aria-hidden className={cn("pointer-events-none absolute inset-0 z-0", blur[blurIntensity])} style={{ borderRadius, filter: "url(#mila-liquid-glass)" }} />}
       {/* tint: guarantees legible contrast for the content */}
       <div aria-hidden className="pointer-events-none absolute inset-0 z-[5]" style={{ borderRadius, background: tints[tint], border: "1px solid var(--glass-border)" }} />
       {/* face: drop shadow + glow */}

@@ -63,7 +63,6 @@ export function PropertyFlipCard({ data, className }: { data: ShowingCardData; c
       className={cn("flip h-[480px] w-[308px] max-w-full cursor-pointer select-none rounded-[28px]", className)}
       data-flipped={flipped}
       onClick={toggle}
-      style={{ filter: "drop-shadow(0 18px 30px rgba(20,30,80,.22))" }}
     >
       {/* keyboard users: a real button that flips the card */}
       <button type="button" onClick={(e) => { e.stopPropagation(); toggle(); }} aria-pressed={flipped}
@@ -87,9 +86,9 @@ export function PropertyFlipCard({ data, className }: { data: ShowingCardData; c
                 </div>
               )}
               {photo && <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(8,12,40,.18) 0%, transparent 35%, rgba(8,12,40,.55) 100%)" }} />}
-              <Badge className="absolute bottom-3 left-3 border-white/30 bg-black/45 px-3 py-1.5 text-[12.5px] font-semibold text-white backdrop-blur-md hover:bg-black/45">{data.kind === "open_house" ? "Open house" : "Showing"} · {when}</Badge>
+              <Badge className="absolute bottom-3 left-3 border-white/30 bg-black/45 px-3 py-1.5 text-[12.5px] font-semibold text-white-md hover:bg-black/45">{data.kind === "open_house" ? "Open house" : "Showing"} · {when}</Badge>
               {p.price != null && <Badge className="absolute right-3 top-3 border-transparent bg-white px-3.5 py-1.5 text-[14px] font-semibold text-[#0f2a5f] shadow-md hover:bg-white">{money(p.price)}</Badge>}
-              {isStreet && <span className="absolute bottom-3 right-3 rounded-full bg-black/45 px-2 py-0.5 text-[10.5px] font-medium text-white/90 backdrop-blur-md">Street View</span>}
+              {isStreet && <span className="absolute bottom-3 right-3 rounded-full bg-black/45 px-2 py-0.5 text-[10.5px] font-medium text-white/90-md">Street View</span>}
               {data.images.length > 1 && <span className="absolute right-3 top-3 hidden" />}
             </div>
 

@@ -144,7 +144,7 @@ export function HomeClient({ data }: { data: HomeData }) {
     <main className="xl:grid xl:grid-cols-[minmax(0,1fr)_410px] xl:gap-8 xl:pr-8">
       {/* ------------------------------------------------------- hero / chat */}
       <section className="relative mx-auto flex h-[100svh] w-full max-w-3xl snap-start flex-col px-4 pb-[calc(var(--nav-h)+24px)] pt-[max(env(safe-area-inset-top),20px)] lg:pb-8 xl:max-w-none xl:px-6">
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence initial={false}>
           {!chat ? (
             <motion.div key="idle" className="flex flex-1 flex-col items-center justify-center text-center" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.45, ease: [0.2, 0.7, 0.2, 1] }}>
               <p className="kicker mb-5">{data.dateLine}</p>
@@ -173,7 +173,7 @@ export function HomeClient({ data }: { data: HomeData }) {
         </AnimatePresence>
         {!chat && (
           <button onClick={toToday} className="absolute inset-x-0 bottom-[calc(var(--nav-h)+4px)] mx-auto flex w-fit flex-col items-center gap-0.5 text-[12px] font-semibold tracking-wide text-ink-faint xl:hidden" aria-label="See today">
-            <ChevronUp size={18} className="animate-bounce" />TODAY
+            <ChevronUp size={18} />TODAY
           </button>
         )}
       </section>

@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Check, MapPin } from "lucide-react";
 import clsx from "clsx";
 import { jfetch } from "@/components/ui";
-import { InstallSteps, useInstall } from "@/components/install";
+import { InstallSteps, markInstallSeen, useInstall } from "@/components/install";
 import { Orb } from "@/components/orb";
 
 const ROLES = ["Agent", "Broker", "Team lead", "Assistant"];
@@ -28,6 +28,7 @@ export function OnboardingFlow({ name, googleConfigured }: { name: string; googl
   const install = useInstall();
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   const total = 6;
+  useEffect(() => { if (step === 5) markInstallSeen(); }, [step]);
 
   function locate() {
     if (!navigator.geolocation) return setError("Location isn't available in this browser.");

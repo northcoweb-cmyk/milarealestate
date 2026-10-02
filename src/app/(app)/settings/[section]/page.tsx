@@ -9,7 +9,6 @@ import { Segmented, Sheet, Skeleton, Toggle, jfetch, Pill } from "@/components/u
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
-import { InstallSteps, useInstall } from "@/components/install";
 
 const TITLES: Record<string, string> = { profile: "Profile", business: "Business", connections: "Connections", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
 
@@ -199,6 +198,7 @@ function Appearance() {
       <Card title="Sky" sub="By default, Mila's background follows your real sunrise and sunset.">
         <Segmented value={a.theme} onChange={(v) => { const n = { ...a, theme: v }; setA(n); save({ settings: { appearance: n } }); }} options={[{ value: "auto", label: "Follow the sun" }, { value: "day", label: "Always day" }, { value: "night", label: "Always night" }]} />
       </Card>
+      <Card title="Animated clouds" sub="Off by default so Mila stays fast and easy on your battery."><div className="flex items-center gap-4"><div className="flex-1"><p className="font-semibold">Move the clouds</p><p className="muted text-[14px]">The sky still follows your sunrise and sunset either way. Turning this on animates the clouds, which uses more battery.</p></div><Toggle label="Animated clouds" checked={a.animated_sky === true} onChange={(v) => { const n = { ...a, animated_sky: v }; setA(n); save({ settings: { appearance: n } }); }} /></div></Card>
       <Card title="Motion"><div className="flex items-center gap-4"><div className="flex-1"><p className="font-semibold">Reduce motion</p><p className="muted text-[14px]">Calms clouds, birds and transitions. Mila also respects your device's setting.</p></div><Toggle label="Reduce motion" checked={a.reduce_motion} onChange={(v) => { const n = { ...a, reduce_motion: v }; setA(n); save({ settings: { appearance: n } }); }} /></div></Card>
       <LocationCard />
     </>
@@ -234,14 +234,13 @@ function Privacy() {
 }
 
 function Security() {
-  const router = useRouter(); const install = useInstall();
+  const router = useRouter();
   return (
     <>
       <Card title="Account protection" sub="How Mila keeps your business safe.">
         <ul className="muted space-y-2 text-[14.5px]"><li>• Every record is tied to your account; other users can never read it.</li><li>• Connection tokens are encrypted on the server and never sent to your browser.</li><li>• Consequential actions wait for your approval unless you say otherwise.</li><li>• Deleting data always asks first.</li></ul>
       </Card>
       <Card><button className="btn" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); router.replace("/welcome"); router.refresh(); }}>Sign out</button></Card>
-      {!install.standalone && <Card title="Add to Home Screen"><InstallSteps platform={install.platform} /></Card>}
     </>
   );
 }

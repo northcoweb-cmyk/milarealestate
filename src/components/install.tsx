@@ -26,20 +26,35 @@ export function InstallSteps({ platform }: { platform: "ios" | "android" | "desk
   return <p className="muted text-[14.5px]">In Chrome or Edge, click the install icon at the right of the address bar — or open the menu and choose <b>Install Mila</b>.</p>;
 }
 
+const SEEN_KEY = "mila_install_seen";
+
+/** Marks the install prompt as shown, so it never nags again (it's always available at the bottom of More). */
+export function markInstallSeen() {
+  try { localStorage.setItem(SEEN_KEY, "1"); } catch { /* storage unavailable */ }
+}
+
+/**
+ * First-run only: shown the first time someone lands on Home (unless onboarding already showed the steps
+ * or the app is already installed). After that it never reappears — More → "Add to Home Screen" is the permanent home for it.
+ */
 export function InstallBanner() {
   const { deferred, standalone, platform, install } = useInstall();
-  const [hidden, setHidden] = useState(true);
+  const [show, setShow] = useState(false);
   const [open, setOpen] = useState(false);
-  useEffect(() => { try { setHidden(localStorage.getItem("mila_install_dismissed") === "1"); } catch { setHidden(false); } }, []);
-  if (standalone || hidden) return null;
-  const dismiss = () => { setHidden(true); try { localStorage.setItem("mila_install_dismissed", "1"); } catch { /* ignore */ } };
+  useEffect(() => {
+    let seen = false;
+    try { seen = localStorage.getItem(SEEN_KEY) === "1"; } catch { /* treat as unseen */ }
+    if (!seen) { setShow(true); markInstallSeen(); } // counts as shown the moment it appears
+  }, []);
+  if (standalone || !show) return null;
   return (
     <div className="glass rise relative mx-auto w-full max-w-xl px-5 py-4 text-left" style={{ borderRadius: 24 }}>
-      <button className="btn btn-quiet btn-sm absolute right-2 top-2 !px-2" onClick={dismiss} aria-label="Dismiss"><X size={16} /></button>
+      <button className="btn btn-quiet btn-sm absolute right-2 top-2 !px-2" onClick={() => setShow(false)} aria-label="Dismiss"><X size={16} /></button>
       <p className="font-semibold">Add Mila to your Home Screen for the full experience.</p>
       {open ? <div className="mt-2"><InstallSteps platform={platform} /></div> : (
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex items-center gap-3">
           {deferred ? <button className="btn btn-primary btn-sm" onClick={install}><Download size={16} />Install</button> : <button className="btn btn-sm" onClick={() => setOpen(true)}>Show me how</button>}
+          <span className="faint text-[12.5px]">You can find this later in More.</span>
         </div>
       )}
     </div>

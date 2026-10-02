@@ -25,7 +25,7 @@ export function defaultSettings(): ProfileSettings {
       channels: { email: true, browser: true, pwa: true, calendar: true, sms: false },
       topics: { daily_summary: true, task_reminders: true, approval_reminders: true, lead_alerts: true, calendar_conflicts: true, follow_up_reminders: true },
     },
-    appearance: { theme: "auto", reduce_motion: false },
+    appearance: { theme: "auto", reduce_motion: false, animated_sky: false },
     privacy: { store_conversations: true },
   };
 }

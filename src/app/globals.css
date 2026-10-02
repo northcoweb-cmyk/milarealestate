@@ -42,8 +42,8 @@
   --accent: #4a6cf7;
   --accent-2: #7a5cf2;
   --accent-ink: #ffffff;
-  --glass: rgba(255, 255, 255, 0.56);
-  --glass-strong: rgba(255, 255, 255, 0.8);
+  --glass: rgba(255, 255, 255, 0.66);
+  --glass-strong: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(255, 255, 255, 0.7);
   --line: rgba(22, 33, 62, 0.09);
   --shadow: 0 10px 40px -12px rgba(36, 56, 110, 0.22), 0 2px 8px -2px rgba(36, 56, 110, 0.08);
@@ -67,8 +67,8 @@
   --accent: #8aa2ff;
   --accent-2: #a68cff;
   --accent-ink: #0b1030;
-  --glass: rgba(26, 33, 78, 0.5);
-  --glass-strong: rgba(30, 38, 90, 0.72);
+  --glass: rgba(26, 33, 78, 0.62);
+  --glass-strong: rgba(30, 38, 90, 0.82);
   --glass-border: rgba(255, 255, 255, 0.14);
   --line: rgba(255, 255, 255, 0.1);
   --shadow: 0 12px 44px -14px rgba(0, 0, 0, 0.55), 0 2px 8px -2px rgba(0, 0, 0, 0.3);
@@ -96,17 +96,11 @@ body {
 /* ----------------------------------------------------------------- surfaces */
 .glass {
   background: var(--glass); border: 1px solid var(--glass-border); box-shadow: inset 2px 2px 2px 0 var(--edge-hi), inset -2px -2px 2px 0 var(--edge-lo), var(--shadow);
-  -webkit-backdrop-filter: blur(28px) saturate(1.5); backdrop-filter: blur(28px) saturate(1.5);
   border-radius: 28px;
 }
 .glass-strong {
   background: var(--glass-strong); border: 1px solid var(--glass-border); box-shadow: inset 2px 2px 2px 0 var(--edge-hi), inset -2px -2px 2px 0 var(--edge-lo), var(--shadow);
-  -webkit-backdrop-filter: blur(36px) saturate(1.6); backdrop-filter: blur(36px) saturate(1.6);
   border-radius: 28px;
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass { background: color-mix(in srgb, var(--glass-strong) 92%, var(--sky-mid)); }
-  .glass-strong { background: color-mix(in srgb, var(--glass-strong) 96%, var(--sky-mid)); }
 }
 .hairline { border-top: 1px solid var(--line); }
 
@@ -134,7 +128,7 @@ body {
 .chip {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px;
   background: var(--glass); border: 1px solid var(--glass-border); color: var(--ink-soft); cursor: pointer;
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); transition: transform .15s, background .2s;
+  transition: transform .15s, background .2s;
 }
 .chip:hover { background: var(--glass-strong); }
 .chip:active { transform: scale(.97); }
@@ -193,9 +187,9 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 
 /* ---------------------------------------------------------------- flip cards (touch-first)
    Tap/click toggles data-flipped. Faces use -webkit- prefixes for iOS Safari. Reduced motion: crossfade. */
-.flip { perspective: 1800px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .22s cubic-bezier(.3,.7,.4,1); }
+.flip { box-shadow: 0 16px 28px -10px rgba(20,30,80,.28); border-radius: 28px; perspective: 1800px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .22s cubic-bezier(.3,.7,.4,1); }
 .flip:active { transform: scale(.985); }
-.flip-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform .8s cubic-bezier(.22,.9,.28,1.02); will-change: transform; }
+.flip-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform .8s cubic-bezier(.22,.9,.28,1.02); }
 .flip[data-flipped="true"] .flip-inner { transform: rotateY(180deg); }
 .flip-face { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: inherit; overflow: hidden; }
 .flip-back { transform: rotateY(180deg); }

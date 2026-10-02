@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const approvals = tasks.filter((t) => t.kind === "approval" && t.status === "open").length;
   return (
     <AppProvider initial={{ profile, admin: isAdmin(profile), credits: { balance: credits.balance, allowance: credits.allowance, resetsAt: credits.resetsAt }, capabilities: { ai: aiAvailable(), google: googleConfigured() } }}>
-      <Sky initialNow={new Date().toISOString()} tz={profile.timezone} lat={profile.lat} lng={profile.lng} theme={profile.settings.appearance.theme} reduceMotion={profile.settings.appearance.reduce_motion} />
+      <Sky initialNow={new Date().toISOString()} tz={profile.timezone} lat={profile.lat} lng={profile.lng} theme={profile.settings.appearance.theme} reduceMotion={profile.settings.appearance.reduce_motion} animated={profile.settings.appearance.animated_sky === true} />
       <LiquidGlassDefs />
       <Shell approvals={approvals}>{children}</Shell>
     </AppProvider>

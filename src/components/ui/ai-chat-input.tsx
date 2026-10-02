@@ -116,7 +116,7 @@ function AttachmentGalleryModal({ attachment, originRect, onClose }: { attachmen
 
   return (
     <div className="fixed inset-0 z-[100]" onClick={close} role="dialog" aria-modal="true" aria-label={`Preview of ${attachment.name}`}>
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-md transition-opacity duration-300" style={{ opacity: open ? 1 : 0 }} />
+      <div className="absolute inset-0 bg-black/45-md transition-opacity duration-300" style={{ opacity: open ? 1 : 0 }} />
       <div
         className="fixed overflow-hidden bg-muted"
         style={{ top: g.top, left: g.left, width: g.width, height: g.height, borderRadius: g.radius, boxShadow: open ? "0 24px 60px -12px rgb(0 0 0 / 0.45)" : "none", transition: `top ${dur} ${ease}, left ${dur} ${ease}, width ${dur} ${ease}, height ${dur} ${ease}, border-radius ${dur} ${ease}` }}
@@ -126,7 +126,7 @@ function AttachmentGalleryModal({ attachment, originRect, onClose }: { attachmen
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={attachment.url ?? ""} alt={attachment.name} className="size-full object-cover" draggable={false} />
       </div>
-      <button type="button" onClick={close} aria-label="Close preview" className={cn("fixed right-4 top-4 flex size-10 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md backdrop-blur transition duration-300", open ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0")}>
+      <button type="button" onClick={close} aria-label="Close preview" className={cn("fixed right-4 top-4 flex size-10 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md transition duration-300", open ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0")}>
         <X size={18} />
       </button>
     </div>
@@ -224,7 +224,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
 
         {/* attachment tray: slides up from behind the input */}
         <div aria-hidden={!hasFiles} className="relative z-0 w-full overflow-hidden" style={{ height: hasFiles ? 68 : 0, transition: `height 0.4s ${SPRING}` }}>
-          <div className="prompt-scrollbar absolute inset-x-5 bottom-[-8px] flex h-[68px] items-start gap-2.5 overflow-x-auto rounded-t-2xl border border-b-0 border-border bg-muted px-2.5 pb-1 pt-2.5 backdrop-blur-xl"
+          <div className="prompt-scrollbar absolute inset-x-5 bottom-[-8px] flex h-[68px] items-start gap-2.5 overflow-x-auto rounded-t-2xl border border-b-0 border-border bg-muted px-2.5 pb-1 pt-2.5-xl"
             style={{ transform: hasFiles ? "translateY(0)" : "translateY(100%)", opacity: hasFiles ? 1 : 0, transition: `transform 0.4s ${SPRING}, opacity 0.3s ease-out` }}>
             {attachments.map((a, i) => <AttachmentThumb key={a.id} attachment={a} index={i} onRemove={remove} onOpen={(at, rect) => setActive({ a: at, rect })} />)}
           </div>
@@ -234,7 +234,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
         <div
           onMouseDown={(e) => { if ((e.target as HTMLElement).closest("button")) return; if (e.target !== ta.current) { e.preventDefault(); ta.current?.focus(); } }}
           className={cn(
-            "relative z-10 flex w-full flex-col border border-border bg-card text-foreground backdrop-blur-2xl transition-[box-shadow,border-color] focus-within:border-ring/50 focus-within:ring-4 focus-within:ring-ring/15",
+            "relative z-10 flex w-full flex-col border border-border bg-card text-foreground-2xl transition-[box-shadow,border-color] focus-within:border-ring/50 focus-within:ring-4 focus-within:ring-ring/15",
             lg ? "gap-1 rounded-[32px] px-3 pb-2.5 pt-3.5" : "gap-0.5 rounded-[28px] px-2.5 pb-2 pt-3",
             dragging && "border-ring ring-4 ring-ring/25",
           )}

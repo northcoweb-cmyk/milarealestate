@@ -50,7 +50,7 @@ export default function MorePage() {
         {admin && <Row href="/admin" icon={Gauge} title="Owner dashboard" sub="Credit costs, pricing and margins" />}
       </Group>
 
-      {!install.standalone && <section className="glass mb-7 p-5"><p className="mb-1 flex items-center gap-2 font-semibold"><Smartphone size={18} />Add Mila to your Home Screen</p><p className="muted mb-3 text-[14px]">For the full experience.</p>{install.deferred ? <button className="btn btn-primary btn-sm" onClick={install.install}>Install</button> : <InstallSteps platform={install.platform} />}</section>}
+      {!install.standalone && <section id="install" className="glass mb-5 p-5"><p className="mb-1 flex items-center gap-2 font-semibold"><Smartphone size={18} />Add Mila to your Home Screen</p><p className="muted mb-3 text-[14px]">For the full experience — it opens like a real app.</p>{install.deferred ? <button className="btn btn-primary btn-sm" onClick={install.install}>Install</button> : <InstallSteps platform={install.platform} />}</section>}
 
       <button className="btn w-full" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); router.replace("/welcome"); router.refresh(); }}><LogOut size={18} />Sign out</button>
       {profile.is_demo && <p className="faint mt-4 text-center text-[12.5px]">You're using fictional demo data.</p>}

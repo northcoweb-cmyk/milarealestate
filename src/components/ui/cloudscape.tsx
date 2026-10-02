@@ -151,9 +151,11 @@ const Cloudscape = ({
   // Latest props, read inside the render loop (so changing them never re-creates the GL context).
   const live = useRef({ colorBottom, colorMid, colorTop, skyMid: skyMid ?? colorBottom, skyTop: skyTop ?? skyMid ?? colorBottom, coverage, speed, paused, fps, renderScale });
   const dirty = useRef(true);
+  const kick = useRef<() => void>(() => {});
   useEffect(() => {
     live.current = { colorBottom, colorMid, colorTop, skyMid: skyMid ?? colorBottom, skyTop: skyTop ?? skyMid ?? colorBottom, coverage, speed, paused, fps, renderScale };
     dirty.current = true;
+    kick.current();
   }, [colorBottom, colorMid, colorTop, skyMid, skyTop, coverage, speed, paused, fps, renderScale]);
 
   useEffect(() => {
@@ -212,6 +214,7 @@ const Cloudscape = ({
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform2f(uRes, canvas.width, canvas.height);
       dirty.current = true;
+      kick.current();
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -247,31 +250,36 @@ const Cloudscape = ({
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
+    // Still mode: no animation loop at all. We draw one frame whenever something changes (colours, size).
+    // Animated mode (opt-in): capped-fps loop that pauses while the tab is hidden.
     const loop = (now: number) => {
+      raf = 0;
       if (!running) return;
-      raf = requestAnimationFrame(loop);
       const L = live.current;
-      if (document.hidden || lostCtx) return;
       if (L.paused) {
-        if (!dirty.current) return;
-        dirty.current = false;
-        draw(now);
-        return;
+        if (dirty.current && !document.hidden && !lostCtx) { dirty.current = false; draw(now); }
+        return; // no reschedule: zero cost while nothing changes
       }
+      raf = requestAnimationFrame(loop);
+      if (document.hidden || lostCtx) return;
       if (now - last < 1000 / Math.max(L.fps, 5)) return;
       last = now;
       draw(now);
     };
-    raf = requestAnimationFrame(loop);
+    kick.current = () => { if (!raf && running) raf = requestAnimationFrame(loop); };
+    kick.current();
+    const onVis = () => { if (!document.hidden) { dirty.current = true; kick.current(); } };
+    document.addEventListener("visibilitychange", onVis);
 
     const onLost = (e: Event) => { e.preventDefault(); lostCtx = true; };
-    const onRestored = () => { lostCtx = false; };
+    const onRestored = () => { lostCtx = false; dirty.current = true; kick.current(); };
     canvas.addEventListener("webglcontextlost", onLost);
     canvas.addEventListener("webglcontextrestored", onRestored);
 
     return () => {
       running = false;
       cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVis);
       ro.disconnect();
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
