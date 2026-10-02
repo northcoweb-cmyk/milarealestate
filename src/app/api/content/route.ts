@@ -8,7 +8,9 @@ import type { SocialPlatform } from "@/lib/types";
 
 export const GET = api(async ({ profile, url }) => {
   const ctx = await buildCtx(profile);
-  const [posts, props] = await Promise.all([ctx.store.list("social_posts", profile.id), ctx.store.list("properties", profile.id)]);
+  const [posts, props, imgs] = await Promise.all([ctx.store.list("social_posts", profile.id), ctx.store.list("properties", profile.id), ctx.store.list("property_images", profile.id)]);
+  const photos: Record<string, string[]> = {};
+  for (const i of imgs.sort((a, b) => a.position - b.position)) if (i.url.startsWith("/api/files/")) (photos[i.property_id] ??= []).push(i.url);
   const q = url.searchParams.get("q")?.toLowerCase().trim();
   const group = (s: string) => (s === "draft" || s === "pending_approval" || s === "failed" ? "drafts" : s === "approved_unpublished" ? "ready" : s === "scheduled" ? "scheduled" : s === "published" ? "posted" : "archived");
   const counts = { drafts: 0, ready: 0, scheduled: 0, posted: 0, archived: 0 };
@@ -17,7 +19,7 @@ export const GET = api(async ({ profile, url }) => {
   const list = posts
     .filter((p) => (!status || group(p.status) === status) && (!platform || p.platform === platform) && (!property || p.property_id === property) && (!q || p.caption.toLowerCase().includes(q)))
     .sort((a, b) => (a.scheduled_for ?? a.created_at).localeCompare(b.scheduled_for ?? b.created_at) * (status === "posted" || status === "archived" ? -1 : 1));
-  return { posts: list, counts, properties: props.map((p) => ({ id: p.id, address: p.address, verified: p.verified })), ai: aiAvailable(), categories: CATEGORIES, platforms: PLATFORMS.map(({ key, label, limit }) => ({ key, label, limit })), tz: profile.timezone };
+  return { posts: list, photos, counts, properties: props.map((p) => ({ id: p.id, address: p.address, verified: p.verified })), ai: aiAvailable(), categories: CATEGORIES, platforms: PLATFORMS.map(({ key, label, limit }) => ({ key, label, limit })), tz: profile.timezone };
 });
 
 export const POST = api(async ({ profile, req }) => {

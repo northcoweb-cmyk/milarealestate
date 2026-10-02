@@ -4,6 +4,7 @@ import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../t
 import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types";
 import type { Ctx } from "../agent/context";
 import { polish, verifiedFacts } from "../agent/comms";
+import { pickTheme } from "./design";
 import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, platformLimit, variantCount } from "./templates";
 
 /** Content engine: creates, schedules and manages social posts. Nothing here publishes externally. */
@@ -11,14 +12,16 @@ import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, platfor
 export const platformLabel = (p: SocialPlatform) => PLATFORMS.find((x) => x.key === p)?.label ?? p;
 const nowIso = () => new Date().toISOString();
 
-async function imageIds(ctx: Ctx, propertyId: string | null): Promise<string[]> {
+/** The agent's own property photos (same-origin URLs only, so they can be exported without tainting the canvas). */
+async function imageUrls(ctx: Ctx, propertyId: string | null): Promise<string[]> {
   if (!propertyId) return [];
-  return (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === propertyId).sort((a, b) => a.position - b.position).map((i) => i.id);
+  return (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === propertyId && i.url.startsWith("/api/files/")).sort((a, b) => a.position - b.position).map((i) => i.url);
 }
 
-function withImages(slides: SocialSlide[], ids: string[]): SocialSlide[] {
-  if (!ids.length) return slides;
-  return slides.map((s, i) => ({ ...s, image_id: s.role === "hero" ? ids[0] : ids[(i) % ids.length] }));
+/** Gives every slide a palette and (for listings) a real photo. */
+function withDesign(slides: SocialSlide[], urls: string[], category: string, variant: number): SocialSlide[] {
+  const theme = pickTheme(category, variant);
+  return slides.map((s, i) => ({ ...s, theme, image_url: urls.length ? (s.role === "hero" ? urls[0] : urls[i % urls.length]) : null }));
 }
 
 export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; scheduledFor?: string | null; variantSeed?: number }
@@ -42,7 +45,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
     const ev = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.property_id === prop!.id && e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
     if (ev) when = { day: fmtDay(ev.start_at, ctx.tz), range: fmtRange(ev.start_at, ev.end_at, ctx.tz) };
   }
-  const ids = await imageIds(ctx, prop?.id ?? null);
+  const ids = await imageUrls(ctx, prop?.id ?? null);
   const variant = input.variantSeed ?? (await nextVariant(ctx, input.category));
   const out: SocialPost[] = [];
   for (const platform of input.platforms) {
@@ -57,7 +60,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
       caption = fitToPlatform(platform, polished, []).caption; // keeps it inside the platform limit
     }
     const post = await ctx.store.insert("social_posts", ctx.userId, {
-      platform, caption, hashtags: built.hashtags, slides: withImages(built.slides, ids), status: "draft", category: input.category, variant,
+      platform, caption, hashtags: built.hashtags, slides: withDesign(built.slides, ids, input.category, variant), status: "draft", category: input.category, variant,
       property_id: prop?.id ?? null, event_id: null, workflow_run_id: null, scheduled_for: input.scheduledFor ?? null, stale: false, stale_reason: null, posted_at: null,
     } as never);
     out.push(post);
@@ -111,9 +114,9 @@ export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost
   const category = (post.category as Category) ?? "buyer_tip";
   const prop = post.property_id ? await ctx.store.get("properties", ctx.userId, post.property_id) : null;
   const variant = ((post.variant ?? 0) + 1) % Math.max(variantCount(category), 2);
-  const ids = await imageIds(ctx, prop?.id ?? null);
+  const ids = await imageUrls(ctx, prop?.id ?? null);
   const built = buildPost({ category, platform: post.platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null });
-  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: built.caption, hashtags: built.hashtags, slides: withImages(built.slides, ids), variant, stale: false, stale_reason: null }))!;
+  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: built.caption, hashtags: built.hashtags, slides: withDesign(built.slides, ids, post.category ?? "", variant), variant, stale: false, stale_reason: null }))!;
 }
 
 export async function duplicateTo(ctx: Ctx, post: SocialPost, platforms: SocialPlatform[]): Promise<SocialPost[]> {

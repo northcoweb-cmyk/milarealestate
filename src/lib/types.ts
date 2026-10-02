@@ -257,7 +257,11 @@ export interface EmailRecord extends Row {
 export interface SocialSlide {
   headline: string;
   sub?: string;
-  image_id?: ID | null; // property_images.id
+  image_id?: ID | null; // legacy: a property_images id
+  /** Same-origin photo URL (a property photo the agent owns), drawn full-bleed behind the text. */
+  image_url?: string | null;
+  /** Design palette (see lib/content/design.ts). */
+  theme?: string;
   role: "hero" | "highlight" | "cta";
 }
 

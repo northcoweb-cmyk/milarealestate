@@ -1,6 +1,9 @@
 "use client";
 
-import type { SocialPost, SocialPlatform } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type { SocialPost, SocialPlatform, SocialSlide } from "@/lib/types";
+import { FORMATS, formatFor } from "@/lib/content/design";
+import { previewUrl, type Brand } from "@/lib/content/render";
 
 export const PLATFORM_META: Record<SocialPlatform, { label: string; short: string; color: string }> = {
   instagram: { label: "Instagram", short: "IG", color: "#1a1a1a" },
@@ -12,22 +15,29 @@ export const PLATFORM_META: Record<SocialPlatform, { label: string; short: strin
 
 export const STATUS_META: Record<string, { label: string; tone: "neutral" | "ok" | "warn" | "accent" | "danger" }> = {
   draft: { label: "Draft", tone: "neutral" }, pending_approval: { label: "Needs approval", tone: "warn" }, approved_unpublished: { label: "Ready to post", tone: "accent" },
-  scheduled: { label: "Scheduled", tone: "ok" }, published: { label: "Posted", tone: "ok" }, archived: { label: "Archived", tone: "neutral" }, failed: { label: "Failed", tone: "danger" },
+  scheduled: { label: "Planned", tone: "ok" }, published: { label: "Posted", tone: "ok" }, archived: { label: "Archived", tone: "neutral" }, failed: { label: "Failed", tone: "danger" },
 };
 
 export function PlatformBadge({ platform, size = 26 }: { platform: SocialPlatform; size?: number }) {
   const m = PLATFORM_META[platform];
-  return <span title={m.label} className="inline-flex shrink-0 items-center justify-center rounded-lg font-bold text-white" style={{ width: size, height: size, background: m.color, fontSize: size * 0.4 }}>{m.short}</span>;
+  return <span title={m.label} className="inline-flex shrink-0 items-center justify-center rounded-lg font-bold text-white" style={{ width: size, height: size, background: m.color, fontSize: size * 0.4, boxShadow: "inset 0 0 0 1px rgba(255,255,255,.2)" }}>{m.short}</span>;
 }
 
-/** Small thumbnail of the first slide. */
-export function MiniSlide({ post }: { post: SocialPost }) {
-  const s = post.slides[0];
-  const g = "linear-gradient(160deg,#111,#4a4a4d 60%,#9a9a9e)";
+/** A rendered slide (exactly what gets exported), drawn lazily and cached. */
+export function SlideImage({ slide, index, total, post, brand, width = 540, className = "", rounded = 18 }: { slide: SocialSlide; index: number; total: number; post: Pick<SocialPost, "platform" | "category">; brand: Brand; width?: number; className?: string; rounded?: number }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const f = FORMATS[formatFor(post.platform)];
+  const key = JSON.stringify([slide, index, total, post.platform, post.category, brand]);
+  useEffect(() => {
+    let alive = true;
+    previewUrl(slide, { index, total, platform: post.platform, brand, category: post.category, width }).then((u) => alive && setUrl(u)).catch(() => alive && setUrl(null));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, width]);
   return (
-    <div className="relative h-[92px] w-[74px] shrink-0 overflow-hidden rounded-xl text-white" style={{ background: s?.image_id ? `url(/api/files/${s.image_id}) center/cover` : g }}>
-      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(8,12,40,.05), rgba(8,12,40,.65))" }} />
-      <p className="display absolute inset-x-1.5 bottom-1.5 line-clamp-3 text-[12.5px] leading-[1.05]">{s?.headline ?? post.caption.split("\n")[0]}</p>
+    <div className={"relative overflow-hidden " + className} style={{ aspectRatio: `${f.w} / ${f.h}`, borderRadius: rounded, background: "color-mix(in srgb, var(--ink) 8%, transparent)" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url ? <img src={url} alt={slide.headline} className="absolute inset-0 h-full w-full object-cover" draggable={false} /> : <div className="shimmer absolute inset-0" />}
     </div>
   );
 }

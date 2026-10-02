@@ -2,6 +2,7 @@ import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { ensureCredits, recordUsage } from "@/lib/credits";
 import { PLATFORMS, platformLimit } from "@/lib/content/templates";
+import { PALETTES } from "@/lib/content/design";
 import { deletePost, duplicateTo, regenerate, schedulePost, setPostStatus } from "@/lib/content/service";
 import type { SocialPlatform, SocialPost, SocialSlide } from "@/lib/types";
 
@@ -27,7 +28,7 @@ export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
   if ("hashtags" in b && Array.isArray(b.hashtags)) patch.hashtags = b.hashtags.map((h: unknown) => str(h, 40).replace(/\s+/g, "")).filter((h: string) => /^#?\w+$/.test(h)).map((h: string) => (h.startsWith("#") ? h : "#" + h)).slice(0, 30);
   if ("platform" in b) { if (!PLAT.includes(b.platform)) throw bad("Unknown platform."); patch.platform = b.platform as SocialPlatform; }
   if ("property_id" in b) patch.property_id = b.property_id || null;
-  if ("slides" in b && Array.isArray(b.slides)) patch.slides = b.slides.slice(0, 10).map((s: any): SocialSlide => ({ role: ["hero", "highlight", "cta"].includes(s.role) ? s.role : "highlight", headline: str(s.headline, 120), sub: s.sub ? str(s.sub, 160) : undefined, image_id: s.image_id || null })).filter((s: SocialSlide) => s.headline.trim());
+  if ("slides" in b && Array.isArray(b.slides)) patch.slides = b.slides.slice(0, 10).map((s: any): SocialSlide => ({ role: ["hero", "highlight", "cta"].includes(s.role) ? s.role : "highlight", headline: str(s.headline, 120), sub: s.sub ? str(s.sub, 160) : undefined, image_id: s.image_id || null, image_url: typeof s.image_url === "string" && /^\/api\/files\/[\w-]+$/.test(s.image_url) ? s.image_url : null, theme: PALETTES.some((p) => p.key === s.theme) ? s.theme : undefined })).filter((s: SocialSlide) => s.headline.trim());
   if (Object.keys(patch).length) post = (await ctx.store.update("social_posts", profile.id, post.id, { ...patch, stale: false, stale_reason: null }))!;
 
   const over = () => post!.caption.length > platformLimit(post!.platform);

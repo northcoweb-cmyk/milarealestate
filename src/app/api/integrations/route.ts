@@ -19,7 +19,6 @@ export const GET = api(async ({ profile }) => {
     { id: "outlook", name: "Outlook (Mail & Calendar)", description: "Microsoft email and calendar.", status: "coming_soon" },
     { id: "apple_calendar", name: "Apple Calendar", description: "iCloud calendar.", status: "coming_soon" },
     { id: "sms", name: "Text messaging (SMS)", description: "Send and receive texts with clients.", status: "coming_soon" },
-    { id: "social", name: "Instagram, Facebook & LinkedIn publishing", description: "Post directly from Mila. For now, copy your approved posts.", status: "coming_soon" },
     { id: "mls", name: "MLS / listing data", description: "Search live listings and pull verified property details.", status: "coming_soon" },
   ];
   return { items, googleConfigured: googleConfigured(), googleAccount: g?.account_label ?? null };
