@@ -11,7 +11,7 @@ const NAV = [
   { href: "/contacts", label: "Contacts", icon: Users, match: (p: string) => p.startsWith("/contacts") },
   { href: "/content", label: "Content", icon: Megaphone, match: (p: string) => p.startsWith("/content") },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, match: (p: string) => p.startsWith("/calendar") },
-  { href: "/more", label: "More", icon: Menu, match: (p: string) => p.startsWith("/more") || p.startsWith("/settings") || p.startsWith("/memory") || p.startsWith("/templates") || p.startsWith("/documents") || p.startsWith("/workflows") || p.startsWith("/admin") || p.startsWith("/properties") },
+  { href: "/more", label: "More", icon: Menu, match: (p: string) => p.startsWith("/more") || p.startsWith("/settings") || p.startsWith("/memory") || p.startsWith("/templates") || p.startsWith("/documents") || p.startsWith("/workflows") || p.startsWith("/admin") || p.startsWith("/properties") || p.startsWith("/showings") },
 ];
 
 export function Shell({ children, approvals }: { children: React.ReactNode; approvals: number }) {

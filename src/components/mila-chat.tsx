@@ -149,7 +149,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   }
 
   const value = useMemo<MilaCtx>(() => ({ ask, open: () => setOpen(true), isOpen, busy, hasHistory: loaded && messages.length > 0, turns }), [ask, isOpen, busy, loaded, messages.length, turns]);
-  const showFab = !isOpen && path !== "/" && !path.startsWith("/onboarding");
+  const showFab = !isOpen && path !== "/" && !path.startsWith("/onboarding") && !path.startsWith("/showings/"); // the sheet has its own controls
 
   return (
     <Ctx.Provider value={value}>

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronRight, MapPin, Plus, RefreshCw } from "lucide-react";
+import { ChevronRight, ClipboardCheck, MapPin, Plus, RefreshCw } from "lucide-react";
 import type { CalendarEvent } from "@/lib/types";
 import { Empty, PageHeader, Sheet, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -126,7 +127,7 @@ const KIND_LABEL: Record<string, string> = { open_house: "Open house", showing: 
 
 /** Clean summary of one calendar item: when, where, who, what — with the next obvious actions. */
 function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: Data; dayEvents: CalendarEvent[]; onClose: () => void }) {
-  const { profile } = useApp();
+  const { profile, toast } = useApp();
   const tz = profile.timezone;
   const person = e.contact_id ? data.people[e.contact_id] : null;
   const place = e.property_id ? data.places[e.property_id] : null;
@@ -135,6 +136,13 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
   const where = e.location ?? (place ? [place.address, place.city, place.state].filter(Boolean).join(", ") : null);
   const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(e.start_at));
   const ask = (q: string) => `/?ask=${encodeURIComponent(q)}`;
+  const router = useRouter();
+  const [starting, setStarting] = useState(false);
+  async function startSheet() {
+    setStarting(true);
+    try { const r = await jfetch<{ id: string }>("/api/showing-sheets", { method: "POST", json: { eventId: e.id } }); router.push(`/showings/${r.id}`); }
+    catch (err) { toast(err instanceof Error ? err.message : "Couldn't start the sheet.", "error"); setStarting(false); }
+  }
   return (
     <Sheet open onClose={onClose} title={`${eventEmoji(e.kind)} ${KIND_LABEL[e.kind] ?? "Event"}`}>
       <div>
@@ -150,7 +158,8 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
           <DetailRow label="Source">{e.source === "google" ? "Google Calendar" : e.synced_at ? "Mila · also in Google Calendar" : e.source === "mila" ? "Added by Mila" : "Added by you"}</DetailRow>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {person && <Link className="btn btn-primary btn-sm" href={ask(`Draft a confirmation message to ${person.name} for ${e.title}`)}>Message {person.name.split(" ")[0]}</Link>}
+          {e.property_id && (e.kind === "showing" || e.kind === "open_house") && <button className="btn btn-primary btn-sm" disabled={starting} onClick={startSheet}><ClipboardCheck size={16} />{starting ? "Opening…" : "Showing sheet"}</button>}
+          {person && <Link className="btn btn-sm" href={ask(`Draft a confirmation message to ${person.name} for ${e.title}`)}>Message {person.name.split(" ")[0]}</Link>}
           <Link className="btn btn-sm" href={ask(`Move ${e.title} to a different time`)}>Reschedule</Link>
         </div>
       </div>

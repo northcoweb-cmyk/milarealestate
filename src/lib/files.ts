@@ -49,5 +49,29 @@ export async function deleteFile(storagePath: string) {
   try { fs.unlinkSync(path.join(dir(), "files", storagePath)); } catch { /* already gone */ }
 }
 
+/** Direct-to-storage upload link (Supabase): lets phones upload big videos without passing through the 4.5 MB serverless body limit. */
+export async function signedUpload(userId: string, id: string): Promise<{ rel: string; url: string } | null> {
+  if (!supabaseConfigured()) return null;
+  const rel = `${safe(userId)}/${safe(id)}`;
+  const r = await fetch(`${supabaseUrl()}/storage/v1/object/upload/sign/${BUCKET}/${rel}`, { method: "POST", headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json", "x-upsert": "true" }, body: "{}" });
+  if (!r.ok) throw new Error(`File storage failed (${r.status}). Make sure the "${BUCKET}" bucket exists.`);
+  const j = (await r.json()) as { url?: string };
+  if (!j.url) throw new Error("File storage didn't return an upload link.");
+  return { rel, url: `${supabaseUrl()}/storage/v1${j.url}` };
+}
+/** Short-lived link for streaming a big file (video) straight from storage, with range requests handled by storage. */
+export async function signedRead(storagePath: string, seconds = 600): Promise<string | null> {
+  if (!supabaseConfigured()) return null;
+  const r = await fetch(`${supabaseUrl()}/storage/v1/object/sign/${BUCKET}/${storagePath}`, { method: "POST", headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ expiresIn: seconds }) });
+  if (!r.ok) return null;
+  const j = (await r.json()) as { signedURL?: string };
+  return j.signedURL ? `${supabaseUrl()}/storage/v1${j.signedURL}` : null;
+}
+export const MEDIA_IMAGE = /^image\/(png|jpe?g|webp|heic|heif)$/i;
+export const MEDIA_VIDEO = /^video\/(mp4|quicktime|webm|x-m4v|3gpp|3gpp2|mpeg)$/i;
+export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+export const safeName = safe;
+
 export const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 export const ALLOWED_MIME = /^(image\/(png|jpe?g|webp|heic|gif)|application\/pdf|text\/(plain|csv|tab-separated-values|markdown)|application\/(vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|vnd\.ms-excel|json)|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/;

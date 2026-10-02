@@ -9,6 +9,8 @@ import { Empty, PageHeader, Pill, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
+import { useRouter } from "next/navigation";
+import { ClipboardCheck } from "lucide-react";
 
 export default function PropertyPage() {
   const { id } = useParams<{ id: string }>();
@@ -60,6 +62,7 @@ function PropertyDetail({ id }: { id: string }) {
     <Page>
       <Link href="/properties/all" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />Properties</Link>
       <PageHeader title={p.address} sub={p.is_demo ? "Fictional demo property" : undefined} />
+      <SheetsSection propertyId={id} />
       <section className="glass mb-5 p-5 sm:p-6">
         <p className="kicker mb-1">Photos</p>
         <p className="muted mb-3 text-[14px]">Paste the listing link and Mila pulls the photos for you. She only uses what the page itself shares publicly, and never stock images.</p>
@@ -82,5 +85,30 @@ function PropertyDetail({ id }: { id: string }) {
       </form>
       {data.events.length > 0 && <section className="mt-5"><p className="kicker mb-2">Events</p><ul className="space-y-2">{data.events.map((e) => <li key={e.id} className="glass px-4 py-3" style={{ borderRadius: 20 }}><b>{e.title}</b><span className="muted ml-2 text-[14px]">{new Date(e.start_at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></li>)}</ul></section>}
     </Page>
+  );
+}
+
+/** Showing sheets for this property: start a new one or reopen an earlier walkthrough. */
+function SheetsSection({ propertyId }: { propertyId: string }) {
+  const router = useRouter();
+  const { toast } = useApp();
+  const { data } = useApi<{ sheets: { id: string; status: string; started_at: string; completed_at: string | null; progress: { total: number; done: number; issues: number; mediaCount: number } }[] }>(`/api/showing-sheets?property=${propertyId}`);
+  const [busy, setBusy] = useState(false);
+  async function start() {
+    setBusy(true);
+    try { const r = await jfetch<{ id: string }>("/api/showing-sheets", { method: "POST", json: { propertyId } }); router.push(`/showings/${r.id}`); }
+    catch (e) { toast(e instanceof Error ? e.message : "Couldn't start that.", "error"); setBusy(false); }
+  }
+  return (
+    <section className="glass mb-5 p-5 sm:p-6" style={{ borderRadius: 26 }}>
+      <div className="flex items-start justify-between gap-3">
+        <div><p className="kicker mb-1">Showing sheet</p><p className="muted text-[14px]">A checklist to walk the home with — notes, photos and video, saved here.</p></div>
+        <button className="btn btn-primary btn-sm shrink-0" disabled={busy} onClick={start}><ClipboardCheck size={16} />{busy ? "Opening…" : "Start"}</button>
+      </div>
+      {!!data?.sheets.length && <ul className="mt-4 space-y-2">{data.sheets.map((s) => (
+        <li key={s.id}><Link href={`/showings/${s.id}`} className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--ink) 5%, transparent)" }}>
+          <span className="min-w-0"><span className="block text-[15px] font-semibold">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(s.completed_at ?? s.started_at))} · {s.status === "complete" ? "Saved" : "In progress"}</span><span className="faint block text-[13px]">{s.progress.done}/{s.progress.total} checked{s.progress.issues ? ` · ⚑ ${s.progress.issues}` : ""}{s.progress.mediaCount ? ` · 📷 ${s.progress.mediaCount}` : ""}</span></span>
+        </Link></li>))}</ul>}
+    </section>
   );
 }

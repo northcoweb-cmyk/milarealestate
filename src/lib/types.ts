@@ -310,7 +310,7 @@ export interface Notification extends Row {
 
 export interface DocumentRow extends Row {
   name: string;
-  kind: "pdf" | "image" | "csv" | "spreadsheet" | "text" | "other";
+  kind: "pdf" | "image" | "video" | "csv" | "spreadsheet" | "text" | "other";
   mime: string;
   size_bytes: number;
   storage_path: string;

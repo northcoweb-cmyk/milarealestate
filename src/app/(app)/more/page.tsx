@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Brain, Building2, ChevronRight, CreditCard, FileText, FolderOpen, Home as HomeIcon, ListChecks, LogOut, Palette, Plug, Shield, Bell, SlidersHorizontal, User, Workflow, Lock, Gauge, Smartphone } from "lucide-react";
+import { Brain, Building2, ChevronRight, ClipboardCheck, CreditCard, FileText, FolderOpen, Home as HomeIcon, ListChecks, LogOut, Palette, Plug, Shield, Bell, SlidersHorizontal, User, Workflow, Lock, Gauge, Smartphone } from "lucide-react";
 import { Avatar, PageHeader, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApp } from "@/components/app-context";
@@ -30,6 +30,7 @@ export default function MorePage() {
       </Link>
 
       <Group title="Mila's workspace">
+        <Row href="/showings" icon={ClipboardCheck} title="Showing sheets" sub="Checklist, notes, photos and video" />
         <Row href="/done" icon={ListChecks} title="Completed" sub="Everything finished, in order" />
         <Row href="/tasks" icon={ListChecks} title="Tasks & approvals" sub="Everything Mila prepared for you" />
         <Row href="/memory" icon={Brain} title="Memory" sub="What Mila remembers — view, edit, delete" />
