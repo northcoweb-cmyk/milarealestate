@@ -73,7 +73,7 @@ export function skyAt(now: Date, tz: string, lat?: number | null, lng?: number |
     ...amb, top, mid, bottom,
     tone: lum < 0.45 ? "night" : "day",
     sun: { x: 12 + prog * 76, y: Math.max(12, 78 - alt * 58), opacity: sunOpacity, color: sunColor, alt },
-    moon: { x: 56, y: 2.5, opacity: Math.max(0, 1 - amb.daylight * 2.2) * 0.9 },
+    moon: { x: 90, y: 0.8, opacity: Math.max(0, 1 - amb.daylight * 2.2) * 0.9 },
     cloud: { body, highlight, coverage },
   };
 }
