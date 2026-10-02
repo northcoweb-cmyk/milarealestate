@@ -213,3 +213,14 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 :root[data-reduce-motion="1"] .flip-back { transform: none; opacity: 0; pointer-events: none; }
 :root[data-reduce-motion="1"] .flip[data-flipped="true"] .flip-front { opacity: 0; pointer-events: none; }
 :root[data-reduce-motion="1"] .flip[data-flipped="true"] .flip-back { opacity: 1; pointer-events: auto; }
+
+/* Screen-to-screen motion: quick (≈250ms), transform + opacity only so it stays smooth on a phone. */
+.page-in-right { animation: pg-right .26s cubic-bezier(.22, .9, .3, 1) backwards; }
+.page-in-left { animation: pg-left .26s cubic-bezier(.22, .9, .3, 1) backwards; }
+.page-in-push { animation: pg-push .24s cubic-bezier(.22, .9, .3, 1) backwards; }
+.page-in-pop { animation: pg-pop .24s cubic-bezier(.22, .9, .3, 1) backwards; }
+@keyframes pg-right { from { opacity: 0; transform: translate3d(40px, 0, 0) scale(.985); } }
+@keyframes pg-left { from { opacity: 0; transform: translate3d(-40px, 0, 0) scale(.985); } }
+@keyframes pg-push { from { opacity: 0; transform: translate3d(28px, 0, 0); } }
+@keyframes pg-pop { from { opacity: 0; transform: translate3d(-28px, 0, 0); } }
+@media (prefers-reduced-motion: reduce) { .page-in-right, .page-in-left, .page-in-push, .page-in-pop { animation: none; } }
