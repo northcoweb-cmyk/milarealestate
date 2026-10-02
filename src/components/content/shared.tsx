@@ -3,11 +3,11 @@
 import type { SocialPost, SocialPlatform } from "@/lib/types";
 
 export const PLATFORM_META: Record<SocialPlatform, { label: string; short: string; color: string }> = {
-  instagram: { label: "Instagram", short: "IG", color: "#d6249f" },
-  facebook: { label: "Facebook", short: "FB", color: "#1877f2" },
-  tiktok: { label: "TikTok", short: "TT", color: "#111827" },
-  linkedin: { label: "LinkedIn", short: "in", color: "#0a66c2" },
-  x: { label: "X", short: "X", color: "#0f1419" },
+  instagram: { label: "Instagram", short: "IG", color: "#1a1a1a" },
+  facebook: { label: "Facebook", short: "FB", color: "#3a3a3c" },
+  tiktok: { label: "TikTok", short: "TT", color: "#000000" },
+  linkedin: { label: "LinkedIn", short: "in", color: "#555558" },
+  x: { label: "X", short: "X", color: "#161618" },
 };
 
 export const STATUS_META: Record<string, { label: string; tone: "neutral" | "ok" | "warn" | "accent" | "danger" }> = {
@@ -23,7 +23,7 @@ export function PlatformBadge({ platform, size = 26 }: { platform: SocialPlatfor
 /** Small thumbnail of the first slide. */
 export function MiniSlide({ post }: { post: SocialPost }) {
   const s = post.slides[0];
-  const g = "linear-gradient(160deg,#27386b,#6a7fd1 60%,#e6a98d)";
+  const g = "linear-gradient(160deg,#111,#4a4a4d 60%,#9a9a9e)";
   return (
     <div className="relative h-[92px] w-[74px] shrink-0 overflow-hidden rounded-xl text-white" style={{ background: s?.image_id ? `url(/api/files/${s.image_id}) center/cover` : g }}>
       <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(8,12,40,.05), rgba(8,12,40,.65))" }} />

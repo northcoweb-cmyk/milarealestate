@@ -23,7 +23,7 @@ export type ToolResult<T = any> =
 export const ok = <T>(data: T): ToolResult<T> => ({ ok: true, data });
 export const fail = (code: Exclude<ToolResult, { ok: true }>["code"], message: string, integration?: string): ToolResult<never> => ({ ok: false, code, message, integration });
 
-export const AVATAR_COLORS = ["#7C9CBF", "#9B8FC4", "#C48F9B", "#8FBFA5", "#C4A88F", "#8FB4C4", "#BF9F7C", "#A0A6D8"];
+export const AVATAR_COLORS = ["#2a2a2c", "#3a3a3d", "#4a4a4d", "#5a5a5e", "#1c1c1e", "#333336", "#444447", "#555558"];
 export const pickColor = (s: string) => AVATAR_COLORS[[...s].reduce((n, c) => n + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 
 export const money = (n: number | null | undefined) => (n == null ? "" : n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(n % 1_000_000 ? 2 : 0).replace(/0$/, "")}M` : `$${Math.round(n / 1000)}k`);

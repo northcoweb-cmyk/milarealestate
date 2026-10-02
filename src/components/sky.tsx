@@ -63,7 +63,7 @@ export function Sky({ initialNow, tz, lat, lng, theme = "auto", reduceMotion = f
       <div className="absolute" style={{ left: `${sky.sun.x}%`, top: `${sky.sun.y}%`, width: 520 * sunScale, height: 520 * sunScale, marginLeft: -260 * sunScale, marginTop: -260 * sunScale, opacity: sky.sun.opacity * 0.9, background: `radial-gradient(closest-side, ${sky.sun.color} 0%, ${sky.sun.color}99 12%, ${sky.sun.color}33 40%, transparent 72%)` }} />
       <div className="absolute rounded-full" style={{ left: `${sky.sun.x}%`, top: `${sky.sun.y}%`, width: 74 * sunScale, height: 74 * sunScale, marginLeft: -37 * sunScale, marginTop: -37 * sunScale, opacity: Math.min(1, sky.sun.opacity * 1.2), background: `radial-gradient(circle, #ffffff 0%, ${sky.sun.color} 55%, ${sky.sun.color}00 100%)`, filter: "blur(1.5px)" }} />
       {/* moon */}
-      <div className="absolute rounded-full" style={{ left: `${sky.moon.x}%`, top: `${sky.moon.y}%`, width: 54, height: 54, opacity: sky.moon.opacity, background: "radial-gradient(circle at 35% 35%, #fffdf2, #dfe4ff 60%, #b9c3f0)", boxShadow: "0 0 60px 10px rgba(200,210,255,.35)" }} />
+      <div className="absolute rounded-full" style={{ left: `${sky.moon.x}%`, top: `${sky.moon.y}%`, width: 44, height: 44, marginLeft: -22, opacity: sky.moon.opacity, background: "radial-gradient(circle at 35% 35%, #fffdf2, #ececec 60%, #bdbdc0)", boxShadow: "0 0 60px 10px rgba(255,255,255,.3)" }} />
       {/* stars: fade in as the sky darkens */}
       <div className="absolute inset-0" style={{ opacity: sky.stars }}>
         {STARS.map((s, i) => (

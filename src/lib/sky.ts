@@ -28,17 +28,17 @@ export function skyAt(now: Date, tz: string, lat?: number | null, lng?: number |
   const st = sunTimes(zonedToUtc(p.y, p.m, p.d, 12, 0, tz), c.lat, c.lng);
   const amb = ambientAt(now, st);
   const r = st.sunrise.getTime(), s = st.sunset.getTime(), n = st.solarNoon.getTime();
-  const night = { top: "#070b24", mid: "#0e1538", bottom: "#1a2352" };
-  const stops: Stop[] = st.polar ? [{ at: 0, ...(st.polar === "day" ? { top: "#8ec5ff", mid: "#cfe6ff", bottom: "#f1f8ff" } : night) }] : [
+  const night = { top: "#000000", mid: "#08080a", bottom: "#141416" };
+  const stops: Stop[] = st.polar ? [{ at: 0, ...(st.polar === "day" ? { top: "#e4e4e6", mid: "#f1f1f2", bottom: "#fcfcfc" } : night) }] : [
     { at: r - 70 * MIN, ...night },
-    { at: r - 25 * MIN, top: "#1f2a5c", mid: "#5a4d8a", bottom: "#e59a8a" },
-    { at: r + 15 * MIN, top: "#8fb4ee", mid: "#f6c9b0", bottom: "#ffe3b8" },
-    { at: r + 150 * MIN, top: "#a6d0ff", mid: "#d9ebff", bottom: "#fff1dc" },
-    { at: n, top: "#8ec5ff", mid: "#cfe6ff", bottom: "#f1f8ff" },
-    { at: s - 150 * MIN, top: "#9ccbff", mid: "#dcecff", bottom: "#fff3dd" },
-    { at: s - 40 * MIN, top: "#8aa6e0", mid: "#f5bf98", bottom: "#ffd9a3" },
-    { at: s + 5 * MIN, top: "#55609f", mid: "#e48f93", bottom: "#f8b98b" },
-    { at: s + 50 * MIN, top: "#232b64", mid: "#4f4585", bottom: "#b3708f" },
+    { at: r - 25 * MIN, top: "#16161a", mid: "#6b625f", bottom: "#d9a48f" },
+    { at: r + 15 * MIN, top: "#c9c9cc", mid: "#efd9cb", bottom: "#fbe7cf" },
+    { at: r + 150 * MIN, top: "#e1e1e3", mid: "#f0f0f1", bottom: "#fdf6ec" },
+    { at: n, top: "#dcdcdf", mid: "#eeeeef", bottom: "#fbfbfb" },
+    { at: s - 150 * MIN, top: "#e0e0e2", mid: "#f0f0f1", bottom: "#fcf4e8" },
+    { at: s - 40 * MIN, top: "#bdbdc2", mid: "#f0cdb4", bottom: "#fbd9ae" },
+    { at: s + 5 * MIN, top: "#5b5b60", mid: "#d1a090", bottom: "#eeb994" },
+    { at: s + 50 * MIN, top: "#1c1c20", mid: "#4a4543", bottom: "#8d6e63" },
     { at: s + 100 * MIN, ...night },
   ];
   const t = now.getTime();
@@ -64,16 +64,16 @@ export function skyAt(now: Date, tz: string, lat?: number | null, lng?: number |
   // Clouds pick up the light: pinkish/golden near the horizon, white at midday, faint blue-grey at night.
   const day = Math.min(1, amb.daylight * 1.25);
   const lit = mix("#ffffff", mix("#ffd2b0", "#ffb38a", Math.min(1, amb.warmth)), amb.warmth * 0.85);
-  const nightHi = mix(mid, "#7d89c9", 0.22);
+  const nightHi = mix(mid, "#9a9a9e", 0.22);
   const highlight = mix(nightHi, lit, day);
-  const body = mix(mix(mid, "#9aa6d6", 0.12), mix(lit, mid, 0.34), day);
+  const body = mix(mix(mid, "#a8a8ad", 0.12), mix(lit, mid, 0.34), day);
   const coverage = 0.2 - day * 0.1; // a touch more cloud in full daylight than at night
 
   return {
     ...amb, top, mid, bottom,
     tone: lum < 0.45 ? "night" : "day",
-    sun: { x: 12 + prog * 76, y: 78 - alt * 58, opacity: sunOpacity, color: sunColor, alt },
-    moon: { x: 84 - Math.min(1, Math.max(0, (t - s) / (10 * 3_600_000))) * 40, y: 7 + Math.min(1, Math.max(0, (t - s) / (10 * 3_600_000))) * 5, opacity: Math.max(0, 1 - amb.daylight * 2.2) * 0.9 },
+    sun: { x: 12 + prog * 76, y: Math.max(12, 78 - alt * 58), opacity: sunOpacity, color: sunColor, alt },
+    moon: { x: 56, y: 2.5, opacity: Math.max(0, 1 - amb.daylight * 2.2) * 0.9 },
     cloud: { body, highlight, coverage },
   };
 }

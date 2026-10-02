@@ -82,12 +82,12 @@ export function PropertyFlipCard({ data, className }: { data: ShowingCardData; c
                 <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center" style={{ background: "linear-gradient(160deg, color-mix(in srgb, var(--accent) 38%, var(--sky-mid)), color-mix(in srgb, var(--accent-2) 30%, var(--sky-bottom)))" }}>
                   <Home size={34} className="text-white/85" />
                   <p className="px-6 text-[13px] font-semibold text-white/90">No photos yet</p>
-                  <Link href={`/properties/${p.id}`} onClick={stop} className="rounded-full bg-[#0f1f55]/55 px-3.5 py-1.5 text-[12.5px] font-semibold text-white">Find photos</Link>
+                  <Link href={`/properties/${p.id}`} onClick={stop} className="rounded-full bg-black/55 px-3.5 py-1.5 text-[12.5px] font-semibold text-white">Find photos</Link>
                 </div>
               )}
               {photo && <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(8,12,40,.18) 0%, transparent 35%, rgba(8,12,40,.55) 100%)" }} />}
               <Badge className="absolute bottom-3 left-3 border-white/30 bg-black/45 px-3 py-1.5 text-[12.5px] font-semibold text-white-md hover:bg-black/45">{data.kind === "open_house" ? "Open house" : "Showing"} · {when}</Badge>
-              {p.price != null && <Badge className="absolute right-3 top-3 border-transparent bg-white px-3.5 py-1.5 text-[14px] font-semibold text-[#0f2a5f] shadow-md hover:bg-white">{money(p.price)}</Badge>}
+              {p.price != null && <Badge className="absolute right-3 top-3 border-transparent bg-white px-3.5 py-1.5 text-[14px] font-semibold text-black shadow-md hover:bg-white">{money(p.price)}</Badge>}
               {isStreet && <span className="absolute bottom-3 right-3 rounded-full bg-black/45 px-2 py-0.5 text-[10.5px] font-medium text-white/90-md">Street View</span>}
               {data.images.length > 1 && <span className="absolute right-3 top-3 hidden" />}
             </div>

@@ -30,6 +30,7 @@ export default function MorePage() {
       </Link>
 
       <Group title="Mila's workspace">
+        <Row href="/done" icon={ListChecks} title="Completed" sub="Everything finished, in order" />
         <Row href="/tasks" icon={ListChecks} title="Tasks & approvals" sub="Everything Mila prepared for you" />
         <Row href="/memory" icon={Brain} title="Memory" sub="What Mila remembers — view, edit, delete" />
         <Row href="/workflows" icon={Workflow} title="Workflows" sub="Open house, new buyer, and more" />

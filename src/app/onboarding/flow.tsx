@@ -1,5 +1,6 @@
 "use client";
 
+import { PlaceInput, type PickedPlace } from "@/components/place-input";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -24,6 +25,11 @@ export function OnboardingFlow({ name, googleConfigured }: { name: string; googl
   const [f, setF] = useState({ full_name: name, role: "Agent", brokerage: "", location: "", primary_market: "", experience: "growing", business_type: "mixed" });
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sample, setSample] = useState(true);
+  const [picked, setPicked] = useState<PickedPlace | null>(null);
+  const [pickedText, setPickedText] = useState("");
+  const [placesOn, setPlacesOn] = useState(false);
+  useEffect(() => { fetch("/api/places/autocomplete?q=ab").then((r) => r.json()).then((j) => setPlacesOn(j.available === true)).catch(() => {}); }, []);
+  const locVerified = !!picked && f.location === pickedText;
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   const install = useInstall();
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
@@ -40,14 +46,17 @@ export function OnboardingFlow({ name, googleConfigured }: { name: string; googl
     setBusy(true); setError(null);
     try {
       let tz = "America/New_York"; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch { /* default */ }
-      await jfetch("/api/me", { method: "PATCH", json: { ...f, brokerage: f.brokerage || null, timezone: tz, ...(coords ?? {}), onboarded: true } });
+      // No location permission? Use the place they picked for the sky and time zone.
+      const fromPlace = !coords && locVerified && picked?.lat != null && picked.lng != null ? { lat: picked.lat, lng: picked.lng } : {};
+      if (!coords && locVerified && picked?.timezone) tz = picked.timezone;
+      await jfetch("/api/me", { method: "PATCH", json: { ...f, brokerage: f.brokerage || null, timezone: tz, ...(coords ?? fromPlace), onboarded: true } });
       if (sample) await jfetch("/api/me/sample-data", { method: "POST" });
       router.replace("/"); router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn't finish setup."); setBusy(false); }
   }
 
   const next = () => { setError(null); setStep((s) => Math.min(s + 1, total - 1)); };
-  const canNext = step === 0 ? f.full_name.trim().length > 1 : step === 1 ? f.location.trim().length > 1 : true;
+  const canNext = step === 0 ? f.full_name.trim().length > 1 : step === 1 ? (placesOn ? locVerified : f.location.trim().length > 1) : true;
 
   return (
     <main className="mx-auto flex min-h-[100svh] w-full max-w-xl flex-col justify-center px-5 py-8">
@@ -61,14 +70,14 @@ export function OnboardingFlow({ name, googleConfigured }: { name: string; googl
             <h1 className="h1 mb-1">Hi, I'm Mila.</h1><p className="muted mb-6">Let's get you set up — it takes about a minute.</p>
             <div className="space-y-4">
               <div><label className="lbl" htmlFor="fn">Your name</label><input id="fn" className="field" value={f.full_name} onChange={(e) => set("full_name", e.target.value)} autoComplete="name" /></div>
-              <div><span className="lbl">Your role</span><div className="flex flex-wrap gap-2">{ROLES.map((r) => <button key={r} className={clsx("chip", f.role === r && "!bg-[var(--accent)] !text-white")} onClick={() => set("role", r)}>{r}</button>)}</div></div>
+              <div><span className="lbl">Your role</span><div className="flex flex-wrap gap-2">{ROLES.map((r) => <button key={r} className={clsx("chip", f.role === r && "is-selected")} onClick={() => set("role", r)}>{r}</button>)}</div></div>
               <div><label className="lbl" htmlFor="bk">Brokerage <span className="faint">(optional)</span></label><input id="bk" className="field" value={f.brokerage} onChange={(e) => set("brokerage", e.target.value)} placeholder="Used in email signatures" /></div>
             </div>
           </>}
           {step === 1 && <>
             <h1 className="h1 mb-1">Where do you work?</h1><p className="muted mb-6">I use this for market updates and local context.</p>
             <div className="space-y-4">
-              <div><label className="lbl" htmlFor="lc">Your city & state</label><input id="lc" className="field" value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="Gaithersburg, MD" autoComplete="address-level2" /></div>
+              <div><label className="lbl" htmlFor="lc">Your city & state</label><PlaceInput id="lc" mode="city" value={f.location} onChange={(v) => set("location", v)} onPick={(pl) => { setPicked(pl); setPickedText(pl.cityState ?? pl.address ?? ""); }} placeholder="Start typing your city…" verified={locVerified} />{placesOn && !locVerified && f.location.trim().length > 1 && <p className="faint mt-1.5 px-1 text-[12.5px]">Pick your city from the list so Mila knows it's real.</p>}</div>
               <div><label className="lbl" htmlFor="pm">Primary market <span className="faint">(optional)</span></label><input id="pm" className="field" value={f.primary_market} onChange={(e) => set("primary_market", e.target.value)} placeholder="Montgomery County, MD" /></div>
               <div className="glass p-4" style={{ borderRadius: 20 }}>
                 <p className="font-semibold">Let the sky match your day</p>

@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts tests/*.test.mts"
+    "test": "tsx --test tests/*.test.ts tests/*.test.mts",
+    "felix": "bash scripts/felix.sh",
+    "felix:quick": "bash scripts/felix.sh --quick"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

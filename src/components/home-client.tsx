@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, ChevronUp, Plus, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Sparkles } from "lucide-react";
 import type { ActionButton, Block, Message } from "@/lib/types";
 import { BlockView } from "./blocks";
 import { PromptInput } from "./ui/ai-chat-input";
@@ -12,7 +12,7 @@ import { PromptInput } from "./ui/ai-chat-input";
 interface Attachment { id: string; name: string; kind: string }
 import { useApp } from "./app-context";
 import { InstallBanner } from "./install";
-import { Confirm, jfetch } from "./ui";
+import { CheckDot, Confirm, jfetch } from "./ui";
 import { Orb } from "./orb";
 import type { Feed } from "@/lib/feed";
 
@@ -39,6 +39,9 @@ export function HomeClient({ data }: { data: HomeData }) {
   const scroller = useRef<HTMLDivElement>(null);
   const todayRef = useRef<HTMLElement>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [helpSeen, setHelpSeen] = useState(true);
+  useEffect(() => { try { setHelpSeen(localStorage.getItem("mila.help.seen") === "1"); } catch { setHelpSeen(false); } }, []);
+  const dismissHelp = () => { setHelpSeen(true); try { localStorage.setItem("mila.help.seen", "1"); } catch { /* ignore */ } };
 
   useEffect(() => {
     fetch("/api/messages", { cache: "no-store" }).then((r) => r.json()).then((j) => { setMessages(j.messages ?? []); setConvId(j.conversationId ?? null); }).finally(() => setLoaded(true)).catch(() => setLoaded(true));
@@ -135,19 +138,18 @@ export function HomeClient({ data }: { data: HomeData }) {
   return (
     <main className="xl:grid xl:grid-cols-[minmax(0,1fr)_410px] xl:gap-8 xl:pr-8">
       {/* ------------------------------------------------------- hero / chat */}
-      <section className="relative mx-auto flex h-[100svh] w-full max-w-3xl snap-start flex-col px-4 pb-[calc(var(--nav-h)+24px)] pt-[max(env(safe-area-inset-top),20px)] lg:pb-8 xl:max-w-none xl:px-6">
+      <section className={"relative mx-auto flex w-full max-w-3xl flex-col px-4 pt-[max(env(safe-area-inset-top),20px)] xl:max-w-none xl:px-6 " + (chat ? "h-[100svh] pb-[calc(var(--nav-h)+24px)] lg:pb-8" : "pb-2")}>
         <AnimatePresence initial={false}>
           {!chat ? (
-            <motion.div key="idle" className="flex flex-1 flex-col items-center justify-center text-center" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.45, ease: [0.2, 0.7, 0.2, 1] }}>
+            <motion.div key="idle" className="flex flex-col items-center pt-6 text-center" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.45, ease: [0.2, 0.7, 0.2, 1] }}>
               <p className="kicker mb-5">{data.dateLine}</p>
-              <h1 className="display text-[clamp(44px,9vw,76px)]">{data.greeting}</h1>
-              <p className="muted mt-3 text-[clamp(18px,3.4vw,24px)]">What do you need to get done?</p>
-              <div className="mt-9 w-full max-w-2xl"><PromptInput onSubmit={send} disabled={busy} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>
+              <h1 className="display text-[clamp(38px,9vw,64px)]">{data.greeting}</h1>
+              <div className="mt-6 w-full max-w-2xl"><PromptInput onSubmit={send} disabled={busy} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>
               <div className="no-scrollbar mt-5 flex max-w-full gap-2 overflow-x-auto px-2 pb-1">
                 {SHORT.map((s, i) => <button key={s} className="chip shrink-0" onClick={() => run({ message: SUGGESTIONS[i] }, SUGGESTIONS[i])}>{s}</button>)}
               </div>
               {hasHistory && <button className="chip mt-3" onClick={() => setChat(true)}><Sparkles size={15} />Continue where we left off</button>}
-              <div className="mt-6 w-full max-w-xl"><InstallBanner /></div>
+              {helpSeen && <div className="mt-5 w-full max-w-xl"><InstallBanner /></div>}
             </motion.div>
           ) : (
             <motion.div key="chat" className="flex min-h-0 flex-1 flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
@@ -163,16 +165,11 @@ export function HomeClient({ data }: { data: HomeData }) {
             </motion.div>
           )}
         </AnimatePresence>
-        {!chat && (
-          <button onClick={toToday} className="absolute inset-x-0 bottom-[calc(var(--nav-h)+4px)] mx-auto flex w-fit flex-col items-center gap-0.5 text-[12px] font-semibold tracking-wide text-ink-faint xl:hidden" aria-label="See today">
-            <ChevronUp size={18} />TODAY
-          </button>
-        )}
       </section>
 
       {/* --------------------------------------------------------- today panel */}
-      <aside ref={todayRef} id="today" className="mx-auto w-full max-w-3xl snap-start scroll-mt-4 px-4 pb-[calc(var(--nav-h)+40px)] pt-8 xl:sticky xl:top-0 xl:h-[100svh] xl:max-w-none xl:overflow-y-auto xl:px-0 xl:pb-10 xl:pt-10 no-scrollbar">
-        <TodayPanel data={data} refreshKey={refreshKey} />
+      <aside ref={todayRef} id="today" className="mx-auto w-full max-w-3xl scroll-mt-4 px-4 pb-[calc(var(--nav-h)+40px)] pt-7 xl:sticky xl:top-0 xl:h-[100svh] xl:max-w-none xl:overflow-y-auto xl:px-0 xl:pb-10 xl:pt-10 no-scrollbar">
+        <TodayPanel data={data} refreshKey={refreshKey} helpSeen={helpSeen} onHelpSeen={dismissHelp} />
       </aside>
 
       <Confirm open={!!runSheet} title="Do all of this?" onClose={() => setRunSheet(null)} confirmLabel="Approve everything" onConfirm={() => { const id = runSheet!.runId; setRunSheet(null); run({ action: { type: "approve_run", runId: id } }); }}
@@ -213,16 +210,12 @@ function Thinking({ steps }: { steps: string[] }) {
 
 const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 2 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : "yesterday"; };
 
-/** Muse-style feed: what needs you, what Mila did, what's next — nothing else. */
-function TodayPanel({ data, refreshKey }: { data: HomeData; refreshKey: number }) {
+/** Muse-style feed: what needs you, today's plan, what Mila did, what's next — nothing else. */
+function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData; refreshKey: number; helpSeen: boolean; onHelpSeen: () => void }) {
   const { toast } = useApp();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [f, setF] = useState<Feed>(data.feed);
   const [, tick] = useState(0);
-  const [doneIds, setDoneIds] = useState<string[]>([]);
-  const dayKey = data.dateLine;
-  useEffect(() => { try { setDoneIds(JSON.parse(localStorage.getItem("mila.plan." + dayKey) ?? "[]")); } catch { /* ignore */ } }, [dayKey]);
-  const toggle = (id: string) => setDoneIds((d) => { const n = d.includes(id) ? d.filter((x) => x !== id) : [...d, id]; try { localStorage.setItem("mila.plan." + dayKey, JSON.stringify(n)); } catch { /* ignore */ } return n; });
   const refresh = useCallback(async () => {
     try { const r = await fetch("/api/feed", { cache: "no-store" }); if (r.ok) setF((await r.json()).feed); } catch { /* offline: keep what we have */ }
   }, []);
@@ -234,6 +227,18 @@ function TodayPanel({ data, refreshKey }: { data: HomeData; refreshKey: number }
     document.addEventListener("visibilitychange", vis); window.addEventListener("focus", vis);
     return () => { clearInterval(id); clearInterval(t); document.removeEventListener("visibilitychange", vis); window.removeEventListener("focus", vis); };
   }, [refresh]);
+
+  async function togglePlan(p: Feed["plan"][number]) {
+    const next = !p.done;
+    setF((x) => ({ ...x, plan: x.plan.map((i) => (i.id === p.id ? { ...i, done: next } : i)) })); // instant; the server records it
+    try {
+      if (next) await jfetch("/api/feed/complete", { method: "POST", json: { id: p.id, title: p.title, why: p.why } });
+      else await jfetch(`/api/feed/complete?id=${encodeURIComponent(p.id)}`, { method: "DELETE" });
+    } catch (e) {
+      setF((x) => ({ ...x, plan: x.plan.map((i) => (i.id === p.id ? { ...i, done: !next } : i)) }));
+      toast(e instanceof Error ? e.message : "Couldn't save that.", "error");
+    }
+  }
   async function approve(id: string, itemId: string) {
     setBusyId(itemId);
     try { const r = await jfetch<{ message: string; ok: boolean }>(`/api/approvals/${id}`, { method: "POST", json: { decision: "approve" } }); toast(r.message, r.ok ? "success" : "info"); refresh(); }
@@ -243,8 +248,20 @@ function TodayPanel({ data, refreshKey }: { data: HomeData; refreshKey: number }
   const Act = ({ a, primary, itemId }: { a: Feed["needsYou"][number]["primary"]; primary?: boolean; itemId: string }) =>
     a.approveId ? <button className={primary ? "btn btn-primary btn-sm" : "btn btn-quiet btn-sm"} disabled={busyId === itemId} onClick={() => approve(a.approveId!, itemId)}>{busyId === itemId ? "Working…" : a.label}</button>
       : <Link className={primary ? "btn btn-primary btn-sm" : "btn btn-quiet btn-sm"} href={a.href ?? "/tasks"}>{a.label}</Link>;
+  const doneCount = f.plan.filter((p) => p.done).length;
   return (
-    <div className="space-y-10">
+    <div className="space-y-9">
+      {!helpSeen && (
+        <section className="glass p-5" style={{ borderRadius: 24 }} aria-label="How Mila works">
+          <div className="flex items-start justify-between gap-3"><p className="text-[17px] font-semibold">New here? Three things to know</p><button className="btn btn-quiet btn-sm shrink-0 whitespace-nowrap !px-3" aria-label="Dismiss" onClick={onHelpSeen}>Got it</button></div>
+          <ol className="mt-3 space-y-2.5 text-[15px] leading-snug">
+            <li className="flex gap-3"><span aria-hidden>💬</span><span><b>Tell Mila what you need</b> in the box above — like “I have an open house Sunday at 1.”</span></li>
+            <li className="flex gap-3"><span aria-hidden>✋</span><span><b>Mila never sends or deletes without your OK.</b> Anything waiting shows up under “Needs you”.</span></li>
+            <li className="flex gap-3"><span aria-hidden>✅</span><span><b>Check things off</b> in “Today’s plan” and see everything you’ve finished under Completed.</span></li>
+          </ol>
+        </section>
+      )}
+
       <div>
         <p className="text-[19px] leading-snug text-ink-soft">{f.summary}</p>
         <p className="faint mt-1.5 text-[12px]">Updated {ago(f.updatedAt)}</p>
@@ -252,15 +269,18 @@ function TodayPanel({ data, refreshKey }: { data: HomeData; refreshKey: number }
 
       {f.needsYou.length > 0 && (
         <section aria-labelledby="needs-you">
-          <h2 id="needs-you" className="kicker mb-4">Needs you</h2>
+          <h2 id="needs-you" className="kicker mb-3">Needs you</h2>
           <ul className="space-y-3">
             {f.needsYou.map((n) => (
-              <li key={n.id} className="glass p-5" style={{ borderRadius: 24 }}>
-                <div className="flex items-start gap-3">
-                  <span className="mt-[7px] h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: n.tone === "urgent" ? "var(--danger)" : "var(--accent)" }} aria-hidden />
-                  <div className="min-w-0 flex-1"><p className="text-[17px] font-semibold leading-snug">{n.title}</p>{n.why && <p className="muted mt-1 text-[14.5px] leading-snug">{n.why}</p>}</div>
+              <li key={n.id} className="glass p-4" style={{ borderRadius: 24 }}>
+                <div className="flex items-start gap-3.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[22px]" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }} aria-hidden>{n.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[16.5px] font-semibold leading-snug">{n.title}{n.tone === "urgent" && <span className="ml-2 align-middle text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--danger)" }}>Urgent</span>}</p>
+                    {n.why && <p className="muted mt-0.5 text-[14px] leading-snug">{n.why}</p>}
+                    <div className="mt-3 flex items-center gap-2"><Act a={n.primary} primary itemId={n.id} />{n.secondary && <Act a={n.secondary} itemId={n.id + "-s"} />}</div>
+                  </div>
                 </div>
-                <div className="mt-4 flex items-center gap-2 pl-[22px]"><Act a={n.primary} primary itemId={n.id} />{n.secondary && <Act a={n.secondary} itemId={n.id + "-s"} />}</div>
               </li>
             ))}
           </ul>
@@ -270,30 +290,30 @@ function TodayPanel({ data, refreshKey }: { data: HomeData; refreshKey: number }
 
       {f.plan.length > 0 && (
         <section aria-labelledby="todays-plan">
-          <h2 id="todays-plan" className="kicker mb-4">Today&apos;s plan</h2>
-          <ul className="space-y-1">
-            {f.plan.map((p) => { const done = doneIds.includes(p.id); return (
-              <li key={p.id} className="flex items-start gap-3 rounded-2xl px-1 py-2.5">
-                <button onClick={() => toggle(p.id)} aria-label={done ? "Mark not done" : "Mark done"} className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border" style={{ borderColor: "var(--line-strong, rgba(0,0,0,.25))", background: done ? "var(--ok)" : "transparent", color: "white" }}>{done && <Check size={14} strokeWidth={3} />}</button>
-                <div className="min-w-0 flex-1" style={{ opacity: done ? 0.5 : 1 }}>
-                  <p className={"text-[16px] font-semibold leading-snug" + (done ? " line-through" : "")}>{p.title}</p>
+          <div className="mb-3 flex items-baseline justify-between"><h2 id="todays-plan" className="kicker">Today&apos;s plan{f.plan.length > 0 ? ` · ${doneCount}/${f.plan.length}` : ""}</h2><Link href="/done" className="text-[13.5px] font-semibold text-accent">Completed</Link></div>
+          <ul className="glass divide-y overflow-hidden" style={{ borderColor: "var(--line)", borderRadius: 24 }}>
+            {f.plan.map((p) => (
+              <motion.li key={p.id} layout="position" className="flex items-start gap-3.5 px-4 py-3.5">
+                <CheckDot done={p.done} onClick={() => togglePlan(p)} label={p.done ? `Mark “${p.title}” not done` : `Mark “${p.title}” done`} />
+                <motion.div className="min-w-0 flex-1" animate={{ opacity: p.done ? 0.5 : 1 }}>
+                  <p className="text-[16px] font-semibold leading-snug"><span aria-hidden>{p.emoji} </span><span className="relative inline">{p.title}{p.done && <motion.span className="absolute left-0 right-0 top-1/2 h-[2px] origin-left" style={{ background: "var(--ink)" }} initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.25 }} />}</span></p>
                   <p className="muted text-[13.5px] leading-snug">{p.why}</p>
-                </div>
-                {!done && <Link href={p.action.href ?? "/"} className="btn btn-quiet btn-sm shrink-0">{p.action.label}</Link>}
-              </li>
-            ); })}
+                </motion.div>
+                {!p.done && <Link href={p.action.href ?? "/"} className="btn btn-quiet btn-sm shrink-0">{p.action.label}</Link>}
+              </motion.li>
+            ))}
           </ul>
         </section>
       )}
 
       {f.did.length > 0 && (
         <section aria-labelledby="mila-did">
-          <h2 id="mila-did" className="kicker mb-4">Mila did</h2>
-          <ul className="space-y-4">
+          <div className="mb-3 flex items-baseline justify-between"><h2 id="mila-did" className="kicker">Mila did</h2><Link href="/done" className="text-[13.5px] font-semibold text-accent">All completed</Link></div>
+          <ul className="space-y-3.5">
             {f.did.map((d) => (
               <li key={d.id} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ background: "color-mix(in srgb, var(--ok) 18%, transparent)", color: "var(--ok)" }}><Check size={12} strokeWidth={3} /></span>
-                <div className="min-w-0 flex-1"><p className="text-[15.5px] leading-snug">{d.href ? <Link href={d.href}>{d.text}</Link> : d.text}</p><p className="faint text-[12.5px]">{ago(d.at)}</p></div>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[16px]" style={{ background: "color-mix(in srgb, var(--ok) 16%, transparent)" }} aria-hidden>{d.emoji}</span>
+                <div className="min-w-0 flex-1"><p className="text-[15.5px] leading-snug">{d.href ? <Link href={d.href}>{d.text}</Link> : d.text}</p><p className="faint text-[12.5px]">✓ {ago(d.at)}</p></div>
               </li>
             ))}
           </ul>
@@ -302,18 +322,19 @@ function TodayPanel({ data, refreshKey }: { data: HomeData; refreshKey: number }
 
       {f.next.length > 0 && (
         <section aria-labelledby="coming-up">
-          <div className="mb-4 flex items-baseline justify-between"><h2 id="coming-up" className="kicker">Coming up</h2><Link href="/calendar" className="text-[13.5px] font-semibold text-accent">Calendar</Link></div>
-          <ul className="space-y-1">
+          <div className="mb-3 flex items-baseline justify-between"><h2 id="coming-up" className="kicker">Coming up</h2><Link href="/calendar" className="text-[13.5px] font-semibold text-accent">Calendar</Link></div>
+          <ul className="glass divide-y overflow-hidden" style={{ borderColor: "var(--line)", borderRadius: 24 }}>
             {f.next.map((e) => (
-              <li key={e.id}><Link href={e.href} className="flex gap-4 rounded-2xl px-1 py-2.5 transition hover:bg-white/30">
-                <div className="w-[76px] shrink-0 text-right"><p className="font-semibold leading-tight">{e.time}</p><p className="faint text-[12px]">{e.day}</p></div>
-                <div className="min-w-0"><p className="truncate font-semibold leading-tight">{e.title}</p>{e.place && <p className="faint truncate text-[13.5px]">{e.place}</p>}</div>
+              <li key={e.id}><Link href={e.href} className="flex items-center gap-3.5 px-4 py-3.5">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[22px]" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }} aria-hidden>{e.emoji}</span>
+                <div className="min-w-0 flex-1"><p className="truncate text-[15.5px] font-semibold leading-tight">{e.title}</p><p className="faint truncate text-[13.5px]">{e.day} · {e.time}{e.place ? ` · ${e.place}` : ""}</p></div>
+                <ChevronRight size={18} className="shrink-0 text-ink-faint" aria-hidden />
               </Link></li>
             ))}
           </ul>
         </section>
       )}
-      {data.isDemo && <p className="faint px-1 text-[12.5px]">You're viewing fictional demo data.</p>}
+      {data.isDemo && <p className="faint px-1 text-[12.5px]">You&apos;re viewing fictional demo data.</p>}
     </div>
   );
 }

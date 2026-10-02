@@ -9,6 +9,7 @@ import { Segmented, Sheet, Skeleton, Toggle, jfetch, Pill } from "@/components/u
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
+import { PlaceInput, type PickedPlace } from "@/components/place-input";
 
 const TITLES: Record<string, string> = { profile: "Profile", business: "Business", connections: "Connections", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
 
@@ -46,13 +47,14 @@ function Card({ children, title, sub }: { children: React.ReactNode; title?: str
 function Profile() {
   const { profile } = useApp(); const save = useSave();
   const [f, setF] = useState({ full_name: profile.full_name, role: profile.role, brokerage: profile.brokerage ?? "", location: profile.location, primary_market: profile.primary_market, experience: profile.experience as ExperienceLevel, business_type: profile.business_type as BusinessType });
+  const [pick, setPick] = useState<PickedPlace | null>(null); const [pickText, setPickText] = useState("");
   return (
-    <form onSubmit={(e) => { e.preventDefault(); save({ ...f, brokerage: f.brokerage || null }); }}>
+    <form onSubmit={(e) => { e.preventDefault(); const ok = !!pick && f.location === pickText; save({ ...f, brokerage: f.brokerage || null, ...(ok && pick?.lat != null && pick.lng != null && profile.lat == null ? { lat: pick.lat, lng: pick.lng } : {}), ...(ok && pick?.timezone ? { timezone: pick.timezone } : {}) }); }}>
       <Card>
         <div className="space-y-4">
           <div><label className="lbl">Name</label><input className="field" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} required /></div>
           <div className="grid gap-4 sm:grid-cols-2"><div><label className="lbl">Role</label><select className="field" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{["Agent", "Broker", "Team lead", "Assistant"].map((r) => <option key={r}>{r}</option>)}</select></div><div><label className="lbl">Brokerage</label><input className="field" value={f.brokerage} onChange={(e) => setF({ ...f, brokerage: e.target.value })} /></div></div>
-          <div className="grid gap-4 sm:grid-cols-2"><div><label className="lbl">City & state</label><input className="field" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} /></div><div><label className="lbl">Primary market</label><input className="field" value={f.primary_market} onChange={(e) => setF({ ...f, primary_market: e.target.value })} /></div></div>
+          <div className="grid gap-4 sm:grid-cols-2"><div><label className="lbl">City & state</label><PlaceInput mode="city" value={f.location} onChange={(v) => setF({ ...f, location: v })} onPick={(pl) => { setPick(pl); setPickText(pl.cityState ?? ""); }} verified={!!pick && f.location === pickText} placeholder="Start typing your city…" /></div><div><label className="lbl">Primary market</label><input className="field" value={f.primary_market} onChange={(e) => setF({ ...f, primary_market: e.target.value })} /></div></div>
           <div className="grid gap-4 sm:grid-cols-2"><div><label className="lbl">Experience</label><select className="field" value={f.experience} onChange={(e) => setF({ ...f, experience: e.target.value as ExperienceLevel })}><option value="new">New agent</option><option value="growing">Growing agent</option><option value="experienced">Experienced agent</option><option value="team">Team / broker</option></select></div><div><label className="lbl">Focus</label><select className="field" value={f.business_type} onChange={(e) => setF({ ...f, business_type: e.target.value as BusinessType })}>{["buyer", "seller", "rental", "commercial", "investor", "mixed"].map((r) => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}</select></div></div>
         </div>
         <button className="btn btn-primary mt-5">Save</button>

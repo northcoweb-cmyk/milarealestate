@@ -7,7 +7,7 @@ import { CalendarDays, Home, Megaphone, Menu, Users } from "lucide-react";
 import clsx from "clsx";
 
 const NAV = [
-  { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" || p.startsWith("/tasks") },
+  { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" || p.startsWith("/tasks") || p.startsWith("/done") },
   { href: "/contacts", label: "Contacts", icon: Users, match: (p: string) => p.startsWith("/contacts") },
   { href: "/content", label: "Content", icon: Megaphone, match: (p: string) => p.startsWith("/content") },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, match: (p: string) => p.startsWith("/calendar") },
@@ -36,11 +36,12 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
         </div>
       </nav>
 
-      <div className="lg:pl-[128px]">{children}</div>
+      {/* Never let the document get shorter than the screen while a page loads: on iPhone, Safari re-shows its toolbar when the page stops scrolling, which makes the tab bar jump. */}
+      <div className="lg:pl-[128px]" style={{ minHeight: "calc(100lvh + 2px)" }}>{children}</div>
 
       {/* mobile tab bar */}
       <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),12px)] lg:hidden" style={{ transform: "translate3d(0,0,0)", willChange: "transform", contain: "layout paint" }}>
-        <div className="glass-strong mx-auto flex max-w-md items-center justify-between p-1.5" style={{ borderRadius: 999 }}>
+        <div className="surface mx-auto flex max-w-md items-center justify-between p-1.5" style={{ borderRadius: 999, background: "color-mix(in srgb, var(--surface) 94%, transparent)" }}>
           {NAV.map((n) => {
             const active = n.match(path);
             return (

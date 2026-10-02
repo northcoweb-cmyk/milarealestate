@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Mila", short_name: "Mila",
     description: "Your personal real-estate work agent.",
     start_url: "/", scope: "/", display: "standalone", orientation: "portrait",
-    background_color: "#d9ebff", theme_color: "#d9ebff", categories: ["business", "productivity"],
+    background_color: "#f0f0f1", theme_color: "#f0f0f1", categories: ["business", "productivity"],
     icons: [
       { src: "/pwa-icon/192", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/pwa-icon/512", sizes: "512x512", type: "image/png", purpose: "any" },

@@ -2,18 +2,22 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { ChevronRight, MapPin, Plus, RefreshCw } from "lucide-react";
 import type { CalendarEvent } from "@/lib/types";
 import { Empty, PageHeader, Sheet, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
-import { addDays, fmtRange, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
+import { PlaceInput } from "@/components/place-input";
+import { eventEmoji } from "@/lib/emoji";
+import { addDays, fmtRange, fmtTime, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
 import { ShowingsRail } from "@/components/ui/property-card";
 import type { ShowingCardData } from "@/lib/showings";
 
-interface Data { events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean } }
-const KIND_COLOR: Record<string, string> = { open_house: "#e0875f", showing: "#4a6cf7", call: "#7a5cf2", lunch: "#3aa57d", closing: "#d1444a", meeting: "#6a7fb8", other: "#8a93bd" };
+interface Person { name: string; phone: string | null; email: string | null; type: string }
+interface Place { address: string; city: string | null; state: string | null; list_price: number | null; beds: number | null; baths: number | null; sqft: number | null; verified: boolean }
+interface Data { people: Record<string, Person>; places: Record<string, Place>; events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean } }
+const KIND_COLOR: Record<string, string> = { open_house: "#111111", showing: "#444447", call: "#6e6e73", lunch: "#8e8e93", closing: "#111111", meeting: "#5a5a5e", other: "#a1a1a6" };
 
 export default function CalendarPage() {
   const { profile, toast, capabilities } = useApp();
@@ -21,6 +25,7 @@ export default function CalendarPage() {
   const today = useMemo(() => startOfDay(new Date(), tz), [tz]);
   const [sel, setSel] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [openEv, setOpenEv] = useState<CalendarEvent | null>(null);
   const [syncing, setSyncing] = useState(false);
   const from = today.toISOString(), to = addDays(today, 60, tz).toISOString();
   const { data, loading, reload } = useApi<Data>(`/api/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
@@ -58,16 +63,16 @@ export default function CalendarPage() {
       {loading && !data ? <Skeleton className="h-40" /> : dayEvents.length ? (
         <ul className="space-y-3">
           {dayEvents.map((e) => (
-            <li key={e.id} className="glass flex gap-4 p-4" style={{ borderRadius: 24 }}>
-              <div className="w-[78px] shrink-0"><p className="font-semibold leading-tight">{fmtRange(e.start_at, e.end_at, tz)}</p></div>
+            <li key={e.id}><button onClick={() => setOpenEv(e)} className="glass flex w-full gap-4 p-4 text-left" style={{ borderRadius: 24 }}>
+              <div className="w-[72px] shrink-0"><p className="font-semibold leading-tight">{fmtTime(e.start_at, tz)}</p><p className="faint mt-0.5 text-[12.5px]">{Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000)} min</p></div>
               <div className="min-w-0 flex-1 border-l-[3px] pl-4" style={{ borderColor: KIND_COLOR[e.kind] ?? KIND_COLOR.other }}>
-                <p className="font-semibold leading-snug">{e.title}</p>
+                <p className="font-semibold leading-snug"><span aria-hidden>{eventEmoji(e.kind)} </span>{e.title}</p>
                 {e.location && <p className="faint truncate text-[13.5px]">{e.location}</p>}
-                {e.property_id && <Link href={`/properties/${e.property_id}`} className="mt-0.5 inline-block text-[13px] font-semibold text-accent">View property</Link>}
                 <p className="faint mt-1 text-[12px]">{e.source === "google" ? "From Google Calendar" : e.synced_at ? "In Google Calendar" : "Mila calendar"}</p>
                 {overlaps(e) && <p className="mt-1 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}
               </div>
-            </li>
+              <ChevronRight size={18} className="mt-1 shrink-0 text-ink-faint" aria-hidden />
+            </button></li>
           ))}
         </ul>
       ) : <Empty title="Nothing scheduled" body="Add an event, or just tell Mila: “Schedule a showing Friday at 3.”" />}
@@ -76,6 +81,7 @@ export default function CalendarPage() {
         <div className="min-w-0 flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">{data?.google.connected ? "Mila checks it for conflicts and adds events to it." : capabilities.google ? "Connect so Mila can check conflicts and add events." : "Not set up on this server yet."}</p></div>
         {data?.google.connected ? <button className="btn btn-sm" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />Sync now</button> : capabilities.google ? <a className="btn btn-primary btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : null}
       </div>
+      {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} />}
       <AddEvent open={adding} onClose={() => setAdding(false)} defaultDay={days[sel]} onDone={reload} />
     </Page>
   );
@@ -104,10 +110,50 @@ function AddEvent({ open, onClose, defaultDay, onDone }: { open: boolean; onClos
         <div><label className="lbl">Title</label><input className="field" required value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Showing — 123 Main Street" /></div>
         <div className="grid grid-cols-2 gap-3"><div><label className="lbl">Date</label><input type="date" className="field" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} required /></div><div><label className="lbl">Start</label><input type="time" className="field" value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} required /></div></div>
         <div className="grid grid-cols-2 gap-3"><div><label className="lbl">Type</label><select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>{["showing", "open_house", "call", "meeting", "lunch", "closing", "other"].map((k) => <option key={k} value={k}>{k.replace("_", " ")}</option>)}</select></div><div><label className="lbl">Length</label><select className="field" value={f.mins} onChange={(e) => setF({ ...f, mins: e.target.value })}>{[15, 30, 45, 60, 90, 120, 180].map((m) => <option key={m} value={m}>{m} min</option>)}</select></div></div>
-        <div><label className="lbl">Location</label><input className="field" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} /></div>
+        <div><label className="lbl">Location</label><PlaceInput mode="place" value={f.location} onChange={(v) => setF({ ...f, location: v })} placeholder="Address or place" /></div>
         {conflict && <div className="rounded-2xl p-3 text-[14.5px]" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}><p className="font-semibold">{conflict}</p><p className="muted">I never double-book without asking.</p><button type="button" className="btn btn-sm mt-2" onClick={() => submit(true)}>Add it anyway</button></div>}
         <button className="btn btn-primary w-full" disabled={busy}>{busy ? "Checking calendar…" : "Add event"}</button>
       </form>
+    </Sheet>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="flex gap-4 py-3"><p className="kicker w-[84px] shrink-0 pt-[3px]">{label}</p><div className="min-w-0 flex-1 text-[15.5px] leading-snug">{children}</div></div>;
+}
+
+const KIND_LABEL: Record<string, string> = { open_house: "Open house", showing: "Showing", call: "Call", meeting: "Meeting", lunch: "Lunch", closing: "Closing", other: "Event" };
+
+/** Clean summary of one calendar item: when, where, who, what — with the next obvious actions. */
+function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: Data; dayEvents: CalendarEvent[]; onClose: () => void }) {
+  const { profile } = useApp();
+  const tz = profile.timezone;
+  const person = e.contact_id ? data.people[e.contact_id] : null;
+  const place = e.property_id ? data.places[e.property_id] : null;
+  const clash = dayEvents.find((o) => o.id !== e.id && new Date(o.start_at) < new Date(e.end_at) && new Date(e.start_at) < new Date(o.end_at));
+  const mins = Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000);
+  const where = e.location ?? (place ? [place.address, place.city, place.state].filter(Boolean).join(", ") : null);
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(e.start_at));
+  const ask = (q: string) => `/?ask=${encodeURIComponent(q)}`;
+  return (
+    <Sheet open onClose={onClose} title={`${eventEmoji(e.kind)} ${KIND_LABEL[e.kind] ?? "Event"}`}>
+      <div>
+        <p className="display text-[26px] leading-tight">{e.title}</p>
+        <p className="muted mt-1">{day} · {fmtRange(e.start_at, e.end_at, tz)}</p>
+        {clash && <p className="mt-3 rounded-2xl px-3.5 py-2.5 text-[14px] font-semibold" style={{ background: "color-mix(in srgb, var(--warn) 16%, transparent)", color: "var(--warn)" }}>Overlaps “{clash.title}”</p>}
+        <div className="mt-3 divide-y" style={{ borderColor: "var(--line)" }}>
+          <DetailRow label="Length">{mins >= 60 ? `${Math.floor(mins / 60)} hr${mins % 60 ? ` ${mins % 60} min` : ""}` : `${mins} min`}</DetailRow>
+          {where && <DetailRow label="Where"><p>{where}</p><a className="mt-1 inline-flex items-center gap-1 text-[14px] font-semibold text-accent" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(where)}`}><MapPin size={14} />Directions</a></DetailRow>}
+          {person && <DetailRow label="With"><Link href={`/contacts/${e.contact_id}`} className="font-semibold">{person.name}</Link><p className="muted text-[14px]">{[person.phone, person.email].filter(Boolean).join(" · ") || person.type}</p></DetailRow>}
+          {place && <DetailRow label="Property"><Link href={`/properties/${e.property_id}`} className="font-semibold">{place.address}</Link><p className="muted text-[14px]">{place.verified ? [place.list_price ? `$${place.list_price.toLocaleString("en-US")}` : null, place.beds ? `${place.beds} bd` : null, place.baths ? `${place.baths} ba` : null, place.sqft ? `${place.sqft.toLocaleString("en-US")} sqft` : null].filter(Boolean).join(" · ") || "No details added yet" : "Details not verified yet"}</p></DetailRow>}
+          {e.notes && <DetailRow label="Notes"><p className="whitespace-pre-line">{e.notes}</p></DetailRow>}
+          <DetailRow label="Source">{e.source === "google" ? "Google Calendar" : e.synced_at ? "Mila · also in Google Calendar" : e.source === "mila" ? "Added by Mila" : "Added by you"}</DetailRow>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {person && <Link className="btn btn-primary btn-sm" href={ask(`Draft a confirmation message to ${person.name} for ${e.title}`)}>Message {person.name.split(" ")[0]}</Link>}
+          <Link className="btn btn-sm" href={ask(`Move ${e.title} to a different time`)}>Reschedule</Link>
+        </div>
+      </div>
     </Sheet>
   );
 }

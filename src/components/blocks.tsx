@@ -180,7 +180,7 @@ function EmailCard({ b, onAction, onApprove, onNavigate, busy }: { b: Extract<Bl
 }
 
 export function SlidePreview({ slide, index, total }: { slide: { headline: string; sub?: string; role: string; image_id?: string | null }; index: number; total: number }) {
-  const grad = ["linear-gradient(160deg,#27386b,#6a7fd1 60%,#e6a98d)", "linear-gradient(160deg,#3a4f8f,#8a9be0 70%,#f1c6a8)", "linear-gradient(160deg,#5a3f86,#a07fd8 60%,#f3b9a0)"][index % 3];
+  const grad = ["linear-gradient(160deg,#111,#4a4a4d 60%,#9a9a9e)", "linear-gradient(160deg,#1c1c1e,#58585b 70%,#b0b0b4)", "linear-gradient(160deg,#000,#38383a 60%,#8a8a8e)"][index % 3];
   return (
     <div className="relative w-[210px] shrink-0 snap-start overflow-hidden text-white" style={{ aspectRatio: "4 / 5", borderRadius: 22, background: slide.image_id ? `url(/api/files/${slide.image_id}) center/cover` : grad, boxShadow: "var(--shadow)" }}>
       <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,16,48,.08), rgba(10,16,48,.62))" }} />
