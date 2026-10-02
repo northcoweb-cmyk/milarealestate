@@ -11,12 +11,32 @@ export const PALETTES: Palette[] = [
 ];
 export const paletteOf = (key: string | undefined | null) => PALETTES.find((p) => p.key === key) ?? PALETTES[0];
 
+export interface LayoutDef { key: string; label: string; photo: "yes" | "no" | "both" }
+/** Distinct post designs. "cinema" only makes sense with a photo. */
+export const LAYOUTS: LayoutDef[] = [
+  { key: "panel", label: "Showcase", photo: "both" },
+  { key: "poster", label: "Poster", photo: "both" },
+  { key: "arch", label: "Arch", photo: "both" },
+  { key: "split", label: "Split", photo: "both" },
+  { key: "badge", label: "Badge", photo: "both" },
+  { key: "ticket", label: "Ticket", photo: "both" },
+  { key: "stack", label: "Marker", photo: "both" },
+  { key: "polaroid", label: "Polaroid", photo: "both" },
+  { key: "cinema", label: "Full photo", photo: "yes" },
+];
+export const layoutOf = (key: string | undefined | null) => LAYOUTS.find((l) => l.key === key) ?? LAYOUTS[0];
+/** Rotates through layouts so consecutive posts never look alike. Without a photo, "cinema" is skipped. */
+export function pickLayout(hasPhoto: boolean, seed: number): string {
+  const list = LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes");
+  return list[Math.abs(seed) % list.length].key;
+}
+
 const LISTING: Record<string, string[]> = { just_listed: ["noir", "paper", "forest"], open_house: ["forest", "noir", "sand"], price_improvement: ["clay", "noir"], just_sold: ["forest", "paper", "noir"] };
 const EVERGREEN = ["paper", "sand", "noir", "sky", "forest", "clay"];
 /** Deterministic but varied: the same category cycles through palettes as you make more posts. */
-export function pickTheme(category: string, variant: number): string {
+export function pickTheme(category: string, seed: number): string {
   const list = LISTING[category] ?? EVERGREEN;
-  return list[Math.abs(variant) % list.length];
+  return list[(Math.abs(seed) * 5 + 1) % list.length];
 }
 
 export type Format = "portrait" | "story" | "landscape";

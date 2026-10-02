@@ -10,7 +10,7 @@ import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { SlideImage, PLATFORM_META, PlatformBadge, STATUS_META, toLocalInput } from "@/components/content/shared";
 import { downloadBlob, renderPostFiles, shareOrDownload, type Brand } from "@/lib/content/render";
-import { PALETTES, paletteOf } from "@/lib/content/design";
+import { LAYOUTS, PALETTES, layoutOf, paletteOf } from "@/lib/content/design";
 import { fileEntry, makeZip } from "@/lib/content/zip";
 
 type Tab = "drafts" | "ready" | "scheduled" | "posted";
@@ -119,12 +119,15 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const limit = data.platforms.find((p) => p.key === post.platform)?.limit ?? 2200;
   const over = caption.length > limit;
   const theme = slides[0]?.theme ?? "noir";
-  const photos = post.property_id ? data.photos[post.property_id] ?? [] : [];
+  const photos = post.property_id ? data.photos[post.property_id] ?? [] : Object.values(data.photos).flat();
   const heroPhoto = slides.find((s) => s.role === "hero")?.image_url ?? null;
   const dirty = caption !== post.caption || JSON.stringify(slides) !== JSON.stringify(post.slides);
   const live: SocialPost = { ...post, caption, slides };
 
   const setTheme = (t: string) => setSlides((x) => x.map((s) => ({ ...s, theme: t })));
+  const layout = layoutOf(slides[0]?.layout).key;
+  const hasPhoto = slides.some((s) => s.image_url);
+  const setLayout = (l: string) => setSlides((x) => x.map((s) => ({ ...s, layout: l })));
   const setPhoto = (url: string | null) => setSlides((x) => x.map((s, i) => ({ ...s, image_url: url ? (s.role === "hero" ? url : [url, ...photos.filter((p) => p !== url)][i % Math.max(1, photos.length)]) : null })));
   const setText = (i: number, k: "headline" | "sub", v: string) => setSlides((x) => x.map((s, n) => (n === i ? { ...s, [k]: v } : s)));
 
@@ -159,13 +162,20 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
         </div>
 
         <div>
-          <p className="kicker mb-2">Look · {pal.label}</p>
+          <p className="kicker mb-2">Design · {layoutOf(layout).label}</p>
+          <div className="no-scrollbar -mx-6 flex gap-2 overflow-x-auto px-6 pb-1">
+            {LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes").map((l) => <button key={l.key} onClick={() => setLayout(l.key)} aria-pressed={layout === l.key} className={"chip " + (layout === l.key ? "is-selected" : "")}>{l.label}</button>)}
+          </div>
+        </div>
+
+        <div>
+          <p className="kicker mb-2">Colors · {pal.label}</p>
           <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1">
             {PALETTES.map((p) => <button key={p.key} onClick={() => setTheme(p.key)} aria-label={`${p.label} style`} aria-pressed={theme === p.key} className="relative h-11 w-11 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${p.bg} 55%, ${p.accent} 55%)`, boxShadow: theme === p.key ? "0 0 0 3px var(--surface), 0 0 0 5px var(--ink)" : "inset 0 0 0 1px rgba(128,128,128,.4)" }} />)}
           </div>
         </div>
 
-        {post.property_id && (
+        {(post.property_id || photos.length > 0) && (
           <div>
             <p className="kicker mb-2">Photo</p>
             {photos.length ? (

@@ -1,5 +1,5 @@
 import type { SocialPost, SocialSlide } from "../types";
-import { FORMATS, formatFor, paletteOf, type Palette } from "./design";
+import { FORMATS, formatFor, layoutOf, paletteOf, type Palette } from "./design";
 
 /**
  * Draws post images in the browser (canvas → PNG): editorial layouts, six palettes, real property photos when
@@ -91,13 +91,21 @@ function parseStats(text: string): Stat[] | null {
   return out.slice(0, 4);
 }
 
-// ---------------------------------------------------------------- illustrations (flat vector art, drawn in palette colours)
+type Shape = "round" | "arch" | "circle" | "sharp";
+function shapePath(c: Ctx, shape: Shape, x: number, y: number, w: number, h: number, r = 44) {
+  if (shape === "round") { rrect(c, x, y, w, h, r); return; }
+  c.beginPath();
+  if (shape === "circle") c.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
+  else if (shape === "sharp") c.rect(x, y, w, h);
+  else { const a = w / 2, b = 36; c.moveTo(x, y + h - b); c.lineTo(x, y + a); c.arc(x + a, y + a, a, Math.PI, 0); c.lineTo(x + w, y + h - b); c.arcTo(x + w, y + h, x + w - b, y + h, b); c.lineTo(x + b, y + h); c.arcTo(x, y + h, x, y + h - b, b); c.closePath(); }
+}
+
 interface Art { ink: string; accent: string; soft: string; bg: string; panel: string; onAccent: string }
 const sparkle = (c: Ctx, x: number, y: number, r: number, col: string) => { c.fillStyle = col; c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.fill(); };
 
 /** Draws a 400x300 scene into the rect, scaled to fit and centred. */
-function illustrate(c: Ctx, kind: string, x: number, y: number, w: number, h: number, a: Art, initials: string, sans: string) {
-  c.save(); c.beginPath(); rrect(c, x, y, w, h, 44); c.clip();
+function illustrate(c: Ctx, kind: string, x: number, y: number, w: number, h: number, a: Art, initials: string, sans: string, shape: Shape = "round") {
+  c.save(); shapePath(c, shape, x, y, w, h); c.clip();
   c.fillStyle = a.panel; c.fillRect(x, y, w, h);
   const k = Math.min(w / 400, h / 300) * 0.92; c.translate(x + (w - 400 * k) / 2, y + (h - 300 * k) / 2 + 6 * k); c.scale(k, k);
   const fill = (col: string, al = 1) => { c.fillStyle = col; c.globalAlpha = al; };
@@ -165,6 +173,7 @@ function illustrate(c: Ctx, kind: string, x: number, y: number, w: number, h: nu
 }
 const ART_FOR: Record<string, string> = { just_listed: "house", open_house: "calendar", price_improvement: "tag", just_sold: "sign", buyer_tip: "key", seller_tip: "tag", education: "chat", market_update: "chart", local: "chat", personal_brand: "monogram" };
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase() || "M";
+const KICKER: Record<string, string> = { just_listed: "Just listed", open_house: "Open house", price_improvement: "Price improvement", just_sold: "Just sold", buyer_tip: "Buyer tip", seller_tip: "Seller tip", education: "How it works", market_update: "Market check-in", local: "Local favorites", personal_brand: "Meet your agent" };
 
 // ---------------------------------------------------------------- main renderer
 export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Promise<HTMLCanvasElement> {
@@ -178,119 +187,240 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   const u = Math.min(W / 1080, H / 1000); const m = 78 * u;
   const pal: Palette = paletteOf(slide.theme);
   const photo = slide.image_url ? await loadImage(slide.image_url) : null;
-  const onPhoto = !!photo;
-  const ink = onPhoto ? "#ffffff" : pal.ink, soft = onPhoto ? "rgba(255,255,255,.8)" : pal.soft;
-  const head = (px: number) => (pal.serif ? `400 ${px}px ${f.serif}` : `800 ${px}px ${f.sans}`);
-  const sans = (px: number, w = 500) => `${w} ${px}px ${f.sans}`;
-  const tight = (px: number) => { try { (c as unknown as { letterSpacing: string }).letterSpacing = pal.serif ? "0px" : `${(-0.025 * px).toFixed(2)}px`; } catch { /* unsupported: default spacing */ } };
-  const loose = () => { try { (c as unknown as { letterSpacing: string }).letterSpacing = "0px"; } catch { /* ignore */ } };
-  const lhOf = pal.serif ? 1.04 : 1.02;
-  c.textBaseline = "alphabetic";
-  const art: Art = { ink: pal.ink, accent: pal.accent, soft: pal.soft, bg: pal.bg, panel: pal.bg2, onAccent: pal.onAccent };
   const landscape = format === "landscape";
+  let lay = layoutOf(slide.layout).key;
+  if (lay === "cinema" && !photo) lay = "panel";
+  const fullBleed = lay === "cinema" && !!photo;
+  const ink = fullBleed ? "#ffffff" : pal.ink, soft = fullBleed ? "rgba(255,255,255,.8)" : pal.soft;
+  const poster = lay === "poster";
+  const headSerif = pal.serif && !poster;
+  const head = (px: number) => (headSerif ? `400 ${px}px ${f.serif}` : `800 ${px}px ${f.sans}`);
+  const sans = (px: number, w = 500) => `${w} ${px}px ${f.sans}`;
+  const tight = (px: number) => { try { (c as unknown as { letterSpacing: string }).letterSpacing = headSerif ? "0px" : `${(-0.025 * px).toFixed(2)}px`; } catch { /* unsupported */ } };
+  const loose = () => { try { (c as unknown as { letterSpacing: string }).letterSpacing = "0px"; } catch { /* ignore */ } };
+  const lhOf = headSerif ? 1.04 : poster ? 0.92 : 1.02;
+  const art: Art = { ink: pal.ink, accent: pal.accent, soft: pal.soft, bg: pal.bg, panel: pal.bg2, onAccent: pal.onAccent };
+  const kind = ART_FOR[o.category ?? ""] ?? "monogram";
+  const ini = initialsOf(o.brand.name);
+  const kickerText = slide.role === "hero" && slide.sub ? slide.sub : KICKER[o.category ?? ""] ?? "";
+  const centered = !landscape && (lay === "arch" || lay === "badge" || lay === "ticket" || lay === "polaroid");
+  const tileR = lay === "poster" || lay === "split" ? 10 * u : lay === "arch" || lay === "badge" ? 60 * u : 40 * u;
+  const stripShape: Shape = lay === "poster" || lay === "split" ? "sharp" : "round";
+  const HL = poster ? slide.headline.toUpperCase() : slide.headline;
+  c.textBaseline = "alphabetic";
 
-  // ---- background
-  if (photo) {
+  // ---- background (+ per-layout decoration)
+  if (fullBleed && photo) {
     const s = Math.max(W / photo.width, H / photo.height); const w = photo.width * s, h = photo.height * s;
     c.drawImage(photo, (W - w) / 2, (H - h) / 2, w, h);
     const top = c.createLinearGradient(0, 0, 0, H * 0.3); top.addColorStop(0, "rgba(0,0,0,.5)"); top.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = top; c.fillRect(0, 0, W, H * 0.3);
     const bot = c.createLinearGradient(0, H * (slide.role === "cta" ? 0 : 0.38), 0, H); bot.addColorStop(0, `rgba(0,0,0,${slide.role === "cta" ? 0.55 : 0})`); bot.addColorStop(1, "rgba(0,0,0,.88)"); c.fillStyle = bot; c.fillRect(0, 0, W, H);
-  } else { c.fillStyle = pal.bg; c.fillRect(0, 0, W, H); }
+  } else {
+    c.fillStyle = lay === "polaroid" ? pal.bg2 : pal.bg; c.fillRect(0, 0, W, H);
+    c.save();
+    if (lay === "poster") { c.fillStyle = pal.accent; c.globalAlpha = 0.12; c.beginPath(); c.moveTo(0, H * 0.58); c.lineTo(W, H * 0.46); c.lineTo(W, H * 0.8); c.lineTo(0, H * 0.92); c.closePath(); c.fill(); }
+    else if (lay === "arch") { c.strokeStyle = pal.ink; c.globalAlpha = 0.07; c.lineWidth = 3 * u; for (const r of [420, 560, 700]) { c.beginPath(); c.arc(W / 2, H * 0.34, r * u, Math.PI, 0); c.stroke(); } }
+    else if (lay === "badge") { c.strokeStyle = pal.ink; c.globalAlpha = 0.07; c.lineWidth = 3 * u; for (const r of [380, 540, 700, 860]) { c.beginPath(); c.arc(W / 2, H * 0.3, r * u, 0, Math.PI * 2); c.stroke(); } }
+    else if (lay === "stack") { c.strokeStyle = pal.ink; c.globalAlpha = 0.05; c.lineWidth = 2 * u; for (let x = -H; x < W + H; x += 46 * u) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x + H * 0.6, H); c.stroke(); } }
+    else if (lay === "panel") { c.fillStyle = pal.bg2; c.globalAlpha = 0.35; c.beginPath(); c.arc(W, H, 520 * u, 0, Math.PI * 2); c.fill(); }
+    else if (lay === "split") { c.fillStyle = pal.bg2; c.globalAlpha = 0.5; c.fillRect(0, 0, W, H * 0.52); }
+    c.restore();
+  }
 
-  // ---- top bar
+  // ---- shared pieces
   c.fillStyle = soft; c.font = sans(25 * u, 700);
-  if (o.total > 1) spaced(c, `${String(o.index + 1).padStart(2, "0")} / ${String(o.total).padStart(2, "0")}`, W - m, m + 24 * u, 3 * u, "right");
-
-  // ---- footer: monogram + brand + dots
+  const counterOnMedia = lay === "split" && slide.role === "hero" && !landscape;
+  if (o.total > 1) { c.fillStyle = counterOnMedia && photo ? "#fff" : soft; spaced(c, `${String(o.index + 1).padStart(2, "0")} / ${String(o.total).padStart(2, "0")}`, W - m, m + 24 * u, 3 * u, "right"); }
   const footY = H - m;
   const mono = 58 * u;
-  c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.fillStyle = onPhoto ? "#fff" : pal.accent; c.fill();
-  c.fillStyle = onPhoto ? "#111" : pal.onAccent; c.font = sans(22 * u, 800); c.textAlign = "center"; c.fillText(initialsOf(o.brand.name), m + mono / 2, footY - 22 * u + 8 * u); c.textAlign = "left";
+  c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
+  c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(22 * u, 800); c.textAlign = "center"; c.fillText(ini, m + mono / 2, footY - 22 * u + 8 * u); c.textAlign = "left";
   const bx = m + mono + 22 * u;
   c.fillStyle = ink; c.font = sans(30 * u, 800); c.fillText(o.brand.name, bx, footY - 24 * u);
   if (o.brand.brokerage) { c.fillStyle = soft; c.font = sans(24 * u, 500); c.fillText(o.brand.brokerage, bx, footY + 8 * u); }
   if (o.total > 1) for (let i = 0; i < o.total; i++) { const cx = W - m - (o.total - 1 - i) * 30 * u - 8 * u; c.beginPath(); c.arc(cx, footY - 22 * u, 8 * u, 0, Math.PI * 2); c.fillStyle = ink; c.globalAlpha = i === o.index ? 1 : 0.28; c.fill(); c.globalAlpha = 1; }
+  // "swipe" cue on the first slide of a carousel
+  const swipeCue = slide.role === "hero" && o.total > 1 && !landscape;
 
-  const contentBottom = footY - 100 * u;           // everything above the footer
+  const contentBottom = footY - 100 * u;
   const boxW = W - 2 * m;
-  const pill = (text: string, x: number, y: number) => {
+  const mediaBox = (x: number, y: number, w: number, h: number, shape: Shape) => {
+    if (photo && !fullBleed) {
+      c.save(); shapePath(c, shape, x, y, w, h); c.clip();
+      const s = Math.max(w / photo.width, h / photo.height); const pw = photo.width * s, ph = photo.height * s;
+      c.drawImage(photo, x + (w - pw) / 2, y + (h - ph) / 2, pw, ph); c.restore();
+    } else illustrate(c, kind, x, y, w, h, art, ini, f.sans, shape);
+  };
+  const pill = (text: string, x: number, y: number, dark = false) => {
     c.font = sans(25 * u, 800); const tw = spacedWidth(c, text.toUpperCase(), 4 * u); const pw = tw + 52 * u, ph = 56 * u;
-    rrect(c, x, y, pw, ph, ph / 2); c.fillStyle = onPhoto ? "#fff" : pal.accent; c.fill();
-    c.fillStyle = onPhoto ? "#111" : pal.onAccent; spaced(c, text.toUpperCase(), x + 26 * u, y + 37 * u, 4 * u);
+    rrect(c, x, y, pw, ph, ph / 2); c.fillStyle = fullBleed ? "#fff" : dark ? pal.ink : pal.accent; c.fill();
+    c.fillStyle = fullBleed ? "#111" : dark ? pal.bg : pal.onAccent; spaced(c, text.toUpperCase(), x + 26 * u, y + 37 * u, 4 * u);
     return { w: pw, h: ph };
   };
-  const drawLines = (lines: string[], px: number, x: number, yTop: number, lh: number, align: CanvasTextAlign = "left") => {
-    c.fillStyle = ink; c.font = head(px); tight(px); c.textAlign = align; let y = yTop + px * 0.82;
-    for (const l of lines) { c.fillText(l.replace(/\b'\b/g, "\u2019").replace(/'/g, "\u2019"), x, y); y += px * lh; }
+  const centerPill = (text: string, y: number) => { c.font = sans(25 * u, 800); const pw = spacedWidth(c, text.toUpperCase(), 4 * u) + 52 * u; return pill(text, (W - pw) / 2, y); };
+  const drawLines = (lines: string[], px: number, x: number, yTop: number, lh: number, align: CanvasTextAlign = "left", marker = false) => {
+    c.font = head(px); tight(px); c.textAlign = align; let y = yTop + px * 0.82;
+    lines.forEach((raw, idx) => {
+      const l = (poster ? raw.toUpperCase() : raw).replace(/'/g, "’");
+      if (marker && idx % 2 === 1) { const tw = c.measureText(l).width; const bxm = align === "center" ? x - tw / 2 : x; c.fillStyle = pal.accent; rrect(c, bxm - 22 * u, y - px * 0.86, tw + 44 * u, px * 1.0, 14 * u); c.fill(); c.fillStyle = pal.onAccent; } else c.fillStyle = ink;
+      c.fillText(l, x, y); y += px * lh;
+    });
     c.textAlign = "left"; loose();
   };
-  const kind = ART_FOR[o.category ?? ""] ?? "monogram";
+  const arrow = (x: number, y: number, size: number, col: string) => { c.save(); c.strokeStyle = col; c.lineWidth = 6 * u; c.lineCap = "round"; c.lineJoin = "round"; c.beginPath(); c.moveTo(x, y); c.lineTo(x + size, y); c.moveTo(x + size - size * 0.35, y - size * 0.3); c.lineTo(x + size, y); c.lineTo(x + size - size * 0.35, y + size * 0.3); c.stroke(); c.restore(); };
+  const swipe = (x: number, y: number, align: "left" | "right" = "left") => { c.font = sans(26 * u, 800); c.fillStyle = fullBleed ? "#fff" : pal.ink; const w = spacedWidth(c, "SWIPE", 4 * u); const sx = align === "left" ? x : x - w - 60 * u; spaced(c, "SWIPE", sx, y, 4 * u); arrow(sx + w + 16 * u, y - 9 * u, 38 * u, fullBleed ? "#fff" : pal.ink); };
 
+  // ================================================================ HERO
   if (slide.role === "hero") {
-    const kicker = slide.sub ? pill(slide.sub, m, m) : { w: 0, h: 0 };
-    if (onPhoto) {
-      const { px, lines } = fit(c, slide.headline, head, boxW, H * 0.32, 168 * u, 60 * u, lhOf, 4);
-      drawLines(lines, px, m, contentBottom - lines.length * px * lhOf, lhOf);
+    if (fullBleed) {
+      pill(kickerText, m, m);
+      const { px, lines } = fit(c, HL, head, boxW, H * 0.32, 168 * u, 60 * u, lhOf, 4);
+      drawLines(lines, px, m, contentBottom - lines.length * px * lhOf - (swipeCue ? 70 * u : 0), lhOf);
+      if (swipeCue) swipe(m, contentBottom - 12 * u);
     } else if (landscape) {
-      const px0 = m, tw = W * 0.5 - m;
-      illustrate(c, kind, W * 0.54, m, W - m - W * 0.54, contentBottom - m, art, initialsOf(o.brand.name), f.sans);
-      const { px, lines } = fit(c, slide.headline, head, tw, contentBottom - m - 140 * u, 130 * u, 54 * u, lhOf, 4);
-      drawLines(lines, px, px0, contentBottom - lines.length * px * lhOf, lhOf);
-    } else {
-      const panelY = m + kicker.h + 40 * u, panelH = (format === "story" ? H * 0.4 : H * 0.36);
-      illustrate(c, kind, m, panelY, boxW, panelH, art, initialsOf(o.brand.name), f.sans);
+      pill(kickerText, m, m);
+      mediaBox(W * 0.54, m, W - m - W * 0.54, contentBottom - m, lay === "arch" ? "arch" : lay === "badge" ? "circle" : "round");
+      const { px, lines } = fit(c, HL, head, W * 0.5 - m, contentBottom - m - 140 * u, 130 * u, 54 * u, lhOf, 4);
+      drawLines(lines, px, m, contentBottom - lines.length * px * lhOf, lhOf);
+    } else if (lay === "poster") {
+      pill(kickerText, m, m);
+      const top = m + 56 * u + 40 * u, bottom = H * (format === "story" ? 0.5 : 0.56);
+      const { px, lines } = fit(c, HL, head, boxW, bottom - top, 250 * u, 80 * u, lhOf, 4);
+      drawLines(lines, px, m, top, lhOf);
+      const d = Math.min(W * 0.46, contentBottom - H * 0.6); const cx = W - m - d / 2, cy = contentBottom - d / 2 + 10 * u;
+      mediaBox(cx - d / 2, cy - d / 2, d, d, "circle");
+      c.strokeStyle = pal.accent; c.lineWidth = 10 * u; c.beginPath(); c.arc(cx, cy, d / 2 + 10 * u, 0, Math.PI * 2); c.stroke();
+      if (swipeCue) swipe(m, contentBottom - 12 * u);
+    } else if (lay === "stack") {
+      pill(kickerText, m, m);
+      const top = m + 56 * u + 50 * u, bottom = H * (format === "story" ? 0.48 : 0.55);
+      const { px, lines } = fit(c, HL, head, boxW - 44 * u, bottom - top, 170 * u, 64 * u, 1.12, 4);
+      drawLines(lines, px, m + 22 * u, top, 1.12, "left", true);
+      const my = Math.max(bottom + 30 * u, top + lines.length * px * 1.12 + 40 * u);
+      mediaBox(m, my, boxW, contentBottom - my - (swipeCue ? 70 * u : 0), "round");
+      if (swipeCue) swipe(m, contentBottom - 12 * u);
+    } else if (lay === "arch") {
+      const aw = boxW * 0.74, ah = H * (format === "story" ? 0.4 : 0.44), ax = (W - aw) / 2, ay = m + 56 * u + 36 * u;
+      centerPill(kickerText, m);
+      c.strokeStyle = pal.accent; c.lineWidth = 5 * u; shapePath(c, "arch", ax - 18 * u, ay - 18 * u, aw + 36 * u, ah + 36 * u); c.stroke();
+      mediaBox(ax, ay, aw, ah, "arch");
+      const top = ay + ah + 56 * u;
+      const { px, lines } = fit(c, HL, head, boxW, contentBottom - top - (swipeCue ? 60 * u : 0), 150 * u, 60 * u, lhOf, 3);
+      drawLines(lines, px, W / 2, top + (format === "story" ? 10 * u : 0), lhOf, "center");
+      if (swipeCue) { c.font = sans(26 * u, 800); const w = spacedWidth(c, "SWIPE", 4 * u) + 60 * u; swipe((W - w) / 2, contentBottom - 12 * u); }
+    } else if (lay === "split") {
+      const mh = H * 0.52;
+      mediaBox(0, 0, W, mh, "sharp");
+      if (photo) { const g = c.createLinearGradient(0, 0, 0, mh * 0.3); g.addColorStop(0, "rgba(0,0,0,.45)"); g.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = g; c.fillRect(0, 0, W, mh * 0.3); if (o.total > 1) { c.fillStyle = "#fff"; c.font = sans(25 * u, 700); spaced(c, `${String(o.index + 1).padStart(2, "0")} / ${String(o.total).padStart(2, "0")}`, W - m, m + 24 * u, 3 * u, "right"); } }
+      pill(kickerText, m, mh - 28 * u);
+      const top = mh + 56 * u + 36 * u;
+      const { px, lines } = fit(c, HL, head, boxW, contentBottom - top - (swipeCue ? 60 * u : 0), 156 * u, 60 * u, lhOf, 4);
+      drawLines(lines, px, m, top, lhOf);
+      if (swipeCue) swipe(m, contentBottom - 12 * u);
+    } else if (lay === "badge") {
+      const d = Math.min(boxW * 0.66, H * (format === "story" ? 0.3 : 0.33)); const cx = W / 2, R = d / 2 + 62 * u; const cy = m + 70 * u + R;
+      mediaBox(cx - d / 2, cy - d / 2, d, d, "circle");
+      c.strokeStyle = pal.accent; c.lineWidth = 12 * u; c.beginPath(); c.arc(cx, cy, d / 2 + 12 * u, 0, Math.PI * 2); c.stroke();
+      // text running around the circle
+      const unit = (kickerText || "Mila").toUpperCase() + "  •  "; c.font = sans(26 * u, 800); c.fillStyle = ink;
+      const circ = 2 * Math.PI * R; const reps = Math.max(1, Math.round(circ / (c.measureText(unit).width + unit.length * 4 * u)));
+      const chars = [...unit.repeat(reps)]; const ws = chars.map((ch) => c.measureText(ch).width); const total = ws.reduce((a, b) => a + b, 0); const gap = (circ - total) / chars.length;
+      let ang = -Math.PI / 2; chars.forEach((ch, i) => { const aw = (ws[i] + gap) / R; c.save(); c.translate(cx, cy); c.rotate(ang + (ws[i] / 2) / R); c.fillText(ch, -ws[i] / 2, -R); c.restore(); ang += aw; });
+      const top = cy + R + 50 * u;
+      const { px, lines } = fit(c, HL, head, boxW, contentBottom - top - (swipeCue ? 60 * u : 0), 140 * u, 56 * u, lhOf, 3);
+      drawLines(lines, px, W / 2, top, lhOf, "center");
+      if (swipeCue) { c.font = sans(26 * u, 800); const w = spacedWidth(c, "SWIPE", 4 * u) + 60 * u; swipe((W - w) / 2, contentBottom - 12 * u); }
+    } else if (lay === "ticket") {
+      const cx0 = m, cy0 = m + 56 * u + 30 * u, cw = boxW, ch = contentBottom - cy0 - 6 * u;
+      rrect(c, cx0, cy0, cw, ch, 44 * u); c.fillStyle = pal.bg2; c.fill();
+      const ny = cy0 + ch * 0.6;
+      c.fillStyle = pal.bg; c.beginPath(); c.arc(cx0, ny, 38 * u, 0, Math.PI * 2); c.fill(); c.beginPath(); c.arc(cx0 + cw, ny, 38 * u, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = pal.soft; c.globalAlpha = 0.6; c.lineWidth = 4 * u; c.setLineDash([16 * u, 14 * u]); c.beginPath(); c.moveTo(cx0 + 56 * u, ny); c.lineTo(cx0 + cw - 56 * u, ny); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+      mediaBox(cx0 + 30 * u, cy0 + 30 * u, cw - 60 * u, ny - cy0 - 30 * u - 46 * u, "round");
+      centerPill(kickerText, ny + 40 * u);
+      const top = ny + 40 * u + 56 * u + 26 * u;
+      const { px, lines } = fit(c, HL, head, cw - 100 * u, cy0 + ch - top - 26 * u, 120 * u, 54 * u, lhOf, 3);
+      drawLines(lines, px, W / 2, top, lhOf, "center");
+    } else if (lay === "polaroid") {
+      const pw = boxW * 0.8, ph = H * (format === "story" ? 0.4 : 0.46), px0 = (W - pw) / 2, py0 = m + 56 * u + 70 * u;
+      c.save(); c.translate(W / 2, py0 + ph / 2); c.rotate(-0.045);
+      c.shadowColor = "rgba(0,0,0,.28)"; c.shadowBlur = 40 * u; c.shadowOffsetY = 16 * u; rrect(c, -pw / 2, -ph / 2, pw, ph, 14 * u); c.fillStyle = "#fffdf8"; c.fill(); c.shadowColor = "transparent";
+      mediaBox(-pw / 2 + 24 * u, -ph / 2 + 24 * u, pw - 48 * u, ph - 130 * u, "sharp");
+      c.fillStyle = "#2a2622"; c.font = `400 ${40 * u}px ${f.serif}`; c.textAlign = "center"; c.fillText(kickerText, 0, ph / 2 - 40 * u); c.textAlign = "left";
+      c.fillStyle = pal.accent; c.globalAlpha = 0.55; c.fillRect(-90 * u, -ph / 2 - 24 * u, 180 * u, 52 * u); c.globalAlpha = 1;
+      c.restore();
+      const top = py0 + ph + 80 * u;
+      const { px, lines } = fit(c, HL, head, boxW, contentBottom - top - (swipeCue ? 60 * u : 0), 140 * u, 56 * u, lhOf, 3);
+      drawLines(lines, px, W / 2, top, lhOf, "center");
+      if (swipeCue) { c.font = sans(26 * u, 800); const w = spacedWidth(c, "SWIPE", 4 * u) + 60 * u; swipe((W - w) / 2, contentBottom - 12 * u); }
+    } else { // panel (showcase)
+      const kk = pill(kickerText, m, m);
+      const panelY = m + kk.h + 40 * u, panelH = format === "story" ? H * 0.4 : H * 0.36;
+      mediaBox(m, panelY, boxW, panelH, "round");
       const top = panelY + panelH + 54 * u;
-      const { px, lines } = fit(c, slide.headline, head, boxW, contentBottom - top, 156 * u, 60 * u, lhOf, 4);
-      drawLines(lines, px, m, format === "story" ? top + 20 * u : top + (contentBottom - top - lines.length * px * lhOf) / 2, lhOf);
+      const { px, lines } = fit(c, HL, head, boxW, contentBottom - top - (swipeCue ? 70 * u : 0), 156 * u, 60 * u, lhOf, 4);
+      drawLines(lines, px, m, format === "story" ? top + 20 * u : top, lhOf);
+      if (swipeCue) swipe(m, contentBottom - 12 * u);
     }
-  } else if (slide.role === "highlight") {
+    return cv;
+  }
+
+  // ================================================================ HIGHLIGHT
+  const ax: CanvasTextAlign = centered ? "center" : "left"; const tx = centered ? W / 2 : m;
+  if (slide.role === "highlight") {
     const stats = parseStats(slide.headline);
     if (stats) {
       const cols = landscape ? Math.min(stats.length, 4) : 2; const rows = Math.ceil(stats.length / cols);
       const gap = 28 * u; const cw = (boxW - gap * (cols - 1)) / cols;
       const ch = Math.min(280 * u, (contentBottom - (m + 150 * u) - gap * (rows - 1)) / rows);
       const gridH = rows * ch + (rows - 1) * gap;
-      const top = onPhoto ? contentBottom - gridH : m + 130 * u + Math.max(0, (contentBottom - (m + 130 * u) - gridH) / 2);
-      if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 700); c.fillText(slide.sub, m, top - 38 * u); }
+      const top = fullBleed ? contentBottom - gridH : m + 130 * u + Math.max(0, (contentBottom - (m + 130 * u) - gridH) / 2);
+      if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 700); c.textAlign = ax; c.fillText(slide.sub, tx, top - 38 * u); c.textAlign = "left"; }
       stats.forEach((st, i) => {
         const col = i % cols, row = Math.floor(i / cols); const x = m + col * (cw + gap), y = top + row * (ch + gap);
-        rrect(c, x, y, cw, ch, 40 * u); c.fillStyle = onPhoto ? "rgba(12,12,12,.62)" : i === 0 ? pal.accent : pal.bg2; c.fill();
-        const first = i === 0 && !onPhoto; const vcol = first ? pal.onAccent : ink, lcol = first ? pal.onAccent : soft;
+        rrect(c, x, y, cw, ch, tileR); c.fillStyle = fullBleed ? "rgba(12,12,12,.62)" : i === 0 ? pal.accent : pal.bg2; c.fill();
+        const first = i === 0 && !fullBleed; const vcol = first ? pal.onAccent : ink, lcol = first ? pal.onAccent : soft;
         const { px } = fit(c, st.value, head, cw - 64 * u, 150 * u, 132 * u, 52 * u, 1, 1);
-        c.fillStyle = vcol; c.font = head(px); tight(px); c.fillText(st.value, x + 32 * u, y + ch * 0.58); loose();
+        c.fillStyle = vcol; c.font = head(px); tight(px); c.fillText(poster ? st.value.toUpperCase() : st.value, x + 32 * u, y + ch * 0.58); loose();
         c.fillStyle = lcol; c.globalAlpha = first ? 0.8 : 1; c.font = sans(26 * u, 800); spaced(c, st.label.toUpperCase(), x + 32 * u, y + ch * 0.58 + 52 * u, 4 * u); c.globalAlpha = 1;
       });
     } else {
       const n = slide.sub?.match(/^(\d+)\s+of\s+(\d+)/i);
       const badge = 150 * u; let top = m + 20 * u;
-      if (n && !onPhoto) {
-        c.beginPath(); c.arc(m + badge / 2, top + badge / 2, badge / 2, 0, Math.PI * 2); c.fillStyle = pal.accent; c.fill();
-        c.fillStyle = pal.onAccent; c.font = head(96 * u); tight(96 * u); c.textAlign = "center"; c.fillText(n[1], m + badge / 2, top + badge / 2 + 34 * u); c.textAlign = "left"; loose();
-        c.fillStyle = soft; c.font = sans(26 * u, 800); spaced(c, `OF ${n[2]}`, m + badge + 26 * u, top + badge / 2 + 8 * u, 4 * u);
+      if (n && !fullBleed) {
+        const bcx = centered ? W / 2 - 60 * u : m + badge / 2;
+        c.beginPath(); c.arc(bcx, top + badge / 2, badge / 2, 0, Math.PI * 2); c.fillStyle = pal.accent; c.fill();
+        c.fillStyle = pal.onAccent; c.font = head(96 * u); tight(96 * u); c.textAlign = "center"; c.fillText(n[1], bcx, top + badge / 2 + 34 * u); c.textAlign = "left"; loose();
+        c.fillStyle = soft; c.font = sans(26 * u, 800); spaced(c, `OF ${n[2]}`, bcx + badge / 2 + 26 * u, top + badge / 2 + 8 * u, 4 * u);
         top += badge + 56 * u;
-      } else if (slide.sub) { const kk = pill(n ? `Tip ${n[1]} of ${n[2]}` : slide.sub, m, m); top = m + kk.h + 56 * u; }
-      const panelH = onPhoto ? 0 : landscape ? 0 : Math.min(H * 0.27, 330 * u);
-      const textW = !onPhoto && landscape ? W * 0.5 - m : boxW;
-      const { px, lines } = fit(c, slide.headline, head, textW, contentBottom - top - panelH - (panelH ? 40 * u : 0), 160 * u, 52 * u, 1.08, 6);
-      drawLines(lines, px, m, top, 1.08);
-      if (!onPhoto && !landscape) illustrate(c, kind, m, contentBottom - panelH, boxW, panelH, art, initialsOf(o.brand.name), f.sans);
-      if (!onPhoto && landscape) illustrate(c, kind, W * 0.54, m, W - m - W * 0.54, contentBottom - m, art, initialsOf(o.brand.name), f.sans);
+      } else if (slide.sub) { const kk = centered ? centerPill(n ? `Tip ${n[1]} of ${n[2]}` : slide.sub, m) : pill(n ? `Tip ${n[1]} of ${n[2]}` : slide.sub, m, m); top = m + kk.h + 56 * u; }
+      const panelH = fullBleed || landscape ? 0 : format === "story" ? Math.min(H * 0.3, 540 * u) : Math.min(H * 0.27, 330 * u);
+      const textW = !fullBleed && landscape ? W * 0.5 - m : boxW;
+      const { px, lines } = fit(c, HL, head, textW, contentBottom - top - panelH - (panelH ? 40 * u : 0), 160 * u, 52 * u, 1.08, 6);
+      const free = contentBottom - top - panelH - (panelH ? 40 * u : 0);
+      const blockH2 = lines.length * px * 1.08;
+      const ty = fullBleed ? contentBottom - blockH2 : format === "story" ? top + Math.max(0, (free - blockH2) / 2) : top;
+      drawLines(lines, px, tx, ty, 1.08, ax, lay === "stack");
+      if (!fullBleed && !landscape) mediaBox(m, contentBottom - panelH, boxW, panelH, lay === "arch" ? "round" : stripShape);
+      if (!fullBleed && landscape) mediaBox(W * 0.54, m, W - m - W * 0.54, contentBottom - m, "round");
     }
-  } else {
-    // call to action
-    const px0 = boxW - (landscape ? W * 0.3 : 0);
-    const { px, lines } = fit(c, slide.headline, head, px0, contentBottom - (m + 380 * u), 150 * u, 60 * u, lhOf, 3);
-    const blockH = lines.length * px * lhOf;
-    const btnH = 84 * u;
-    const textTop = contentBottom - btnH - 44 * u - blockH;
-    if (!onPhoto && !landscape) { const ay = m + 60 * u; illustrate(c, kind, m, ay, boxW, Math.max(220 * u, textTop - 56 * u - ay), art, initialsOf(o.brand.name), f.sans); }
-    else if (!onPhoto && landscape) illustrate(c, kind, W * 0.66, m, W - m - W * 0.66, contentBottom - m, art, initialsOf(o.brand.name), f.sans);
-    drawLines(lines, px, m, textTop, lhOf);
-    if (slide.sub) {
-      c.font = sans(32 * u, 800); const label = slide.sub.length > 44 ? slide.sub.slice(0, 43) + "…" : slide.sub; const tw = Math.min(c.measureText(label).width, boxW - 72 * u); const pw = tw + 72 * u, py = contentBottom - btnH;
-      rrect(c, m, py, pw, btnH, btnH / 2); c.fillStyle = onPhoto ? "#fff" : pal.accent; c.fill();
-      c.fillStyle = onPhoto ? "#111" : pal.onAccent; c.fillText(label, m + 36 * u, py + btnH / 2 + 11 * u, boxW - 72 * u);
-    }
+    return cv;
+  }
+
+  // ================================================================ CALL TO ACTION
+  const textW0 = boxW - (landscape ? W * 0.3 : 0);
+  const { px, lines } = fit(c, HL, head, textW0, contentBottom - (m + 380 * u), 150 * u, 60 * u, lhOf, 3);
+  const blockH = lines.length * px * lhOf;
+  const btnH = 84 * u;
+  const textTop = contentBottom - btnH - 44 * u - blockH;
+  if (!fullBleed && !landscape) { const ay = m + 60 * u; mediaBox(m, ay, boxW, Math.max(220 * u, textTop - 56 * u - ay), lay === "badge" ? "round" : lay === "arch" ? "round" : stripShape); }
+  else if (!fullBleed && landscape) mediaBox(W * 0.66, m, W - m - W * 0.66, contentBottom - m, "round");
+  drawLines(lines, px, tx, textTop, lhOf, ax, lay === "stack");
+  if (slide.sub) {
+    c.font = sans(32 * u, 800); const label = slide.sub.length > 44 ? slide.sub.slice(0, 43) + "…" : slide.sub; const tw = Math.min(c.measureText(label).width, boxW - 72 * u); const pw = tw + 72 * u, py = contentBottom - btnH;
+    const bxp = centered ? (W - pw) / 2 : m;
+    rrect(c, bxp, py, pw, btnH, lay === "poster" || lay === "split" ? 14 * u : btnH / 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
+    c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.fillText(label, bxp + 36 * u, py + btnH / 2 + 11 * u, boxW - 72 * u);
   }
   return cv;
 }
@@ -300,7 +430,7 @@ export const toBlob = (cv: HTMLCanvasElement, type = "image/png") => new Promise
 // ---------------------------------------------------------------- preview cache + queue
 const urlCache = new Map<string, string>();
 let chain: Promise<unknown> = Promise.resolve();
-const slideKey = (s: SocialSlide, o: RenderOpts) => JSON.stringify([s.role, s.headline, s.sub, s.image_url, s.theme, o.index, o.total, o.platform, o.brand, o.category, o.width]);
+const slideKey = (s: SocialSlide, o: RenderOpts) => JSON.stringify([s.role, s.headline, s.sub, s.image_url, s.theme, s.layout, o.index, o.total, o.platform, o.brand, o.category, o.width]);
 
 /** Small preview image (object URL). Renders one at a time so the page stays smooth. */
 export function previewUrl(slide: SocialSlide, o: RenderOpts): Promise<string> {

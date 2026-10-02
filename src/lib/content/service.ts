@@ -4,7 +4,8 @@ import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../t
 import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types";
 import type { Ctx } from "../agent/context";
 import { polish, verifiedFacts } from "../agent/comms";
-import { pickTheme } from "./design";
+import { LAYOUTS, pickLayout, pickTheme } from "./design";
+import { pullListingPhotos } from "../images/listing";
 import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, platformLimit, variantCount } from "./templates";
 
 /** Content engine: creates, schedules and manages social posts. Nothing here publishes externally. */
@@ -18,10 +19,17 @@ async function imageUrls(ctx: Ctx, propertyId: string | null): Promise<string[]>
   return (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === propertyId && i.url.startsWith("/api/files/")).sort((a, b) => a.position - b.position).map((i) => i.url);
 }
 
-/** Gives every slide a palette and (for listings) a real photo. */
-function withDesign(slides: SocialSlide[], urls: string[], category: string, variant: number): SocialSlide[] {
-  const theme = pickTheme(category, variant);
-  return slides.map((s, i) => ({ ...s, theme, image_url: urls.length ? (s.role === "hero" ? urls[0] : urls[i % urls.length]) : null }));
+/** The agent's own photos across all their properties (for tips, market posts, etc.). */
+async function anyPhotoUrls(ctx: Ctx): Promise<string[]> {
+  return (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.url.startsWith("/api/files/")).sort((a, b) => a.position - b.position).map((i) => i.url);
+}
+
+/** Every slide gets a palette, a layout template and (when the agent has photos) a real photo — rotating so no two posts match. */
+function withDesign(slides: SocialSlide[], urls: string[], category: string, seed: number, layout?: string): SocialSlide[] {
+  const theme = pickTheme(category, seed);
+  const lay = layout ?? pickLayout(urls.length > 0, seed);
+  const offset = Math.abs(seed);
+  return slides.map((s, i) => ({ ...s, theme, layout: lay, image_url: urls.length ? urls[(offset + (s.role === "hero" ? 0 : i)) % urls.length] : null }));
 }
 
 export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; scheduledFor?: string | null; variantSeed?: number }
@@ -45,10 +53,19 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
     const ev = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.property_id === prop!.id && e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
     if (ev) when = { day: fmtDay(ev.start_at, ctx.tz), range: fmtRange(ev.start_at, ev.end_at, ctx.tz) };
   }
-  const ids = await imageUrls(ctx, prop?.id ?? null);
+  let ids = await imageUrls(ctx, prop?.id ?? null);
+  // "Pull the images": a listing post with no photos yet reads the listing link's public preview photos.
+  if (prop && !ids.length && prop.listing_url) {
+    try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); ids = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ }
+  }
+  const everyPost = (await ctx.store.list("social_posts", ctx.userId)).length;
+  const general = await anyPhotoUrls(ctx);
   const variant = input.variantSeed ?? (await nextVariant(ctx, input.category));
   const out: SocialPost[] = [];
-  for (const platform of input.platforms) {
+  for (const [pi, platform] of input.platforms.entries()) {
+    const seed = everyPost + pi;
+    // listing posts use that property's photos; other posts borrow the agent's own listing photos on alternating posts
+    const photos = ids.length ? ids : (seed % 2 === 0 ? general : []);
     const built = buildPost({
       category: input.category, platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage,
       market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic,
@@ -60,7 +77,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
       caption = fitToPlatform(platform, polished, []).caption; // keeps it inside the platform limit
     }
     const post = await ctx.store.insert("social_posts", ctx.userId, {
-      platform, caption, hashtags: built.hashtags, slides: withDesign(built.slides, ids, input.category, variant), status: "draft", category: input.category, variant,
+      platform, caption, hashtags: built.hashtags, slides: withDesign(built.slides, photos, input.category, seed), status: "draft", category: input.category, variant,
       property_id: prop?.id ?? null, event_id: null, workflow_run_id: null, scheduled_for: input.scheduledFor ?? null, stale: false, stale_reason: null, posted_at: null,
     } as never);
     out.push(post);
@@ -114,9 +131,13 @@ export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost
   const category = (post.category as Category) ?? "buyer_tip";
   const prop = post.property_id ? await ctx.store.get("properties", ctx.userId, post.property_id) : null;
   const variant = ((post.variant ?? 0) + 1) % Math.max(variantCount(category), 2);
-  const ids = await imageUrls(ctx, prop?.id ?? null);
+  const ids = prop ? await imageUrls(ctx, prop.id) : await anyPhotoUrls(ctx);
+  const curLayout = post.slides[0]?.layout ?? "panel";
+  const hasPhoto = ids.length > 0;
+  const order = LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes").map((l) => l.key);
+  const nextLayout = order[(Math.max(0, order.indexOf(curLayout)) + 1) % order.length];
   const built = buildPost({ category, platform: post.platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null });
-  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: built.caption, hashtags: built.hashtags, slides: withDesign(built.slides, ids, post.category ?? "", variant), variant, stale: false, stale_reason: null }))!;
+  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: built.caption, hashtags: built.hashtags, slides: withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout), variant, stale: false, stale_reason: null }))!;
 }
 
 export async function duplicateTo(ctx: Ctx, post: SocialPost, platforms: SocialPlatform[]): Promise<SocialPost[]> {

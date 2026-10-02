@@ -26,3 +26,14 @@ test("every theme picked exists, and platforms get the right image shape", () =>
   assert.equal(formatFor("tiktok"), "story");
   assert.equal(formatFor("linkedin"), "landscape");
 });
+
+import { LAYOUTS, pickLayout } from "../src/lib/content/design";
+test("consecutive posts get different layouts, and photo-only layouts need a photo", () => {
+  for (const hasPhoto of [false, true]) {
+    const seen: string[] = [];
+    for (let seed = 0; seed < 12; seed++) { seen.push(pickLayout(hasPhoto, seed)); if (seed) assert.notEqual(seen[seed], seen[seed - 1]); }
+    if (!hasPhoto) assert.ok(!seen.includes("cinema"));
+    assert.ok(new Set(seen).size >= (hasPhoto ? 9 : 8));
+  }
+  assert.ok(LAYOUTS.length >= 9);
+});

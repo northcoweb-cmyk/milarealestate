@@ -262,6 +262,8 @@ export interface SocialSlide {
   image_url?: string | null;
   /** Design palette (see lib/content/design.ts). */
   theme?: string;
+  /** Layout template (see lib/content/design.ts). */
+  layout?: string;
   role: "hero" | "highlight" | "cta";
 }
 

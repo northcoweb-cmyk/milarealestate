@@ -6,6 +6,7 @@ import { aiAvailable } from "@/lib/ai/provider";
 import { googleConfigured } from "@/lib/integrations/google";
 import { AppProvider } from "@/components/app-context";
 import { Shell } from "@/components/shell";
+import { MilaProvider } from "@/components/mila-chat";
 import { Sky } from "@/components/sky";
 import { LiquidGlassDefs } from "@/components/ui/liquid-weather-glass";
 
@@ -21,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppProvider initial={{ profile, admin: isAdmin(profile), credits: { balance: credits.balance, allowance: credits.allowance, resetsAt: credits.resetsAt }, capabilities: { ai: aiAvailable(), google: googleConfigured() } }}>
       <Sky initialNow={new Date().toISOString()} tz={profile.timezone} lat={profile.lat} lng={profile.lng} theme={profile.settings.appearance.theme} reduceMotion={profile.settings.appearance.reduce_motion} animated={profile.settings.appearance.animated_sky === true} />
       <LiquidGlassDefs />
-      <Shell approvals={approvals}>{children}</Shell>
+      <MilaProvider><Shell approvals={approvals}>{children}</Shell></MilaProvider>
     </AppProvider>
   );
 }
