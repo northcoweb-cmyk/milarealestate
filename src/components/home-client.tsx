@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, ChevronDown, ChevronUp, Plus, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Plus, Sparkles } from "lucide-react";
 import type { ActionButton, Block, Message } from "@/lib/types";
 import { BlockView } from "./blocks";
 import { PromptInput } from "./ui/ai-chat-input";
@@ -14,18 +14,9 @@ import { useApp } from "./app-context";
 import { InstallBanner } from "./install";
 import { Confirm, jfetch } from "./ui";
 import { Orb } from "./orb";
-import { ShowingsRail } from "./ui/property-card";
-import { LiquidGlassCard } from "./ui/liquid-weather-glass";
-import type { ShowingCardData } from "@/lib/showings";
+import type { Feed } from "@/lib/feed";
 
-export interface HomeData {
-  greeting: string; firstName: string; dateLine: string;
-  attention: { id: string; title: string; subtitle: string | null; reason: string | null; href: string; priority: string }[];
-  events: { id: string; title: string; time: string; day: string; where: string | null }[];
-  approvals: { id: string; title: string; summary: string | null }[];
-  showings: ShowingCardData[];
-  approvalCount: number; noticed: string[]; counts: { appointments: number; followups: number; approvals: number }; isDemo: boolean;
-}
+export interface HomeData { greeting: string; firstName: string; dateLine: string; feed: Feed; isDemo: boolean }
 
 const SUGGESTIONS = [
   "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up.",
@@ -47,6 +38,7 @@ export function HomeClient({ data }: { data: HomeData }) {
   const [runSheet, setRunSheet] = useState<{ runId: string; items: { id: string; title: string; summary: string | null; risk: string }[] } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const todayRef = useRef<HTMLElement>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetch("/api/messages", { cache: "no-store" }).then((r) => r.json()).then((j) => { setMessages(j.messages ?? []); setConvId(j.conversationId ?? null); }).finally(() => setLoaded(true)).catch(() => setLoaded(true));
@@ -94,7 +86,7 @@ export function HomeClient({ data }: { data: HomeData }) {
     } catch (e) {
       setMessages((m) => m.filter((x) => !x.id.startsWith("tmp-")));
       toast(e instanceof Error ? e.message : "Mila couldn't respond. Try again.", "error");
-    } finally { setBusy(false); setSteps([]); }
+    } finally { setBusy(false); setSteps([]); setRefreshKey((k) => k + 1); }
   }, [convId, router, toast, setBalance]);
 
   // Upload any attached files first, then hand the message to Mila. Returns false (keeping the draft) if the upload fails.
@@ -180,7 +172,7 @@ export function HomeClient({ data }: { data: HomeData }) {
 
       {/* --------------------------------------------------------- today panel */}
       <aside ref={todayRef} id="today" className="mx-auto w-full max-w-3xl snap-start scroll-mt-4 px-4 pb-[calc(var(--nav-h)+40px)] pt-8 xl:sticky xl:top-0 xl:h-[100svh] xl:max-w-none xl:overflow-y-auto xl:px-0 xl:pb-10 xl:pt-10 no-scrollbar">
-        <TodayPanel data={data} />
+        <TodayPanel data={data} refreshKey={refreshKey} />
       </aside>
 
       <Confirm open={!!runSheet} title="Do all of this?" onClose={() => setRunSheet(null)} confirmLabel="Approve everything" onConfirm={() => { const id = runSheet!.runId; setRunSheet(null); run({ action: { type: "approve_run", runId: id } }); }}
@@ -219,72 +211,106 @@ function Thinking({ steps }: { steps: string[] }) {
   );
 }
 
-function TodayPanel({ data }: { data: HomeData }) {
-  const router = useRouter();
+const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 2 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : "yesterday"; };
+
+/** Muse-style feed: what needs you, what Mila did, what's next — nothing else. */
+function TodayPanel({ data, refreshKey }: { data: HomeData; refreshKey: number }) {
   const { toast } = useApp();
   const [busyId, setBusyId] = useState<string | null>(null);
-  async function approve(id: string) {
-    setBusyId(id);
-    try { const r = await jfetch<{ message: string; ok: boolean }>(`/api/approvals/${id}`, { method: "POST", json: { decision: "approve" } }); toast(r.message, r.ok ? "success" : "info"); router.refresh(); }
+  const [f, setF] = useState<Feed>(data.feed);
+  const [, tick] = useState(0);
+  const [doneIds, setDoneIds] = useState<string[]>([]);
+  const dayKey = data.dateLine;
+  useEffect(() => { try { setDoneIds(JSON.parse(localStorage.getItem("mila.plan." + dayKey) ?? "[]")); } catch { /* ignore */ } }, [dayKey]);
+  const toggle = (id: string) => setDoneIds((d) => { const n = d.includes(id) ? d.filter((x) => x !== id) : [...d, id]; try { localStorage.setItem("mila.plan." + dayKey, JSON.stringify(n)); } catch { /* ignore */ } return n; });
+  const refresh = useCallback(async () => {
+    try { const r = await fetch("/api/feed", { cache: "no-store" }); if (r.ok) setF((await r.json()).feed); } catch { /* offline: keep what we have */ }
+  }, []);
+  useEffect(() => { if (refreshKey) refresh(); }, [refreshKey, refresh]);
+  useEffect(() => {
+    const vis = () => { if (document.visibilityState === "visible") refresh(); };
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 45_000);
+    const t = window.setInterval(() => tick((n) => n + 1), 30_000);
+    document.addEventListener("visibilitychange", vis); window.addEventListener("focus", vis);
+    return () => { clearInterval(id); clearInterval(t); document.removeEventListener("visibilitychange", vis); window.removeEventListener("focus", vis); };
+  }, [refresh]);
+  async function approve(id: string, itemId: string) {
+    setBusyId(itemId);
+    try { const r = await jfetch<{ message: string; ok: boolean }>(`/api/approvals/${id}`, { method: "POST", json: { decision: "approve" } }); toast(r.message, r.ok ? "success" : "info"); refresh(); }
     catch (e) { toast(e instanceof Error ? e.message : "Couldn't approve that.", "error"); }
     finally { setBusyId(null); }
   }
+  const Act = ({ a, primary, itemId }: { a: Feed["needsYou"][number]["primary"]; primary?: boolean; itemId: string }) =>
+    a.approveId ? <button className={primary ? "btn btn-primary btn-sm" : "btn btn-quiet btn-sm"} disabled={busyId === itemId} onClick={() => approve(a.approveId!, itemId)}>{busyId === itemId ? "Working…" : a.label}</button>
+      : <Link className={primary ? "btn btn-primary btn-sm" : "btn btn-quiet btn-sm"} href={a.href ?? "/tasks"}>{a.label}</Link>;
   return (
-    <div className="space-y-9">
-      <section>
-        <p className="kicker mb-3">Today</p>
-        {data.attention.length ? (
-          <>
-            <h2 className="h2 mb-3">{data.attention.length === 1 ? "1 thing needs your attention" : `${data.attention.length} things need your attention`}</h2>
-            <ul className="glass divide-y overflow-hidden" style={{ borderColor: "var(--line)", borderRadius: 26 }}>
-              {data.attention.map((a) => (
-                <li key={a.id}><Link href={a.href} className="flex items-center gap-3 px-5 py-4 transition hover:bg-white/30"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{a.title}</p>{a.subtitle && <p className="muted truncate text-[14.5px]">{a.subtitle}</p>}</div><ArrowRight size={18} className="shrink-0 text-ink-faint" /></Link></li>
-              ))}
-            </ul>
-          </>
-        ) : <div className="glass px-5 py-6"><p className="font-semibold">You're all caught up.</p><p className="muted text-[14.5px]">Nothing needs you right now. Tell Mila what's next.</p></div>}
-      </section>
+    <div className="space-y-10">
+      <div>
+        <p className="text-[19px] leading-snug text-ink-soft">{f.summary}</p>
+        <p className="faint mt-1.5 text-[12px]">Updated {ago(f.updatedAt)}</p>
+      </div>
 
-      {data.approvalCount > 0 && (
-        <section>
-          <div className="mb-3 flex items-baseline justify-between"><p className="kicker">Needs your approval</p><Link href="/tasks" className="text-[13.5px] font-semibold text-accent">See all {data.approvalCount}</Link></div>
-          <div className="space-y-3">
-            {data.approvals.map((a) => (
-              <LiquidGlassCard key={a.id} className="p-4" borderRadius="24px" shadowIntensity="xs" glowIntensity="sm">
-                <p className="font-semibold leading-tight">{a.title}</p>{a.summary && <p className="muted mt-0.5 text-[14px]">{a.summary}</p>}
-                <div className="mt-3 flex gap-2"><Link className="btn btn-sm" href={`/tasks?approval=${a.id}`}>Review</Link><button className="btn btn-primary btn-sm" disabled={busyId === a.id} onClick={() => approve(a.id)}>{busyId === a.id ? "Working…" : "Approve"}</button></div>
-              </LiquidGlassCard>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {data.showings.length > 0 && (
-        <section>
-          <div className="mb-3 flex items-baseline justify-between"><p className="kicker">Showings</p><Link href="/calendar" className="text-[13.5px] font-semibold text-accent">Calendar</Link></div>
-          <ShowingsRail items={data.showings} />
-          <p className="faint mt-1 px-1 text-[12.5px]">Tap a card to flip it.</p>
-        </section>
-      )}
-
-      <section>
-        <div className="mb-3 flex items-baseline justify-between"><p className="kicker">Up next</p><Link href="/calendar" className="text-[13.5px] font-semibold text-accent">Calendar</Link></div>
-        {data.events.length ? (
-          <ul className="space-y-1">
-            {data.events.map((e) => (
-              <li key={e.id} className="flex gap-4 rounded-2xl px-2 py-2.5">
-                <div className="w-[72px] shrink-0 text-right"><p className="font-semibold leading-tight">{e.time}</p><p className="faint text-[12px]">{e.day}</p></div>
-                <div className="min-w-0 border-l-2 pl-4" style={{ borderColor: "color-mix(in srgb, var(--accent) 45%, transparent)" }}><p className="truncate font-semibold leading-tight">{e.title}</p>{e.where && <p className="faint truncate text-[13.5px]">{e.where}</p>}</div>
+      {f.needsYou.length > 0 && (
+        <section aria-labelledby="needs-you">
+          <h2 id="needs-you" className="kicker mb-4">Needs you</h2>
+          <ul className="space-y-3">
+            {f.needsYou.map((n) => (
+              <li key={n.id} className="glass p-5" style={{ borderRadius: 24 }}>
+                <div className="flex items-start gap-3">
+                  <span className="mt-[7px] h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: n.tone === "urgent" ? "var(--danger)" : "var(--accent)" }} aria-hidden />
+                  <div className="min-w-0 flex-1"><p className="text-[17px] font-semibold leading-snug">{n.title}</p>{n.why && <p className="muted mt-1 text-[14.5px] leading-snug">{n.why}</p>}</div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 pl-[22px]"><Act a={n.primary} primary itemId={n.id} />{n.secondary && <Act a={n.secondary} itemId={n.id + "-s"} />}</div>
               </li>
             ))}
           </ul>
-        ) : <p className="muted px-2">Nothing scheduled in the next day and a half.</p>}
-      </section>
+          {f.needsTotal > f.needsYou.length && <Link href="/tasks" className="mt-3 inline-block px-1 text-[14.5px] font-semibold text-accent">See all {f.needsTotal}</Link>}
+        </section>
+      )}
 
-      {data.noticed.length > 0 && (
-        <section>
-          <p className="kicker mb-3">Mila noticed</p>
-          <ul className="space-y-2.5 px-1">{data.noticed.map((n, i) => <li key={i} className="muted text-[15px]">“{n}”</li>)}</ul>
+      {f.plan.length > 0 && (
+        <section aria-labelledby="todays-plan">
+          <h2 id="todays-plan" className="kicker mb-4">Today&apos;s plan</h2>
+          <ul className="space-y-1">
+            {f.plan.map((p) => { const done = doneIds.includes(p.id); return (
+              <li key={p.id} className="flex items-start gap-3 rounded-2xl px-1 py-2.5">
+                <button onClick={() => toggle(p.id)} aria-label={done ? "Mark not done" : "Mark done"} className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border" style={{ borderColor: "var(--line-strong, rgba(0,0,0,.25))", background: done ? "var(--ok)" : "transparent", color: "white" }}>{done && <Check size={14} strokeWidth={3} />}</button>
+                <div className="min-w-0 flex-1" style={{ opacity: done ? 0.5 : 1 }}>
+                  <p className={"text-[16px] font-semibold leading-snug" + (done ? " line-through" : "")}>{p.title}</p>
+                  <p className="muted text-[13.5px] leading-snug">{p.why}</p>
+                </div>
+                {!done && <Link href={p.action.href ?? "/"} className="btn btn-quiet btn-sm shrink-0">{p.action.label}</Link>}
+              </li>
+            ); })}
+          </ul>
+        </section>
+      )}
+
+      {f.did.length > 0 && (
+        <section aria-labelledby="mila-did">
+          <h2 id="mila-did" className="kicker mb-4">Mila did</h2>
+          <ul className="space-y-4">
+            {f.did.map((d) => (
+              <li key={d.id} className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ background: "color-mix(in srgb, var(--ok) 18%, transparent)", color: "var(--ok)" }}><Check size={12} strokeWidth={3} /></span>
+                <div className="min-w-0 flex-1"><p className="text-[15.5px] leading-snug">{d.href ? <Link href={d.href}>{d.text}</Link> : d.text}</p><p className="faint text-[12.5px]">{ago(d.at)}</p></div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {f.next.length > 0 && (
+        <section aria-labelledby="coming-up">
+          <div className="mb-4 flex items-baseline justify-between"><h2 id="coming-up" className="kicker">Coming up</h2><Link href="/calendar" className="text-[13.5px] font-semibold text-accent">Calendar</Link></div>
+          <ul className="space-y-1">
+            {f.next.map((e) => (
+              <li key={e.id}><Link href={e.href} className="flex gap-4 rounded-2xl px-1 py-2.5 transition hover:bg-white/30">
+                <div className="w-[76px] shrink-0 text-right"><p className="font-semibold leading-tight">{e.time}</p><p className="faint text-[12px]">{e.day}</p></div>
+                <div className="min-w-0"><p className="truncate font-semibold leading-tight">{e.title}</p>{e.place && <p className="faint truncate text-[13.5px]">{e.place}</p>}</div>
+              </Link></li>
+            ))}
+          </ul>
         </section>
       )}
       {data.isDemo && <p className="faint px-1 text-[12.5px]">You're viewing fictional demo data.</p>}

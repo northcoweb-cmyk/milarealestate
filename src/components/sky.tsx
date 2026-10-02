@@ -49,10 +49,10 @@ export function Sky({ initialNow, tz, lat, lng, theme = "auto", reduceMotion = f
   const warmGlow = sky.warmth;
   const sunScale = 1 + (1 - sky.sun.alt) * 0.4; // the sun looks bigger and softer near the horizon
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" style={{ background: `linear-gradient(180deg, ${sky.top} 0%, ${sky.mid} 52%, ${sky.bottom} 100%)` }}>
+    <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 -z-10 overflow-hidden" style={{ height: "100lvh", minHeight: "100vh", background: `linear-gradient(180deg, ${sky.top} 0%, ${sky.mid} 52%, ${sky.bottom} 100%)` }}>
       {/* moving clouds (WebGL). The gradient above is the no-WebGL fallback. */}
       <Cloudscape
-        height="100%" className="absolute inset-0 bg-transparent"
+        height="100%" className="absolute inset-0 bg-transparent" style={{ transform: "translateZ(0)" }}
         colorBottom={sky.bottom} skyMid={sky.mid} skyTop={sky.top}
         colorMid={sky.cloud.body} colorTop={sky.cloud.highlight} coverage={sky.cloud.coverage}
         speed={0.45} fps={24} renderScale={0.5} paused={still}

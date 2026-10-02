@@ -205,17 +205,24 @@ const Cloudscape = ({
     const uSkyMid = U("u_skyMid"), uSkyTop = U("u_skyTop"), uSpeed = U("u_speed"), uCover = U("u_cover");
     if (!uRes || !uTime || !uBottom || !uMid || !uTop || !uSkyMid || !uSkyTop || !uSpeed || !uCover) return;
 
+    // Size the canvas once, and only again if the WIDTH changes or the height grows a lot. Mobile browsers
+    // resize the viewport a few dozen px every time the address bar slides away while scrolling; re-allocating
+    // the canvas then (which clears it) is what made the sky flash.
+    let lastW = 0, lastH = 0;
     const resize = () => {
       const scale = Math.min(Math.max(live.current.renderScale, 0.25), 1);
       const dpr = Math.min(window.devicePixelRatio || 1, 2) * scale;
       const { width, height } = host.getBoundingClientRect();
+      if (lastW && Math.abs(width - lastW) < 2 && height < lastH * 1.25 && height > lastH * 0.6) return;
+      lastW = width; lastH = height;
       canvas.width = Math.max(1, Math.floor(width * dpr));
       canvas.height = Math.max(1, Math.floor(height * dpr));
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform2f(uRes, canvas.width, canvas.height);
       dirty.current = true;
-      kick.current();
+      redrawNow.current(); // redraw in the same task so the cleared canvas is never painted
     };
+    const redrawNow = { current: () => {} };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(host);
@@ -249,6 +256,9 @@ const Cloudscape = ({
       gl.uniform1f(uCover, cover);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
+
+    redrawNow.current = () => { if (!document.hidden && !lostCtx) { dirty.current = false; draw(performance.now()); } };
+    redrawNow.current();
 
     // Still mode: no animation loop at all. We draw one frame whenever something changes (colours, size).
     // Animated mode (opt-in): capped-fps loop that pauses while the tab is hidden.

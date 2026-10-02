@@ -12,6 +12,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     chat_complex: 3,
     email_generation: 2,
     social_generation: 2,
+    content_plan: 6,
     document_analysis: 5,
     image_analysis: 3,
     image_generation: 10,

@@ -1,0 +1,186 @@
+import { MAX_SOCIAL_POSTS_PER_DAY } from "../config";
+import { aiAvailable } from "../ai/provider";
+import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../time";
+import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types";
+import type { Ctx } from "../agent/context";
+import { polish, verifiedFacts } from "../agent/comms";
+import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, platformLimit, variantCount } from "./templates";
+
+/** Content engine: creates, schedules and manages social posts. Nothing here publishes externally. */
+
+export const platformLabel = (p: SocialPlatform) => PLATFORMS.find((x) => x.key === p)?.label ?? p;
+const nowIso = () => new Date().toISOString();
+
+async function imageIds(ctx: Ctx, propertyId: string | null): Promise<string[]> {
+  if (!propertyId) return [];
+  return (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === propertyId).sort((a, b) => a.position - b.position).map((i) => i.id);
+}
+
+function withImages(slides: SocialSlide[], ids: string[]): SocialSlide[] {
+  if (!ids.length) return slides;
+  return slides.map((s, i) => ({ ...s, image_id: s.role === "hero" ? ids[0] : ids[(i) % ids.length] }));
+}
+
+export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; scheduledFor?: string | null; variantSeed?: number }
+export type CreateResult = { ok: true; posts: SocialPost[] } | { ok: false; error: string };
+
+async function nextVariant(ctx: Ctx, category: Category): Promise<number> {
+  const existing = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.category === category).length;
+  return existing % variantCount(category);
+}
+
+export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateResult> {
+  const def = CATEGORIES.find((c) => c.key === input.category);
+  if (!def) return { ok: false, error: "Unknown post type." };
+  if (!input.platforms.length) return { ok: false, error: "Choose at least one platform." };
+  let prop: Property | null = null;
+  if (input.propertyId) prop = await ctx.store.get("properties", ctx.userId, input.propertyId);
+  if (def.needsProperty && !prop) return { ok: false, error: `A ${def.label.toLowerCase()} post needs a property.` };
+
+  let when: { day: string; range: string } | null = null;
+  if (input.category === "open_house" && prop) {
+    const ev = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.property_id === prop!.id && e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
+    if (ev) when = { day: fmtDay(ev.start_at, ctx.tz), range: fmtRange(ev.start_at, ev.end_at, ctx.tz) };
+  }
+  const ids = await imageIds(ctx, prop?.id ?? null);
+  const variant = input.variantSeed ?? (await nextVariant(ctx, input.category));
+  const out: SocialPost[] = [];
+  for (const platform of input.platforms) {
+    const built = buildPost({
+      category: input.category, platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage,
+      market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic,
+      property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null, when,
+    });
+    let caption = built.caption;
+    if (aiAvailable() && platform !== "x") {
+      const polished = await polish(ctx, "social", caption);
+      caption = fitToPlatform(platform, polished, []).caption; // keeps it inside the platform limit
+    }
+    const post = await ctx.store.insert("social_posts", ctx.userId, {
+      platform, caption, hashtags: built.hashtags, slides: withImages(built.slides, ids), status: "draft", category: input.category, variant,
+      property_id: prop?.id ?? null, event_id: null, workflow_run_id: null, scheduled_for: input.scheduledFor ?? null, stale: false, stale_reason: null, posted_at: null,
+    } as never);
+    out.push(post);
+  }
+  return { ok: true, posts: out };
+}
+
+// ------------------------------------------------------------------ reminders for scheduled posts
+const reminderTitle = (p: SocialPost) => `Post to ${platformLabel(p.platform)}: ${p.caption.split("\n")[0].replace(/[^\p{L}\p{N}\s'!?.,&-]/gu, "").trim().slice(0, 48)}`;
+
+async function cancelReminder(ctx: Ctx, post: SocialPost) {
+  if (!post.scheduled_for) return;
+  const title = reminderTitle(post);
+  for (const r of await ctx.store.list("reminders", ctx.userId)) {
+    if (r.status === "pending" && r.title === title && new Date(r.remind_at).getTime() === new Date(post.scheduled_for).getTime()) await ctx.store.update("reminders", ctx.userId, r.id, { status: "cancelled" });
+  }
+}
+
+export async function schedulePost(ctx: Ctx, post: SocialPost, whenIso: string): Promise<{ ok: true; post: SocialPost } | { ok: false; error: string }> {
+  const t = new Date(whenIso);
+  if (Number.isNaN(t.getTime())) return { ok: false, error: "Pick a valid date and time." };
+  if (t.getTime() < ctx.now.getTime() - 60_000) return { ok: false, error: "That time has already passed." };
+  const day = partsIn(t, ctx.tz);
+  const same = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.id !== post.id && p.scheduled_for && p.status === "scheduled" && (() => { const q = partsIn(new Date(p.scheduled_for!), ctx.tz); return q.y === day.y && q.m === day.m && q.d === day.d; })());
+  if (same.length >= MAX_SOCIAL_POSTS_PER_DAY) return { ok: false, error: `You already have ${MAX_SOCIAL_POSTS_PER_DAY} posts that day — that's the daily limit.` };
+  await cancelReminder(ctx, post);
+  const updated = (await ctx.store.update("social_posts", ctx.userId, post.id, { status: "scheduled", scheduled_for: t.toISOString() }))!;
+  const channels = ctx.profile.settings.notifications.channels;
+  await ctx.store.insert("reminders", ctx.userId, { title: reminderTitle(updated), remind_at: t.toISOString(), channels: ([channels.pwa && "pwa", channels.browser && "browser", channels.email && "email"].filter(Boolean) as never[]), status: "pending", contact_id: null, event_id: null, workflow_run_id: null, delivered_at: null });
+  return { ok: true, post: updated };
+}
+
+export async function setPostStatus(ctx: Ctx, post: SocialPost, action: "ready" | "draft" | "posted" | "archive" | "unarchive"): Promise<SocialPost> {
+  if (action === "posted" || action === "archive" || action === "draft" || action === "ready") await cancelReminder(ctx, post);
+  const patch: Partial<SocialPost> =
+    action === "ready" ? { status: "approved_unpublished" } :
+    action === "draft" ? { status: "draft" } :
+    action === "posted" ? { status: "published", posted_at: nowIso() } :
+    action === "archive" ? { status: "archived" } :
+    { status: "draft" };
+  if (action === "ready" || action === "draft") patch.scheduled_for = null;
+  return (await ctx.store.update("social_posts", ctx.userId, post.id, patch))!;
+}
+
+export async function deletePost(ctx: Ctx, post: SocialPost) {
+  await cancelReminder(ctx, post);
+  await ctx.store.remove("social_posts", ctx.userId, post.id);
+}
+
+export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost> {
+  const category = (post.category as Category) ?? "buyer_tip";
+  const prop = post.property_id ? await ctx.store.get("properties", ctx.userId, post.property_id) : null;
+  const variant = ((post.variant ?? 0) + 1) % Math.max(variantCount(category), 2);
+  const ids = await imageIds(ctx, prop?.id ?? null);
+  const built = buildPost({ category, platform: post.platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null });
+  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: built.caption, hashtags: built.hashtags, slides: withImages(built.slides, ids), variant, stale: false, stale_reason: null }))!;
+}
+
+export async function duplicateTo(ctx: Ctx, post: SocialPost, platforms: SocialPlatform[]): Promise<SocialPost[]> {
+  const body = post.caption.replace(/\n\n(#\S+(\s+#\S+)*)\s*$/, "").trim(); // strip trailing hashtag block
+  const out: SocialPost[] = [];
+  for (const platform of platforms) {
+    if (platform === post.platform) continue;
+    const f = fitToPlatform(platform, body, post.hashtags);
+    const carousel = PLATFORMS.find((p) => p.key === platform)?.carousel ?? true;
+    out.push(await ctx.store.insert("social_posts", ctx.userId, { platform, caption: f.caption, hashtags: f.hashtags, slides: carousel ? post.slides : post.slides.slice(0, 1), status: "draft", category: post.category ?? null, variant: post.variant ?? null, property_id: post.property_id, event_id: post.event_id, workflow_run_id: null, scheduled_for: null, stale: false, stale_reason: null, posted_at: null } as never));
+  }
+  return out;
+}
+
+// --------------------------------------------------------------------------- weekly plan
+export interface PlanInput { postsPerWeek: number; categories: Category[]; platforms: SocialPlatform[]; days?: number }
+
+/** Slots at good posting times, spread across days, never more than the daily maximum. */
+export function planSlots(now: Date, tz: string, count: number, days: number): Date[] {
+  const times: [number, number][] = [[9, 0], [12, 30], [18, 0]];
+  const perDay = Math.min(MAX_SOCIAL_POSTS_PER_DAY, Math.max(1, Math.ceil(count / Math.max(1, Math.floor(days * (5 / 7))))));
+  const out: Date[] = [];
+  for (let d = 0; d < days && out.length < count; d++) {
+    const day = partsIn(addDays(startOfDay(now, tz), d, tz), tz);
+    if (day.dow === 0 && count / days < 1) continue; // lighter Sundays for low-volume plans
+    for (let k = 0; k < perDay && out.length < count; k++) {
+      const [h, m] = times[perDay === 1 ? 0 : perDay === 2 ? [0, 2][k] : k];
+      const t = zonedToUtc(day.y, day.m, day.d, h, m, tz);
+      if (t.getTime() > now.getTime() + 30 * 60_000) out.push(t);
+    }
+  }
+  return out;
+}
+
+export async function planContent(ctx: Ctx, input: PlanInput): Promise<{ created: SocialPost[]; skipped: string[] }> {
+  const days = input.days ?? 14;
+  const total = Math.max(1, Math.min(Math.round((input.postsPerWeek * days) / 7), 3 * days));
+  const slots = planSlots(ctx.now, ctx.tz, total, days);
+  const props = (await ctx.store.list("properties", ctx.userId)).filter((p) => !p.is_demo || true).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const cats = input.categories.length ? input.categories : (["buyer_tip", "seller_tip", "education", "local", "personal_brand", "market_update"] as Category[]);
+  const created: SocialPost[] = [], skipped: string[] = [];
+  const used: Record<string, number> = {};
+  for (let i = 0; i < slots.length; i++) {
+    const cat = cats[i % cats.length];
+    const def = CATEGORIES.find((c) => c.key === cat)!;
+    let prop: Property | null = null;
+    if (def.needsProperty) {
+      prop = props[(used[cat] ?? 0) % Math.max(props.length, 1)] ?? null;
+      if (!prop) { if (!skipped.includes(def.label)) skipped.push(def.label); continue; }
+    }
+    used[cat] = (used[cat] ?? 0) + 1;
+    const platform = input.platforms[i % input.platforms.length];
+    const r = await createPosts(ctx, { category: cat, platforms: [platform], propertyId: prop?.id ?? null, scheduledFor: slots[i].toISOString(), variantSeed: (used[cat] - 1 + created.length) % variantCount(cat) });
+    if (r.ok) created.push(...r.posts);
+  }
+  return { created, skipped };
+}
+
+/** Approve every draft that already has a planned time: schedules it and sets its reminder. */
+export async function approvePlanned(ctx: Ctx, ids?: string[]): Promise<{ scheduled: number; failed: string[] }> {
+  const posts = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.status === "draft" && p.scheduled_for && (!ids || ids.includes(p.id)));
+  let scheduled = 0; const failed: string[] = [];
+  for (const p of posts.sort((a, b) => a.scheduled_for!.localeCompare(b.scheduled_for!))) {
+    const r = await schedulePost(ctx, p, p.scheduled_for!);
+    if (r.ok) scheduled++; else failed.push(`${platformLabel(p.platform)}: ${r.error}`);
+  }
+  return { scheduled, failed };
+}
+
+export const overLimit = (p: Pick<SocialPost, "platform" | "caption">) => p.caption.length > platformLimit(p.platform);

@@ -266,7 +266,11 @@ export interface SocialPost extends Row {
   caption: string;
   hashtags: string[];
   slides: SocialSlide[];
-  status: "draft" | "pending_approval" | "published" | "failed" | "approved_unpublished";
+  /** draft → (pending_approval) → approved_unpublished ("Ready to post") → scheduled → published ("Posted"); archived hides it */
+  status: "draft" | "pending_approval" | "approved_unpublished" | "scheduled" | "published" | "archived" | "failed";
+  category?: string | null;
+  posted_at?: string | null;
+  variant?: number | null;
   property_id: ID | null;
   event_id: ID | null;
   workflow_run_id: ID | null;
@@ -274,6 +278,8 @@ export interface SocialPost extends Row {
   stale: boolean;
   stale_reason: string | null;
 }
+
+export type SocialPlatform = SocialPost["platform"];
 
 export interface Reminder extends Row {
   title: string;

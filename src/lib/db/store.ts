@@ -156,17 +156,29 @@ class SupabaseStore implements Store {
     this.fail(error, `get ${table}`);
     return (data ?? null) as TableMap[K] | null;
   }
+  /** If the database hasn't had a newer migration applied yet, drop the unknown column and retry (degrades, never crashes). */
+  private async withSchemaLag<T>(table: string, payload: Record<string, unknown>, run: (p: Record<string, unknown>) => Promise<{ data: T; error: { message: string } | null }>) {
+    let body = { ...payload };
+    for (let i = 0; i < 4; i++) {
+      const r = await run(body);
+      const m = r.error && /Could not find the '([^']+)' column/.exec(r.error.message);
+      if (m && m[1] in body) { console.warn(`[mila] ${table}.${m[1]} is missing in the database — run the latest supabase/migrations`); delete body[m[1]]; continue; }
+      return r;
+    }
+    return run(body);
+  }
+
   async insert<K extends TableName>(table: K, userId: string, data: NewRow<K>) {
     const row = { ...prepare(table, userId, data) } as unknown as Record<string, unknown>;
     if (table === "profiles") delete row.user_id; // profiles are keyed by id (= auth user id) and have no user_id column
-    const { data: out, error } = await this.sb.from(table).insert(row).select("*").single();
+    const { data: out, error } = await this.withSchemaLag(table, row, (b) => this.sb.from(table).insert(b).select("*").single());
     this.fail(error, `insert ${table}`);
     return out as TableMap[K];
   }
   async update<K extends TableName>(table: K, userId: string, id: string, patch: Partial<TableMap[K]>) {
     const { id: _i, user_id: _u, ...rest } = patch as Record<string, unknown>;
     void _i; void _u;
-    const { data, error } = await this.sb.from(table).update({ ...rest, updated_at: now() }).eq("id", id).eq(this.col(table), userId).select("*").maybeSingle();
+    const { data, error } = await this.withSchemaLag(table, { ...rest, updated_at: now() }, (b) => this.sb.from(table).update(b).eq("id", id).eq(this.col(table), userId).select("*").maybeSingle());
     this.fail(error, `update ${table}`);
     return (data ?? null) as TableMap[K] | null;
   }
