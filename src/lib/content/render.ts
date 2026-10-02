@@ -91,22 +91,103 @@ function parseStats(text: string): Stat[] | null {
   return out.slice(0, 4);
 }
 
+// ---------------------------------------------------------------- illustrations (flat vector art, drawn in palette colours)
+interface Art { ink: string; accent: string; soft: string; bg: string; panel: string; onAccent: string }
+const sparkle = (c: Ctx, x: number, y: number, r: number, col: string) => { c.fillStyle = col; c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.fill(); };
+
+/** Draws a 400x300 scene into the rect, scaled to fit and centred. */
+function illustrate(c: Ctx, kind: string, x: number, y: number, w: number, h: number, a: Art, initials: string, sans: string) {
+  c.save(); c.beginPath(); rrect(c, x, y, w, h, 44); c.clip();
+  c.fillStyle = a.panel; c.fillRect(x, y, w, h);
+  const k = Math.min(w / 400, h / 300) * 0.92; c.translate(x + (w - 400 * k) / 2, y + (h - 300 * k) / 2 + 6 * k); c.scale(k, k);
+  const fill = (col: string, al = 1) => { c.fillStyle = col; c.globalAlpha = al; };
+  const rect = (rx: number, ry: number, rw: number, rh: number, r = 0) => { rrect(c, rx, ry, rw, rh, r); c.fill(); };
+  const circle = (cx: number, cy: number, r: number) => { c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill(); };
+  const reset = () => { c.globalAlpha = 1; };
+  // shared sky: sun + soft hills
+  const backdrop = (sun = true) => { if (sun) { fill(a.soft, 0.35); circle(318, 74, 40); } fill(a.soft, 0.22); c.beginPath(); c.ellipse(90, 262, 190, 70, 0, Math.PI, 0); c.fill(); c.beginPath(); c.ellipse(330, 268, 170, 56, 0, Math.PI, 0); c.fill(); reset(); sparkle(c, 70, 70, 14, a.accent); sparkle(c, 360, 150, 9, a.accent); };
+  if (kind === "house" || kind === "calendar") {
+    backdrop();
+    fill(a.accent); rect(112, 132, 176, 122, 8);                       // body
+    fill(a.soft); c.beginPath(); c.moveTo(92, 140); c.lineTo(200, 52); c.lineTo(308, 140); c.closePath(); c.fill(); // roof
+    fill(a.accent); rect(250, 70, 24, 52, 4);                          // chimney
+    fill(a.panel); c.beginPath(); c.moveTo(178, 254); c.lineTo(178, 196); c.arc(200, 196, 22, Math.PI, 0); c.lineTo(222, 254); c.closePath(); c.fill(); // arched door
+    fill(a.panel); rect(128, 160, 34, 34, 6); rect(238, 160, 34, 34, 6);
+    fill(a.soft); rect(143, 160, 4, 34); rect(253, 160, 4, 34);
+    fill(a.soft, 0.7); circle(56, 206, 32); rect(52, 226, 8, 28, 3); circle(352, 222, 24); rect(348, 238, 8, 16, 3);
+    fill(a.accent, 0.6); rect(0, 252, 400, 6);
+    if (kind === "calendar") { fill(a.onAccent); rect(0, 0, 0, 0); fill(a.accent); rect(262, 168, 98, 92, 14); fill(a.panel); rect(262, 168, 98, 26, 14); rect(262, 182, 98, 12); fill(a.accent); c.font = `800 38px ${sans}`; c.textAlign = "center"; c.fillStyle = a.panel; fill(a.panel); c.fillText("OPEN", 311, 235); c.textAlign = "left"; }
+  } else if (kind === "key") {
+    backdrop(false);
+    c.save(); c.translate(200, 150); c.rotate(-0.5);
+    c.strokeStyle = a.accent; c.lineWidth = 26; c.beginPath(); c.arc(-78, 0, 50, 0, Math.PI * 2); c.stroke();
+    fill(a.accent); rect(-30, -13, 190, 26, 13); rect(98, 8, 24, 44, 6); rect(132, 8, 24, 32, 6);
+    fill(a.soft); circle(-78, 0, 16);
+    c.restore(); reset();
+    fill(a.accent, 0.5); sparkle(c, 330, 70, 18, a.accent); sparkle(c, 60, 230, 12, a.soft);
+  } else if (kind === "tag") {
+    backdrop();
+    c.save(); c.translate(200, 150); c.rotate(-0.25);
+    fill(a.accent); c.beginPath(); c.moveTo(-110, -70); c.lineTo(40, -70); c.lineTo(120, 0); c.lineTo(40, 70); c.lineTo(-110, 70); c.closePath(); c.fill();
+    fill(a.panel); circle(-78, 0, 14);
+    c.fillStyle = a.panel; c.font = `800 92px ${sans}`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("$", -4, 4); c.textAlign = "left"; c.textBaseline = "alphabetic";
+    c.restore(); reset();
+    fill(a.soft); c.beginPath(); c.moveTo(300, 190); c.lineTo(340, 190); c.lineTo(340, 232); c.lineTo(354, 232); c.lineTo(320, 268); c.lineTo(286, 232); c.lineTo(300, 232); c.closePath(); c.fill(); reset();
+  } else if (kind === "sign") {
+    backdrop();
+    fill(a.soft); rect(194, 160, 12, 100, 3);
+    fill(a.accent); rect(62, 54, 276, 130, 14);
+    fill(a.panel); rect(76, 68, 248, 102, 8);
+    c.fillStyle = a.accent; c.font = `800 82px ${sans}`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("SOLD", 200, 122); c.textAlign = "left"; c.textBaseline = "alphabetic";
+    fill(a.accent, 0.6); rect(0, 252, 400, 6);
+    for (const [cx, cy, r] of [[50, 40, 7], [350, 40, 6], [372, 120, 8], [28, 130, 6], [330, 232, 7], [70, 225, 6]]) { fill(a.accent, 0.8); circle(cx, cy, r); } reset();
+  } else if (kind === "chart") {
+    backdrop();
+    const bars = [70, 110, 90, 150, 190];
+    bars.forEach((bh, n) => { fill(n === 4 ? a.accent : a.soft, n === 4 ? 1 : 0.7); rect(70 + n * 54, 250 - bh, 38, bh, 8); });
+    c.strokeStyle = a.accent; c.lineWidth = 7; c.lineCap = "round"; c.lineJoin = "round"; c.beginPath(); c.moveTo(78, 150); c.lineTo(132, 112); c.lineTo(186, 128); c.lineTo(240, 78); c.lineTo(310, 42); c.stroke();
+    fill(a.accent); c.beginPath(); c.moveTo(322, 30); c.lineTo(298, 34); c.lineTo(314, 58); c.closePath(); c.fill(); reset();
+    fill(a.accent, 0.6); rect(50, 252, 300, 6);
+  } else if (kind === "chat") {
+    backdrop();
+    fill(a.accent); rect(60, 70, 190, 100, 26); c.beginPath(); c.moveTo(90, 166); c.lineTo(86, 206); c.lineTo(130, 168); c.closePath(); c.fill();
+    fill(a.panel); circle(112, 120, 11); circle(155, 120, 11); circle(198, 120, 11);
+    fill(a.soft); rect(150, 150, 190, 90, 26); c.beginPath(); c.moveTo(310, 236); c.lineTo(318, 270); c.lineTo(276, 238); c.closePath(); c.fill();
+    fill(a.panel); rect(176, 178, 110, 10, 5); rect(176, 202, 70, 10, 5); reset();
+  } else { // monogram
+    backdrop();
+    c.strokeStyle = a.accent; c.lineWidth = 6; c.setLineDash([2, 18]); c.lineCap = "round"; c.beginPath(); c.arc(200, 140, 118, 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
+    fill(a.accent); circle(200, 140, 92);
+    c.fillStyle = a.panel; c.font = `800 92px ${sans}`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(initials, 200, 146); c.textAlign = "left"; c.textBaseline = "alphabetic";
+    reset(); sparkle(c, 330, 60, 20, a.accent); sparkle(c, 66, 220, 14, a.soft);
+  }
+  c.restore();
+}
+const ART_FOR: Record<string, string> = { just_listed: "house", open_house: "calendar", price_improvement: "tag", just_sold: "sign", buyer_tip: "key", seller_tip: "tag", education: "chat", market_update: "chart", local: "chat", personal_brand: "monogram" };
+const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase() || "M";
+
 // ---------------------------------------------------------------- main renderer
 export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Promise<HTMLCanvasElement> {
   const f = await loadFonts();
-  const fmt = FORMATS[formatFor(o.platform)];
+  const format = formatFor(o.platform);
+  const fmt = FORMATS[format];
   const outW = o.width ?? fmt.w; const k = outW / fmt.w;
   const W = fmt.w, H = fmt.h;
   const cv = document.createElement("canvas"); cv.width = Math.round(W * k); cv.height = Math.round(H * k);
   const c = cv.getContext("2d")!; c.scale(k, k);
-  const u = Math.min(W / 1080, H / 1000); const m = 84 * u;
+  const u = Math.min(W / 1080, H / 1000); const m = 78 * u;
   const pal: Palette = paletteOf(slide.theme);
   const photo = slide.image_url ? await loadImage(slide.image_url) : null;
   const onPhoto = !!photo;
-  const ink = onPhoto ? "#ffffff" : pal.ink, soft = onPhoto ? "rgba(255,255,255,.78)" : pal.soft;
-  const serif = (px: number) => `400 ${px}px ${f.serif}`;
+  const ink = onPhoto ? "#ffffff" : pal.ink, soft = onPhoto ? "rgba(255,255,255,.8)" : pal.soft;
+  const head = (px: number) => (pal.serif ? `400 ${px}px ${f.serif}` : `800 ${px}px ${f.sans}`);
   const sans = (px: number, w = 500) => `${w} ${px}px ${f.sans}`;
+  const tight = (px: number) => { try { (c as unknown as { letterSpacing: string }).letterSpacing = pal.serif ? "0px" : `${(-0.025 * px).toFixed(2)}px`; } catch { /* unsupported: default spacing */ } };
+  const loose = () => { try { (c as unknown as { letterSpacing: string }).letterSpacing = "0px"; } catch { /* ignore */ } };
+  const lhOf = pal.serif ? 1.04 : 1.02;
   c.textBaseline = "alphabetic";
+  const art: Art = { ink: pal.ink, accent: pal.accent, soft: pal.soft, bg: pal.bg, panel: pal.bg2, onAccent: pal.onAccent };
+  const landscape = format === "landscape";
 
   // ---- background
   if (photo) {
@@ -114,82 +195,101 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
     c.drawImage(photo, (W - w) / 2, (H - h) / 2, w, h);
     const top = c.createLinearGradient(0, 0, 0, H * 0.3); top.addColorStop(0, "rgba(0,0,0,.5)"); top.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = top; c.fillRect(0, 0, W, H * 0.3);
     const bot = c.createLinearGradient(0, H * (slide.role === "cta" ? 0 : 0.38), 0, H); bot.addColorStop(0, `rgba(0,0,0,${slide.role === "cta" ? 0.55 : 0})`); bot.addColorStop(1, "rgba(0,0,0,.88)"); c.fillStyle = bot; c.fillRect(0, 0, W, H);
-  } else {
-    c.fillStyle = pal.bg; c.fillRect(0, 0, W, H);
-    const g = c.createRadialGradient(W * 0.88, H * 0.06, 0, W * 0.88, H * 0.06, W * 1.0); g.addColorStop(0, pal.bg2); g.addColorStop(1, rgba(pal.bg2, 0)); c.fillStyle = g; c.fillRect(0, 0, W, H);
-    c.strokeStyle = pal.ink; c.lineWidth = 2 * u; c.globalAlpha = 0.07;
-    for (const r of [360, 520, 700]) { c.beginPath(); c.arc(W * 0.92, H * 0.96, r * u, 0, Math.PI * 2); c.stroke(); }
-    c.globalAlpha = 1;
-    c.beginPath(); c.arc(W - m - 150 * u, m + 270 * u, 250 * u, 0, Math.PI * 2); c.fillStyle = pal.accent; c.globalAlpha = 0.07; c.fill(); c.globalAlpha = 1;
-    icon(c, ICON_FOR[o.category ?? ""] ?? "star", W - m - 260 * u, m + 160 * u, 220 * u, pal.ink, 0.22);
-  }
+  } else { c.fillStyle = pal.bg; c.fillRect(0, 0, W, H); }
 
-  // ---- top bar: index
-  c.fillStyle = soft; c.font = sans(26 * u, 700);
-  if (o.total > 1) spaced(c, `${String(o.index + 1).padStart(2, "0")} / ${String(o.total).padStart(2, "0")}`, W - m, m + 26 * u, 3 * u, "right");
+  // ---- top bar
+  c.fillStyle = soft; c.font = sans(25 * u, 700);
+  if (o.total > 1) spaced(c, `${String(o.index + 1).padStart(2, "0")} / ${String(o.total).padStart(2, "0")}`, W - m, m + 24 * u, 3 * u, "right");
 
-  // ---- footer: brand + dots
+  // ---- footer: monogram + brand + dots
   const footY = H - m;
-  c.strokeStyle = onPhoto ? "rgba(255,255,255,.35)" : pal.ink; c.globalAlpha = onPhoto ? 1 : 0.18; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(m, footY - 74 * u); c.lineTo(W - m, footY - 74 * u); c.stroke(); c.globalAlpha = 1;
-  c.fillStyle = ink; c.font = sans(32 * u, 700); c.fillText(o.brand.name, m, footY - 22 * u);
-  if (o.brand.brokerage) { c.fillStyle = soft; c.font = sans(25 * u, 500); c.fillText(o.brand.brokerage, m, footY + 12 * u); }
-  if (o.total > 1) for (let i = 0; i < o.total; i++) { const cx = W - m - (o.total - 1 - i) * 30 * u - 8 * u; c.beginPath(); c.arc(cx, footY - 20 * u, 8 * u, 0, Math.PI * 2); c.fillStyle = ink; c.globalAlpha = i === o.index ? 1 : 0.28; c.fill(); c.globalAlpha = 1; }
+  const mono = 58 * u;
+  c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.fillStyle = onPhoto ? "#fff" : pal.accent; c.fill();
+  c.fillStyle = onPhoto ? "#111" : pal.onAccent; c.font = sans(22 * u, 800); c.textAlign = "center"; c.fillText(initialsOf(o.brand.name), m + mono / 2, footY - 22 * u + 8 * u); c.textAlign = "left";
+  const bx = m + mono + 22 * u;
+  c.fillStyle = ink; c.font = sans(30 * u, 800); c.fillText(o.brand.name, bx, footY - 24 * u);
+  if (o.brand.brokerage) { c.fillStyle = soft; c.font = sans(24 * u, 500); c.fillText(o.brand.brokerage, bx, footY + 8 * u); }
+  if (o.total > 1) for (let i = 0; i < o.total; i++) { const cx = W - m - (o.total - 1 - i) * 30 * u - 8 * u; c.beginPath(); c.arc(cx, footY - 22 * u, 8 * u, 0, Math.PI * 2); c.fillStyle = ink; c.globalAlpha = i === o.index ? 1 : 0.28; c.fill(); c.globalAlpha = 1; }
 
-  const bodyBottom = Math.min(footY - 74 * u - 56 * u, formatFor(o.platform) === "story" ? H * 0.76 : H); // text block sits above the footer rule (higher on tall stories)
+  const contentBottom = footY - 100 * u;           // everything above the footer
   const boxW = W - 2 * m;
   const pill = (text: string, x: number, y: number) => {
-    c.font = sans(26 * u, 700); const tw = spacedWidth(c, text.toUpperCase(), 4 * u); const pw = tw + 48 * u, ph = 52 * u;
-    rrect(c, x, y, pw, ph, ph / 2); c.fillStyle = onPhoto ? "rgba(255,255,255,.95)" : pal.accent; c.fill();
-    c.fillStyle = onPhoto ? "#111" : pal.onAccent; spaced(c, text.toUpperCase(), x + 24 * u, y + 35 * u, 4 * u);
-    return ph;
+    c.font = sans(25 * u, 800); const tw = spacedWidth(c, text.toUpperCase(), 4 * u); const pw = tw + 52 * u, ph = 56 * u;
+    rrect(c, x, y, pw, ph, ph / 2); c.fillStyle = onPhoto ? "#fff" : pal.accent; c.fill();
+    c.fillStyle = onPhoto ? "#111" : pal.onAccent; spaced(c, text.toUpperCase(), x + 26 * u, y + 37 * u, 4 * u);
+    return { w: pw, h: ph };
   };
+  const drawLines = (lines: string[], px: number, x: number, yTop: number, lh: number, align: CanvasTextAlign = "left") => {
+    c.fillStyle = ink; c.font = head(px); tight(px); c.textAlign = align; let y = yTop + px * 0.82;
+    for (const l of lines) { c.fillText(l.replace(/\b'\b/g, "\u2019").replace(/'/g, "\u2019"), x, y); y += px * lh; }
+    c.textAlign = "left"; loose();
+  };
+  const kind = ART_FOR[o.category ?? ""] ?? "monogram";
 
   if (slide.role === "hero") {
-    if (slide.sub) pill(slide.sub, m, m);
-    const maxH = H * (onPhoto ? 0.36 : 0.5);
-    const { px, lines } = fit(c, slide.headline, serif, boxW, maxH, 176 * u, 64 * u, 1.02, 4);
-    const blockH = lines.length * px * 1.02;
-    let y = bodyBottom - blockH + px * 0.86;
-    c.fillStyle = pal.accent; if (!onPhoto) { c.fillRect(m, y - px * 0.86 - 44 * u, 96 * u, 6 * u); }
-    c.fillStyle = ink; c.font = serif(px);
-    for (const l of lines) { c.fillText(l, m, y); y += px * 1.02; }
+    const kicker = slide.sub ? pill(slide.sub, m, m) : { w: 0, h: 0 };
+    if (onPhoto) {
+      const { px, lines } = fit(c, slide.headline, head, boxW, H * 0.32, 168 * u, 60 * u, lhOf, 4);
+      drawLines(lines, px, m, contentBottom - lines.length * px * lhOf, lhOf);
+    } else if (landscape) {
+      const px0 = m, tw = W * 0.5 - m;
+      illustrate(c, kind, W * 0.54, m, W - m - W * 0.54, contentBottom - m, art, initialsOf(o.brand.name), f.sans);
+      const { px, lines } = fit(c, slide.headline, head, tw, contentBottom - m - 140 * u, 130 * u, 54 * u, lhOf, 4);
+      drawLines(lines, px, px0, contentBottom - lines.length * px * lhOf, lhOf);
+    } else {
+      const panelY = m + kicker.h + 40 * u, panelH = (format === "story" ? H * 0.4 : H * 0.36);
+      illustrate(c, kind, m, panelY, boxW, panelH, art, initialsOf(o.brand.name), f.sans);
+      const top = panelY + panelH + 54 * u;
+      const { px, lines } = fit(c, slide.headline, head, boxW, contentBottom - top, 156 * u, 60 * u, lhOf, 4);
+      drawLines(lines, px, m, format === "story" ? top + 20 * u : top + (contentBottom - top - lines.length * px * lhOf) / 2, lhOf);
+    }
   } else if (slide.role === "highlight") {
     const stats = parseStats(slide.headline);
     if (stats) {
-      const cols = stats.length === 3 ? 3 : 2; const rows = Math.ceil(stats.length / cols);
-      const cw = boxW / cols; const rowH = 250 * u; const gridH = rows * rowH;
-      const top = onPhoto ? bodyBottom - gridH - 24 * u : H * 0.34;
-      if (onPhoto) { rrect(c, m - 28 * u, top - 36 * u, boxW + 56 * u, gridH + 36 * u, 36 * u); c.fillStyle = "rgba(10,10,10,.55)"; c.fill(); }
-      stats.forEach((s, i) => {
-        const col = i % cols, row = Math.floor(i / cols); const x = m + col * cw, y = top + row * rowH;
-        const { px } = fit(c, s.value, serif, cw - 64 * u, 140 * u, 138 * u, 64 * u, 1, 1);
-        c.fillStyle = ink; c.font = serif(px); c.fillText(s.value, x, y + 110 * u);
-        c.fillStyle = soft; c.font = sans(27 * u, 700); spaced(c, s.label.toUpperCase(), x, y + 162 * u, 4 * u);
-        c.strokeStyle = onPhoto ? "rgba(255,255,255,.3)" : pal.ink; c.globalAlpha = onPhoto ? 1 : 0.2; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(x, y + 196 * u); c.lineTo(x + cw - 36 * u, y + 196 * u); c.stroke(); c.globalAlpha = 1;
+      const cols = landscape ? Math.min(stats.length, 4) : 2; const rows = Math.ceil(stats.length / cols);
+      const gap = 28 * u; const cw = (boxW - gap * (cols - 1)) / cols;
+      const ch = Math.min(280 * u, (contentBottom - (m + 150 * u) - gap * (rows - 1)) / rows);
+      const gridH = rows * ch + (rows - 1) * gap;
+      const top = onPhoto ? contentBottom - gridH : m + 130 * u + Math.max(0, (contentBottom - (m + 130 * u) - gridH) / 2);
+      if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 700); c.fillText(slide.sub, m, top - 38 * u); }
+      stats.forEach((st, i) => {
+        const col = i % cols, row = Math.floor(i / cols); const x = m + col * (cw + gap), y = top + row * (ch + gap);
+        rrect(c, x, y, cw, ch, 40 * u); c.fillStyle = onPhoto ? "rgba(12,12,12,.62)" : i === 0 ? pal.accent : pal.bg2; c.fill();
+        const first = i === 0 && !onPhoto; const vcol = first ? pal.onAccent : ink, lcol = first ? pal.onAccent : soft;
+        const { px } = fit(c, st.value, head, cw - 64 * u, 150 * u, 132 * u, 52 * u, 1, 1);
+        c.fillStyle = vcol; c.font = head(px); tight(px); c.fillText(st.value, x + 32 * u, y + ch * 0.58); loose();
+        c.fillStyle = lcol; c.globalAlpha = first ? 0.8 : 1; c.font = sans(26 * u, 800); spaced(c, st.label.toUpperCase(), x + 32 * u, y + ch * 0.58 + 52 * u, 4 * u); c.globalAlpha = 1;
       });
-      if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 500); c.fillText(slide.sub, m, onPhoto ? top - 70 * u : top + gridH + 30 * u); }
     } else {
       const n = slide.sub?.match(/^(\d+)\s+of\s+(\d+)/i);
-      const maxH = H * 0.42;
-      const { px, lines } = fit(c, slide.headline, serif, boxW, maxH, 112 * u, 52 * u, 1.12, 6);
-      let y = bodyBottom - lines.length * px * 1.12 + px * 0.9;
-      if (n && !onPhoto) { c.fillStyle = pal.ink; c.globalAlpha = 0.1; c.font = serif(520 * u); c.fillText(n[1], m - 8 * u, y - px * 1.1 - 80 * u); c.globalAlpha = 1; }
-      if (slide.sub) { c.fillStyle = soft; c.font = sans(27 * u, 700); spaced(c, (n ? `Tip ${n[1]} of ${n[2]}` : slide.sub).toUpperCase(), m, y - px * 1.1 - 28 * u, 4 * u); }
-      c.fillStyle = ink; c.font = serif(px);
-      for (const l of lines) { c.fillText(l, m, y); y += px * 1.12; }
+      const badge = 150 * u; let top = m + 20 * u;
+      if (n && !onPhoto) {
+        c.beginPath(); c.arc(m + badge / 2, top + badge / 2, badge / 2, 0, Math.PI * 2); c.fillStyle = pal.accent; c.fill();
+        c.fillStyle = pal.onAccent; c.font = head(96 * u); tight(96 * u); c.textAlign = "center"; c.fillText(n[1], m + badge / 2, top + badge / 2 + 34 * u); c.textAlign = "left"; loose();
+        c.fillStyle = soft; c.font = sans(26 * u, 800); spaced(c, `OF ${n[2]}`, m + badge + 26 * u, top + badge / 2 + 8 * u, 4 * u);
+        top += badge + 56 * u;
+      } else if (slide.sub) { const kk = pill(n ? `Tip ${n[1]} of ${n[2]}` : slide.sub, m, m); top = m + kk.h + 56 * u; }
+      const panelH = onPhoto ? 0 : landscape ? 0 : Math.min(H * 0.27, 330 * u);
+      const textW = !onPhoto && landscape ? W * 0.5 - m : boxW;
+      const { px, lines } = fit(c, slide.headline, head, textW, contentBottom - top - panelH - (panelH ? 40 * u : 0), 160 * u, 52 * u, 1.08, 6);
+      drawLines(lines, px, m, top, 1.08);
+      if (!onPhoto && !landscape) illustrate(c, kind, m, contentBottom - panelH, boxW, panelH, art, initialsOf(o.brand.name), f.sans);
+      if (!onPhoto && landscape) illustrate(c, kind, W * 0.54, m, W - m - W * 0.54, contentBottom - m, art, initialsOf(o.brand.name), f.sans);
     }
   } else {
-    const maxH = H * 0.34;
-    const { px, lines } = fit(c, slide.headline, serif, boxW, maxH, 150 * u, 64 * u, 1.04, 3);
-    const blockH = lines.length * px * 1.04;
-    const subH = slide.sub ? 120 * u : 0;
-    let y = bodyBottom - subH - blockH + px * 0.86;
-    c.fillStyle = ink; c.font = serif(px);
-    for (const l of lines) { c.fillText(l, m, y); y += px * 1.04; }
+    // call to action
+    const px0 = boxW - (landscape ? W * 0.3 : 0);
+    const { px, lines } = fit(c, slide.headline, head, px0, contentBottom - (m + 380 * u), 150 * u, 60 * u, lhOf, 3);
+    const blockH = lines.length * px * lhOf;
+    const btnH = 84 * u;
+    const textTop = contentBottom - btnH - 44 * u - blockH;
+    if (!onPhoto && !landscape) { const ay = m + 60 * u; illustrate(c, kind, m, ay, boxW, Math.max(220 * u, textTop - 56 * u - ay), art, initialsOf(o.brand.name), f.sans); }
+    else if (!onPhoto && landscape) illustrate(c, kind, W * 0.66, m, W - m - W * 0.66, contentBottom - m, art, initialsOf(o.brand.name), f.sans);
+    drawLines(lines, px, m, textTop, lhOf);
     if (slide.sub) {
-      c.font = sans(32 * u, 700); const tw = Math.min(c.measureText(slide.sub).width, boxW - 64 * u); const pw = tw + 64 * u, ph = 76 * u, py = bodyBottom - ph;
-      rrect(c, m, py, pw, ph, ph / 2); c.fillStyle = onPhoto ? "#fff" : pal.accent; c.fill();
-      c.fillStyle = onPhoto ? "#111" : pal.onAccent; c.fillText(slide.sub.length > 46 ? slide.sub.slice(0, 45) + "…" : slide.sub, m + 32 * u, py + 49 * u, boxW - 64 * u);
+      c.font = sans(32 * u, 800); const label = slide.sub.length > 44 ? slide.sub.slice(0, 43) + "…" : slide.sub; const tw = Math.min(c.measureText(label).width, boxW - 72 * u); const pw = tw + 72 * u, py = contentBottom - btnH;
+      rrect(c, m, py, pw, btnH, btnH / 2); c.fillStyle = onPhoto ? "#fff" : pal.accent; c.fill();
+      c.fillStyle = onPhoto ? "#111" : pal.onAccent; c.fillText(label, m + 36 * u, py + btnH / 2 + 11 * u, boxW - 72 * u);
     }
   }
   return cv;

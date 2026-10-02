@@ -134,6 +134,8 @@ body {
   background: var(--glass); border: 1px solid var(--glass-border); color: var(--ink-soft); cursor: pointer;
   transition: transform .15s, background .2s;
 }
+.chip { white-space: nowrap; flex-shrink: 0; }
+.chip.is-selected { background: var(--accent) !important; color: var(--accent-ink) !important; border-color: transparent !important; box-shadow: none !important; font-weight: 600; }
 .chip:hover { background: var(--glass-strong); }
 .chip:active { transform: scale(.97); }
 
@@ -188,7 +190,7 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 .is-selected {
   border-color: var(--accent) !important;
   background: color-mix(in srgb, var(--accent) 24%, var(--glass-strong)) !important;
-  box-shadow: 0 0 0 2px var(--accent), var(--shadow) !important;
+  box-shadow: inset 0 0 0 2px var(--accent) !important; /* inset: scrolling chip rows would clip an outer ring */
 }
 
 /* ---------------------------------------------------------------- flip cards (touch-first)

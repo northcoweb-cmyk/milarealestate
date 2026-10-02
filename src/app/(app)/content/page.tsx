@@ -71,10 +71,10 @@ function ContentInner() {
     <Page>
       <PageHeader title="Content" sub="Mila designs the posts. You post them." right={<div className="flex gap-2"><button className="btn btn-quiet btn-sm" onClick={() => setPlanning(true)}><Sparkles size={16} /> Plan</button><button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}><Plus size={16} /> New</button></div>} />
 
-      <div className="no-scrollbar mb-4 flex gap-2 overflow-x-auto">
+      <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4">
         {TABS.map((t) => <button key={t.key} onClick={() => setTab(t.key)} className={"chip " + (tab === t.key ? "is-selected" : "")}>{t.label}{data ? ` · ${data.counts[t.key]}` : ""}</button>)}
       </div>
-      <div className="no-scrollbar mb-5 flex gap-2 overflow-x-auto">
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">
         <button onClick={() => setPlatform("")} className={"chip " + (!platform ? "is-selected" : "")}>All</button>
         {(data?.platforms ?? []).map((p) => <button key={p.key} onClick={() => setPlatform(p.key)} className={"chip " + (platform === p.key ? "is-selected" : "")}>{p.label}</button>)}
       </div>
