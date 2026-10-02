@@ -1,19 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Menu, Users } from "lucide-react";
+import { CalendarDays, Home, Megaphone, Menu, Users } from "lucide-react";
 import clsx from "clsx";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" || p.startsWith("/tasks") },
   { href: "/contacts", label: "Contacts", icon: Users, match: (p: string) => p.startsWith("/contacts") },
+  { href: "/content", label: "Content", icon: Megaphone, match: (p: string) => p.startsWith("/content") },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, match: (p: string) => p.startsWith("/calendar") },
   { href: "/more", label: "More", icon: Menu, match: (p: string) => p.startsWith("/more") || p.startsWith("/settings") || p.startsWith("/memory") || p.startsWith("/templates") || p.startsWith("/documents") || p.startsWith("/workflows") || p.startsWith("/admin") || p.startsWith("/properties") },
 ];
 
 export function Shell({ children, approvals }: { children: React.ReactNode; approvals: number }) {
   const path = usePathname();
+  useEffect(() => { window.scrollTo(0, 0); }, [path]);
   return (
     <>
       {/* desktop rail */}
@@ -36,12 +39,12 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
       <div className="lg:pl-[128px]">{children}</div>
 
       {/* mobile tab bar */}
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),12px)] lg:hidden">
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),12px)] lg:hidden" style={{ transform: "translate3d(0,0,0)", willChange: "transform", contain: "layout paint" }}>
         <div className="glass-strong mx-auto flex max-w-md items-center justify-between p-1.5" style={{ borderRadius: 999 }}>
           {NAV.map((n) => {
             const active = n.match(path);
             return (
-              <Link key={n.href} href={n.href} aria-current={active ? "page" : undefined} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-semibold transition" style={active ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)" } : { color: "var(--ink-soft)" }}>
+              <Link key={n.href} href={n.href} scroll={false} aria-current={active ? "page" : undefined} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-semibold transition" style={active ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)" } : { color: "var(--ink-soft)" }}>
                 <n.icon size={21} strokeWidth={active ? 2.3 : 1.9} />
                 {n.label}
                 {n.href === "/" && approvals > 0 && <span className="absolute right-[22%] top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">{approvals}</span>}
