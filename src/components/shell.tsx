@@ -29,6 +29,9 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
   const [nav, setNav] = useState({ path, prev: path });
   if (nav.path !== path) setNav({ path, prev: nav.path }); // remember where we came from (set during render, per React docs)
   const dir = direction(nav.prev, nav.path);
+  // Highlight the tapped tab immediately instead of waiting for the next screen to arrive.
+  const [tapped, setTapped] = useState<{ href: string; from: string } | null>(null);
+  const shown = tapped && tapped.from === path ? tapped.href : path;
   return (
     <>
       {/* desktop rail */}
@@ -36,9 +39,9 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
         <Link href="/" className="display mb-8 text-[30px]" aria-label="Mila home">M</Link>
         <div className="flex flex-1 flex-col gap-2">
           {NAV.map((n) => {
-            const active = n.match(path);
+            const active = n.match(shown);
             return (
-              <Link key={n.href} href={n.href} aria-current={active ? "page" : undefined} className={clsx("relative flex w-[68px] flex-col items-center gap-1 rounded-2xl py-3 text-[11.5px] font-semibold transition-colors", active ? "" : "text-ink-soft hover:bg-white/30")} style={active ? { color: "var(--accent-ink)" } : undefined}>
+              <Link key={n.href} href={n.href} onPointerDown={() => setTapped({ href: n.href, from: path })} aria-current={active ? "page" : undefined} className={clsx("relative flex w-[68px] flex-col items-center gap-1 rounded-2xl py-3 text-[11.5px] font-semibold transition-colors", active ? "" : "text-ink-soft hover:bg-white/30")} style={active ? { color: "var(--accent-ink)" } : undefined}>
                 {active && <motion.span layoutId="rail-pill" className="absolute inset-0 rounded-2xl" style={{ background: "linear-gradient(135deg,var(--accent),var(--accent-2))" }} transition={{ type: "spring", stiffness: 520, damping: 40 }} />}
                 <n.icon size={22} strokeWidth={active ? 2.3 : 1.9} className="relative" />
                 <span className="relative">{n.label}</span>
@@ -56,9 +59,9 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
       <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),12px)] lg:hidden" style={{ transform: "translate3d(0,0,0)", willChange: "transform", contain: "layout paint" }}>
         <div className="surface mx-auto flex max-w-md items-center justify-between p-1.5" style={{ borderRadius: 999, background: "color-mix(in srgb, var(--surface) 94%, transparent)" }}>
           {NAV.map((n) => {
-            const active = n.match(path);
+            const active = n.match(shown);
             return (
-              <Link key={n.href} href={n.href} scroll={false} aria-current={active ? "page" : undefined} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-semibold transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
+              <Link key={n.href} href={n.href} scroll={false} onPointerDown={() => setTapped({ href: n.href, from: path })} aria-current={active ? "page" : undefined} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-semibold transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
                 {active && <motion.span layoutId="tab-pill" className="absolute inset-0 rounded-full" style={{ background: "linear-gradient(135deg,var(--accent),var(--accent-2))" }} transition={{ type: "spring", stiffness: 520, damping: 40 }} />}
                 <n.icon size={21} strokeWidth={active ? 2.3 : 1.9} className="relative" />
                 <span className="relative">{n.label}</span>

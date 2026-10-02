@@ -8,11 +8,11 @@ import { PromptInput } from "./ui/ai-chat-input";
 
 import { useApp } from "./app-context";
 import { InstallBanner } from "./install";
-import { CheckDot, jfetch } from "./ui";
+import { CheckDot, Skeleton, jfetch } from "./ui";
 import { useMila } from "./mila-chat";
 import type { Feed } from "@/lib/feed";
 
-export interface HomeData { greeting: string; firstName: string; dateLine: string; feed: Feed; isDemo: boolean }
+export interface HomeData { greeting: string; firstName: string; dateLine: string; feed: Feed | null; isDemo: boolean }
 
 const SUGGESTIONS = [
   "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up.",
@@ -57,12 +57,12 @@ const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - ne
 function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData; refreshKey: number; helpSeen: boolean; onHelpSeen: () => void }) {
   const { toast } = useApp();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [f, setF] = useState<Feed>(data.feed);
+  const [f, setF] = useState<Feed | null>(data.feed);
   const [, tick] = useState(0);
   const refresh = useCallback(async () => {
     try { const r = await fetch("/api/feed", { cache: "no-store" }); if (r.ok) setF((await r.json()).feed); } catch { /* offline: keep what we have */ }
   }, []);
-  useEffect(() => { if (refreshKey) refresh(); }, [refreshKey, refresh]);
+  useEffect(() => { refresh(); }, [refreshKey, refresh]); // first load + after every Mila turn
   useEffect(() => {
     const vis = () => { if (document.visibilityState === "visible") refresh(); };
     const id = window.setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 45_000);
@@ -73,12 +73,12 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
 
   async function togglePlan(p: Feed["plan"][number]) {
     const next = !p.done;
-    setF((x) => ({ ...x, plan: x.plan.map((i) => (i.id === p.id ? { ...i, done: next } : i)) })); // instant; the server records it
+    setF((x) => x && ({ ...x, plan: x.plan.map((i) => (i.id === p.id ? { ...i, done: next } : i)) })); // instant; the server records it
     try {
       if (next) await jfetch("/api/feed/complete", { method: "POST", json: { id: p.id, title: p.title, why: p.why } });
       else await jfetch(`/api/feed/complete?id=${encodeURIComponent(p.id)}`, { method: "DELETE" });
     } catch (e) {
-      setF((x) => ({ ...x, plan: x.plan.map((i) => (i.id === p.id ? { ...i, done: !next } : i)) }));
+      setF((x) => x && ({ ...x, plan: x.plan.map((i) => (i.id === p.id ? { ...i, done: !next } : i)) }));
       toast(e instanceof Error ? e.message : "Couldn't save that.", "error");
     }
   }
@@ -91,6 +91,11 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
   const Act = ({ a, primary, itemId }: { a: Feed["needsYou"][number]["primary"]; primary?: boolean; itemId: string }) =>
     a.approveId ? <button className={primary ? "btn btn-primary btn-sm" : "btn btn-quiet btn-sm"} disabled={busyId === itemId} onClick={() => approve(a.approveId!, itemId)}>{busyId === itemId ? "Working…" : a.label}</button>
       : <Link className={primary ? "btn btn-primary btn-sm" : "btn btn-quiet btn-sm"} href={a.href ?? "/tasks"}>{a.label}</Link>;
+  if (!f) return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading your day">
+      <Skeleton className="h-6 w-2/3" /><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-24" />
+    </div>
+  );
   const doneCount = f.plan.filter((p) => p.done).length;
   return (
     <div className="space-y-9">
