@@ -25,14 +25,14 @@ export const CATEGORIES: CategoryDef[] = [
   { key: "personal_brand", label: "About me", blurb: "Introduce yourself", needsProperty: false, group: "Brand" },
 ];
 
+/** What Mila makes posts for today: Instagram feed posts (1080×1350) and Instagram stories (1080×1920). */
 export const PLATFORMS: { key: SocialPlatform; label: string; limit: number; carousel: boolean }[] = [
-  { key: "instagram", label: "Instagram", limit: 2200, carousel: true },
-  { key: "facebook", label: "Facebook", limit: 5000, carousel: true },
-  { key: "tiktok", label: "TikTok", limit: 2200, carousel: true },
-  { key: "linkedin", label: "LinkedIn", limit: 3000, carousel: false },
-  { key: "x", label: "X", limit: 280, carousel: false },
+  { key: "instagram", label: "Instagram post", limit: 2200, carousel: true },
+  { key: "instagram_story", label: "Instagram story", limit: 2200, carousel: true },
 ];
-export const platformLimit = (p: SocialPlatform) => PLATFORMS.find((x) => x.key === p)?.limit ?? 2200;
+/** Older posts may still be on platforms we no longer create for; they keep working. */
+const LEGACY_LIMITS: Record<string, number> = { facebook: 5000, tiktok: 2200, linkedin: 3000, x: 280 };
+export const platformLimit = (p: SocialPlatform) => PLATFORMS.find((x) => x.key === p)?.limit ?? LEGACY_LIMITS[p] ?? 2200;
 
 export interface BuildInput {
   category: Category;
@@ -45,6 +45,8 @@ export interface BuildInput {
   property?: { address: string; city?: string | null; state?: string | null; facts: string[] } | null;
   when?: { day: string; range: string } | null; // for open houses
   topic?: string | null;
+  /** Shown on the last image's button, e.g. "Call or text 301.509.7280". Defaults to the agent's name. */
+  contact?: string | null;
 }
 export interface Built { caption: string; hashtags: string[]; slides: SocialSlide[] }
 
@@ -114,7 +116,7 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
   const prop = i.property;
   const where = prop ? `${prop.address}${prop.city ? `, ${prop.city}` : ""}` : "";
   const facts = prop?.facts ?? [];
-  const sig = i.name;
+  const sig = i.contact?.trim() || i.name;
   const market = i.market ? i.market.replace(/,\s*[A-Z]{2}$/, "") : "";
   const slide = (role: SocialSlide["role"], headline: string, sub?: string): SocialSlide => ({ role, headline, sub, image_id: null });
 
@@ -186,7 +188,7 @@ export function fitToPlatform(platform: SocialPlatform, body: string, tags: stri
     if (text.length > room) text = text.slice(0, Math.max(0, room - 1)).replace(/\s+\S*$/, "") + "…";
     return { caption: text, hashtags };
   }
-  const withTags = (platform === "instagram" || platform === "tiktok" || platform === "linkedin") ? body + tagLine(hashtags) : body;
+  const withTags = (platform === "instagram" || platform === "instagram_story" || platform === "tiktok" || platform === "linkedin") ? body + tagLine(hashtags) : body;
   if (withTags.length > limit) return { caption: withTags.slice(0, limit - 1).replace(/\s+\S*$/, "") + "…", hashtags };
   return { caption: withTags, hashtags };
 }

@@ -10,7 +10,11 @@ const AV_TONES = ["#0b0b0c", "#232326", "#3b3b40", "#5a5a60", "#8a8a90", "#b8b8b
 function hash(str: string) { let h = 2166136261; for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 /** Unique, deterministic filler portrait: a bold geometric pattern in the app's black/white palette, different per person. */
-export function Avatar({ name, size = 44, seed, ring }: { name: string; color?: string; size?: number; seed?: string; ring?: string }) {
+export function Avatar({ name, size = 44, seed, ring, src }: { name: string; color?: string; size?: number; seed?: string; ring?: string; src?: string | null }) {
+  if (src) return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={name} width={size} height={size} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size, boxShadow: ring ? `0 0 0 2.5px ${ring}` : "0 4px 12px -4px rgba(0,0,0,.4)", margin: ring ? 3 : 0 }} />
+  );
   const h = hash(seed ?? name);
   const pick = (n: number, k: number) => AV_TONES[(h >> (k * 3)) % n];
   const dark = h % 2 === 0;

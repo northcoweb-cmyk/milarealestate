@@ -5,7 +5,7 @@ import { FORMATS, formatFor, layoutOf, paletteOf, type Palette } from "./design"
  * Draws post images in the browser (canvas → PNG): editorial layouts, six palettes, real property photos when
  * the agent has them. No server, no image-generation cost, and what you preview is exactly what you export.
  */
-export interface Brand { name: string; brokerage?: string | null }
+export interface Brand { name: string; brokerage?: string | null; pfp?: string | null }
 export interface RenderOpts { index: number; total: number; platform: string; brand: Brand; category?: string | null; width?: number }
 
 type Ctx = CanvasRenderingContext2D;
@@ -233,8 +233,13 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   if (o.total > 1) { c.fillStyle = counterOnMedia && photo ? "#fff" : soft; spaced(c, `${String(o.index + 1).padStart(2, "0")} / ${String(o.total).padStart(2, "0")}`, W - m, m + 24 * u, 3 * u, "right"); }
   const footY = H - m;
   const mono = 58 * u;
+  const pfpImg = o.brand.pfp ? await loadImage(o.brand.pfp) : null;
   c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
-  c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(22 * u, 800); c.textAlign = "center"; c.fillText(ini, m + mono / 2, footY - 22 * u + 8 * u); c.textAlign = "left";
+  if (pfpImg) { // the agent's profile photo, cropped to a circle
+    c.save(); c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.clip();
+    const sc = Math.max(mono / pfpImg.width, mono / pfpImg.height); const pw = pfpImg.width * sc, ph = pfpImg.height * sc;
+    c.drawImage(pfpImg, m + (mono - pw) / 2, footY - 22 * u - mono / 2 + (mono - ph) / 2, pw, ph); c.restore();
+  } else { c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(22 * u, 800); c.textAlign = "center"; c.fillText(ini, m + mono / 2, footY - 22 * u + 8 * u); c.textAlign = "left"; }
   const bx = m + mono + 22 * u;
   c.fillStyle = ink; c.font = sans(30 * u, 800); c.fillText(o.brand.name, bx, footY - 24 * u);
   if (o.brand.brokerage) { c.fillStyle = soft; c.font = sans(24 * u, 500); c.fillText(o.brand.brokerage, bx, footY + 8 * u); }

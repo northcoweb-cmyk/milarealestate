@@ -43,3 +43,14 @@ export async function uploadMedia(file: File, o: { propertyId?: string | null; s
   }
   return { id: meta.id, url: meta.url, mime, name };
 }
+
+/** Centre-crops a photo to a square (default 640px JPEG) so a profile picture looks right everywhere. */
+export async function squarePhoto(file: File, size = 640): Promise<File> {
+  const bmp = await createImageBitmap(file);
+  const s = Math.min(bmp.width, bmp.height);
+  const c = document.createElement("canvas"); c.width = size; c.height = size;
+  c.getContext("2d")!.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, size, size);
+  const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.88));
+  if (!blob) throw new Error("Couldn't read that photo.");
+  return new File([blob], "profile.jpg", { type: "image/jpeg" });
+}

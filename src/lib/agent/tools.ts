@@ -1,3 +1,4 @@
+import { buildSignature, withSignature } from "../signature";
 import { randomUUID } from "node:crypto";
 import { creditCost, ensureCredits } from "../credits";
 import { gcal, gmail, getGoogle, GoogleError } from "../integrations/google";
@@ -156,7 +157,11 @@ export const TOOLS: Record<string, ToolDef> = {
     run: async (ctx, a) => {
       const addr = String(a.address).trim();
       const hit = (await ctx.store.list("properties", ctx.userId)).find((p) => p.address.toLowerCase() === addr.toLowerCase());
-      if (hit) return ok({ property: hit, existing: true });
+      if (hit) {
+        const fill: Record<string, unknown> = {};
+        for (const k of ["city", "state", "zip", "county"] as const) if (!hit[k] && a[k]) fill[k] = a[k];
+        return ok({ property: Object.keys(fill).length ? (await ctx.store.update("properties", ctx.userId, hit.id, fill as never)) ?? hit : hit, existing: true });
+      }
       const p = await ctx.store.insert("properties", ctx.userId, {
         address: addr, city: a.city ?? null, state: a.state ?? null, zip: a.zip ?? null, county: a.county ?? null,
         list_price: null, beds: null, baths: null, sqft: null, listing_url: a.listing_url ?? null, description: null, verified: false, is_demo: false,
@@ -346,7 +351,7 @@ export const TOOLS: Record<string, ToolDef> = {
     name: "create_social_post", status: "Designing the post",
     run: async (ctx, a) => {
       const p = await ctx.store.insert("social_posts", ctx.userId, {
-        platform: a.platform ?? "instagram", caption: a.caption, hashtags: a.hashtags ?? [], slides: a.slides ?? [], status: "draft",
+        platform: a.platform ?? "instagram", caption: withSignature(String(a.caption ?? ""), buildSignature(ctx.profile)), hashtags: a.hashtags ?? [], slides: a.slides ?? [], status: "draft",
         property_id: a.property_id ?? null, event_id: a.event_id ?? null, workflow_run_id: a.workflow_run_id ?? null,
         scheduled_for: a.scheduled_for ?? null, stale: false, stale_reason: null,
       });

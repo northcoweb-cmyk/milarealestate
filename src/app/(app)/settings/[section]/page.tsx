@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import type { AutonomyKey, ExperienceLevel, BusinessType } from "@/lib/types";
-import { Segmented, Sheet, Skeleton, Toggle, jfetch, Pill } from "@/components/ui";
+import { Avatar, Segmented, Sheet, Skeleton, Toggle, jfetch, Pill } from "@/components/ui";
+import { buildSignature, emptyBrand } from "@/lib/signature";
+import { squarePhoto, uploadMedia } from "@/lib/media-upload";
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
@@ -50,6 +52,7 @@ function Profile() {
   const [pick, setPick] = useState<PickedPlace | null>(null); const [pickText, setPickText] = useState("");
   return (
     <form onSubmit={(e) => { e.preventDefault(); const ok = !!pick && f.location === pickText; save({ ...f, brokerage: f.brokerage || null, ...(ok && pick?.lat != null && pick.lng != null && profile.lat == null ? { lat: pick.lat, lng: pick.lng } : {}), ...(ok && pick?.timezone ? { timezone: pick.timezone } : {}) }); }}>
+      <PublicIdentity />
       <Card>
         <div className="space-y-4">
           <div><label className="lbl">Name</label><input className="field" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} required /></div>
@@ -61,6 +64,59 @@ function Profile() {
       </Card>
       <p className="faint px-2 text-[13px]">Email: {profile.email} · Time zone: {profile.timezone}</p>
     </form>
+  );
+}
+
+/** Photo + the signature that ends every social caption. */
+function PublicIdentity() {
+  const { profile, toast } = useApp(); const save = useSave();
+  const [b, setB] = useState({ ...emptyBrand(), ...(profile.settings.brand ?? {}) });
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof b, v: string) => setB((x) => ({ ...x, [k]: v }));
+  const preview = buildSignature({ full_name: profile.full_name, brokerage: profile.brokerage, settings: { ...profile.settings, brand: b } });
+  const fileRef = useRef<HTMLInputElement>(null);
+  async function upload(files: FileList | null) {
+    const file = files?.[0]; if (!file) return;
+    setBusy(true);
+    try {
+      const sq = await squarePhoto(file);
+      const m = await uploadMedia(sq, {});
+      const old = b.pfp;
+      setB((x) => ({ ...x, pfp: m.id }));
+      await save({ settings: { brand: { ...b, pfp: m.id } } });
+      if (old) fetch(`/api/media/${old}`, { method: "DELETE" }).catch(() => undefined);
+    } catch (e) { toast(e instanceof Error ? e.message : "Couldn't use that photo.", "error"); } finally { setBusy(false); if (fileRef.current) fileRef.current.value = ""; }
+  }
+  async function removePhoto() { const old = b.pfp; setB((x) => ({ ...x, pfp: null })); await save({ settings: { brand: { ...b, pfp: null } } }); if (old) fetch(`/api/media/${old}`, { method: "DELETE" }).catch(() => undefined); }
+  return (
+    <Card title="Your public signature" sub="Added to the end of every social caption so people know you're a licensed agent. Many states require your license info and brokerage in advertising — check yours.">
+      <div className="mb-5 flex items-center gap-4">
+        <Avatar name={profile.full_name} size={72} src={b.pfp ? `/api/files/${b.pfp}` : null} />
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? "Uploading…" : b.pfp ? "Change photo" : "Add profile photo"}</button>
+          {b.pfp && <button type="button" className="btn btn-quiet btn-sm" onClick={removePhoto}>Remove</button>}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files)} />
+      </div>
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><label className="lbl">License / credentials</label><input className="field" value={b.credentials} onChange={(e) => set("credentials", e.target.value)} placeholder="MD Realtor®" /></div>
+          <div><label className="lbl">License # <span className="faint">(optional)</span></label><input className="field" value={b.license} onChange={(e) => set("license", e.target.value)} placeholder="Required in some states" /></div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><label className="lbl">Cell</label><input className="field" inputMode="tel" value={b.cell} onChange={(e) => set("cell", e.target.value)} placeholder="301.509.7280" /></div>
+          <div><label className="lbl">Office <span className="faint">(optional)</span></label><input className="field" inputMode="tel" value={b.office} onChange={(e) => set("office", e.target.value)} placeholder="202.243.7700" /></div>
+        </div>
+        <div><label className="lbl">Public email</label><input className="field" type="email" value={b.email} onChange={(e) => set("email", e.target.value)} placeholder="you@yourteam.com" /></div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><label className="lbl">Team / group <span className="faint">(optional)</span></label><input className="field" value={b.team} onChange={(e) => set("team", e.target.value)} placeholder="Coalition Properties Group" /></div>
+          <div><label className="lbl">Brokerage</label><p className="field flex items-center !bg-transparent text-ink-soft">{profile.brokerage || "Add it in your profile above"}</p></div>
+        </div>
+      </div>
+      <p className="kicker mb-1.5 mt-5">Preview — ends every caption</p>
+      <p className="rounded-2xl p-3.5 text-[14.5px] leading-snug" style={{ background: "color-mix(in srgb, var(--ink) 6%, transparent)" }}>{preview}</p>
+      <button type="button" className="btn btn-primary mt-4" onClick={() => save({ settings: { brand: b } })}>Save signature</button>
+    </Card>
   );
 }
 
@@ -129,6 +185,10 @@ function Autonomy() {
           <div className="min-w-0 flex-1"><p className="font-semibold">{x.title}</p><p className="muted text-[14px]">{x.sub}</p></div>
           <Segmented value={a[x.key]} onChange={(v) => set(x.key, v)} options={[{ value: "ask", label: "Ask every time" }, { value: "auto", label: "Automatic" }]} />
         </div>))}</div>
+      <div className="glass mt-5 flex items-center gap-4 p-4 sm:p-5" style={{ borderRadius: 24 }}>
+        <div className="min-w-0 flex-1"><p className="font-semibold">Email my contacts when I set up an open house</p><p className="muted text-[14px]">Off by default. When it&apos;s off, Mila never drafts a blast on her own — you can still say “email my contacts about the open house” whenever you want one. Nothing is ever sent without your approval.</p></div>
+        <Toggle label="Draft an email to my contacts when I set up an open house" checked={profile.settings.workflows?.email_contacts === true} onChange={(v) => save({ settings: { workflows: { email_contacts: v } } })} />
+      </div>
       <p className="faint mt-4 px-2 text-[13px]">Always asks, regardless of these settings: deleting anything, cancelling events, and emailing more than 10 people at once.</p>
     </>
   );

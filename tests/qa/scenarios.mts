@@ -84,10 +84,11 @@ export function buildScenarios(): Scenario[] {
         const wf = blocks(res, "workflow")[0];
         if (!wf) return "no workflow card";
         if (!new RegExp(ADDR_NORM[addr].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(wf.title)) return `workflow title "${wf.title}" doesn't match address ${ADDR_NORM[addr]}`;
-        const need = ["Calendar event", "Open-house email", "Instagram carousel"];
+        const need = ["Calendar event", "Email contacts", "Instagram carousel"]; // emailing contacts is opt-in: it appears as a skipped, optional item
         for (const l of need) if (!wf.items.some((x: any) => x.label === l)) return `missing plan item ${l}`;
         const pend = (await store.list("approvals", a.id)).filter((x: any) => x.workflow_run_id === wf.runId && x.status === "pending");
-        if (pend.length < 2) return `expected >=2 pending approvals, got ${pend.length}`;
+        if (pend.length < 1) return `expected >=1 pending approval, got ${pend.length}`;
+        if (await store.list("email_drafts", a.id).then((l: any[]) => l.some((d: any) => d.workflow_run_id === wf.runId))) return "an email draft was created without being asked";
       },
     }] });
   }
@@ -277,6 +278,35 @@ export function buildScenarios(): Scenario[] {
         if (/passed|isn.t a real time/i.test(T) || blocks(res, "choice").length) return;
         if (/which (day|property)|what time/i.test(T)) return `repeated the same question after the answer "${answer}" (missing ${miss}): ${res.milaMessage.content.slice(0, 100)}`;
         if (!(await events(a)).some((e: any) => e.kind === "open_house")) return `no open house after answering "${answer}": ${res.milaMessage.content.slice(0, 100)}`;
+      } },
+    ] });
+  }
+
+  // ---------------------------------------------------------------- corrections: "sorry, I meant <other day>" must replace the old day
+  for (let i = 0; i < 70; i++) {
+    const { now, tz } = randomClock(r);
+    const pool = ["today", "tomorrow", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const d1 = pick(r, pool), d2 = pick(r, pool.filter((x) => x !== d1)), t = pick(r, TIMES);
+    const s1 = slot(now, tz, d1, t), s2 = slot(now, tz, d2, t);
+    if (s1.y === s2.y && s1.m === s2.m && s1.d === s2.d) continue; // same calendar day: nothing to correct
+    const addr = pick(r, ADDRS), kind = pick(r, ["showing", "meeting"]);
+    const fix = pick(r, [`sorry, I meant ${d2}`, `no, ${d2}`, `sorry the one for ${d2}`, `actually ${d2} not ${d1}`]);
+    const dayWord = (x: string) => (x === "today" || x === "tomorrow" ? null : x);
+    S.push({ id: id("correction"), cat: "correction", now, tz, steps: [
+      { say: `Schedule a ${kind}${kind === "showing" ? ` at ${addr}` : ""} ${d1}`, check: (res) => (/\?/.test(res.milaMessage.content) || /passed/i.test(text(res)) ? undefined : `expected a question for the time: ${res.milaMessage.content.slice(0, 100)}`) },
+      { say: fix, check: (res) => {
+        const T = res.milaMessage.content;
+        const old = dayWord(d1);
+        const keep = dayWord(d2);
+        if (old && new RegExp(`\\b${old}\\b`, "i").test(T) && !(keep && new RegExp(`\\b${keep}\\b`, "i").test(T))) return `still talking about the old day "${d1}" after "${fix}": ${T.slice(0, 120)}`;
+        if (!/\?|passed|already/i.test(T) && !blocks(res, "choice").length && !/Added|Scheduled|booked/i.test(T)) return `no follow-up after the correction "${fix}": ${T.slice(0, 120)}`;
+      } },
+      { say: t[0].replace(/^at /, ""), allow: { overlap: true }, check: async (res, a) => {
+        if (s2.start.getTime() < now.getTime()) return;
+        if (blocks(res, "choice").length) return;
+        const evs = (await events(a)).filter((e: any) => !a.seedIds.has(e.id));
+        if (!evs.length && /\?/.test(res.milaMessage.content)) return `asked again instead of finishing: ${res.milaMessage.content.slice(0, 100)}`;
+        if (evs.length && !sameLocal(evs[evs.length - 1].start_at, tz, s2)) { const q = local(evs[evs.length - 1].start_at, tz); return `event landed on the old day: wanted ${s2.y}-${s2.m}-${s2.d} ${s2.h}:${s2.mi}, got ${q.y}-${q.m}-${q.d} ${q.h}:${q.mi}`; }
       } },
     ] });
   }

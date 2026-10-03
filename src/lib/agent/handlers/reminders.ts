@@ -4,6 +4,7 @@ import { stripPunct, parseWhen } from "../nlu";
 import { invoke } from "../tools";
 import { resolveEvent } from "./calendar";
 import { type HandlerOut, reply } from "./types";
+import { askBack } from "./ask";
 
 const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, a: 1 };
 
@@ -39,8 +40,8 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
       if (when.getTime() <= ctx.now.getTime()) when = new Date(when.getTime() + 86_400_000);
     }
   }
-  if (!when) return reply("When should I remind you?");
-  if (when.getTime() <= ctx.now.getTime()) return reply("That time has already passed — what other time should I use?");
+  if (!when) return askBack(ctx, "reminder", text, "time", "When should I remind you?");
+  if (when.getTime() <= ctx.now.getTime()) return askBack(ctx, "reminder", text, "time", "That time has already passed — what other time should I use?");
   if (!title) title = "Reminder";
   title = title.charAt(0).toUpperCase() + title.slice(1);
   const out = await invoke(ctx, "create_reminder", { title, remind_at: when.toISOString(), event_id: eventId });

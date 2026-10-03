@@ -8,10 +8,12 @@ import { type Ctx, firstName, plural } from "./context";
 import { appendMila, persistState } from "./conversation";
 import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
+import { learnFromTurn } from "./learn";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
 import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale } from "./handlers/calendar";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
+import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler } from "./handlers/openhouse";
@@ -20,7 +22,7 @@ import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { importCandidates } from "./ingest";
-import { invalidTimeToken, parseLocation } from "./nlu";
+import { dropNegatedDate, invalidTimeToken, overrideWhen, parseLocation } from "./nlu";
 
 export type Action = { type: string; [k: string]: any };
 
@@ -79,6 +81,7 @@ export async function handleTurn(profile: Profile, input: TurnInput): Promise<Tu
     } else {
       const r = await runText(ctx, text, docs);
       out = r.out; intent = r.intent;
+      if (text) await learnFromTurn(ctx, text);
     }
   } catch (e) {
     if (e instanceof InsufficientCredits) {
@@ -105,6 +108,7 @@ async function recentHistory(ctx: Ctx) {
 async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{ out: HandlerOut; intent: Intent }> {
   let text = textIn;
   const pend = ctx.state.pending;
+  let forced: Intent | null = null; // an answer to Mila's question continues THAT request, whatever the merged text looks like
 
   if (pend?.kind === "stale_comms" && text) {
     if (isYes(text)) return { out: await resolveStale(ctx, pend.event_id, "update"), intent: "move_event" };
@@ -113,10 +117,12 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   if (pend?.kind === "clarify" && text) {
     const d = detectIntent(text);
     if (d.intent === "general" || d.intent === "smalltalk" || text.split(/\s+/).length < 7) {
-      const orig = (pend.slots as { text: string }).text;
+      text = dropNegatedDate(text);
+      const orig = overrideWhen((pend.slots as { text: string }).text, text, ctx.now, ctx.tz);
       // a bare "12" / "2:30" answering "what time?" means "at 12" / "at 2:30"
       const bareTime = pend.missing === "time" && /^\s*\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)?\s*$/i.test(text);
       text = `${orig} ${bareTime ? "at " : ""}${text}`;
+      forced = pend.intent as Intent;
       ctx.state.pending = null;
     } else ctx.state.pending = null;
   } else if (pend && text && pend.kind !== "stale_comms") {
@@ -129,8 +135,8 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   const clauses = splitClauses(text);
   const outs: HandlerOut[] = [];
   let lastIntent: Intent = "general";
-  for (const clause of clauses) {
-    let d = detectIntent(clause);
+  for (const [ci, clause] of clauses.entries()) {
+    let d = ci === 0 && forced ? { intent: forced, declared: false } : detectIntent(clause);
     if (d.intent === "general") d = (await llmClassify(ctx, clause)) ?? d;
     lastIntent = d.intent;
     outs.push(await dispatch(ctx, d.intent, clause, !!d.declared));
@@ -166,6 +172,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     case "batch_followups": return batchFollowUpHandler(ctx, text);
     case "social_post": return socialPostHandler(ctx, text);
     case "draft_email": return draftEmailHandler(ctx, text);
+    case "email_audience": return emailAudienceHandler(ctx, text);
     case "market": return marketHandler(ctx, text);
     case "smalltalk": return smalltalk(ctx, text);
     default: return generalHandler(ctx, text);

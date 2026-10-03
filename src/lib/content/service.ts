@@ -6,6 +6,7 @@ import type { Ctx } from "../agent/context";
 import { polish, verifiedFacts } from "../agent/comms";
 import { LAYOUTS, pickLayout, pickTheme } from "./design";
 import { pullListingPhotos } from "../images/listing";
+import { brandOf, buildSignature, stripSignature, withSignature } from "../signature";
 import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, platformLimit, variantCount } from "./templates";
 
 /** Content engine: creates, schedules and manages social posts. Nothing here publishes externally. */
@@ -31,6 +32,9 @@ function withDesign(slides: SocialSlide[], urls: string[], category: string, see
   const offset = Math.abs(seed);
   return slides.map((s, i) => ({ ...s, theme, layout: lay, image_url: urls.length ? urls[(offset + (s.role === "hero" ? 0 : i)) % urls.length] : null }));
 }
+
+/** The call-to-action line on the last image: a phone number when we have one. */
+export const contactLine = (p: Parameters<typeof brandOf>[0] & { full_name: string }) => (brandOf(p).cell ? `Call or text ${brandOf(p).cell}` : null);
 
 export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; scheduledFor?: string | null; variantSeed?: number }
 export type CreateResult = { ok: true; posts: SocialPost[] } | { ok: false; error: string };
@@ -69,13 +73,14 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
     const built = buildPost({
       category: input.category, platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage,
       market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic,
-      property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null, when,
+      property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null, when, contact: contactLine(ctx.profile),
     });
     let caption = built.caption;
     if (aiAvailable() && platform !== "x") {
       const polished = await polish(ctx, "social", caption);
       caption = fitToPlatform(platform, polished, []).caption; // keeps it inside the platform limit
     }
+    caption = withSignature(caption, buildSignature(ctx.profile), platformLimit(platform)); // every public caption ends with who you are
     const post = await ctx.store.insert("social_posts", ctx.userId, {
       platform, caption, hashtags: built.hashtags, slides: withDesign(built.slides, photos, input.category, seed), status: "draft", category: input.category, variant,
       property_id: prop?.id ?? null, event_id: null, workflow_run_id: null, scheduled_for: input.scheduledFor ?? null, stale: false, stale_reason: null, posted_at: null,
@@ -136,18 +141,19 @@ export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost
   const hasPhoto = ids.length > 0;
   const order = LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes").map((l) => l.key);
   const nextLayout = order[(Math.max(0, order.indexOf(curLayout)) + 1) % order.length];
-  const built = buildPost({ category, platform: post.platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null });
-  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: built.caption, hashtags: built.hashtags, slides: withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout), variant, stale: false, stale_reason: null }))!;
+  const built = buildPost({ category, platform: post.platform, variant, contact: contactLine(ctx.profile), name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null });
+  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: withSignature(built.caption, buildSignature(ctx.profile), platformLimit(post.platform)), hashtags: built.hashtags, slides: withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout), variant, stale: false, stale_reason: null }))!;
 }
 
 export async function duplicateTo(ctx: Ctx, post: SocialPost, platforms: SocialPlatform[]): Promise<SocialPost[]> {
-  const body = post.caption.replace(/\n\n(#\S+(\s+#\S+)*)\s*$/, "").trim(); // strip trailing hashtag block
+  const sig = buildSignature(ctx.profile);
+  const body = stripSignature(post.caption, sig).replace(/\n\n(#\S+(\s+#\S+)*)\s*$/, "").trim(); // strip the signature and trailing hashtag block
   const out: SocialPost[] = [];
   for (const platform of platforms) {
     if (platform === post.platform) continue;
     const f = fitToPlatform(platform, body, post.hashtags);
     const carousel = PLATFORMS.find((p) => p.key === platform)?.carousel ?? true;
-    out.push(await ctx.store.insert("social_posts", ctx.userId, { platform, caption: f.caption, hashtags: f.hashtags, slides: carousel ? post.slides : post.slides.slice(0, 1), status: "draft", category: post.category ?? null, variant: post.variant ?? null, property_id: post.property_id, event_id: post.event_id, workflow_run_id: null, scheduled_for: null, stale: false, stale_reason: null, posted_at: null } as never));
+    out.push(await ctx.store.insert("social_posts", ctx.userId, { platform, caption: withSignature(f.caption, sig, platformLimit(platform)), hashtags: f.hashtags, slides: carousel ? post.slides : post.slides.slice(0, 1), status: "draft", category: post.category ?? null, variant: post.variant ?? null, property_id: post.property_id, event_id: post.event_id, workflow_run_id: null, scheduled_for: null, stale: false, stale_reason: null, posted_at: null } as never));
   }
   return out;
 }

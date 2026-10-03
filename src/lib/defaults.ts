@@ -27,5 +27,7 @@ export function defaultSettings(): ProfileSettings {
     },
     appearance: { theme: "auto", reduce_motion: false, animated_sky: false },
     privacy: { store_conversations: true },
+    workflows: { email_contacts: false },
+    brand: { credentials: "", license: "", cell: "", office: "", email: "", team: "", pfp: null },
   };
 }

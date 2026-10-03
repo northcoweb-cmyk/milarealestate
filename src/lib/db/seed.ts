@@ -86,10 +86,7 @@ export async function seedDemoData(profile: Profile) {
   await mk("follow_up", "Send market snapshot", "Seller pricing prep", "upcoming", 48, "Michael Chen");
   await mk("reminder", "Order yard signs for 88 Willow Court", null, "low", 96);
 
-  // approvals (executable): email blast + calendar change
-  const buyers = Object.values(byName).filter((c) => ["buyer", "lead", "past_client"].includes(c.type));
-  const draft = await store.insert("email_drafts", userId, { contact_id: null, to_contact_ids: buyers.map((c) => c.id), to_emails: [], subject: "Just Listed — 456 Oak Lane", body: "Hi {{first_name}},\n\nI am excited to share a new listing at 456 Oak Lane, Rockville — 4 bed • 3 bath • 2,640 sq ft. Reply if you would like a private showing.\n\n" + ctx.profile.full_name, status: "pending_approval", workflow_run_id: null, property_id: pr["456 Oak Lane"], event_id: null, stale: false, stale_reason: null, gmail_message_id: null, sent_at: null });
-  await createApproval(ctx, { key: "email_sending", risk: buyers.length > 10 ? "high" : "normal", action: "send_bulk_email", title: "Just Listed Email", summary: `${buyers.length} recipients • 456 Oak Lane`, dueAt: at(1, 9).toISOString() }, "send_email", { draftId: draft.id });
+  // approvals (executable): a calendar change. (Emailing contacts about listings is opt-in, so no sample email blast.)
   await createApproval(ctx, { key: "calendar_changes", risk: "normal", action: "calendar_change", title: "Move showing for Aisha Rahman", summary: "Tomorrow 11:00 AM → 2:00 PM", dueAt: at(1, 14).toISOString(), contactId: byName["Aisha Rahman"].id }, "update_calendar_event", { id: showing.id, start_at: at(1, 14).toISOString(), end_at: at(1, 14, 45).toISOString() });
 
   // a default buyer-agreement template

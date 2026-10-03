@@ -8,12 +8,47 @@ import { parseAddress, parseWhen } from "../nlu";
 import { TOOLS, eventConflicts, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { autoPhotos, explainPull, firstUrl } from "./photos";
+import { locationGate } from "./location";
+import { describeFacts, enrichProperty, hostOf } from "../property-lookup";
 
 type Item = WorkflowRun["plan"][number];
 
 export async function openHouseAudience(ctx: Ctx): Promise<Contact[]> {
   const all = await ctx.store.list("contacts", ctx.userId);
   return all.filter((c) => ["buyer", "lead", "past_client"].includes(c.type) && c.email && c.status !== "inactive");
+}
+
+/** Drafts the open-house / listing email to the audience and queues it for approval. Never sends on its own. */
+export async function prepareAudienceEmail(ctx: Ctx, prop: Property, start: Date, end: Date, eventId: string | null, runId: string | null, audience: Contact[]): Promise<{ item: Item; pending: number; draftId: string }> {
+  const mail = openHouseEmail(ctx, prop, start, end);
+  const body = await polish(ctx, "email", mail.body);
+  const dr = (await TOOLS.draft_email.run(ctx, { subject: mail.subject, body, to_contact_ids: audience.map((c) => c.id), property_id: prop.id, event_id: eventId, workflow_run_id: runId })) as any;
+  const emailDraft = dr.data.draft as EmailDraft;
+  if (!audience.length) return { item: { label: "Open-house email", tool: "draft_email", state: "pending", detail: "Drafted — add contacts with emails to send" }, pending: 0, draftId: emailDraft.id };
+  const s = await invoke(ctx, "send_email", { draftId: emailDraft.id }, runId ? { runId } : undefined);
+  if (s.status === "needs_approval") {
+    await ctx.store.update("email_drafts", ctx.userId, emailDraft.id, { status: "pending_approval" });
+    return { item: { label: "Open-house email", tool: "send_email", state: "needs_approval", detail: `${plural(audience.length, "recipient")} • ready to review` }, pending: 1, draftId: emailDraft.id };
+  }
+  return { item: { label: "Open-house email", tool: "send_email", state: s.result.ok ? "done" : "failed", detail: s.result.ok ? "Sent" : s.result.message }, pending: 0, draftId: emailDraft.id };
+}
+
+/** "Email my contacts about the open house at 123 Main" — the optional, on-demand version. */
+export async function emailAudienceHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const addr = parseAddress(text);
+  const events = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && e.kind === "open_house" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at));
+  const ev = events.find((e) => !addr || `${e.title} ${e.location ?? ""}`.toLowerCase().includes(addr.toLowerCase())) ?? null;
+  let prop: Property | null = ev?.property_id ? await ctx.store.get("properties", ctx.userId, ev.property_id) : null;
+  if (!prop && addr) prop = (await ctx.store.list("properties", ctx.userId)).find((p) => p.address.toLowerCase() === addr.toLowerCase()) ?? null;
+  if (!prop && ctx.state.last_property_id) prop = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id);
+  if (!prop) return reply("Which listing or open house is the email for? Give me the address.");
+  const audience = await openHouseAudience(ctx);
+  if (!audience.length) return reply("None of your contacts have an email address yet, so there's nobody to send to. Add some emails and ask me again.", [{ type: "notice", tone: "info", title: "No contacts with email", buttons: [{ label: "Open Contacts", style: "secondary", href: "/contacts" }] }]);
+  ctx.steps.push("Preparing the email");
+  const start = ev ? new Date(ev.start_at) : ctx.now, end = ev ? new Date(ev.end_at) : ctx.now;
+  const em = await prepareAudienceEmail(ctx, prop, start, end, ev?.id ?? null, null, audience);
+  const draftRow = await ctx.store.get("email_drafts", ctx.userId, em.draftId);
+  return reply(`I drafted an email to ${plural(audience.length, "contact")} about ${prop.address}. Nothing goes out until you approve it.`, [{ type: "draft_email", draftId: em.draftId, to: `${plural(audience.length, "contact")}`, subject: draftRow?.subject ?? "", body: draftRow?.body ?? "", status: "Draft", buttons: [{ label: "Review & send", style: "primary", href: "/tasks" }] }], "email_generation");
 }
 
 export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
@@ -27,6 +62,8 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
     }
     return openHouseHandler(ctx, `${text} at ${last.address}`);
   }
+  const gate = await locationGate(ctx, "open_house", text, address);
+  if (!gate.ok) return gate.out;
   const w = parseWhen(text, ctx.now, ctx.tz);
   if (!w.date) {
     ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text }, missing: "date" };
@@ -44,7 +81,7 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
 
   ctx.steps.push("Checking your calendar");
   const conflicts = await eventConflicts(ctx, start.toISOString(), end.toISOString());
-  const draft = { __openHouse: true, text, address, start_at: start.toISOString(), end_at: end.toISOString(), assumedEnd: !w.end };
+  const draft = { __openHouse: true, text, address, place: gate.found.place, unverified: !!gate.found.unverified, start_at: start.toISOString(), end_at: end.toISOString(), assumedEnd: !w.end };
   if (conflicts.length) {
     const c = conflicts[0];
     ctx.state.pending = { kind: "calendar_conflict", draft, conflict_ids: conflicts.map((x) => x.id) };
@@ -69,14 +106,27 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
   let pendingApprovals = 0;
 
   // 1. property
-  const prop = ((await TOOLS.create_property.run(ctx, { address })) as any).data.property as Property;
+  const place = (draft.place ?? {}) as { city?: string; state?: string; zip?: string; county?: string };
+  let prop = ((await TOOLS.create_property.run(ctx, { address, city: place.city, state: place.state, zip: place.zip, county: place.county })) as any).data.property as Property;
   ctx.state.last_property_id = prop.id;
+  // 1b. look the address up online and prefill beds / baths / size / price (saved as unconfirmed)
+  ctx.steps.push("Looking up the property online");
+  const unverified = draft.unverified === true;
+  const enr = unverified ? { property: prop, memory: null } : await enrichProperty(ctx, prop, { place }); // no point spending a lookup on an address that doesn't exist on the map
+  prop = enr.property;
+  const lookupItem: Item = unverified
+    ? { label: "Property details", tool: "lookup_property", state: "skipped", detail: "I couldn't find this address on the map — double-check the spelling, then open the property page to look it up" }
+    : enr.memory?.found
+    ? { label: "Property details", tool: "lookup_property", state: "done", detail: `${describeFacts(enr.memory.facts) || "Found"} — from ${[...new Set(enr.memory.sources.map((s) => hostOf(s.url)))].slice(0, 2).join(", ")} · confirm on the property page` }
+    : { label: "Property details", tool: "lookup_property", state: "skipped", detail: enr.memory?.note === "no_ai" ? "Add beds, baths and size on the property page" : "Couldn't find this exact home online — add the details on the property page" };
 
   const run = await ctx.store.insert("workflow_runs", ctx.userId, {
     workflow_key: "open_house", title: address, subtitle: `${fmtDay(start, ctx.tz)} • ${fmtRange(start, end, ctx.tz)}`,
     status: "running", params: { address, start_at: start.toISOString(), end_at: end.toISOString() }, plan: [], outputs: {},
   });
   const outputs: Record<string, unknown> = { property_id: prop.id };
+
+  plan.push(lookupItem);
 
   // 2. calendar
   const calOut = await invoke(ctx, "create_calendar_event", {
@@ -113,20 +163,13 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
   const audience = await openHouseAudience(ctx);
   plan.push({ label: "Relevant contact list", tool: "search_contacts", state: audience.length ? "done" : "pending", detail: audience.length ? plural(audience.length, "contact") : "No contacts with email yet" });
 
-  // 5. email draft + send approval
-  ctx.steps.push("Preparing messages");
-  const mail = openHouseEmail(ctx, prop, start, end);
-  const body = await polish(ctx, "email", mail.body);
-  const dr = (await TOOLS.draft_email.run(ctx, { subject: mail.subject, body, to_contact_ids: audience.map((c) => c.id), property_id: prop.id, event_id: eventId, workflow_run_id: run.id })) as any;
-  const emailDraft = dr.data.draft as EmailDraft;
-  outputs.email_draft_id = emailDraft.id;
-  if (audience.length) {
-    const s = await invoke(ctx, "send_email", { draftId: emailDraft.id }, { runId: run.id });
-    if (s.status === "needs_approval") {
-      await ctx.store.update("email_drafts", ctx.userId, emailDraft.id, { status: "pending_approval" });
-      plan.push({ label: "Open-house email", tool: "send_email", state: "needs_approval", detail: `${plural(audience.length, "recipient")} • ready to review` }); pendingApprovals++;
-    } else plan.push({ label: "Open-house email", tool: "send_email", state: s.result.ok ? "done" : "failed", detail: s.result.ok ? "Sent" : s.result.message });
-  } else plan.push({ label: "Open-house email", tool: "draft_email", state: "pending", detail: "Drafted — add contacts to send" });
+  // 5. email to contacts — OPTIONAL. Only prepared if the agent turned it on in Settings or asked for it.
+  const wantsEmail = ctx.profile.settings.workflows?.email_contacts === true;
+  if (wantsEmail) {
+    ctx.steps.push("Preparing messages");
+    const em = await prepareAudienceEmail(ctx, prop, start, end, eventId, run.id, audience);
+    plan.push(em.item); pendingApprovals += em.pending; outputs.email_draft_id = em.draftId;
+  } else plan.push({ label: "Email contacts", tool: "draft_email", state: "skipped", detail: "Optional — tap “Email my contacts” if you want one" });
 
   // 6a. photos: pull from a listing link if we have one (never required; uploading is the last resort)
   const link = firstUrl(String(draft.text ?? "")) ?? prop.listing_url;
@@ -173,6 +216,7 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
     ].filter(Boolean).join(" "),
     buttons: [
       { label: "Review tasks", style: "secondary", href: "/tasks" },
+      ...(wantsEmail ? [] : [{ label: "Email my contacts", style: "secondary" as const, action: { type: "prompt", text: `Email my contacts about the open house at ${address}` } }]),
       ...(pendingApprovals ? [{ label: "Do it", style: "primary" as const, action: { type: "approve_run", runId: run.id } }] : []),
     ],
   });

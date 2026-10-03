@@ -317,3 +317,31 @@ export function splitClauses(text: string): string[] {
 }
 
 export function stripPunct(s: string) { return s.replace(/[.!?]+$/, "").trim(); }
+
+// ------------------------------------------------------------------ corrections
+const WD = "(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(?:day|sday|nesday|rsday|urday)?";
+const MON = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?";
+const DATE_ALT = `day after tomorrow|tomorrow|tmrw|tmw|today|tonight|this weekend|(?:this|next|on|coming)\\s+${WD}|${WD}(?:\\s+the\\s+\\d{1,2}(?:st|nd|rd|th))?|the\\s+\\d{1,2}(?:st|nd|rd|th)|${MON}\\s+\\d{1,2}(?:st|nd|rd|th)?|\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?|in\\s+(?:\\d+|one|two|three|four|five|six|seven)\\s+(?:day|week)s?`;
+const DATE_WORDS = new RegExp(`\\b(?:${DATE_ALT})\\b`, "gi");
+const TIME_WORDS = /\b(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?:\s*(?:-|to|until)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)?|(?:half past|quarter (?:to|past))\s+\w+|noon|midnight|at\s+\d{1,2}(?::\d{2})?)(?=\W|$)/gi;
+
+/**
+ * When someone corrects an earlier request ("sorry, the one for today Saturday"), the new date/time REPLACES the old one
+ * instead of being tacked on after it (which made Mila keep asking about the old "Sunday").
+ */
+export function overrideWhen(orig: string, reply: string, now: Date, tz: string): string {
+  const addr = findAddress(orig);
+  const protectedRaw = addr?.raw;
+  let o = protectedRaw ? orig.replace(protectedRaw, "\u0001") : orig;
+  const replyDate = parseDate(protectedRaw ? reply : reply, now, tz);
+  const replyTime = parseTime(reply);
+  if (replyDate) o = o.replace(DATE_WORDS, " ");
+  if (replyTime?.explicit) o = o.replace(TIME_WORDS, " ");
+  if (protectedRaw) o = o.replace("\u0001", protectedRaw);
+  return o.replace(/\s{2,}/g, " ").trim();
+}
+
+/** "actually Wednesday not Saturday" → "actually Wednesday": drop the day being corrected away from. */
+export function dropNegatedDate(reply: string): string {
+  return reply.replace(new RegExp(`\\b(?:and\\s+)?(?:not|instead of|rather than)\\s+(?:on\\s+)?(?:${DATE_ALT})\\b`, "gi"), " ").replace(/\s{2,}/g, " ").trim();
+}

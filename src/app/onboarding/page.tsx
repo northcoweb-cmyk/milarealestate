@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth";
 import { googleConfigured } from "@/lib/integrations/google";
+import { isNoDemo } from "@/lib/fresh-accounts";
 import { PublicSky } from "@/components/public-sky";
 import { OnboardingFlow } from "./flow";
 
@@ -13,7 +14,7 @@ export default async function Onboarding() {
   return (
     <>
       <PublicSky />
-      <OnboardingFlow name={p.full_name} googleConfigured={googleConfigured()} />
+      <OnboardingFlow name={p.full_name} googleConfigured={googleConfigured()} allowSample={!isNoDemo(p.email)} />
     </>
   );
 }

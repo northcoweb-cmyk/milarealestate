@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Sparkles, Plus, Copy, Share2, Trash2, Download, ChevronDown } from "lucide-react";
 import type { SocialPlatform, SocialPost, SocialSlide } from "@/lib/types";
@@ -44,7 +45,8 @@ function ContentInner() {
   const [busy, setBusy] = useState(false);
   const [zipProgress, setZipProgress] = useState<string | null>(null);
   const posts = data?.posts ?? [];
-  const brand: Brand = useMemo(() => ({ name: profile.full_name, brokerage: profile.brokerage }), [profile.full_name, profile.brokerage]);
+  const pfpId = profile.settings.brand?.pfp ?? null;
+  const brand: Brand = useMemo(() => ({ name: profile.full_name, brokerage: profile.brokerage, pfp: pfpId ? `/api/files/${pfpId}` : null }), [profile.full_name, profile.brokerage, pfpId]);
   useEffect(() => { setOpen((o) => (o ? posts.find((p) => p.id === o.id) ?? null : o)); }, [posts]);
 
   async function approveAll() {
@@ -71,6 +73,13 @@ function ContentInner() {
     <Page>
       <PageHeader title="Content" sub="Mila designs the posts. You post them." right={<div className="flex gap-2"><button className="btn btn-quiet btn-sm" onClick={() => setPlanning(true)}><Sparkles size={16} /> Plan</button><button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}><Plus size={16} /> New</button></div>} />
 
+      {!profile.settings.brand?.credentials?.trim() && (
+        <Link href="/settings/profile" className="glass mb-4 flex items-center gap-3 p-4" style={{ borderRadius: 22 }}>
+          <span className="text-[22px]" aria-hidden>✍️</span>
+          <span className="min-w-0 flex-1 text-[14.5px] leading-snug"><b>Add your signature and photo.</b> Every caption ends with your name, license credentials, phone and brokerage — set it up once.</span>
+          <span className="shrink-0 text-[13.5px] font-semibold text-accent">Set up</span>
+        </Link>
+      )}
       <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4">
         {TABS.map((t) => <button key={t.key} onClick={() => setTab(t.key)} className={"chip " + (tab === t.key ? "is-selected" : "")}>{t.label}{data ? ` · ${data.counts[t.key]}` : ""}</button>)}
       </div>

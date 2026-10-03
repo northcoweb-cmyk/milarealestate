@@ -41,4 +41,4 @@ export function pickTheme(category: string, seed: number): string {
 
 export type Format = "portrait" | "story" | "landscape";
 export const FORMATS: Record<Format, { w: number; h: number }> = { portrait: { w: 1080, h: 1350 }, story: { w: 1080, h: 1920 }, landscape: { w: 1600, h: 900 } };
-export const formatFor = (platform: string): Format => (platform === "tiktok" ? "story" : platform === "x" || platform === "linkedin" ? "landscape" : "portrait");
+export const formatFor = (platform: string): Format => (platform === "instagram_story" || platform === "tiktok" ? "story" : platform === "x" || platform === "linkedin" ? "landscape" : "portrait");

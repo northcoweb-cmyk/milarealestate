@@ -19,12 +19,12 @@ const LEVELS = [
 ];
 const BIZ = [["buyer", "Buyers"], ["seller", "Sellers"], ["rental", "Rentals"], ["commercial", "Commercial"], ["investor", "Investors"], ["mixed", "A mix"]];
 
-export function OnboardingFlow({ name, googleConfigured }: { name: string; googleConfigured: boolean }) {
+export function OnboardingFlow({ name, googleConfigured, allowSample = true }: { name: string; googleConfigured: boolean; allowSample?: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ full_name: name, role: "Agent", brokerage: "", location: "", primary_market: "", experience: "growing", business_type: "mixed" });
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [sample, setSample] = useState(true);
+  const [sample, setSample] = useState(allowSample);
   const [picked, setPicked] = useState<PickedPlace | null>(null);
   const [pickedText, setPickedText] = useState("");
   const [placesOn, setPlacesOn] = useState(false);
@@ -50,7 +50,7 @@ export function OnboardingFlow({ name, googleConfigured }: { name: string; googl
       const fromPlace = !coords && locVerified && picked?.lat != null && picked.lng != null ? { lat: picked.lat, lng: picked.lng } : {};
       if (!coords && locVerified && picked?.timezone) tz = picked.timezone;
       await jfetch("/api/me", { method: "PATCH", json: { ...f, brokerage: f.brokerage || null, timezone: tz, ...(coords ?? fromPlace), onboarded: true } });
-      if (sample) await jfetch("/api/me/sample-data", { method: "POST" });
+      if (sample && allowSample) await jfetch("/api/me/sample-data", { method: "POST" });
       router.replace("/"); router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn't finish setup."); setBusy(false); }
   }
@@ -98,7 +98,7 @@ export function OnboardingFlow({ name, googleConfigured }: { name: string; googl
             <h1 className="h1 mb-1">Connect your tools</h1><p className="muted mb-5">Optional — you can do this later in More → Settings.</p>
             <div className="space-y-3">
               <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Google</p><p className="muted text-[14px]">Gmail, Calendar, Contacts and Sheets.</p></div>{googleConfigured ? <a className="btn btn-sm" href="/api/integrations/google/start">Connect</a> : <span className="faint text-[13px]">Not set up on this server</span>}</div>
-              <label className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Start with sample contacts</p><p className="muted text-[14px]">Fictional people and appointments so you can try Mila right away. Remove them any time.</p></div><input type="checkbox" className="h-5 w-5" checked={sample} onChange={(e) => setSample(e.target.checked)} /></label>
+              {allowSample && <label className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Start with sample contacts</p><p className="muted text-[14px]">Fictional people and appointments so you can try Mila right away. Remove them any time.</p></div><input type="checkbox" className="h-5 w-5" checked={sample} onChange={(e) => setSample(e.target.checked)} /></label>}
               <p className="faint px-1 text-[13.5px]">Have a list already? After setup, just tell Mila “import my contacts” or attach a spreadsheet.</p>
             </div>
           </>}

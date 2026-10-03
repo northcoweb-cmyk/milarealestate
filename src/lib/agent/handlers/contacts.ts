@@ -156,8 +156,8 @@ export async function recallHandler(ctx: Ctx, text: string): Promise<HandlerOut>
   if (found.length > 1) return reply(`I have ${found.length} people who match.`, [{ type: "contacts", title: "Which one?", contacts: found.slice(0, 8).map((c) => ({ id: c.id, name: c.name, type: label(c.type), reason: c.location ?? undefined, color: c.avatar_color })) }]);
   const names = capitalisedNames(text);
   if (names.length) return reply(`I don't have anyone named ${names[0]} in your contacts yet. Want me to add them?`);
-  const mem = await listMemories(ctx, { scope: "user" });
-  return reply(mem.length ? `Here's what I remember about how you work:\n${mem.slice(0, 8).map((m) => `• ${m.key}: ${m.value}`).join("\n")}` : "I don't have anything saved yet. Tell me things worth remembering — preferences, how you like emails written — and I'll keep them. You can review everything in More → Memory.");
+  const mem = (await listMemories(ctx)).filter((m) => m.scope === "user" || m.scope === "business");
+  return reply(mem.length ? `Here's what I remember about you and how you work:\n${mem.slice(0, 8).map((m) => `• ${m.key}: ${m.value}`).join("\n")}` : "I don't have anything saved yet. Tell me things worth remembering — preferences, how you like emails written — and I'll keep them. You can review everything in More → Memory.");
 }
 
 export async function deleteHandler(ctx: Ctx, text: string): Promise<HandlerOut> {

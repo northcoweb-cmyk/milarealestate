@@ -8,9 +8,10 @@ import { capitalisedNames, parseAddress } from "../nlu";
 import { TOOLS, invoke } from "../tools";
 import { upcomingEvents } from "./calendar";
 import { type HandlerOut, reply } from "./types";
+import { askBack } from "./ask";
 
 export async function socialPostHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const platform = /facebook/i.test(text) ? "facebook" : /tiktok/i.test(text) ? "tiktok" : /linkedin/i.test(text) ? "linkedin" : /twitter|\bx\b/i.test(text) ? "x" : "instagram";
+  const platform = /\bstor(y|ies)\b/i.test(text) ? "instagram_story" : "instagram"; // Instagram feed posts and stories are what Mila makes
   const addr = parseAddress(text);
   const events = await upcomingEvents(ctx);
   let ev: CalendarEvent | undefined = events.find((e) => e.kind === "open_house" && (!addr || `${e.title} ${e.location}`.toLowerCase().includes(addr.toLowerCase())));
@@ -45,7 +46,7 @@ export async function draftEmailHandler(ctx: Ctx, text: string): Promise<Handler
   let c: Contact | null = null;
   for (const n of names) { const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any; if (r.ok && r.data.contacts.length === 1) { c = r.data.contacts[0]; break; } if (r.ok && r.data.contacts.length > 1) return reply(`Which ${n}?`, [{ type: "choice", title: `Which ${n}?`, buttons: r.data.contacts.slice(0, 5).map((x: Contact) => ({ label: `${x.name}${x.email ? ` · ${x.email}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: text.replace(n, x.name) } })) }]); }
   if (!c && ctx.state.last_contact_ids?.length === 1) c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
-  if (!c) return reply("Who is the email for?");
+  if (!c) return askBack(ctx, "draft_email", text, "name", "Who is the email for?");
   const facts = await contactFacts(ctx, c);
   const topic = text.replace(/^.*?\b(?:about|regarding|saying|to say|that)\b\s*/i, "").trim() || text;
   const ai = await llmDraftEmail(ctx, text, c.name, facts);

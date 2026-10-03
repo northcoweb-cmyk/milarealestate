@@ -46,6 +46,10 @@ export interface ProfileSettings {
   notifications: NotificationPrefs;
   appearance: { theme: "auto" | "day" | "night"; reduce_motion: boolean; animated_sky?: boolean };
   privacy: { store_conversations: boolean };
+  /** Optional automations. Emailing contacts about listings/open houses is OFF unless asked for. */
+  workflows?: { email_contacts: boolean };
+  /** Public-facing identity used on social posts: license credentials, phones, email, team, profile photo. */
+  brand?: { credentials: string; license: string; cell: string; office: string; email: string; team: string; pfp: string | null };
 }
 
 export interface Profile extends Row {
@@ -268,7 +272,7 @@ export interface SocialSlide {
 }
 
 export interface SocialPost extends Row {
-  platform: "instagram" | "facebook" | "tiktok" | "x" | "linkedin";
+  platform: "instagram" | "instagram_story" | "facebook" | "tiktok" | "x" | "linkedin";
   caption: string;
   hashtags: string[];
   slides: SocialSlide[];

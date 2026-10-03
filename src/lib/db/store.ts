@@ -162,7 +162,7 @@ class SupabaseStore implements Store {
     for (let i = 0; i < 4; i++) {
       const r = await run(body);
       const m = r.error && /Could not find the '([^']+)' column/.exec(r.error.message);
-      if (m && m[1] in body) { console.warn(`[mila] ${table}.${m[1]} is missing in the database — run the latest supabase/migrations`); delete body[m[1]]; continue; }
+      if (m && m[1] in body) { schemaGaps.add(`${table}.${m[1]}`); console.warn(`[mila] ${table}.${m[1]} is missing in the database — run the latest supabase/migrations`); delete body[m[1]]; continue; }
       return r;
     }
     return run(body);
@@ -217,6 +217,14 @@ class SupabaseStore implements Store {
 
 const g = globalThis as unknown as { __milaStore?: Store };
 
+/** Columns the database is missing (a migration hasn't been applied) — values for these are being dropped, surfaced in /api/health. */
+export const schemaGaps = new Set<string>();
+
+/** On a hosted deploy the local JSON store is wiped on every deploy/restart, so saving there would silently lose data. */
+export function ephemeralStoreBlocked() {
+  return !supabaseConfigured() && (Boolean(process.env.VERCEL) || process.env.MILA_REQUIRE_DB === "1") && process.env.MILA_ALLOW_EPHEMERAL !== "1";
+}
+
 export function supabaseConfigured() {
   return Boolean(supabaseUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
@@ -231,6 +239,7 @@ export function getStore(): Store {
     });
     g.__milaStore = new SupabaseStore(client);
   } else {
+    if (ephemeralStoreBlocked()) throw new Error("Supabase is not configured (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). Refusing to save to temporary storage — data would be lost on the next deploy. Set MILA_ALLOW_EPHEMERAL=1 to override.");
     g.__milaStore = new FileStore(process.env.MILA_DATA_DIR || path.join(process.cwd(), ".data"));
   }
   return g.__milaStore;

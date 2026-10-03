@@ -1,9 +1,9 @@
 export type Intent =
   | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
-  | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "recall" | "save_memory"
+  | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "email_audience" | "recall" | "save_memory"
   | "find_property" | "delete_data" | "listing_link" | "smalltalk" | "general";
 
-export const INTENTS: Intent[] = ["open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "recall", "save_memory", "find_property", "delete_data", "listing_link", "smalltalk", "general"];
+export const INTENTS: Intent[] = ["open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "smalltalk", "general"];
 
 export interface Detected { intent: Intent; declared?: boolean }
 
@@ -24,6 +24,7 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   if (/\bcancel\b/.test(t) && (eventNoun.test(t) || /\b(appointments?|everything|events?)\b/.test(t))) return { intent: "cancel_event" };
   if (moveVerb.test(t) && eventNoun.test(t) && /\b(to|until|for|from)\b/.test(t)) return { intent: "move_event", declared: past };
   if (/\bremind me\b|\bset (?:a )?reminder\b/.test(t)) return { intent: "reminder" };
+  if (/\b(email|e-mail|message|send)\b/.test(t) && /\b(contacts|buyers|leads|clients|everyone|my list|audience)\b/.test(t) && /\b(open house|listing|just listed|showing)\b/.test(t)) return { intent: "email_audience" };
   if (/open house/.test(t) && /\b(have|hosting|host|holding|set up|setup|plan|planning|prepare|schedule|organize|scheduled|this|next|on|at)\b/.test(t) && !/instagram|facebook|post|carousel|tiktok/.test(t)) return { intent: "open_house" };
   if (/(instagram|facebook|tiktok|linkedin|twitter|\bx post\b|social)\b/.test(t) && /(post|carousel|caption|reel|content|story)/.test(t)) return { intent: "social_post" };
   if (/\b(schedule|book|set up|add|put|create)\b/.test(t) && eventNoun.test(t)) return { intent: "create_event" };

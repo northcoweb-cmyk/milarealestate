@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getProfile, isAdmin } from "@/lib/auth";
+import { isNoDemo, purgeDemoData } from "@/lib/fresh-accounts";
 import { getStore } from "@/lib/db/store";
 import { creditSummary } from "@/lib/credits";
 import { aiAvailable } from "@/lib/ai/provider";
@@ -16,6 +17,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const profile = await getProfile();
   if (!profile) redirect("/welcome");
   if (!profile.onboarded) redirect("/onboarding");
+  // Accounts that must start clean never see sample data: clear any that was loaded earlier.
+  if (isNoDemo(profile.email)) {
+    const removed = await purgeDemoData(getStore(), profile.id);
+    if (profile.is_demo || removed) await getStore().update("profiles", profile.id, profile.id, { is_demo: false } as never);
+    profile.is_demo = false;
+  }
   const [credits, tasks] = await Promise.all([creditSummary(profile.id), getStore().list("tasks", profile.id)]);
   const approvals = tasks.filter((t) => t.kind === "approval" && t.status === "open").length;
   return (

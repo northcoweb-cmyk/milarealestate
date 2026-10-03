@@ -45,9 +45,28 @@ test("property categories require a property; platform required", async () => {
   assert.equal((await svc.createPosts(ctx, { category: "buyer_tip", platforms: [] })).ok, false);
 });
 
-test("X posts stay ≤ 280 even with a long note", async () => {
-  const r: any = await svc.createPosts(ctx, { category: "buyer_tip", platforms: ["x"], topic: "word ".repeat(120) });
-  assert.ok(r.posts[0].caption.length <= 280);
+test("only Instagram post + story exist (no TikTok)", () => {
+  assert.deepEqual(PLATFORMS.map((p: any) => p.key), ["instagram", "instagram_story"]);
+});
+
+test("every caption ends with the agent's signature, within limits, and story is 1080x1920", async () => {
+  const { buildSignature } = await import("../src/lib/signature.ts");
+  const { formatFor } = await import("../src/lib/content/design.ts");
+  await store.update("profiles", prof.id, prof.id, { settings: { ...profile.settings, brand: { credentials: "MD Realtor®", license: "", cell: "301.509.7280", office: "202.243.7700", email: "sarah@example.com", team: "Coalition Properties Group", pfp: null } } });
+  const p2 = await store.get("profiles", prof.id, prof.id);
+  const c2 = await buildCtx(p2);
+  const sig = buildSignature(p2);
+  assert.match(sig, /^Sarah Carter \| MD Realtor® C\. 301\.509\.7280 \| o\. 202\.243\.7700 sarah@example\.com Coalition Properties Group at Demo Realty$/);
+  const r: any = await svc.createPosts(c2, { category: "buyer_tip", platforms: ["instagram", "instagram_story"], topic: "word ".repeat(600) });
+  assert.ok(r.ok);
+  for (const post of r.posts) {
+    assert.ok(post.caption.endsWith(sig), `${post.platform} missing signature`);
+    assert.ok(post.caption.length <= platformLimit(post.platform));
+    assert.equal(post.caption.split(sig).length, 2, "signed once");
+  }
+  assert.equal(formatFor("instagram_story"), "story");
+  const reg = await svc.regenerate(c2, r.posts[0]);
+  assert.ok(reg.caption.endsWith(sig) && reg.caption.split(sig).length === 2);
 });
 
 test("variants rotate so repeated posts differ", async () => {
@@ -59,7 +78,7 @@ test("variants rotate so repeated posts differ", async () => {
 });
 
 test("scheduling sets a reminder; posting/archiving cancels it; daily limit enforced; past refused", async () => {
-  const mk = async () => ((await svc.createPosts(ctx, { category: "local", platforms: ["facebook"] })) as any).posts[0];
+  const mk = async () => ((await svc.createPosts(ctx, { category: "local", platforms: ["instagram"] })) as any).posts[0];
   const day = new Date("2026-10-05T14:00:00Z");
   const posts = [await mk(), await mk(), await mk(), await mk()];
   for (let i = 0; i < 3; i++) assert.ok((await svc.schedulePost(ctx, posts[i], new Date(day.getTime() + i * 3_600_000).toISOString())).ok);
@@ -78,7 +97,7 @@ test("scheduling sets a reminder; posting/archiving cancels it; daily limit enfo
 });
 
 test("reschedule moves the reminder instead of duplicating it", async () => {
-  const p = ((await svc.createPosts(ctx, { category: "education", platforms: ["linkedin"] })) as any).posts[0];
+  const p = ((await svc.createPosts(ctx, { category: "education", platforms: ["instagram"] })) as any).posts[0];
   await svc.schedulePost(ctx, p, "2026-10-10T14:00:00Z");
   const before = (await store.list("reminders", prof.id)).filter((r: any) => r.status === "pending").length;
   await svc.schedulePost(ctx, await store.get("social_posts", prof.id, p.id), "2026-10-11T14:00:00Z");
@@ -86,7 +105,7 @@ test("reschedule moves the reminder instead of duplicating it", async () => {
 });
 
 test("weekly plan: right count, ≤3/day, none in the past, then approve schedules them", async () => {
-  const r = await svc.planContent(ctx, { postsPerWeek: 7, categories: ["buyer_tip", "seller_tip", "just_listed", "local"], platforms: ["instagram", "facebook"], days: 14 });
+  const r = await svc.planContent(ctx, { postsPerWeek: 7, categories: ["buyer_tip", "seller_tip", "just_listed", "local"], platforms: ["instagram", "instagram_story"], days: 14 });
   assert.equal(r.created.length, 14);
   const byDay: Record<string, number> = {};
   for (const p of r.created) { assert.ok(new Date(p.scheduled_for!).getTime() > ctx.now.getTime()); assert.equal(p.status, "draft"); const k = p.scheduled_for!.slice(0, 10); byDay[k] = (byDay[k] ?? 0) + 1; }
@@ -95,9 +114,10 @@ test("weekly plan: right count, ≤3/day, none in the past, then approve schedul
   assert.equal(a.scheduled + a.failed.length, 14);
 });
 
-test("duplicate to another platform fits that platform", async () => {
-  const p = ((await svc.createPosts(ctx, { category: "seller_tip", platforms: ["linkedin"], topic: "x ".repeat(100) })) as any).posts[0];
-  const copies = await svc.duplicateTo(ctx, p, ["x", "linkedin", "instagram"]);
-  assert.equal(copies.length, 2);
-  assert.ok(copies.find((c) => c.platform === "x")!.caption.length <= 280);
+test("duplicate to the story fits the story and keeps one signature", async () => {
+  const p = ((await svc.createPosts(ctx, { category: "seller_tip", platforms: ["instagram"], topic: "x ".repeat(100) })) as any).posts[0];
+  const copies = await svc.duplicateTo(ctx, p, ["instagram_story", "instagram"]);
+  assert.equal(copies.length, 1);
+  assert.equal(copies[0].platform, "instagram_story");
+  assert.ok(copies[0].caption.length <= platformLimit("instagram_story"));
 });

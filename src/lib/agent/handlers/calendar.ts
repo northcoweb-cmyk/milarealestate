@@ -7,6 +7,7 @@ import { openHouseEmail, openHouseSocial, polish } from "../comms";
 import { capitalisedNames, parseAddress, parseWhen } from "../nlu";
 import { TOOLS, eventConflicts, freeSlots, invoke, logContactEvent } from "../tools";
 import { type HandlerOut, reply } from "./types";
+import { askBack } from "./ask";
 
 const KIND_WORDS: [RegExp, CalendarEvent["kind"]][] = [
   [/open house/i, "open_house"], [/showing|tour/i, "showing"], [/lunch|dinner|coffee/i, "lunch"], [/closing/i, "closing"], [/call/i, "call"], [/meeting|appointment/i, "meeting"],
@@ -202,7 +203,7 @@ export async function refreshComms(ctx: Ctx, ev: CalendarEvent) {
 export async function createEventHandler(ctx: Ctx, text: string, kindHint?: CalendarEvent["kind"], title?: string, contactId?: string | null, propertyId?: string | null): Promise<HandlerOut> {
   const w = parseWhen(text, ctx.now, ctx.tz);
   const kind = kindHint ?? KIND_WORDS.find(([re]) => re.test(text))?.[1] ?? "meeting";
-  if (!w.time && !w.date) return reply("What day and time works?");
+  if (!w.time && !w.date) return askBack(ctx, "create_event", text, "date", "What day and time works?");
   let start = w.start!;
   if (!w.date) {
     // time only → today if still ahead, otherwise tomorrow
@@ -210,9 +211,9 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
     start = zonedToUtc(p.y, p.m, p.d, w.time!.start.h, w.time!.start.mi, ctx.tz);
     if (start.getTime() <= ctx.now.getTime()) start = new Date(start.getTime() + 86_400_000);
   } else if (!w.time) {
-    return reply(`What time on ${fmtDay(start, ctx.tz)}?`);
+    return askBack(ctx, "create_event", text, "time", `What time on ${fmtDay(start, ctx.tz)}?`);
   }
-  if (start.getTime() < ctx.now.getTime() - 60_000) return reply(`That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
+  if (start.getTime() < ctx.now.getTime() - 60_000) return askBack(ctx, "create_event", text, "time", `That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
   const end = w.end ?? new Date(start.getTime() + durMin * 60_000);
   const addr = parseAddress(text);

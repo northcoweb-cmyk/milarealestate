@@ -40,7 +40,13 @@ export async function newAgent(opts: { now: Date; tz: string; seed?: boolean }):
   const seedIds = new Set<string>((await store.list("calendar_events", prof.id)).map((e: any) => e.id));
   const agent: Agent = {
     seedIds, seedNames: new Set<string>((await store.list("contacts", prof.id)).map((c: any) => c.name)), id: prof.id, tz: opts.tz, now: opts.now, profile, log: [],
-    say: async (message, extra = {}) => { (globalThis as any).__milaNow = opts.now; agent.log.push("> " + message); const r = await handleTurn(profile, { message, ...extra }); agent.log.push("< " + r.milaMessage.content); return r; },
+    say: async (message, extra = {}) => {
+      (globalThis as any).__milaNow = opts.now; agent.log.push("> " + message);
+      let r = await handleTurn(profile, { message, ...extra }); agent.log.push("< " + r.milaMessage.content);
+      // Mila now asks for the city/state when only a street was given; a real agent would answer, so the harness does too.
+      if (/^What city and state is .+ in\?/i.test(r.milaMessage.content)) { agent.log.push("> Gaithersburg, MD"); r = await handleTurn(profile, { message: "Gaithersburg, MD" }); agent.log.push("< " + r.milaMessage.content); }
+      return r;
+    },
     act: async (action) => { (globalThis as any).__milaNow = opts.now; agent.log.push("> [action] " + JSON.stringify(action).slice(0, 120)); const r = await handleTurn(profile, { action }); agent.log.push("< " + r.milaMessage.content); return r; },
   };
   return agent;

@@ -7,6 +7,7 @@ import { previewUrl, type Brand } from "@/lib/content/render";
 
 export const PLATFORM_META: Record<SocialPlatform, { label: string; short: string; color: string }> = {
   instagram: { label: "Instagram", short: "IG", color: "#1a1a1a" },
+  instagram_story: { label: "Story", short: "ST", color: "#2a2a2c" },
   facebook: { label: "Facebook", short: "FB", color: "#3a3a3c" },
   tiktok: { label: "TikTok", short: "TT", color: "#000000" },
   linkedin: { label: "LinkedIn", short: "in", color: "#555558" },

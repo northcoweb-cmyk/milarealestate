@@ -5,6 +5,8 @@ import { parseAddress } from "../nlu";
 import { TOOLS } from "../tools";
 import { PORTALS, pullListingPhotos, type PullResult } from "../../images/listing";
 import { type HandlerOut, reply } from "./types";
+import { locationGate } from "./location";
+import { enrichProperty } from "../property-lookup";
 
 export const firstUrl = (text: string) => /https?:\/\/[^\s)<>"']+/i.exec(text)?.[0].replace(/[.,;!?]+$/, "") ?? null;
 
@@ -34,7 +36,13 @@ export async function listingLinkHandler(ctx: Ctx, text: string): Promise<Handle
   const url = firstUrl(text)!;
   const addr = parseAddress(text);
   let prop: Property | null = null;
-  if (addr) prop = ((await TOOLS.create_property.run(ctx, { address: addr })) as any).data.property;
+  if (addr) {
+    const gate = await locationGate(ctx, "listing_link", text, addr);
+    if (!gate.ok) return gate.out;
+    const pl = gate.found.place;
+    prop = ((await TOOLS.create_property.run(ctx, { address: addr, city: pl.city, state: pl.state, zip: pl.zip, county: pl.county })) as any).data.property;
+    prop = (await enrichProperty(ctx, prop!, { place: pl })).property;
+  }
   else if (ctx.state.last_property_id) prop = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id);
   if (!prop) {
     ctx.state.pending = { kind: "clarify", intent: "listing_link", slots: { text }, missing: "address" };
