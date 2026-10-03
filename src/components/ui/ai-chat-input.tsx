@@ -1,5 +1,6 @@
 "use client";
 
+import { useScrollLock } from "../use-scroll-lock";
 import * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, FileText, Loader2, Mic, Plus, Square, X } from "lucide-react";
@@ -90,6 +91,7 @@ function AttachmentThumb({ attachment, index, onRemove, onOpen }: {
 // Shared-element image preview
 // ----------------------------------------------------------------------------
 function AttachmentGalleryModal({ attachment, originRect, onClose }: { attachment: Attachment; originRect: DOMRect; onClose: () => void }) {
+  useScrollLock(true);
   const [phase, setPhase] = useState<"opening" | "open" | "closing">("opening");
   const [target, setTarget] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 

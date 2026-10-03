@@ -1,5 +1,6 @@
 "use client";
 
+import { useScrollLock } from "@/components/use-scroll-lock";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -248,6 +249,7 @@ function AddCustom({ onAdd }: { onAdd: (label: string) => void }) {
 }
 
 function Viewer({ m, onClose, onDelete }: { m?: { mime: string; name: string; url: string }; onClose: () => void; onDelete: () => void }) {
+  useScrollLock(!!m);
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && onClose(); document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k); }, [onClose]);
   if (!m) return null;
   return (
@@ -263,6 +265,7 @@ function Viewer({ m, onClose, onDelete }: { m?: { mime: string; name: string; ur
 }
 
 function FinishSheet({ detail, sheet, id, onClose, onSaved }: { detail: Detail; sheet: SheetData; id: string; onClose: () => void; onSaved: (s: SheetData) => void }) {
+  useScrollLock(true);
   const { toast } = useApp();
   const [toContact, setToContact] = useState(!!detail.contact);
   const [busy, setBusy] = useState(false);
