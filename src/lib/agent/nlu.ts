@@ -73,10 +73,12 @@ export function parseTime(text: string): TimeSpec | null {
     // require a meridiem somewhere, or a clear range keyword, to avoid matching "3 to 4 bedrooms"
     const hasMer = mer1 || mer2;
     const afterRange = t.slice((range.index ?? 0) + range[0].length, (range.index ?? 0) + range[0].length + 12);
-    if ((hasMer || endRaw === "noon" || /^(from|between)\b/.test(range[0]) || /\bat\s*$/.test(t.slice(Math.max(0, (range.index ?? 0) - 6), range.index))) && !/^\s*(bed|br|bath|bd)/.test(afterRange)) {
+    const ctxWord = /\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b|\b(today|tomorrow|tonight)\b|\b(open house|showing|tour)\b/.test(t);
+    if ((hasMer || endRaw === "noon" || (ctxWord && !m1 && !m2 && +h1 >= 1 && +h1 <= 12 && +(h2 ?? 0) >= 1 && +(h2 ?? 0) <= 12) || /^(from|between)\b/.test(range[0]) || /\bat\s*$/.test(t.slice(Math.max(0, (range.index ?? 0) - 6), range.index))) && !/^\s*(bed|br|bath|bd)/.test(afterRange)) {
       const endMer = mer2 ?? mer1;
       const start = to24(toNum(h1), m1 ? +m1 : 0, mer1 ?? (mer2 && toNum(h1) <= toNum(h2 ?? "0") ? mer2 : mer2));
       const end = endRaw === "noon" ? { h: 12, mi: 0 } : to24(toNum(h2), m2 ? +m2 : 0, endMer);
+      if (!hasMer && end.h <= start.h && end.h < 12) end.h += 12; // "11-1" → 11 AM to 1 PM
       if (end.h * 60 + end.mi > start.h * 60 + start.mi) return { start, end, explicit: true };
     }
   }

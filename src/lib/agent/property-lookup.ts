@@ -89,7 +89,7 @@ export async function geocode(street: string, p: Place): Promise<Geo | "not_foun
   return sawZero ? "not_found" : null;
 }
 
-export type Resolve = { status: "ok"; place: Place; street: string; unverified?: boolean } | { status: "ask" };
+export type Resolve = { status: "ok"; place: Place; street: string; unverified?: boolean; assumed?: boolean } | { status: "ask" };
 /**
  * Does this text give a full address? Reuses what we already know about the property, then parses, then geocodes.
  * An address Google can't find is NOT refused — we carry on and flag it as unverified so the agent can double-check.
@@ -99,7 +99,12 @@ export async function resolveAddress(ctx: Ctx, text: string, street: string): Pr
   if (known) return { status: "ok", street, place: { city: known.city, state: known.state, zip: known.zip, county: known.county } };
   const p = extractPlace(text);
   const complete = !!(p.state && p.city) || !!p.zip;
-  if (!complete) return { status: "ask" };
+  if (!complete) {
+    // Agents list in their own market. If we know it, assume it (and say so) instead of quizzing them; they can correct it in one line.
+    const home = extractPlace(`${street}, ${ctx.profile.location ?? ""}`);
+    if (home.city && home.state) return { status: "ok", street, place: { ...home }, assumed: true };
+    return { status: "ask" };
+  }
   const g = await geocode(street, p);
   if (g === "not_found") return { status: "ok", street, place: p, unverified: true };
   if (g) return { status: "ok", street, place: { city: g.city ?? p.city, state: g.state ?? p.state, zip: g.zip ?? p.zip, county: g.county, lat: g.lat, lng: g.lng, formatted: g.formatted } };

@@ -156,15 +156,21 @@ export const TOOLS: Record<string, ToolDef> = {
     name: "create_property", status: "Finding the property",
     run: async (ctx, a) => {
       const addr = String(a.address).trim();
+      // facts the agent stated themselves are authoritative: save them, and mark the property confirmed
+      const stated: Record<string, unknown> = {};
+      for (const k of ["list_price", "beds", "baths", "sqft"] as const) if (a[k] != null) stated[k] = a[k];
       const hit = (await ctx.store.list("properties", ctx.userId)).find((p) => p.address.toLowerCase() === addr.toLowerCase());
       if (hit) {
         const fill: Record<string, unknown> = {};
         for (const k of ["city", "state", "zip", "county"] as const) if (!hit[k] && a[k]) fill[k] = a[k];
+        Object.assign(fill, stated);
+        if (Object.keys(stated).length) fill.verified = true;
         return ok({ property: Object.keys(fill).length ? (await ctx.store.update("properties", ctx.userId, hit.id, fill as never)) ?? hit : hit, existing: true });
       }
       const p = await ctx.store.insert("properties", ctx.userId, {
         address: addr, city: a.city ?? null, state: a.state ?? null, zip: a.zip ?? null, county: a.county ?? null,
-        list_price: null, beds: null, baths: null, sqft: null, listing_url: a.listing_url ?? null, description: null, verified: false, is_demo: false,
+        list_price: (stated.list_price as number) ?? null, beds: (stated.beds as number) ?? null, baths: (stated.baths as number) ?? null, sqft: (stated.sqft as number) ?? null,
+        listing_url: a.listing_url ?? null, description: null, verified: Object.keys(stated).length > 0, is_demo: false,
       });
       return ok({ property: p, existing: false });
     },
@@ -249,7 +255,7 @@ export const TOOLS: Record<string, ToolDef> = {
   update_calendar_event: {
     name: "update_calendar_event", status: "Updating your calendar",
     gate: async (ctx, a) => {
-      if (a.declared) return null; // the user already made this change themselves; just record it
+      if (a.declared || a.requested) return null; // the user made this change themselves, or just told Mila to: their instruction IS the approval
       const ev = await ctx.store.get("calendar_events", ctx.userId, a.id);
       if (!ev) return null;
       const newStart = a.start_at ?? ev.start_at, newEnd = a.end_at ?? ev.end_at;

@@ -1,9 +1,9 @@
 export type Intent =
-  | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
+  | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
   | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "email_audience" | "recall" | "save_memory"
   | "find_property" | "delete_data" | "listing_link" | "smalltalk" | "general";
 
-export const INTENTS: Intent[] = ["time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "smalltalk", "general"];
+export const INTENTS: Intent[] = ["add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "smalltalk", "general"];
 
 export interface Detected { intent: Intent; declared?: boolean }
 
@@ -23,10 +23,13 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   if (/\b(delete|remove|erase|wipe)\b/.test(t) && /\b(contacts?|clients?|leads?|buyers?|sellers?|people|everyone|everything|data|[a-z]+ [a-z]+)\b/.test(t) && !/\b(reminder|task|event|appointment|showing|open house|memory|draft)\b/.test(t)) return { intent: "delete_data" };
   if (/\bcancel\b/.test(t) && (eventNoun.test(t) || /\b(appointments?|everything|events?)\b/.test(t))) return { intent: "cancel_event" };
   if (moveVerb.test(t) && eventNoun.test(t) && /\b(to|until|for|from)\b/.test(t)) return { intent: "move_event", declared: past };
-  if (/\b(out of town|out of the office|out of office|on vacation|vacation|traveling|travelling|away|off work|day off|days off|taking (?:a |the )?(?:day|days|week) off|unavailable|not working|i(?:'m| am) off)\b/.test(t) && !/\b(showing|open house|call|meeting|lunch|inspection|closing)\b/.test(t) && !/^(what|when|who|where|how|do|did|is|are|can|could|should|why)\b|\?\s*$/.test(t)) return { intent: "time_off" };
+  if (/\b(out of town|out of the office|out of office|on vacation|vacation|traveling|travelling|away|off work|day off|days off|taking (?:a |the |this |next )?(?:day|days|week|(?:mon|tues|wednes|thurs|fri|satur|sun)day) off|(?:mon|tues|wednes|thurs|fri|satur|sun)day off|i(?:'m| am) off (?:on )?(?:mon|tues|wednes|thurs|fri|satur|sun)day|unavailable|not working|i(?:'m| am) off)\b/.test(t) && !/\b(showing|open house|call|meeting|lunch|inspection|closing)\b/.test(t) && !/^(what|when|who|where|how|do|did|is|are|can|could|should|why)\b|\?\s*$/.test(t)) return { intent: "time_off" };
+  if (/\b(new listing|got a listing|got the listing|got a new listing|just listed|just signed|i (?:just )?(?:got|signed|landed|listed|took)|add (?:a |my |the )?(?:new )?listing|add (?:a |my |the )?(?:new )?(?:property|home|house)|listing (?:at|on)|my listing)\b/.test(t) && /\b\d{1,6}\s+[a-z]|\b(listing|listed)\b/.test(t) && !/\b(open house|showing|email|post|carousel|instagram|story|caption|flyer|remind)/.test(t.replace(/\b(listing|listed) (?:at|on)\b/, "")) ) return { intent: "add_listing" };
+  if (/\blisting\b/.test(t) && /\$\s?\d|\b\d+\s?(?:bed|br|bd)\b|\b\d{1,6}\s+[a-z]+\s+(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|way|blvd|pl|place|cir|circle)\b/.test(t) && !/\b(open house|showing|email|post|carousel|instagram|story|caption|flyer|remind)\b/.test(t)) return { intent: "add_listing" };
   if (/\bremind me\b|\bset (?:a )?reminder\b/.test(t)) return { intent: "reminder" };
   if (/\b(email|e-mail|message|send)\b/.test(t) && /\b(contacts|buyers|leads|clients|everyone|my list|audience)\b/.test(t) && /\b(open house|listing|just listed|showing)\b/.test(t)) return { intent: "email_audience" };
   if (/open house/.test(t) && /\b(have|hosting|host|holding|set up|setup|plan|planning|prepare|schedule|organize|scheduled|this|next|on|at)\b/.test(t) && !/instagram|facebook|post|carousel|tiktok/.test(t)) return { intent: "open_house" };
+  if (/\b(make|create|write|draft|design|generate|do|need|build)\b.{0,25}\b(an? )?(social )?(post|caption|carousel|story|stories)\b/.test(t) && !/\b(email|open house at)\b/.test(t)) return { intent: "social_post" };
   if (/(instagram|facebook|tiktok|linkedin|twitter|\bx post\b|social)\b/.test(t) && /(post|carousel|caption|reel|content|story)/.test(t)) return { intent: "social_post" };
   if (/\b(schedule|book|set up|add|put|create)\b/.test(t) && eventNoun.test(t)) return { intent: "create_event" };
   // a bare statement like "Showing tomorrow at 3" or "Lunch with John Friday 1pm" means "put it on my calendar"

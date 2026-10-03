@@ -9,9 +9,10 @@ import { appendMila, persistState } from "./conversation";
 import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
+import { addListingHandler, listingChecklist } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
-import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler } from "./handlers/calendar";
+import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, eventReminder } from "./handlers/calendar";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
@@ -119,7 +120,11 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     const words = text.split(/\s+/).length;
     // A reply continues the open question only if it looks like an answer. A different request ("remind me to call Dana") or a
     // question moves on — the old question is dropped, never allowed to swallow what the agent actually said.
-    const looksLikeAnswer = d.intent === "general" || d.intent === "smalltalk" || d.intent === pend.intent || (words <= 4 && !!(parseTime(text) || parseDate(text, ctx.now, ctx.tz)));
+    const timeLike = !!(parseTime(text) || parseDate(text, ctx.now, ctx.tz));
+    const miss = String(pend.missing ?? "");
+    const looksLikeAnswer = d.intent === pend.intent
+      || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" ? words <= 8 : timeLike)))
+      || (words <= 4 && timeLike);
     if (looksLikeAnswer && !/\?\s*$/.test(text)) {
       text = dropNegatedDate(text);
       const orig = overrideWhen((pend.slots as { text: string }).text, text, ctx.now, ctx.tz);
@@ -167,12 +172,13 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     const bad = invalidTimeToken(text);
     if (bad) return reply(`“${bad}” isn't a real time, so I haven't changed anything. What time did you mean? (for example 2 PM or 14:00)`, [], "smalltalk");
   }
-  if (["general", "recall", "find_contacts", "save_memory"].includes(intent)) {
+  if (["general", "recall", "find_contacts", "save_memory", "market", "priorities"].includes(intent)) {
     const known = await mentionedContacts(ctx, text);
     if (known.length) { const u = await clientUpdateHandler(ctx, text, known); if (u) return u; }
   }
   switch (intent) {
     case "time_off": return timeOffHandler(ctx, text);
+    case "add_listing": return addListingHandler(ctx, text);
     case "open_house": return openHouseHandler(ctx, text);
     case "move_event": return moveEventHandler(ctx, text, declared);
     case "cancel_event": return cancelEventHandler(ctx, text);
@@ -224,7 +230,7 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
     extra = (await Promise.all(known.slice(0, 3).map(async (c) => `${c.name} (${c.type}, ${c.status}${c.location ? ", " + c.location : ""}): ${(await contactFacts(ctx, c)).join("; ") || "no saved details"}`))).join("\n");
   }
   const ai = await llmChat(ctx, text, await recentHistory(ctx), extra);
-  if (ai) return reply(ai, [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+  if (ai) return reply(ai.text, ai.suggestions.length ? [{ type: "choice", title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   return reply("I'm not sure how to do that yet. Here are things I can do right now:", [{
     type: "choice", title: "Try one of these",
     buttons: [
@@ -298,6 +304,8 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       ctx.state.last_import_batch = [...new Set([...(ctx.state.last_import_batch ?? []), cur.id])];
       return reply(`Merged into ${cur.name}.`, [], "smalltalk");
     }
+    case "event_reminder": return eventReminder(ctx, String(a.eventId), Number(a.minutes) || 60, a.title ? String(a.title) : undefined);
+    case "listing_checklist": return listingChecklist(ctx, String(a.propertyId));
     case "tag_contact": {
       const r = (await (await import("./tools")).TOOLS.update_contact.run(ctx, { id: a.contactId, patch: { tags: [String(a.tag)] }, eventTitle: `Also a ${a.tag}`, eventKind: "note" })) as any;
       return reply(r.ok ? `Done — added "${a.tag}" to ${r.data.contact.name}'s profile.` : "I couldn't find that contact.", [], "smalltalk");

@@ -63,11 +63,15 @@ test("moving the open house marks comms stale, then updates them", async () => {
   assert.ok(!d.stale);
 });
 
-test("imperative move requires approval", async () => {
+test("a direct move command is done immediately, with an Undo", async () => {
   const o = await say("Move my showing at 123 Main Street to Friday at 3");
-  const n = blocks(o, "notice")[0];
-  assert.match(n.title, /Move Showing/);
-  assert.ok(n.buttons[0].approvalId);
+  assert.match(o.milaMessage.content, /Moved to Friday at 3:00 PM/);
+  const undo = blocks(o, "choice").find((b: any) => b.title === "Wrong?");
+  assert.ok(undo, "offers undo");
+  const back = await act(undo.buttons[0].action);
+  assert.match(back.milaMessage.content, /Moved to/);
+  const ev = (await store.list("calendar_events", p.id)).find((e) => e.kind === "showing" && /123 Main/.test(e.title))!;
+  assert.notEqual(new Date(ev.start_at).toISOString(), "2026-10-02T19:00:00.000Z", "undo restored the original time");
 });
 
 test("priorities use real data", async () => {
@@ -177,16 +181,22 @@ test("emailing contacts about an open house is optional (off by default) and ava
   p.settings = { ...p.settings, workflows: { email_contacts: true } };
 });
 
-test("a bare street address makes Mila ask for the city and state, then carries on", async () => {
+test("a bare street address uses the agent's own market instead of quizzing them, and says so", async () => {
   const a = await say("I have an open house at 910 Pine Road Sunday at 2 PM");
-  assert.match(a.milaMessage.content, /What city and state is 910 Pine Road in/);
-  assert.equal((await store.list("properties", p.id)).filter((x) => x.address === "910 Pine Road").length, 0, "nothing is created until the address is complete");
+  assert.match(a.milaMessage.content, /prepared your open house\. I assumed 910 Pine Road is in Gaithersburg, MD/);
+  const prop = (await store.list("properties", p.id)).find((x) => x.address === "910 Pine Road")!;
+  assert.equal(prop.city, "Gaithersburg");
+  assert.equal(prop.verified, false, "looked-up or typed details stay unconfirmed");
+});
+
+test("with no home market on file, Mila asks for the city and state, then carries on", async () => {
+  await store.update("profiles", p.id, p.id, { location: "" }); (p as any).location = "";
+  const a = await say("I have an open house at 33 Hickory Road Friday at 8 AM");
+  assert.match(a.milaMessage.content, /What city and state is 33 Hickory Road in/);
   const b = await say("Frederick, MD");
   assert.match(b.milaMessage.content, /prepared your open house/);
-  const prop = (await store.list("properties", p.id)).find((x) => x.address === "910 Pine Road")!;
-  assert.equal(prop.city, "Frederick");
-  assert.equal(prop.state, "MD");
-  assert.equal(prop.verified, false, "looked-up or typed details stay unconfirmed");
+  assert.equal((await store.list("properties", p.id)).find((x) => x.address === "33 Hickory Road")!.city, "Frederick");
+  await store.update("profiles", p.id, p.id, { location: "Gaithersburg, MD" }); (p as any).location = "Gaithersburg, MD";
 });
 
 test("a full address in one message goes straight through; a ZIP is enough", async () => {

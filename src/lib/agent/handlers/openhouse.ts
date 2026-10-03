@@ -9,6 +9,7 @@ import { TOOLS, eventConflicts, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { autoPhotos, explainPull, firstUrl } from "./photos";
 import { locationGate } from "./location";
+import { extractListingFacts } from "../listing";
 import { describeFacts, enrichProperty, hostOf } from "../property-lookup";
 
 type Item = WorkflowRun["plan"][number];
@@ -81,7 +82,7 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
 
   ctx.steps.push("Checking your calendar");
   const conflicts = await eventConflicts(ctx, start.toISOString(), end.toISOString());
-  const draft = { __openHouse: true, text, address, place: gate.found.place, unverified: !!gate.found.unverified, start_at: start.toISOString(), end_at: end.toISOString(), assumedEnd: !w.end };
+  const draft = { __openHouse: true, text, address, place: gate.found.place, unverified: !!gate.found.unverified, assumed: !!gate.found.assumed, start_at: start.toISOString(), end_at: end.toISOString(), assumedEnd: !w.end };
   if (conflicts.length) {
     const c = conflicts[0];
     ctx.state.pending = { kind: "calendar_conflict", draft, conflict_ids: conflicts.map((x) => x.id) };
@@ -107,7 +108,8 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
 
   // 1. property
   const place = (draft.place ?? {}) as { city?: string; state?: string; zip?: string; county?: string };
-  let prop = ((await TOOLS.create_property.run(ctx, { address, city: place.city, state: place.state, zip: place.zip, county: place.county })) as any).data.property as Property;
+  const stated = extractListingFacts(String(draft.text ?? ""));
+  let prop = ((await TOOLS.create_property.run(ctx, { address, city: place.city, state: place.state, zip: place.zip, county: place.county, list_price: stated.list_price, beds: stated.beds, baths: stated.baths, sqft: stated.sqft })) as any).data.property as Property;
   ctx.state.last_property_id = prop.id;
   // 1b. look the address up online and prefill beds / baths / size / price (saved as unconfirmed)
   ctx.steps.push("Looking up the property online");
@@ -220,7 +222,8 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
       ...(pendingApprovals ? [{ label: "Do it", style: "primary" as const, action: { type: "approve_run", runId: run.id } }] : []),
     ],
   });
-  return reply("Got it. I've prepared your open house.", blocks, "workflow_open_house");
+  const assumedNote = draft.assumed ? ` I assumed ${address} is in ${[prop.city, prop.state].filter(Boolean).join(", ")} (your market) — tell me if it's somewhere else.` : "";
+  return reply(`Got it. I've prepared your open house.${assumedNote}`, blocks, "workflow_open_house");
 }
 
 export { fmtShortDate };

@@ -95,7 +95,7 @@ export async function applyMove(ctx: Ctx, event: CalendarEvent, start: Date, end
       ],
     }]);
   }
-  const out = await invoke(ctx, "update_calendar_event", { id: event.id, start_at: start.toISOString(), end_at: end.toISOString(), declared });
+  const out = await invoke(ctx, "update_calendar_event", { id: event.id, start_at: start.toISOString(), end_at: end.toISOString(), declared, requested: true });
   ctx.state.last_event_id = event.id;
   if (out.status === "needs_approval") {
     await persistState(ctx);
@@ -112,6 +112,7 @@ export async function applyMove(ctx: Ctx, event: CalendarEvent, start: Date, end
     eventCard(ctx, data.event, "Updated"),
     ...(data.syncNote ? [{ type: "notice", tone: "warn", title: data.syncNote } as Block] : []),
     ...stale,
+    ...(data.before.start_at !== data.event.start_at ? [{ type: "choice", title: "Wrong?", buttons: [{ label: `Undo — back to ${fmtDayTime(data.before.start_at, ctx.tz)}`, style: "quiet", action: { type: "move_apply", eventId: data.event.id, start: data.before.start_at, end: data.before.end_at, declared: true, ignoreConflicts: true } }] } as Block] : []),
   ]);
 }
 
@@ -248,7 +249,35 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
   ctx.state.last_event_id = ev.id;
   await persistState(ctx);
   await logContactEvent(ctx, ev.contact_id, "calendar_added", `${ev.title} — ${fmtDayTime(ev.start_at, ctx.tz)}`);
-  return reply(`Added: ${ev.title}, ${fmtDayTime(ev.start_at, ctx.tz)}.`, [eventCard(ctx, ev, "Added")]);
+  const ahead = await thinkAhead(ctx, ev);
+  return reply(`Added: ${ev.title}, ${fmtDayTime(ev.start_at, ctx.tz)}.${ahead.note}`, [eventCard(ctx, ev, "Added"), ...ahead.blocks]);
+}
+
+/** What a sharp assistant would notice right after booking something: tight drive time, and the obvious next moves. */
+export async function thinkAhead(ctx: Ctx, ev: CalendarEvent): Promise<{ note: string; blocks: Block[] }> {
+  const start = new Date(ev.start_at).getTime(), end = new Date(ev.end_at).getTime();
+  const others = (await upcomingEvents(ctx)).filter((e) => e.id !== ev.id);
+  const before = others.filter((e) => new Date(e.end_at).getTime() <= start && start - new Date(e.end_at).getTime() < 30 * 60_000).pop();
+  const after = others.find((e) => new Date(e.start_at).getTime() >= end && new Date(e.start_at).getTime() - end < 30 * 60_000);
+  const tight = [before && { e: before, gap: Math.round((start - new Date(before.end_at).getTime()) / 60000) }, after && { e: after, gap: Math.round((new Date(after.start_at).getTime() - end) / 60000) }].filter(Boolean) as { e: CalendarEvent; gap: number }[];
+  const differs = (e: CalendarEvent) => !!ev.location && !!e.location && ev.location.toLowerCase() !== e.location.toLowerCase();
+  const t = tight.find((x) => differs(x.e)) ?? tight.find((x) => x.gap <= 10);
+  const note = t ? `\n\nHeads up: that's only ${t.gap} min from ${t.e.title}${differs(t.e) ? " at a different address" : ""} — leave time to drive.` : "";
+  const buttons: any[] = [];
+  const when = new Date(start - 60 * 60_000);
+  if (["showing", "open_house", "meeting", "closing", "call"].includes(ev.kind) && when.getTime() > ctx.now.getTime()) buttons.push({ label: "Remind me 1 hour before", style: "secondary", action: { type: "event_reminder", eventId: ev.id, minutes: 60 } });
+  if (ev.kind === "showing" && ev.property_id) buttons.push({ label: "Start showing sheet", style: "secondary", href: `/properties/${ev.property_id}` });
+  if (ev.kind === "closing") buttons.push({ label: "Remind me of the final walkthrough", style: "secondary", action: { type: "event_reminder", eventId: ev.id, minutes: 24 * 60, title: "Final walkthrough" } });
+  return { note, blocks: buttons.length ? [{ type: "choice", title: "Want me to…", buttons }] : [] };
+}
+
+export async function eventReminder(ctx: Ctx, eventId: string, minutes: number, title?: string): Promise<HandlerOut> {
+  const ev = await ctx.store.get("calendar_events", ctx.userId, eventId);
+  if (!ev) return reply("I couldn't find that event anymore.", [], "smalltalk");
+  const at = new Date(new Date(ev.start_at).getTime() - minutes * 60_000);
+  if (at.getTime() <= ctx.now.getTime()) return reply("That reminder time has already passed.", [], "smalltalk");
+  const r = (await TOOLS.create_reminder.run(ctx, { title: title ? `${title} — ${ev.title}` : `${ev.title} starts soon`, remind_at: at.toISOString(), event_id: ev.id, contact_id: ev.contact_id, internal: true })) as any;
+  return reply(r.ok ? `Done — I'll remind you ${fmtDayTime(at, ctx.tz)}.` : "I couldn't set that reminder.", [], "smalltalk");
 }
 
 /** User answered a calendar conflict question. */
