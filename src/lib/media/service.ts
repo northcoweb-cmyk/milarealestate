@@ -5,6 +5,7 @@ import { addressKey } from "./address";
 import { tierLimits, tierOf } from "./limits";
 import { activeProvider, providerName } from "./providers";
 import { ProviderError, type ListingMedia, type MediaPhoto, type MediaQuery, type ProviderPhotos } from "./types";
+import { logError } from "../server/errors";
 import { globalUnitsThisMonth, trackApi, usageFor } from "./usage";
 
 const DAY = 86_400_000;
@@ -70,6 +71,7 @@ export async function getListingMedia(userId: string, q: MediaQuery, o: { fetch:
     return await job;
   } catch (e) {
     console.warn("[mila] media lookup failed", e instanceof Error ? e.message : e);
+    await logError({ source: "api", level: "warn", message: `Listing photos: lookup failed - ${e instanceof Error ? e.message : e}`.slice(0, 300), route: "listing-photos", userId });
     return empty(q, "unavailable");
   }
 }
@@ -99,6 +101,7 @@ async function enrich(userId: string, q: MediaQuery, key: string, name: string):
     const row = await save(name, key, q, res.photos, res.providerPropertyId, true);
     return { ...fromRow({ ...row, id: "", user_id: NIL_USER, created_at: "", updated_at: "" }, q), cached: false };
   }
+  if (!["not_found", "mismatch"].includes(err!.code)) await logError({ source: "api", level: "warn", message: `Listing photos (${name}): ${err!.code} - ${err!.message}`, route: "listing-photos", userId });
   switch (err!.code) {
     case "not_found": case "mismatch": { const row = await save(name, key, q, [], null, false); return { ...fromRow({ ...row, id: "", user_id: NIL_USER, created_at: "", updated_at: "" }, q), cached: false }; } // remember the miss
     case "credits": benchedUntil.set(name, now + 3_600_000); break;

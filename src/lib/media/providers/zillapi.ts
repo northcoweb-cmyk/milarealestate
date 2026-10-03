@@ -1,12 +1,17 @@
 import { ProviderError, type MediaPhoto, type MediaQuery, type PhotoProvider, type ProviderPhotos } from "../types";
 import { fullAddress, sameHome } from "../address";
 
+/** The key may be saved under the name Zillapi's own docs use (ZILLOW_API_KEY) or ours; accept any. */
+export const ZILLAPI_KEY_VARS = ["ZILLAPI_API_KEY", "ZILLAPI_KEY", "ZILLOW_API_KEY", "ZILLAPI_TOKEN"];
+export const zillapiKeyVar = () => ZILLAPI_KEY_VARS.find((k) => (process.env[k] ?? "").trim());
+export const zillapiKey = () => { const v = zillapiKeyVar(); return v ? process.env[v]!.trim() : ""; };
+export const zillapiBase = () => process.env.ZILLAPI_BASE_URL || "https://api.zillapi.com/v1";
 const BASE = () => process.env.ZILLAPI_BASE_URL || "https://api.zillapi.com/v1";
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 async function call(path: string, params?: Record<string, string>): Promise<unknown> {
-  const key = process.env.ZILLAPI_API_KEY;
+  const key = zillapiKey();
   if (!key) throw new ProviderError("auth", "Photo provider isn't configured.");
   const qs = params ? `?${new URLSearchParams(params)}` : "";
   let res: Response;
@@ -44,7 +49,7 @@ export function parsePhotos(body: any): MediaPhoto[] {
 
 export const zillapi: PhotoProvider = {
   key: "zillapi",
-  configured: () => Boolean(process.env.ZILLAPI_API_KEY),
+  configured: () => Boolean(zillapiKey()),
   unitCostUsd: Number(process.env.ZILLAPI_COST_PER_CREDIT) || 0.005, // $5 / 1,000 credits on the monthly plan
   async fetchPhotos(q: MediaQuery): Promise<ProviderPhotos> {
     const requests: ProviderPhotos["requests"] = [];

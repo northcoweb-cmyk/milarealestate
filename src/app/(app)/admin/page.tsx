@@ -229,6 +229,19 @@ function MapsCheck() {
   );
 }
 
+function PhotoCheck() {
+  const [res, setRes] = useState<{ steps: { name: string; ok: boolean; message: string }[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useApp();
+  async function run() { setBusy(true); try { setRes(await jfetch("/api/admin/photo-check")); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't run the check.", "error"); } finally { setBusy(false); } }
+  return (
+    <section className="glass mt-6 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="h2">Listing photos check</p><p className="muted text-[14px]">Tests the key, the database tables and a live lookup, and names the step that fails. Uses about 4 photo-provider credits.</p></div><button className="btn btn-sm" onClick={run} disabled={busy}>{busy ? "Checking…" : "Run check"}</button></div>
+      {res && <ul className="mt-3 divide-y" style={{ borderColor: "var(--line)" }}>{res.steps.map((c) => <li key={c.name} className="flex items-start gap-3 py-3"><span className="w-12 shrink-0"><Pill tone={c.ok ? "ok" : "warn"}>{c.ok ? "OK" : "Fix"}</Pill></span><div className="min-w-0"><p className="font-semibold">{c.name}</p><p className="muted text-[14px] leading-snug">{c.message}</p></div></li>)}</ul>}
+    </section>
+  );
+}
+
 function Health({ d }: { d: AdminReport }) {
   const h = d.health;
   const rows: [string, boolean, string][] = [
@@ -257,6 +270,7 @@ function Health({ d }: { d: AdminReport }) {
       {d.apiUsage.length === 0 ? <p className="muted text-[14px]">No paid API calls yet.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-[14px]"><thead><tr className="muted"><th className="py-1 pr-3">Provider</th><th className="pr-3">Calls</th><th className="pr-3">Failed</th><th className="pr-3">Units</th><th>Est. cost</th></tr></thead><tbody>{d.apiUsage.map((u) => <tr key={u.provider} className="border-t" style={{ borderColor: "var(--line)" }}><td className="py-1.5 pr-3 font-semibold">{u.provider}</td><td className="pr-3">{u.calls}</td><td className="pr-3">{u.failed}</td><td className="pr-3">{u.units}</td><td>${u.costUsd.toFixed(2)}</td></tr>)}</tbody></table></div>}
       {d.apiUsageByUser.length > 0 && <><p className="kicker mb-1 mt-4">Cost per user</p><div className="overflow-x-auto"><table className="w-full text-left text-[14px]"><thead><tr className="muted"><th className="py-1 pr-3">User</th><th className="pr-3">Photo lookups</th><th className="pr-3">Calls</th><th>Est. cost</th></tr></thead><tbody>{d.apiUsageByUser.map((u) => <tr key={u.email} className="border-t" style={{ borderColor: "var(--line)" }}><td className="py-1.5 pr-3">{u.email}</td><td className="pr-3">{u.photoLookups}</td><td className="pr-3">{u.calls}</td><td>${u.costUsd.toFixed(2)}</td></tr>)}</tbody></table></div></>}
     </section>
+    <PhotoCheck />
     <MapsCheck />
     </>
   );

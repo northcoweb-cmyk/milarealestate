@@ -166,7 +166,7 @@ test("shared monthly budget stops all spending", async () => {
 });
 
 test("no provider key: listings still work, photos 'unavailable'", async () => {
-  reset(); const k = process.env.ZILLAPI_API_KEY; delete process.env.ZILLAPI_API_KEY;
+  reset(); const k = process.env.ZILLAPI_API_KEY; delete process.env.ZILLAPI_API_KEY; delete process.env.ZILLOW_API_KEY;
   const m = await getListingMedia(user.id, home(9200), { fetch: true });
   assert.equal(m.photoStatus, "unavailable"); assert.equal(calls.length, 0);
   process.env.ZILLAPI_API_KEY = k;
