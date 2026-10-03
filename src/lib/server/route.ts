@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AuthError, getProfile } from "../auth";
 import { buildCtx } from "../agent/engine";
 import type { Profile } from "../types";
+import { errMessage, errStack, logError } from "./errors";
 
 type Params = Record<string, string>;
 export interface ApiArgs<P extends Params> { req: Request; profile: Profile; params: P; url: URL }
@@ -18,6 +19,8 @@ export function api<P extends Params = Params>(fn: (a: ApiArgs<P>) => Promise<un
       if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
       if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
       console.error("[api]", req.method, req.url, e);
+      const p = await getProfile().catch(() => null);
+      await logError({ source: "api", message: errMessage(e), stack: errStack(e), route: `${req.method} ${new URL(req.url).pathname}`, userId: p?.id, email: p?.email });
       return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
     }
   };

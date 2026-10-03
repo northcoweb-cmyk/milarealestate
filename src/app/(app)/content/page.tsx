@@ -80,10 +80,10 @@ function ContentInner() {
           <span className="shrink-0 text-[13.5px] font-semibold text-accent">Set up</span>
         </Link>
       )}
-      <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         {TABS.map((t) => <button key={t.key} onClick={() => setTab(t.key)} className={"chip " + (tab === t.key ? "is-selected" : "")}>{t.label}{data ? ` · ${data.counts[t.key]}` : ""}</button>)}
       </div>
-      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         <button onClick={() => setPlatform("")} className={"chip " + (!platform ? "is-selected" : "")}>All</button>
         {(data?.platforms ?? []).map((p) => <button key={p.key} onClick={() => setPlatform(p.key)} className={"chip " + (platform === p.key ? "is-selected" : "")}>{p.label}</button>)}
       </div>

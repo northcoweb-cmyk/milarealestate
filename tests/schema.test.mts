@@ -26,6 +26,7 @@ const { handleTurn } = await import("../src/lib/agent/engine");
 const { buildCtx } = await import("../src/lib/agent/engine");
 const { createPosts, planContent, approvePlanned } = await import("../src/lib/content/service");
 const { emptySheet } = await import("../src/lib/showing-sheet");
+const { logError } = await import("../src/lib/server/errors");
 
 test("every column the app writes exists in the database migrations", async () => {
   const prof = await createProfile({ email: "a@b.co", full_name: "Test Agent" });
@@ -33,6 +34,8 @@ test("every column the app writes exists in the database migrations", async () =
   const p = await store.get("profiles", prof.id, prof.id);
   await seedDemoData(p);
   for (const m of ["I have an open house at 9 Elm Street, Rockville, MD Sunday at 1 PM", "I moved the open house to Saturday at 2", "I have a new buyer named Dana looking for a 3 bedroom around $650k in Frederick County", "Remind me Friday to call Dana", "Who do I need to follow up with today?", "Email my contacts about the open house at 9 Elm Street", "Schedule a showing at 456 Oak Lane on Sunday", "sorry the one for today"]) await handleTurn(p, { message: m });
+  await logError({ source: "api", message: "schema probe", route: "GET /x", userId: prof.id, email: "a@b.co", detail: { a: 1 } });
+  await store.update("error_logs", prof.id, (await store.listAll("error_logs"))[0].id, { status: "resolved" });
   const ctx = await buildCtx(p);
   const prop = (await store.list("properties", prof.id))[0];
   await createPosts(ctx, { category: "just_listed", platforms: ["instagram", "instagram_story"], propertyId: prop.id });
@@ -45,7 +48,7 @@ test("every column the app writes exists in the database migrations", async () =
 
   const sql = fs.readdirSync("supabase/migrations").sort().map((f) => fs.readFileSync(path.join("supabase/migrations", f), "utf8")).join("\n");
   const cols: Record<string, Set<string>> = {};
-  for (const m of sql.matchAll(/create table if not exists (\w+) \(([\s\S]*?)\n\);/g)) cols[m[1]] = new Set(m[2].split("\n").map((l) => l.trim().split(/\s+/)[0]).filter(Boolean));
+  for (const m of sql.matchAll(/create table if not exists (\w+) \((?:\n([\s\S]*?)\n\);|([^\n]*)\);)/g)) cols[m[1]] = new Set((m[2] ?? m[3].split(",").join("\n")).split("\n").map((l) => l.trim().split(/\s+/)[0]).filter(Boolean));
   for (const m of sql.matchAll(/alter table (\w+) add column if not exists (\w+)/g)) (cols[m[1]] ??= new Set()).add(m[2]);
   const problems: string[] = [];
   for (const [t, keys] of Object.entries(seen)) {

@@ -26,7 +26,7 @@ export default function MemoryPage() {
     <Page>
       <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <PageHeader title="Memory" sub="Durable facts Mila keeps about you, your clients and your business. You're always in control." right={<button className="btn btn-primary" onClick={() => setEdit({ key: "", value: "" })}><Plus size={18} />Add</button>} />
-      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">{SCOPES.map(([v, l]) => <button key={v} className="chip shrink-0" style={scope === v ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setScope(v)}>{l}</button>)}</div>
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">{SCOPES.map(([v, l]) => <button key={v} className="chip shrink-0" style={scope === v ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setScope(v)}>{l}</button>)}</div>
       {loading && !data ? <Skeleton className="h-48" /> : !list.length ? <Empty title="Nothing here yet" body="Tell Mila things worth remembering — “Remember that I sign emails with just my first name” — or add one yourself." /> : (
         <ul className="space-y-3">{list.map((m) => (
           <li key={m.id} className="glass flex items-start gap-3 p-4 sm:p-5" style={{ borderRadius: 24 }}>

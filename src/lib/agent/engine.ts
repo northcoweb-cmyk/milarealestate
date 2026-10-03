@@ -9,6 +9,7 @@ import { appendMila, persistState } from "./conversation";
 import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
+import { logError } from "../server/errors";
 import { addListingHandler, listingChecklist } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
@@ -89,6 +90,7 @@ export async function handleTurn(profile: Profile, input: TurnInput): Promise<Tu
       out = reply("You've used all your Mila credits for this period.", [{ type: "notice", tone: "warn", title: "Out of credits", body: "Add more credits to keep going. Nothing you already have is lost.", buttons: [{ label: "Add credits", style: "primary", href: "/settings/credits" }] }], "smalltalk");
     } else {
       console.error("[mila] turn failed", e);
+      await logError({ source: "agent", message: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack ?? null : null, route: `chat: ${text.slice(0, 120)}`, userId: profile.id, email: profile.email });
       out = reply("Something went wrong on my side, and I didn't complete that. Nothing was changed that I can't tell you about — please try again.", [{ type: "notice", tone: "error", title: "That didn't work", body: e instanceof Error ? e.message : undefined }], "smalltalk");
     }
   }
@@ -231,6 +233,7 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   }
   const ai = await llmChat(ctx, text, await recentHistory(ctx), extra);
   if (ai) return reply(ai.text, ai.suggestions.length ? [{ type: "choice", title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+  await logError({ source: "unhandled", level: "info", message: text.slice(0, 300), userId: ctx.userId, email: ctx.profile.email });
   return reply("I'm not sure how to do that yet. Here are things I can do right now:", [{
     type: "choice", title: "Try one of these",
     buttons: [

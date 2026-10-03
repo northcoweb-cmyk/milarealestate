@@ -2,6 +2,7 @@ import { aiAvailable, estimateCost, getProvider } from "../ai/provider";
 import { recordUsage } from "../credits";
 import type { Ctx } from "./context";
 import { knowledgeFor } from "./learn";
+import { logError } from "../server/errors";
 import { INTENTS, type Detected, type Intent } from "./intents";
 
 /**
@@ -23,7 +24,8 @@ export async function llmClassify(ctx: Ctx, text: string): Promise<Detected | nu
     await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: "intent_routing", creditKey: "chat_simple", creditsOverride: 0, tier: "fast", provider: r.info.provider, model: r.info.model, inputUnits: r.usage.inputTokens, outputUnits: r.usage.outputTokens, estCostUsd: estimateCost(r.info, r.usage.inputTokens, r.usage.outputTokens) });
     const j = r.json as { intent?: Intent; declared?: boolean } | undefined;
     return j?.intent && INTENTS.includes(j.intent) ? { intent: j.intent, declared: j.declared } : null;
-  } catch {
+  } catch (e) {
+    await logError({ source: "ai", message: `routing: ${e instanceof Error ? e.message : e}`, userId: ctx.userId, email: ctx.profile.email });
     return null;
   }
 }
@@ -56,7 +58,8 @@ export async function llmChat(ctx: Ctx, text: string, history: { role: "user" | 
     if (!body) return null;
     const suggestions = (j?.actions ?? []).filter((a) => a?.label && a?.prompt).slice(0, 3).map((a) => ({ label: String(a.label).slice(0, 40), prompt: String(a.prompt).slice(0, 300) }));
     return { text: body, suggestions };
-  } catch {
+  } catch (e) {
+    await logError({ source: "ai", message: `chat: ${e instanceof Error ? e.message : e}`, userId: ctx.userId, email: ctx.profile.email });
     return null;
   }
 }

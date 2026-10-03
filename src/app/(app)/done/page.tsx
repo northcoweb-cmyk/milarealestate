@@ -27,7 +27,7 @@ export default function DonePage() {
           <div><p className="display text-[30px] leading-none">{data.byMila}</p><p className="faint mt-1 text-[12.5px]">by Mila</p></div>
         </div>
       )}
-      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         {FILTERS.map((f) => <button key={f.v} onClick={() => setWho(f.v)} className={"chip shrink-0 " + (who === f.v ? "is-selected" : "")}>{f.l}</button>)}
         <span className="mx-1 w-px shrink-0 self-stretch" style={{ background: "var(--line)" }} />
         {[7, 14, 30].map((n) => <button key={n} onClick={() => setRange(n)} className={"chip shrink-0 " + (range === n ? "is-selected" : "")}>{n} days</button>)}

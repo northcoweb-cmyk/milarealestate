@@ -125,7 +125,7 @@ function Sheet0({ id, initial }: { id: string; initial: Detail }) {
         <div className="mt-2.5 h-2.5 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 10%, transparent)" }}><div className="h-full rounded-full transition-all duration-300" style={{ width: `${(p.done / Math.max(1, p.total)) * 100}%`, background: "var(--ok)" }} /></div>
       </div>
 
-      <div className="no-scrollbar -mx-4 my-4 flex gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mx-4 my-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         {([["all", "Everything"], ["todo", "To do"], ["issue", `Flagged${p.issues ? ` · ${p.issues}` : ""}`], ["noted", "Notes & media"]] as [Filter, string][]).map(([k, l]) => <button key={k} className={"chip " + (filter === k ? "is-selected" : "")} onClick={() => setFilter(k)}>{l}</button>)}
       </div>
 

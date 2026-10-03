@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Megaphone, Menu, Users } from "lucide-react";
+import { CalendarDays, Gauge, Home, Megaphone, Menu, Users } from "lucide-react";
+import { useApp } from "./app-context";
 import clsx from "clsx";
 
 const NAV = [
@@ -25,6 +26,7 @@ function direction(prev: string, cur: string): "fade" | "right" | "left" | "push
 
 export function Shell({ children, approvals }: { children: React.ReactNode; approvals: number }) {
   const path = usePathname();
+  const { admin } = useApp();
   useEffect(() => { window.scrollTo(0, 0); }, [path]);
   const [nav, setNav] = useState({ path, prev: path });
   if (nav.path !== path) setNav({ path, prev: nav.path }); // remember where we came from (set during render, per React docs)
@@ -50,6 +52,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
             );
           })}
         </div>
+        {admin && <Link href="/admin" aria-label="Owner dashboard" title="Owner dashboard" className={clsx("flex h-11 w-11 items-center justify-center rounded-2xl transition", path.startsWith("/admin") ? "bg-[var(--accent)] text-[var(--accent-ink)]" : "muted hover:bg-[var(--line)]")}><Gauge size={20} /></Link>}
       </nav>
 
       {/* Never let the document get shorter than the screen while a page loads: on iPhone, Safari re-shows its toolbar when the page stops scrolling, which makes the tab bar jump. */}

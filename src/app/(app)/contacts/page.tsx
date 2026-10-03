@@ -57,13 +57,13 @@ export default function ContactsPage() {
       <div className="relative mb-4"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" /><input className="field !pl-11" placeholder="Search name, email, area, tag…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search contacts" /></div>
 
       <p className="kicker mb-2">Pipeline</p>
-      <div className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Pipeline stage">
+      <div className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 pb-1" role="tablist" aria-label="Pipeline stage">
         <button role="tab" aria-selected={stage === "all"} className={"chip shrink-0 " + (stage === "all" ? "is-selected" : "")} onClick={() => setStage("all")}>Everyone <span className="opacity-60">{searched.length}</span></button>
         {STAGES.map((s) => <button key={s.key} role="tab" aria-selected={stage === s.key} className={"chip shrink-0 " + (stage === s.key ? "is-selected" : "")} onClick={() => setStage(s.key)}><span aria-hidden>{s.emoji}</span>{s.label} <span className="opacity-60">{counts[s.key]}</span></button>)}
       </div>
       {stage !== "all" && <p className="muted mb-3 px-1 text-[14px]">{STAGES.find((s) => s.key === stage)?.blurb}</p>}
 
-      {present.size > 1 && <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">
+      {present.size > 1 && <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         {["all", ...CONTACT_TYPES.filter((t) => present.has(t))].map((t) => <button key={t} style={type !== t && t !== "all" ? { color: typeColor(t) } : undefined} className={"chip shrink-0 " + (type === t ? "is-selected" : "")} onClick={() => setType(t)}>{t === "all" ? "All types" : <>{contactEmoji(t)} {TYPE_LABEL[t]}</>}</button>)}
       </div>}
 

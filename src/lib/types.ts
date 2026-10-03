@@ -450,6 +450,18 @@ export interface UsageRow extends Row {
   credits: number;
 }
 
+/** Owner-visible problems: server errors, browser errors, AI failures, and things Mila didn't understand. user_id is the affected user, or the nil UUID when unknown. */
+export interface ErrorLog extends Row {
+  level: "error" | "warn" | "info";
+  source: "api" | "agent" | "client" | "ai" | "unhandled" | "db";
+  message: string;
+  stack: string | null;
+  route: string | null;
+  user_email: string | null;
+  detail: Record<string, unknown> | null;
+  status: "open" | "resolved";
+}
+
 export interface CreditTransaction extends Row {
   kind: "grant" | "spend" | "purchase" | "reset" | "adjust";
   delta: number;
@@ -503,7 +515,7 @@ export const TABLES = [
   "profiles", "businesses", "contacts", "contact_notes", "contact_events", "properties", "property_images",
   "calendar_events", "tasks", "approvals", "documents", "document_templates", "workflows", "workflow_runs",
   "memories", "emails", "email_drafts", "social_posts", "reminders", "notifications", "integrations", "usage",
-  "credit_transactions", "subscriptions", "conversations", "messages",
+  "credit_transactions", "subscriptions", "conversations", "messages", "error_logs",
 ] as const;
 export type TableName = (typeof TABLES)[number];
 
@@ -534,4 +546,5 @@ export interface TableMap {
   subscriptions: Subscription;
   conversations: Conversation;
   messages: Message;
+  error_logs: ErrorLog;
 }

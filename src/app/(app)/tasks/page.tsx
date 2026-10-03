@@ -44,7 +44,7 @@ function TasksInner() {
   return (
     <Page>
       <PageHeader title="Tasks" sub={waiting.length ? `${waiting.length} waiting for your approval` : "Everything Mila is handling or needs from you"} />
-      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4">{KINDS.map((k) => <button key={k.v} className="chip shrink-0" style={kind === k.v ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setKind(k.v)}>{k.l}</button>)}</div>
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">{KINDS.map((k) => <button key={k.v} className="chip shrink-0" style={kind === k.v ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setKind(k.v)}>{k.l}</button>)}</div>
       {loading && !data ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24" />)}</div> : (
         <>
           {(kind === "all" || kind === "approval") && waiting.length > 0 && (

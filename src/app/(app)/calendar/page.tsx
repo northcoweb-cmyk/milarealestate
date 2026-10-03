@@ -47,7 +47,7 @@ export default function CalendarPage() {
   return (
     <Page>
       <PageHeader title="Calendar" sub={data?.google.connected ? `Google Calendar · ${data.google.account ?? "connected"}` : "Mila's calendar"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
-      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Days">
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 pb-1" role="tablist" aria-label="Days">
         {days.map((d, i) => {
           const n = byDay.get(key(d))?.length ?? 0; const p = partsIn(d, tz);
           return (
