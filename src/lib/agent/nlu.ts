@@ -103,7 +103,7 @@ function parseTimeRaw(text: string): TimeSpec | null {
     }
   }
 
-  if (/\bnoon\b/.test(t)) return { start: { h: 12, mi: 0 }, explicit: true };
+  if (/\bnoon(?:ish)?\b/.test(t)) return { start: { h: 12, mi: 0 }, explicit: true };
   if (/\bmidnight\b/.test(t)) return { start: { h: 0, mi: 0 }, explicit: true };
 
   const withMer = new RegExp(`\\b(\\d{1,2}|${word})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?)(?![a-z])`, "i").exec(t);
@@ -137,6 +137,16 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
     return { y: p.y, m: p.m, d: p.d, text: label, relative };
   };
 
+  // "a week from Friday", "two weeks from today", "3 days after tomorrow"
+  const away = new RegExp(`\\b(a|an|one|two|three|four|\\d+)\\s+(week|day)s?\\s+(?:from|after)\\s+(today|tomorrow|(?:next\\s+)?(?:${WEEKDAYS.join("|")}|${WEEKDAYS.map((w) => w.slice(0, 3)).join("|")}))\\b`).exec(t);
+  if (away) {
+    const base = parseDate(away[3], now, tz);
+    const n = (numWord(away[1]) ?? 1) * (away[2] === "week" ? 7 : 1);
+    if (base) { const p = partsIn(addDays(zonedToUtc(base.y, base.m, base.d, 12, 0, tz), n, tz), tz); return { y: p.y, m: p.m, d: p.d, text: away[0], relative: true }; }
+  }
+  // "next week Tuesday" = Tuesday of next week
+  const nextWeek = new RegExp(`\\bnext\\s+week\\s+(?:on\\s+)?(${WEEKDAYS.join("|")}|${WEEKDAYS.map((w) => w.slice(0, 3)).join("|")})\\b`).exec(t);
+  if (nextWeek) { const d = parseDate(`next ${nextWeek[1]}`, now, tz); if (d) return { ...d, text: nextWeek[0] }; }
   if (/\bday after tomorrow\b/.test(t)) return mk(2, "day after tomorrow");
   if (/\btomorrow\b/.test(t)) return mk(1, "tomorrow");
   if (/\b(today|tonight|this (morning|afternoon|evening))\b/.test(t)) return mk(0, "today");
@@ -156,6 +166,22 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
     }
   }
 
+  const monthRe = new RegExp(`\\b(${MONTHS.join("|")}|${MONTHS.map((m) => m.slice(0, 3)).join("|")})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, "i").exec(t);
+  if (monthRe) {
+    const mi = MONTHS.findIndex((m) => m.startsWith(monthRe[1].slice(0, 3)));
+    let y = monthRe[3] ? +monthRe[3] : today.y;
+    const cand = zonedToUtc(y, mi + 1, +monthRe[2], 12, 0, tz);
+    if (!monthRe[3] && cand.getTime() < startOfDay(now, tz).getTime()) y += 1;
+    return { y, m: mi + 1, d: +monthRe[2], text: monthRe[0], relative: false };
+  }
+  const slash = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b(?!\s*(?:bed|bath|br\b|ba\b|bd\b))/.exec(t);
+  if (slash && +slash[1] >= 1 && +slash[1] <= 12 && +slash[2] >= 1 && +slash[2] <= 31) {
+    let y = slash[3] ? +slash[3] : today.y;
+    if (y < 100) y += 2000;
+    const cand = zonedToUtc(y, +slash[1], +slash[2], 12, 0, tz);
+    if (!slash[3] && cand.getTime() < startOfDay(now, tz).getTime()) y += 1;
+    return { y, m: +slash[1], d: +slash[2], text: slash[0], relative: false };
+  }
   const wd = new RegExp(`\\b(?:(this|next|coming|on)\\s+)?(${WEEKDAYS.join("|")}|${WEEKDAYS.map((w) => w.slice(0, 3)).join("|")})(?:day)?\\b(?!\\s*(?:street|st\\b|ave|road|rd\\b))`, "i").exec(t);
   if (wd) {
     const idx = WEEKDAYS.findIndex((w) => w.startsWith(wd[2].slice(0, 3)));
@@ -166,22 +192,6 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
     }
   }
 
-  const monthRe = new RegExp(`\\b(${MONTHS.join("|")}|${MONTHS.map((m) => m.slice(0, 3)).join("|")})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, "i").exec(t);
-  if (monthRe) {
-    const mi = MONTHS.findIndex((m) => m.startsWith(monthRe[1].slice(0, 3)));
-    let y = monthRe[3] ? +monthRe[3] : today.y;
-    const cand = zonedToUtc(y, mi + 1, +monthRe[2], 12, 0, tz);
-    if (!monthRe[3] && cand.getTime() < startOfDay(now, tz).getTime()) y += 1;
-    return { y, m: mi + 1, d: +monthRe[2], text: monthRe[0], relative: false };
-  }
-  const slash = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/.exec(t);
-  if (slash) {
-    let y = slash[3] ? +slash[3] : today.y;
-    if (y < 100) y += 2000;
-    const cand = zonedToUtc(y, +slash[1], +slash[2], 12, 0, tz);
-    if (!slash[3] && cand.getTime() < startOfDay(now, tz).getTime()) y += 1;
-    return { y, m: +slash[1], d: +slash[2], text: slash[0], relative: false };
-  }
   return null;
 }
 
@@ -231,7 +241,18 @@ export function findAddress(text: string): { address: string; raw: string } | nu
   // "17 St. Mary's Rd": "St." right after the number is Saint, not the street suffix
   const saint = build(`(?:st\\.|saint)\\s+(?:[a-z][a-z0-9'.]*\\s+){0,2}?(?:${SUFFIX})\\b\\.?`);
   const plain = build(`(?:${wordRe}){0,4}?(?:(?:${NAMEY})\\s+(?:${FORMAL})|(?:${SUFFIX}))\\b\\.?`);
-  const m = saint.exec(text) ?? plain.exec(text);
+  // words that can't be part of a street name: "5 captions for the Oak St" is a request, not an address
+  const NOT_STREET = /^(?:for|the|an?|and|at|on|in|to|with|from|my|our|your|me|this|that|it|is|are|was|you|can|please|pls|make|create|write|need|bed|beds|bd|br|bath|baths|ba|posts?|captions?|carousels?|stories|story|am|pm)$/i;
+  const valid = (x: RegExpExecArray | null) => !!x && !x[0].replace(/^\S+\s+/, "").split(/\s+/).slice(0, -1).some((w) => NOT_STREET.test(w.replace(/[.,]$/, "")));
+  const sm = saint.exec(text);
+  let m: RegExpExecArray | null = valid(sm) ? sm : null;
+  if (!m) {
+    const g = new RegExp(plain.source, "gi");
+    for (let x = g.exec(text); x; x = g.exec(text)) {
+      if (valid(x)) { m = x; break; }
+      g.lastIndex = x.index + 1; // the number may still start a real address further along ("3 bed 2 bath, 12 Oak St")
+    }
+  }
   if (!m) return null;
   // m[1] = number(+letter); rebuild the street part from the raw match, minus the unit
   let street = m[0];
@@ -240,7 +261,7 @@ export function findAddress(text: string): { address: string; raw: string } | nu
   street = street.replace(/\.$/, "");
   const words = titleCase(street.replace(/^(\d{1,6})([A-Za-z])\b/, (_x, n: string, l: string) => n + l.toUpperCase())).split(/\s+/).map((w, i, all) => {
     const bare = w.replace(/\.$/, "");
-    if (i > 0 && i < all.length - 1 && new RegExp(`^${DIRS}$`, "i").test(bare) && !/^(north|south|east|west)$/i.test(bare)) return bare.toUpperCase(); // "N." → "N", "Sw" → "SW"
+    if (i > 0 && i < all.length - 1 && /^(?:[nsew]|ne|nw|se|sw)$/i.test(bare)) return bare.toUpperCase() + (w.endsWith(".") ? "." : ""); // "n." → "N.", "sw" → "SW" // "N." → "N", "Sw" → "SW"
     if (i === all.length - 1 && /^(ne|nw|se|sw)$/i.test(bare) && all.length > 3) return bare.toUpperCase();
     return w;
   });
@@ -250,6 +271,9 @@ export function findAddress(text: string): { address: string; raw: string } | nu
   if (SUFFIX_FULL[last]) words[li] = SUFFIX_FULL[last];
   return { address: words.join(" ") + unitTxt, raw: m[0] };
 }
+
+/** Two ways of writing the same street address compare equal ("77 W. Main St" = "77 w main street"). */
+export const addrKey = (a: string) => a.toLowerCase().replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
 
 export function parseAddress(text: string): string | null {
   return findAddress(text)?.address ?? null;
@@ -316,7 +340,24 @@ export function parsePersonName(text: string): string | null {
   if (asA && !NAME_STOP.has(asA[1].split(" ")[0])) return asA[1];
   const addAs = new RegExp(`\\b[Aa]dd\\s+${NM}\\s+as\\b`, "u").exec(text);
   if (addAs) return addAs[1];
-  return null;
+  return lowercaseName(text);
+}
+
+const NAME_END = new Set(["looking", "who", "wants", "want", "with", "is", "in", "around", "for", "and", "budget", "from", "at", "interested", "needs", "need", "has", "have", "he", "she", "they", "his", "her", "their", "just", "a", "an", "the", "to", "under", "over", "about", "searching", "seeking", "hoping", "moving", "relocating", "pre", "preapproved", "ready", "i", "my", "we", "email", "phone", "cell", "number", "as", "wanting", "thinking", "trying", "referred", "found", "new", "met", "called", "named", "name", "yesterday", "today", "tomorrow", "tonight", "this", "last", "next", "week", "weekend", "morning", "afternoon", "evening", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "earlier", "recently", "now", "again", "also", "but", "so", "because", "that", "which", "when", "where", "how", "if", "then", "was", "were", "are", "will", "would", "can", "could", "should", "may", "might", "does", "did", "had", "been", "of", "on", "by", "up", "out", "me", "you", "it", "its", "there", "here", "too", "very", "really", "pretty", "kind", "sort", "based", "age", "aged", "year", "years", "old"]);
+const properCase = (s: string) => s.toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (_m, p: string, c: string) => p + c.toUpperCase());
+/** Fast typing, no capitals: "new buyer named dana whitfield looking for…", "add mike johnson as a buyer". */
+function lowercaseName(text: string): string | null {
+  const word = "[\\p{L}'’-]+(?=[\\s,.;:]|$)";
+  const grab = (re: RegExp) => {
+    const m = re.exec(text);
+    if (!m) return null;
+    const out: string[] = [];
+    for (const w of m[1].trim().split(/\s+/)) { const bare = w.toLowerCase().replace(/[,.;:]+$/, ""); if (NAME_END.has(bare) || (bare.length > 4 && bare.endsWith("ing"))) break; out.push(w.replace(/[,.;:]+$/, "")); if (/[,.;:]$/.test(w) || out.length === 3) break; }
+    return out.length ? properCase(out.join(" ")) : null;
+  };
+  return grab(new RegExp(`\\b(?:named|called|name is|name's)\\s+((?:${word}\\s*){1,4})`, "iu"))
+    ?? grab(new RegExp(`\\b(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\s*[,:-]?\\s+((?:${word}\\s*){1,4})`, "iu"))
+    ?? grab(new RegExp(`\\badd\\s+((?:${word}\\s*){1,3}?)\\s+as\\b`, "iu"));
 }
 
 /** Capitalised name tokens mentioned anywhere (used to match existing contacts). */
@@ -353,7 +394,9 @@ export function parseContactType(text: string): ContactTypeGuess {
 
 /** Split compound requests ("remind me Friday to call Sarah and also move my showing to three"). */
 export function splitClauses(text: string): string[] {
-  text = text.slice(0, 6000); // bounded: the lazy patterns below are not linear on huge input
+  text = text.slice(0, 6000); // bounded first: the patterns below are not linear on huge input
+  // a pasted list of people ("Ann ann@x.com; Bob bob@y.com") is one request, not several
+  if ((text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) ?? []).length >= 2) return [text];
   // "Book a showing at 5 and another at 5:30" → two showings
   const another = /^(.*?\b(showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)s?\b.*?)\s+and\s+(?:another|one more|a second)\s+(?:(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)\s+)?(.+)$/i.exec(text.trim());
   if (another) return [another[1].trim(), `${another[2]} ${another[3]}`.trim()];
@@ -365,7 +408,16 @@ export function splitClauses(text: string): string[] {
   const out: string[] = [];
   for (const p of parts) {
     const sub = p.split(/\s+and\s+(?=(?:remind me|move|reschedule|schedule|cancel|delete|remove|draft|email|text|set up|add (?:it|this|that|an? )|create|make|find)\b)/i);
-    out.push(...sub.map((s) => s.trim()).filter(Boolean));
+    // "lunch with Dana Saturday at noon and a meeting Monday at 3pm": a second booking with its own day/time is its own request
+    for (const piece of sub) {
+      const again = piece.split(/\s+and\s+(?=(?:an?|another)\s+(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough|closing)\b)/i);
+      const merged: string[] = [];
+      for (const [i, x] of again.entries()) {
+        if (i > 0 && !(parseDate(x, new Date(), "UTC") || parseTime(x))) merged[merged.length - 1] += ` and ${x}`;
+        else merged.push(x);
+      }
+      out.push(...merged.map((s) => s.trim()).filter(Boolean));
+    }
   }
   return out.length ? out : [text];
 }

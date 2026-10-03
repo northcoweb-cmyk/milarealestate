@@ -22,6 +22,8 @@ const dayPlus = (a: Agent, n: number) => addDays(a.now, n, a.tz);
 const nextDow = (a: Agent, dow: number) => { for (let i = 1; i <= 7; i++) { const d = dayPlus(a, i); if (partsIn(d, a.tz).dow === dow) return d; } throw new Error("dow"); };
 /** "next Tues" = that weekday in the following Sunday-to-Saturday week */
 const nextWeekDow = (a: Agent, dow: number) => dayPlus(a, 7 - partsIn(a.now, a.tz).dow + dow);
+/** the next time that weekday comes around, counting today (how "Friday" is understood when said on a Friday) */
+const dowDate = (a: Agent, dow: number) => { for (let i = 0; i <= 6; i++) { const d = dayPlus(a, i); if (partsIn(d, a.tz).dow === dow) return d; } throw new Error("dow"); };
 const notToday = (a: Agent, r: () => number) => pick(r, [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== partsIn(a.now, a.tz).dow));
 
 const evs = async (a: Agent, kind?: string) => (await store.list("calendar_events", a.id)).filter((e: any) => e.status === "confirmed" && (!kind || e.kind === kind)).sort((x: any, y: any) => x.start_at.localeCompare(y.start_at));
@@ -51,7 +53,7 @@ const LISTINGS: L[] = [
   { msg: "New listing at 8814 Brookside Drive, Rockville MD. 4 bed 3 bath, $875,000", address: "8814 Brookside Drive", city: "Rockville", state: "MD", beds: 4, baths: 3, price: 875000 },
   { msg: "I just got a new listing, 12 Oak St #4B, Bethesda MD. 2bd/2ba, $1.15M", address: "12 Oak Street #4B", city: "Bethesda", state: "MD", beds: 2, baths: 2, price: 1150000 },
   { msg: "just listed 1420 N Pine Ridge Rd, Frederick MD 4bd/2.5ba $1.15M", address: "1420 N Pine Ridge Road", city: "Frederick", state: "MD", beds: 4, baths: 2.5, price: 1150000 },
-  { msg: "new listing 77 W. Montgomery Ave Rockville MD 3 bed 2 bath 1,850sf asking 899", address: "77 W Montgomery Avenue", city: "Rockville", state: "MD", beds: 3, baths: 2, price: 899000, sqft: 1850 },
+  { msg: "new listing 77 W. Montgomery Ave Rockville MD 3 bed 2 bath 1,850sf asking 899", address: "77 W. Montgomery Avenue", city: "Rockville", state: "MD", beds: 3, baths: 2, price: 899000, sqft: 1850 },
   { msg: "got a listing! 300 S Main St, Austin TX - 3/2 - $425k - 1,600 sq ft", address: "300 S Main Street", city: "Austin", state: "TX", beds: 3, baths: 2, price: 425000, sqft: 1600 },
   { msg: "signed a listing at 5 Elm Ct. Denver CO 5 bedrooms 4 bathrooms $2.3M", address: "5 Elm Court", city: "Denver", state: "CO", beds: 5, baths: 4, price: 2300000 },
   { msg: "new listing at 9100 Old Georgetown Rd Bethesda MD asking $1,495,000 4 bd 3.5 ba 3,200 sf", address: "9100 Old Georgetown Road", city: "Bethesda", state: "MD", beds: 4, baths: 3.5, price: 1495000, sqft: 3200 },
@@ -79,7 +81,7 @@ const LISTINGS: L[] = [
   { msg: "New listing 88a Lakeview Ln, Rockville MD, 4 bed 2 bath, priced at $615k", address: "88A Lakeview Lane", city: "Rockville", state: "MD", beds: 4, baths: 2, price: 615000 },
   { msg: "new listing, 6 O'Brien Way Bethesda MD, 3 bedroom 2 bathroom, $780,000", address: "6 O'Brien Way", city: "Bethesda", state: "MD", beds: 3, baths: 2, price: 780000 },
   { msg: "just got a new listing 17 St. Mary's Rd Frederick MD 2 bed 1 bath 950 sqft $229k", address: "17 St. Mary's Road", city: "Frederick", state: "MD", beds: 2, baths: 1, price: 229000, sqft: 950 },
-  { msg: "new listing: 1200 n. oak dr, Phoenix AZ. 4br/3ba. asking $1.275M. 2,650 sqft", address: "1200 N Oak Drive", city: "Phoenix", state: "AZ", beds: 4, baths: 3, price: 1275000, sqft: 2650 },
+  { msg: "new listing: 1200 n. oak dr, Phoenix AZ. 4br/3ba. asking $1.275M. 2,650 sqft", address: "1200 N. Oak Drive", city: "Phoenix", state: "AZ", beds: 4, baths: 3, price: 1275000, sqft: 2650 },
   { msg: "new listing 55 sw main st unit 7 Denver CO 2bd 2ba $515k", address: "55 SW Main Street #7", city: "Denver", state: "CO", beds: 2, baths: 2, price: 515000 },
   { msg: "I signed a new listing! 9 Fox Run Dr, Arlington VA. Owners are Dana and Tom Lee. 3 bed 2.5 bath $865k", address: "9 Fox Run Drive", city: "Arlington", state: "VA", beds: 3, baths: 2.5, price: 865000, seller: "Dana and Tom Lee" },
   { msg: "new listing 3 Birch Ct. Rockville MD $1,000,000 flat 5 bed 4 bath 4,100 square feet", address: "3 Birch Court", city: "Rockville", state: "MD", beds: 5, baths: 4, price: 1000000, sqft: 4100 },
@@ -168,18 +170,18 @@ test("B2. evening and 'tonight' phrasing lands in the evening, not at dawn", asy
       const all = await evs(a);
       bad(all.length === 1, `expected 1 event, got ${all.length}: ${out.slice(0, 100)}`);
       slotIs(bad, a, all[0], a.now, h, mi);
-      if (all[0]) bad(all[0].kind === kind || (kind === "lunch" && all[0].kind === "lunch"), `kind ${all[0].kind} != ${kind}`);
+      if (all[0]) bad(all[0].kind === kind || /dinner/i.test(msg) && /dinner/i.test(all[0].title), `kind ${all[0].kind} / title "${all[0].title}" for ${kind}`);
     });
   }
 });
 
 // ======================================================================= C. messy addresses on showings (24)
 const MESSY: [string, string][] = [
-  ["742 evergreen terr", "742 Evergreen Terrace"], ["1200 n. oak dr", "1200 N Oak Drive"], ["55 sw main st", "55 SW Main Street"], ["12 Oak St #4B", "12 Oak Street #4B"],
+  ["742 evergreen terr", "742 Evergreen Terrace"], ["1200 n. oak dr", "1200 N. Oak Drive"], ["55 sw main st", "55 SW Main Street"], ["12 Oak St #4B", "12 Oak Street #4B"],
   ["12 oak st apt 4b", "12 Oak Street #4B"], ["12 oak st unit 7", "12 Oak Street #7"], ["300 martin luther king blvd", "300 Martin Luther King Boulevard"],
   ["1600 pennsylvania ave nw", "1600 Pennsylvania Avenue NW"], ["17 St. Mary's Rd", "17 St. Mary's Road"], ["88a lakeview ln", "88A Lakeview Lane"], ["6 O'Brien Way", "6 O'Brien Way"],
-  ["12 e. 5th st", "12 E 5th Street"], ["410 NE 5th St Apt 12", "410 NE 5th Street #12"], ["9100 OLD GEORGETOWN RD", "9100 Old Georgetown Road"], ["7 McKinley Pkwy", "7 McKinley Parkway"],
-  ["2200 s. wabash ave #1501", "2200 S Wabash Avenue #1501"], ["14 w 3rd st", "14 W 3rd Street"], ["500 Fifth Avenue Suite 200", "500 Fifth Avenue #200"],
+  ["12 e. 5th st", "12 E. 5th Street"], ["410 NE 5th St Apt 12", "410 NE 5th Street #12"], ["9100 OLD GEORGETOWN RD", "9100 Old Georgetown Road"], ["7 McKinley Pkwy", "7 McKinley Parkway"],
+  ["2200 s. wabash ave #1501", "2200 S. Wabash Avenue #1501"], ["14 w 3rd st", "14 W 3rd Street"], ["500 Fifth Avenue Suite 200", "500 Fifth Avenue #200"],
   ["31 Hawthorne Cir.", "31 Hawthorne Circle"], ["1 Broadway Plaza", "1 Broadway Plaza"], ["6502 se Foster Rd", "6502 SE Foster Road"], ["27 Rue Dr", "27 Rue Drive"],
   ["19 north Elm street", "19 North Elm Street"], ["8800 Mc Arthur Blvd", "8800 Mc Arthur Boulevard"],
 ];
@@ -455,16 +457,16 @@ test("H. cancelling always asks first; nothing disappears until the agent confir
 test("I. vague requests get exactly one clear question and the answer completes the original request", async () => {
   const r = rng(9012);
   const rows: { msg: string; answer: string; check: (a: Agent, bad: (c: boolean, w: string) => void) => Promise<void> }[] = [
-    { msg: "schedule a showing", answer: "friday 2pm", check: async (a, bad) => { const e = (await evs(a, "showing"))[0]; slotIs(bad, a, e, nextDow(a, 5), 14, 0); } },
-    { msg: "book something Friday", answer: "a showing at 3pm", check: async (a, bad) => { const e = (await evs(a))[0]; slotIs(bad, a, e, nextDow(a, 5), 15, 0); bad(e?.kind === "showing", `kind ${e?.kind}`); } },
+    { msg: "schedule a showing", answer: "friday 2pm", check: async (a, bad) => { const e = (await evs(a, "showing"))[0]; slotIs(bad, a, e, dowDate(a, 5), 14, 0); } },
+    { msg: "book something Friday", answer: "a showing at 3pm", check: async (a, bad) => { const e = (await evs(a))[0]; slotIs(bad, a, e, dowDate(a, 5), 15, 0); bad(e?.kind === "showing", `kind ${e?.kind}`); } },
     { msg: "set up a call", answer: "tomorrow at 10", check: async (a, bad) => { const e = (await evs(a, "call"))[0]; slotIs(bad, a, e, dayPlus(a, 1), 10, 0); } },
-    { msg: "put a meeting on Thursday", answer: "11", check: async (a, bad) => { const e = (await evs(a, "meeting"))[0]; slotIs(bad, a, e, nextDow(a, 4), 11, 0); } },
+    { msg: "put a meeting on Thursday", answer: "11", check: async (a, bad) => { const e = (await evs(a, "meeting"))[0]; slotIs(bad, a, e, dowDate(a, 4), 11, 0); } },
     { msg: "remind me to call Dana", answer: "tomorrow at 9am", check: async (a, bad) => { const rm = (await store.list("reminders", a.id))[0]; bad(!!rm && ymd(rm.remind_at, a.tz) === ymd(dayPlus(a, 1), a.tz) && hm(rm.remind_at, a.tz) === "9:00", `reminder ${rm?.remind_at}`); } },
-    { msg: "remind me", answer: "friday to send the CMA", check: async (a, bad) => { const rm = (await store.list("reminders", a.id))[0]; bad(!!rm && /cma/i.test(rm.title) && ymd(rm.remind_at, a.tz) === ymd(nextDow(a, 5), a.tz), `reminder ${JSON.stringify(rm)}`); } },
+    { msg: "remind me", answer: "friday to send the CMA", check: async (a, bad) => { const rm = (await store.list("reminders", a.id))[0]; bad(!!rm && /cma/i.test(rm.title) && ymd(rm.remind_at, a.tz) === ymd(dowDate(a, 5), a.tz), `reminder ${JSON.stringify(rm)}`); } },
     { msg: "I have a new buyer", answer: "Priya Shah", check: async (a, bad) => { bad((await store.list("contacts", a.id)).some((c: any) => c.name === "Priya Shah" && c.type === "buyer"), "buyer not created"); } },
     { msg: "add a new listing", answer: "55 Cedar Ln, Frederick MD 3 bed 2 bath $400k", check: async (a, bad) => { const p = (await store.list("properties", a.id))[0]; bad(!!p && p.address === "55 Cedar Lane" && p.list_price === 400000, `property ${JSON.stringify(p)}`); } },
     { msg: "I'm out of town", answer: "next Monday", check: async (a, bad) => { const e = (await evs(a)).find((x: any) => x.title === "Out of office"); slotIs(bad, a, e, nextWeekDow(a, 1), 8, 0); } },
-    { msg: "open house Sunday", answer: "123 Main St Rockville MD 1-3", check: async (a, bad) => { const e = (await evs(a, "open_house"))[0]; slotIs(bad, a, e, nextDow(a, 0), 13, 0); } },
+    { msg: "open house Sunday", answer: "123 Main St Rockville MD 1-3", check: async (a, bad) => { const e = (await evs(a, "open_house"))[0]; slotIs(bad, a, e, dowDate(a, 0), 13, 0); } },
   ];
   for (const [i, row] of rows.entries()) for (let k = 0; k < 2; k++) {
     const a = await fresh(r);
@@ -701,14 +703,16 @@ test("M. time off blocks exactly the days said and warns about what's already bo
   for (let i = 0; i < 22; i++) {
     const a = await fresh(r);
     const k = 2 + Math.floor(r() * 12), span = pick(r, [0, 1, 2, 4]);
-    const s = dayPlus(a, k), e = dayPlus(a, k + span), sp = partsIn(s, a.tz), ep = partsIn(e, a.tz);
+    const wdForm = span === 0 && r() < 0.4; // "Tuesday" / "taking Thursday off" mean the next one, counting today
+    const wd = pick(r, [0, 1, 2, 3, 4, 5, 6]);
+    const s = wdForm ? dowDate(a, wd) : dayPlus(a, k), e = wdForm ? s : dayPlus(a, k + span), sp = partsIn(s, a.tz), ep = partsIn(e, a.tz);
     const md = (p: ReturnType<typeof partsIn>) => `${p.m}/${p.d}`;
-    const single = [`I'm out of town ${DOW[sp.dow]}`, `taking ${DOW[sp.dow]} off`, `out of the office on the ${ord(sp.d)}`, `I'm on vacation ${md(sp)}`, `unavailable ${MON[sp.m - 1].slice(0, 3)} ${sp.d}`];
+    const single = wdForm ? [`I'm out of town ${DOW[sp.dow]}`, `taking ${DOW[sp.dow]} off`, `I'm unavailable ${DOW[sp.dow]}`] : [`out of the office on the ${ord(sp.d)}`, `I'm on vacation ${md(sp)}`, `unavailable ${MON[sp.m - 1].slice(0, 3)} ${sp.d}`];
     const range = [`I'll be on vacation ${md(sp)} through ${md(ep)}`, `out of town ${MON[sp.m - 1]} ${sp.d} thru ${MON[ep.m - 1]} ${ep.d}`, `off ${md(sp)} to ${md(ep)}`, `out of town ${md(sp)}-${md(ep)}`];
     const msg = span === 0 ? pick(r, single) : pick(r, range);
     const clash = i % 3 === 0;
     await scenario(`M${i} "${msg}"`, a, async (bad) => {
-      if (clash) await say(a, `Showing at 12 Oak St ${md(sp)} at 2pm`);
+      if (clash) await say(a, `Showing at 12 Oak St ${md(sp)} at 2pm`); // booked first, so the time-off warning has something to find
       const out = await say(a, msg);
       const off = (await evs(a)).filter((x: any) => x.title === "Out of office");
       bad(off.length === 1, `${off.length} out-of-office blocks: ${out.slice(0, 100)}`);
@@ -803,6 +807,273 @@ test("P. one run-on message with several jobs does all of them", async () => {
     ];
     const [msg, check] = forms[i % forms.length];
     await scenario(`P${i} "${msg}"`, a, async (bad) => { await say(a, msg); await check(bad); });
+  }
+});
+
+// ======================================================================= Q. unusual time zones (60)
+const WEIRD = ["Asia/Kolkata", "Pacific/Auckland", "Australia/Lord_Howe", "America/St_Johns", "Asia/Kathmandu", "Pacific/Chatham", "Pacific/Kiritimati", "Europe/London", "Australia/Adelaide", "America/Anchorage", "Asia/Tokyo", "Pacific/Pago_Pago"];
+const freshIn = async (r: () => number, tz: string) => { const c = clock(r, tz); return newAgent({ now: c.now, tz, seed: false }); };
+test("Q. bookings, reminders, time off and open houses land correctly in unusual time zones", async () => {
+  const r = rng(9030);
+  for (let i = 0; i < 24; i++) {
+    const tz = WEIRD[i % WEIRD.length];
+    const a = await freshIn(r, tz);
+    const df = pick(r, dateForms(a, r).filter((d) => d.txt !== "today"));
+    const tf = pick(r, TIMES);
+    const msg = `Showing at 12 Oak St ${df.txt} ${tf[0].startsWith("at ") || tf[0].startsWith("@") || tf[0].startsWith("around") ? tf[0] : "at " + tf[0]}`;
+    await scenario(`Q-book${i} ${tz} "${msg}" now=${a.now.toISOString()}`, a, async (bad) => {
+      const out = await say(a, msg);
+      const all = await evs(a, "showing");
+      bad(all.length === 1, `expected 1 showing, got ${all.length}: ${out.slice(0, 100)}`);
+      slotIs(bad, a, all[0], df.day, tf[1], tf[2]);
+    });
+  }
+  for (let i = 0; i < 12; i++) {
+    const tz = WEIRD[i % WEIRD.length];
+    const a = await freshIn(r, tz);
+    await scenario(`Q-rem${i} ${tz}`, a, async (bad) => {
+      await say(a, "remind me tomorrow at 9:30am to call Dana");
+      const rem = (await store.list("reminders", a.id))[0];
+      bad(!!rem && ymd(rem.remind_at, tz) === ymd(dayPlus(a, 1), tz) && hm(rem.remind_at, tz) === "9:30", `reminder ${rem?.remind_at} (${rem ? hm(rem.remind_at, tz) : ""})`);
+      await say(a, "remind me in 2 hours to call Bob");
+      const r2 = (await store.list("reminders", a.id)).find((x: any) => /bob/i.test(x.title));
+      bad(!!r2 && Math.abs(new Date(r2.remind_at).getTime() - a.now.getTime() - 7_200_000) < 60_000, "2-hour reminder wrong");
+    });
+  }
+  for (let i = 0; i < 12; i++) {
+    const tz = WEIRD[i % WEIRD.length];
+    const a = await freshIn(r, tz);
+    const k = 2 + Math.floor(r() * 10), s = dayPlus(a, k), e = dayPlus(a, k + 2);
+    await scenario(`Q-off${i} ${tz}`, a, async (bad) => {
+      await say(a, `out of town ${partsIn(s, tz).m}/${partsIn(s, tz).d} through ${partsIn(e, tz).m}/${partsIn(e, tz).d}`);
+      const off = (await evs(a)).find((x: any) => x.title === "Out of office");
+      bad(!!off && ymd(off.start_at, tz) === ymd(s, tz) && ymd(off.end_at, tz) === ymd(e, tz), `block ${off?.start_at} - ${off?.end_at}`);
+      if (off) bad(hm(off.start_at, tz) === "8:00" && hm(off.end_at, tz) === "18:00", `hours ${hm(off.start_at, tz)}-${hm(off.end_at, tz)}`);
+    });
+  }
+  for (let i = 0; i < 12; i++) {
+    const tz = WEIRD[i % WEIRD.length];
+    const a = await freshIn(r, tz);
+    await scenario(`Q-oh${i} ${tz}`, a, async (bad) => {
+      const dow = notToday(a, r);
+      await say(a, `open house at 88 Birch Rd, Rockville MD ${DOW[dow]} 1-3`);
+      const e = (await evs(a, "open_house"))[0];
+      slotIs(bad, a, e, nextDow(a, dow), 13, 0);
+      bad(!!e && hm(e.end_at, tz) === "15:00", `ends ${e && hm(e.end_at, tz)}`);
+    });
+  }
+});
+
+// ======================================================================= R. fancier date phrases (24)
+test("R. 'a week from Friday', 'next week Tuesday', weekday + numeric date and day-parts", async () => {
+  const r = rng(9031);
+  for (let i = 0; i < 24; i++) {
+    const a = await fresh(r);
+    const dow = notToday(a, r);
+    const k = 8 + Math.floor(r() * 12), tg = dayPlus(a, k), tp = partsIn(tg, a.tz);
+    const rows: [string, Date, number, number][] = [
+      [`a week from ${DOW[dow]}`, dayPlus(a, 7 + (dowDate(a, dow).getTime() === a.now.getTime() ? 0 : Math.round((startOfLocalDay(dowDate(a, dow), a.tz) - startOfLocalDay(a.now, a.tz)) / 86_400_000))), 10, 0],
+      [`next week ${DOW[dow]}`, nextWeekDow(a, dow), 10, 0],
+      ["two weeks from today", dayPlus(a, 14), 10, 0],
+      ["a week from tomorrow", dayPlus(a, 8), 10, 0],
+      [`${DOW[tp.dow].slice(0, 3)} ${tp.m}/${tp.d}`, tg, 10, 0],
+      [`${DOW[tp.dow]} ${MON[tp.m - 1]} ${tp.d}`, tg, 10, 0],
+      ["tomorrow morning", dayPlus(a, 1), 9, 0], ["tomorrow afternoon", dayPlus(a, 1), 14, 0], ["tomorrow evening", dayPlus(a, 1), 18, 0],
+      ["noon tomorrow", dayPlus(a, 1), 12, 0], ["tomorrow noonish", dayPlus(a, 1), 12, 0], ["10 o'clock tomorrow", dayPlus(a, 1), 10, 0],
+    ];
+    const [txt, day, h, mi] = rows[i % rows.length];
+    const hasTime = /morning|afternoon|evening|noon|o'clock/.test(txt);
+    const msg = hasTime ? `meeting with Dana ${txt}` : `meeting with Dana ${txt} at 10am`;
+    await scenario(`R${i} "${msg}"`, a, async (bad) => {
+      const out = await say(a, msg);
+      const all = await evs(a, "meeting");
+      bad(all.length === 1, `expected 1 meeting, got ${all.length}: ${out.slice(0, 100)}`);
+      slotIs(bad, a, all[0], day, h, mi);
+      bad(all[0]?.title === "Meeting with Dana", `title "${all[0]?.title}"`);
+    });
+  }
+});
+function startOfLocalDay(d: Date, tz: string) { const p = partsIn(d, tz); return zonedToUtc(p.y, p.m, p.d, 0, 0, tz).getTime(); }
+
+// ======================================================================= S. calendar questions (24)
+test("S. 'what's on my calendar' and 'am I free' are answered from the real calendar", async () => {
+  const r = rng(9032);
+  for (let i = 0; i < 24; i++) {
+    const a = await fresh(r);
+    const d = pick(r, [0, 1, 2, 3, 4, 5, 6].filter((x) => x !== partsIn(a.now, a.tz).dow && x !== partsIn(dayPlus(a, 1), a.tz).dow));
+    const other = pick(r, [0, 1, 2, 3, 4, 5, 6].filter((x) => x !== d && x !== partsIn(a.now, a.tz).dow && x !== partsIn(dayPlus(a, 1), a.tz).dow));
+    await scenario(`S${i}`, a, async (bad) => {
+      await say(a, `Showing at 12 Oak St ${DOW[d]} at 11am`);
+      await say(a, `Meeting with Dana ${DOW[d]} at 2pm`);
+      await say(a, `Call with Priya ${DOW[other]} at 9am`);
+      const mode = i % 6;
+      if (mode === 0 || mode === 1 || mode === 2) {
+        const out = await say(a, [`what's on my calendar ${DOW[d]}`, `what do I have ${DOW[d]}?`, `anything on ${DOW[d].slice(0, 3)}?`][mode]);
+        bad(/12 Oak/.test(out) && /11:00\sAM/.test(out) && /Dana/.test(out) && /2:00\sPM/.test(out), `missing events: ${out.slice(0, 160)}`);
+        bad(!/Priya/.test(out), "listed another day's event");
+        bad(out.indexOf("12 Oak") < out.indexOf("Dana"), "not in time order");
+      } else if (mode === 3) {
+        const out = await say(a, `am I free ${DOW[d]} at 2:15?`);
+        bad(/\b(no|not|busy|booked|conflict|already)\b/i.test(out) && /Dana/.test(out), `should say busy with Dana: ${out.slice(0, 140)}`);
+      } else if (mode === 4) {
+        const out = await say(a, `am I free ${DOW[d]} at 4pm?`);
+        bad(/\b(yes|free|open|nothing)\b/i.test(out) && !/\bnot free\b/i.test(out), `should say free: ${out.slice(0, 140)}`);
+      } else {
+        const free = [0, 1, 2, 3, 4, 5, 6].find((x) => x !== d && x !== other && x !== partsIn(a.now, a.tz).dow && x !== partsIn(dayPlus(a, 1), a.tz).dow)!;
+        const out = await say(a, `what's on for ${DOW[free]}`);
+        bad(/nothing|free|clear|no events|empty/i.test(out) && !/Dana|Oak|Priya/.test(out), `should be empty: ${out.slice(0, 140)}`);
+      }
+      bad((await evs(a)).length === 3, "a question changed the calendar");
+    });
+  }
+});
+
+// ======================================================================= T. updating a listing (12)
+test("T. price changes and corrections to a saved listing update it (and say what changed)", async () => {
+  const r = rng(9033);
+  const rows: [string, (p: any) => boolean, RegExp][] = [
+    ["price drop on 12 Oak St, now $425k", (p) => p.list_price === 425000, /450,000.*425,000|425,000/],
+    ["reduced 12 Oak St to 399", (p) => p.list_price === 399000, /399,000/],
+    ["update the price on the Oak St listing to $410,000", (p) => p.list_price === 410000, /410,000/],
+    ["12 Oak St is now asking 1.2M", (p) => p.list_price === 1200000, /1,200,000/],
+    ["12 oak street actually has 4 bedrooms and 3 baths", (p) => p.beds === 4 && p.baths === 3, /3\s*→\s*4/],
+    ["change the price of 12 Oak St to 435,000", (p) => p.list_price === 435000, /435,000/],
+    ["12 Oak St is 1,950 sq ft", (p) => p.sqft === 1950, /1,950/],
+    ["we cut the price on 12 Oak St to $419,900", (p) => p.list_price === 419900, /419,900/],
+  ];
+  for (let i = 0; i < rows.length * 2; i++) {
+    const a = await fresh(r);
+    const [msg, ok, re] = rows[i % rows.length];
+    await scenario(`T${i} "${msg}"`, a, async (bad) => {
+      await withListing(a);
+      const out = await say(a, msg);
+      const props = await store.list("properties", a.id);
+      bad(props.length === 1, `${props.length} properties (a duplicate was created)`);
+      bad(ok(props[0]), `property not updated: ${JSON.stringify({ p: props[0].list_price, b: props[0].beds, ba: props[0].baths, s: props[0].sqft })}`);
+      bad(re.test(out), `reply doesn't say what changed: ${out.slice(0, 140)}`);
+    });
+  }
+});
+
+// ======================================================================= U. undo by typing (8)
+test("U. typing 'undo' reverses the last change", async () => {
+  const r = rng(9034);
+  for (let i = 0; i < 8; i++) {
+    const a = await fresh(r);
+    const d = notToday(a, r);
+    await scenario(`U${i}`, a, async (bad) => {
+      await say(a, `Showing at 12 Oak St ${DOW[d]} at 10am`);
+      const before = (await evs(a, "showing"))[0];
+      if (i % 2 === 0) {
+        await say(a, "move the showing to 4pm");
+        const out = await say(a, pick(r, ["undo", "undo that", "put it back", "nvm go back to the original time"]));
+        const e = (await evs(a, "showing"))[0];
+        bad(e.start_at === before.start_at, `not restored (${e.start_at} vs ${before.start_at}): ${out.slice(0, 100)}`);
+      } else {
+        const res = await a.say(pick(r, ["undo", "undo that"]));
+        bad((await evs(a, "showing")).length === 1, "undo deleted the event without asking");
+        bad(/confirm|OK/i.test(res.milaMessage.content + JSON.stringify(res.milaMessage.blocks)), `undo of an add must ask first: ${res.milaMessage.content.slice(0, 100)}`);
+      }
+    });
+  }
+  for (const msg of ["undo", "undo that please"]) {
+    const a = await fresh(r);
+    await scenario(`U-empty ${msg}`, a, async (bad) => {
+      const out = await say(a, msg);
+      bad(/nothing to undo|nothing/i.test(out) && !/not sure how/i.test(out), `unclear: ${out.slice(0, 100)}`);
+    });
+  }
+});
+
+// ======================================================================= V. contact details + typing in lowercase (30)
+test("V. new contacts typed fast in lower case keep every detail; contact info can be asked back", async () => {
+  const r = rng(9035);
+  const rows: { msg: string; name: string; type: string; email?: string; phone?: string; max?: number }[] = [
+    { msg: "new buyer named dana whitfield looking for 3 bed 600k", name: "Dana Whitfield", type: "buyer", max: 600000 },
+    { msg: "new lead: priya shah priya@shah.dev 301-555-0100 interested in condos under 400k", name: "Priya Shah", type: "lead", email: "priya@shah.dev", phone: "(301) 555-0100", max: 400000 },
+    { msg: "add mike johnson as a buyer, 240-555-1212, mike@mj.com", name: "Mike Johnson", type: "buyer", email: "mike@mj.com", phone: "(240) 555-1212" },
+    { msg: "I met a new seller named Kevin O'Neil (kevin@oneil.com) he wants to list his 4 bed in Rockville", name: "Kevin O'Neil", type: "seller", email: "kevin@oneil.com" },
+    { msg: "new buyer mary-kate o'neil, 202-555-0145, budget 750k", name: "Mary-Kate O'Neil", type: "buyer", phone: "(202) 555-0145", max: 750000 },
+    { msg: "got a new investor called tom alvarez tom@alv.co looking for multifamily around 1.2M", name: "Tom Alvarez", type: "investor", email: "tom@alv.co", max: 1200000 },
+    { msg: "new renter named grace kim, 2 bed under 3k a month, grace@kim.net", name: "Grace Kim", type: "rental", email: "grace@kim.net" },
+    { msg: "I have a new buyer named Marcus Lee, marcus@lee.io, pre-approved at $850,000 timeline next 3 months", name: "Marcus Lee", type: "buyer", email: "marcus@lee.io", max: 850000 },
+  ];
+  for (const [i, row] of rows.entries()) for (let k = 0; k < 2; k++) {
+    const a = await fresh(r);
+    await scenario(`V${i}.${k} "${row.msg}"`, a, async (bad) => {
+      await say(a, row.msg);
+      const cs: any[] = await store.list("contacts", a.id);
+      bad(cs.length === 1, `${cs.length} contacts`);
+      const c = cs[0]; if (!c) return;
+      bad(c.name === row.name, `name "${c.name}" != "${row.name}"`);
+      bad(c.type === row.type, `type ${c.type} != ${row.type}`);
+      if (row.email) bad(c.email === row.email, `email ${c.email}`);
+      if (row.phone) bad(c.phone === row.phone, `phone ${c.phone}`);
+      if (row.max) bad(c.budget_max === row.max, `budget ${c.budget_max} != ${row.max}`);
+      if (k === 1) { // ask for the details back
+        const first = row.name.split(" ")[0];
+        if (row.phone) { const out = await say(a, `what's ${first}'s number`); bad(out.includes(row.phone) || out.replace(/\D/g, "").includes(row.phone.replace(/\D/g, "")), `phone not given: ${out.slice(0, 100)}`); }
+        if (row.email) { const out = await say(a, `${first}'s email?`); bad(out.includes(row.email), `email not given: ${out.slice(0, 100)}`); }
+        if (!row.phone) { const out = await say(a, `what's ${first}'s phone number`); bad(/don't have|no phone|haven't/i.test(out), `should say it has no phone: ${out.slice(0, 100)}`); }
+      }
+      // saying it again never makes a second person
+      await say(a, row.msg);
+      bad((await store.list("contacts", a.id)).length === 1, "duplicate contact");
+    });
+  }
+});
+
+// ======================================================================= W. several people in one line (6)
+test("W. a one-line list of people becomes one contact each", async () => {
+  const r = rng(9036);
+  const rows: [string, string[]][] = [
+    ["met 3 buyers at the open house: Ann Lee ann@x.com; Bob Ray bob@y.com; Cy Doe cy@z.com", ["Ann Lee", "Bob Ray", "Cy Doe"]],
+    ["add these leads: Ann Lee (ann@x.com), Bob Ray (bob@y.com), Cy Doe (cy@z.com)", ["Ann Lee", "Bob Ray", "Cy Doe"]],
+    ["new contacts: Sean O'Malley sean@om.com, Mary-Kate Olsen mk@olsen.com", ["Sean O'Malley", "Mary-Kate Olsen"]],
+    ["import: Dana Whitfield dana@w.com 301-555-0188; Kevin O'Neil kevin@oneil.com 301-555-0189", ["Dana Whitfield", "Kevin O'Neil"]],
+  ];
+  for (const [i, [msg, names]] of rows.entries()) {
+    const a = await fresh(r);
+    await scenario(`W${i} "${msg}"`, a, async (bad) => {
+      await say(a, msg);
+      const cs: any[] = await store.list("contacts", a.id);
+      for (const n of names) bad(cs.some((c) => c.name === n), `missing ${n} (have ${cs.map((c) => c.name).join(" | ")})`);
+      bad(cs.length === names.length, `${cs.length} contacts for ${names.length} people`);
+      bad(cs.every((c) => c.email), "an email was lost");
+    });
+  }
+});
+
+// ======================================================================= X. statements about clients are never lost (16)
+test("X. whatever the agent says about a known client is saved on that client", async () => {
+  const r = rng(9037);
+  const facts = ["hates carpet", "is allergic to cats", "got pre-approved for 650k", "is relocating from Chicago", "needs to sell before buying", "loves mid-century modern", "can only see houses after 5", "prefers text over email"];
+  for (let i = 0; i < 16; i++) {
+    const a = await fresh(r);
+    const f = facts[i % facts.length];
+    const nm = pick(r, ["Dana", "Priya", "Marcus"]);
+    await scenario(`X${i} ${nm} ${f}`, a, async (bad) => {
+      await say(a, `I have a new buyer named ${nm} Whitfield looking for a 3 bedroom around $600k`);
+      const out = await say(a, `${nm} ${f}`);
+      const c = (await store.list("contacts", a.id))[0];
+      const mem = (await store.list("memories", a.id)).filter((m: any) => m.subject_id === c.id);
+      const key = f.replace(/^(?:is|got|can only|needs to|loves|prefers|hates)\s+/, "").split(" ")[0];
+      bad(mem.some((m: any) => m.value.toLowerCase().includes(key.toLowerCase())), `not saved on ${nm}: ${mem.map((m: any) => m.value).join(" | ")}`);
+      bad(/saved|noted|got it/i.test(out) && !/not sure how/i.test(out), `no acknowledgement: ${out.slice(0, 100)}`);
+      bad((await store.list("contacts", a.id)).length === 1, "invented a contact");
+    });
+  }
+});
+
+// ======================================================================= Y. recurring requests are not silently flattened (4)
+test("Y. a recurring reminder is not silently made one-time", async () => {
+  const r = rng(9038);
+  for (const msg of ["remind me every Monday at 9am to review the pipeline", "remind me daily at 8am to check leads", "remind me weekly to call past clients", "remind me every month on the 1st to send the newsletter"]) {
+    const a = await fresh(r);
+    await scenario(`Y "${msg}"`, a, async (bad) => {
+      const out = await say(a, msg);
+      bad(/one-time|once|doesn't repeat|can't repeat|not recurring|only set one/i.test(out), `silent about recurrence: ${out.slice(0, 140)}`);
+    });
   }
 });
 

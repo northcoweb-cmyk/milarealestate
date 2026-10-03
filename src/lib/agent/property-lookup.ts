@@ -3,7 +3,7 @@ import { recordUsage } from "../credits";
 import type { Property } from "../types";
 import type { Ctx } from "./context";
 import { CACHE_PREFIX } from "./memory";
-import { findAddress } from "./nlu";
+import { addrKey, findAddress } from "./nlu";
 
 /**
  * Turning "123 Main Street" into a real, complete property:
@@ -110,7 +110,7 @@ export type Resolve = { status: "ok"; place: Place; street: string; unverified?:
  * An address Google can't find is NOT refused — we carry on and flag it as unverified so the agent can double-check.
  */
 export async function resolveAddress(ctx: Ctx, text: string, street: string): Promise<Resolve> {
-  const known = (await ctx.store.list("properties", ctx.userId)).find((p) => p.address.toLowerCase() === street.toLowerCase() && p.city && p.state);
+  const known = (await ctx.store.list("properties", ctx.userId)).find((p) => addrKey(p.address) === addrKey(street) && p.city && p.state);
   if (known) return { status: "ok", street, place: { city: known.city, state: known.state, zip: known.zip, county: known.county } };
   const p = extractPlace(text);
   const complete = !!(p.state && p.city) || !!p.zip;

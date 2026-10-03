@@ -13,7 +13,9 @@ export function extractListingFacts(raw: string): ListingFacts {
   const dollars = [...t.matchAll(/\$\s*(\d[\d,]*(?:\.\d+)?)\s*(k|m|mm|million|thousand)?\b/gi)].find((m) => plausible(m) != null);
   const cues = [...t.matchAll(/(?:list(?:ed|ing)?(?:\s+(?:at|for|price))?|asking|priced?(?:\s+at)?|for|at)\s*(\d[\d,]*(?:\.\d+)?)\s*(k|m|mm|million|thousand)\b/gi)].find((m) => plausible(m) != null && notStreet(m));
   const bareCue = [...t.matchAll(/(?:list(?:ed|ing)?(?:\s+(?:at|for|price))?|asking|priced?(?:\s+at)?|for|at)\s*(\d[\d,]{4,})\b(?!\s*(?:sq|sf|square))/gi)].find((m) => plausible(m) != null && notStreet(m));
-  const pick = dollars ?? cues ?? bareCue;
+  // "…3bd 2ba 400k": a number with k/m and no cue word is the price when nothing else says otherwise
+  const loose = [...t.matchAll(/(?<![\w$.])(\d{2,3}(?:\.\d)?|\d(?:\.\d{1,3})?)\s?(k|m|mm)\b(?!\s*(?:sq|sf|miles?|min|%))/gi)].find((m) => plausible(m) != null && notStreet(m));
+  const pick = dollars ?? cues ?? bareCue ?? loose;
   if (pick) f.list_price = plausible(pick)!;
   // "asking 899" / "listed at 475": a bare three-digit number after a price cue is thousands
   else {

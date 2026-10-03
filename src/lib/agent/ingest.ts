@@ -106,9 +106,10 @@ export function rowsToCandidates(rows: string[][]): Candidate[] {
 
 export function textLineToCandidate(line: string): Candidate {
   const email = parseEmail(line), phone = parsePhone(line);
-  let rest = line.replace(email ?? "", "").replace(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/, "");
-  const parts = rest.split(/[,\-–—|\t]+/).map((s) => s.trim()).filter(Boolean);
-  const nameIdx = parts.findIndex((p) => /^[A-Za-z][A-Za-z'.-]+(?:\s+[A-Za-z][A-Za-z'.-]+){0,2}$/.test(p) && p.split(" ").length <= 3 && !/\b(looking|interested|asked|wants|financ|just|rent|sell|buy)/i.test(p));
+  let rest = line.replace(email ?? "", "").replace(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/, "").replace(/[()\[\]<>]/g, " ");
+  // a hyphen only separates fields when it stands alone ("Dana Lee - wants a condo"); "Mary-Kate" and "Smith-Jones" stay whole
+  const parts = rest.split(/\s*[,|\t–—]+\s*|\s+-+\s+/).map((s) => s.trim()).filter(Boolean);
+  const nameIdx = parts.findIndex((p) => /^\p{L}[\p{L}'’.-]+(?:\s+\p{L}[\p{L}'’.-]+){0,3}$/u.test(p) && p.split(" ").length <= 4 && !/\b(looking|interested|asked|wants|financ|just|rent|sell|buy)/i.test(p));
   const name = nameIdx >= 0 ? parts[nameIdx] : null;
   const notes = parts.filter((_, i) => i !== nameIdx).join("; ") || null;
   return validate({ name, email, phone, notes, timeline: parseTimeline(line), location: null, type: null, issues: [], raw: line });
@@ -117,7 +118,30 @@ export function textLineToCandidate(line: string): Candidate {
 export function textToCandidates(text: string): Candidate[] {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (lines.length > 1 && /[,\t;]/.test(lines[0]) && headerMap(parseDelimited(lines[0])[0] ?? [])) return rowsToCandidates(parseDelimited(text));
-  return lines.map(textLineToCandidate).filter((c) => c.name || c.email || c.phone);
+  return lines.flatMap(splitCrowdedLine).map(textLineToCandidate).filter((c) => c.name || c.email || c.phone);
+}
+
+/**
+ * One line holding several people ("Ann Lee ann@x.com; Bob Ray bob@y.com", "Ann Lee (ann@x.com), Bob Ray (bob@y.com)") is split into one
+ * entry per email address, cutting each gap where the next person's name begins.
+ */
+function splitCrowdedLine(line: string): string[] {
+  const emails = [...line.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)];
+  if (emails.length < 2) return [line];
+  const out: string[] = [];
+  let start = 0;
+  for (let i = 0; i < emails.length - 1; i++) {
+    const gapFrom = (emails[i].index ?? 0) + emails[i][0].length, gapTo = emails[i + 1].index ?? 0;
+    const gap = line.slice(gapFrom, gapTo);
+    // the next person's name is the trailing run of letters (no digits, no @) after the last separator in the gap
+    let cut = -1;
+    for (const m of gap.matchAll(/[;,)\]]\s*|\s+and\s+/gi)) { const tail = gap.slice((m.index ?? 0) + m[0].length); if (/\p{L}/u.test(tail) && !/[\d@]/.test(tail)) cut = (m.index ?? 0) + m[0].length; }
+    if (cut < 0) { const nm = /((?:\p{Lu}[\p{L}'’-]+\s+){1,3})\(?$/u.exec(gap); cut = nm ? gap.length - nm[1].length - (gap.endsWith("(") ? 1 : 0) : gap.length; }
+    out.push(line.slice(start, gapFrom + cut).replace(/[;,]\s*$/, ""));
+    start = gapFrom + cut;
+  }
+  out.push(line.slice(start));
+  return out.map((x) => x.replace(/^[\s;,]+|[\s;,]+$/g, "")).filter(Boolean);
 }
 
 function validate(c: Candidate): Candidate {

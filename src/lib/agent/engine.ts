@@ -10,10 +10,10 @@ import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { logError } from "../server/errors";
-import { addListingHandler, listingChecklist, showingSheetHandler } from "./handlers/listing";
+import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
-import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, eventReminder } from "./handlers/calendar";
+import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, eventReminder } from "./handlers/calendar";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
@@ -125,7 +125,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     const timeLike = !!(parseTime(text) || parseDate(text, ctx.now, ctx.tz));
     const miss = String(pend.missing ?? "");
     const looksLikeAnswer = d.intent === pend.intent
-      || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" ? words <= 8 || !!parseAddress(text) : timeLike)))
+      || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" || miss === "details" ? words <= 8 || !!parseAddress(text) : timeLike)))
       || (words <= 4 && timeLike);
     if (looksLikeAnswer && !/\?\s*$/.test(text)) {
       text = dropNegatedDate(text);
@@ -145,7 +145,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
 
   // "Actually make that 4" / "no, Sunday" / "sorry 4pm" right after Mila put something on the calendar means: change THAT event.
   if (!forced && !pend && ctx.state.last_event_id && text.split(/\s+/).length <= 8) {
-    const m = /^(?:(?:actually|no|nope|wait|oops|sorry|hmm|ok(?:ay)?|um)[,.!\s]+)*(?:(?:can we |could we |let'?s |lets )?(?:make|do|change|move|push|switch|say)\s+(?:it|that|this)(?:\s+(?:to|at|for))?|it'?s|its|how about|what about|at|for|to)?\s*(.+?)[.!\s]*$/i.exec(text);
+    const m = /^(?:(?:actually|no|nope|wait|oops|sorry|hmm|ok(?:ay)?|um|i\s+meant|i\s+mean)[,.!\s]+)*(?:(?:can we |could we |let'?s |lets )?(?:make|do|change|move|push|switch|say)\s+(?:it|that|this)(?:\s+(?:to|at|for))?|it'?s|its|how about|what about|at|for|to)?\b\s*(.+?)[.!\s]*$/i.exec(text);
     const rest = m?.[1]?.trim();
     if (rest && /^(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?|noon|(?:today|tomorrow|tonight|mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)[a-z]*(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?)?)$/i.test(rest) && (parseTime(rest) || parseDate(rest, ctx.now, ctx.tz) || /^\d{1,2}$/.test(rest))) {
       const when = /^\d{1,2}$/.test(rest) ? `at ${rest}` : rest;
@@ -182,6 +182,9 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     case "time_off": return timeOffHandler(ctx, text);
     case "add_listing": return addListingHandler(ctx, text);
     case "showing_sheet": return showingSheetHandler(ctx, text);
+    case "update_listing": return updateListingHandler(ctx, text);
+    case "agenda": return agendaHandler(ctx, text);
+    case "undo": return undoHandler(ctx);
     case "open_house": return openHouseHandler(ctx, text);
     case "move_event": return moveEventHandler(ctx, text, declared);
     case "cancel_event": return cancelEventHandler(ctx, text);

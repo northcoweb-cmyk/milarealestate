@@ -3,7 +3,7 @@ import { type Ctx, firstName, label, plural } from "../context";
 import { persistState } from "../conversation";
 import { followUpEmail, polish } from "../comms";
 import { type Candidate, candidatesFromDocument, importCandidates, textToCandidates } from "../ingest";
-import { capitalisedNames, parseAddress } from "../nlu";
+import { addrKey, capitalisedNames, parseAddress } from "../nlu";
 import { TOOLS, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
 
@@ -85,7 +85,7 @@ export async function handleAttachments(ctx: Ctx, docs: DocumentRow[], text: str
 export async function lastOpenHouseProperty(ctx: Ctx, text = ""): Promise<Property | null> {
   const addr = parseAddress(text);
   const props = await ctx.store.list("properties", ctx.userId);
-  if (addr) { const p = props.find((x) => x.address.toLowerCase() === addr.toLowerCase()); if (p) return p; }
+  if (addr) { const p = props.find((x) => addrKey(x.address) === addrKey(addr)); if (p) return p; }
   if (ctx.state.last_property_id) { const p = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id); if (p) return p; }
   const ev = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.kind === "open_house" && e.property_id && e.status === "confirmed").sort((a, b) => b.start_at.localeCompare(a.start_at))[0];
   return ev?.property_id ? ctx.store.get("properties", ctx.userId, ev.property_id) : null;

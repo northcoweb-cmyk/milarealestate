@@ -9,6 +9,7 @@ import { type Ctx, type ToolResult, fail, ok, pickColor, firstName, plural, labe
 import { type Gate, mustAsk } from "./policy";
 import { bucket, scoreTask } from "./prioritize";
 import { listMemories, saveMemory } from "./memory";
+import { addrKey } from "./nlu";
 
 /**
  * Tool registry. Tools are the ONLY way Mila changes anything. Each returns a
@@ -159,7 +160,7 @@ export const TOOLS: Record<string, ToolDef> = {
       // facts the agent stated themselves are authoritative: save them, and mark the property confirmed
       const stated: Record<string, unknown> = {};
       for (const k of ["list_price", "beds", "baths", "sqft"] as const) if (a[k] != null) stated[k] = a[k];
-      const hit = (await ctx.store.list("properties", ctx.userId)).find((p) => p.address.toLowerCase() === addr.toLowerCase());
+      const hit = (await ctx.store.list("properties", ctx.userId)).find((p) => addrKey(p.address) === addrKey(addr)); // "77 W. Main" and "77 W Main" are the same house
       if (hit) {
         const fill: Record<string, unknown> = {};
         for (const k of ["city", "state", "zip", "county"] as const) if (!hit[k] && a[k]) fill[k] = a[k];

@@ -4,7 +4,7 @@ import type { Ctx } from "../context";
 import { plural } from "../context";
 import { persistState } from "../conversation";
 import { openHouseEmail, openHouseSocial, polish } from "../comms";
-import { parseAddress, parseWhen } from "../nlu";
+import { addrKey, parseAddress, parseWhen } from "../nlu";
 import { TOOLS, eventConflicts, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { autoPhotos, explainPull, firstUrl } from "./photos";
@@ -40,7 +40,7 @@ export async function emailAudienceHandler(ctx: Ctx, text: string): Promise<Hand
   const events = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && e.kind === "open_house" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at));
   const ev = events.find((e) => !addr || `${e.title} ${e.location ?? ""}`.toLowerCase().includes(addr.toLowerCase())) ?? null;
   let prop: Property | null = ev?.property_id ? await ctx.store.get("properties", ctx.userId, ev.property_id) : null;
-  if (!prop && addr) prop = (await ctx.store.list("properties", ctx.userId)).find((p) => p.address.toLowerCase() === addr.toLowerCase()) ?? null;
+  if (!prop && addr) prop = (await ctx.store.list("properties", ctx.userId)).find((p) => addrKey(p.address) === addrKey(addr)) ?? null;
   if (!prop && ctx.state.last_property_id) prop = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id);
   if (!prop) return reply("Which listing or open house is the email for? Give me the address.");
   const audience = await openHouseAudience(ctx);

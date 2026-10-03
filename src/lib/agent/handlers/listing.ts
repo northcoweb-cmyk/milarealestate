@@ -2,7 +2,7 @@ import type { Block, Contact, Property } from "../../types";
 import type { Ctx } from "../context";
 import { persistState } from "../conversation";
 import { describeStated, extractListingFacts, hasAnyFact } from "../listing";
-import { parseAddress } from "../nlu";
+import { addrKey, parseAddress } from "../nlu";
 import { askBack } from "./ask";
 import { describeFacts, enrichProperty } from "../property-lookup";
 import { TOOLS } from "../tools";
@@ -89,7 +89,7 @@ export async function listingChecklist(ctx: Ctx, propertyId: string): Promise<Ha
 
 
 const STREET_NOISE = new Set(["street", "st", "avenue", "ave", "road", "rd", "drive", "dr", "lane", "ln", "court", "ct", "way", "boulevard", "blvd", "place", "pl", "terrace", "circle", "cir", "trail", "parkway", "highway", "square", "n", "s", "e", "w", "ne", "nw", "se", "sw", "north", "south", "east", "west"]);
-const baseAddress = (a: string) => a.replace(/\s*#.*$/, "").toLowerCase();
+const baseAddress = (a: string) => addrKey(a.replace(/\s*#.*$/, ""));
 /**
  * Which saved property is the agent talking about? By full address ("12 Oak St"), by street name ("the Oak St listing"),
  * or, when `fallbackToLast` is set, "this listing"/"it" meaning the one we were just working on.
@@ -98,7 +98,7 @@ export async function resolveProperty(ctx: Ctx, text: string, fallbackToLast = f
   const props = await ctx.store.list("properties", ctx.userId);
   const addr = parseAddress(text);
   if (addr) {
-    const exact = props.find((p) => p.address.toLowerCase() === addr.toLowerCase()) ?? props.find((p) => baseAddress(p.address) === baseAddress(addr));
+    const exact = props.find((p) => addrKey(p.address) === addrKey(addr)) ?? props.find((p) => baseAddress(p.address) === baseAddress(addr));
     if (exact) return exact;
   }
   const words = new Set(text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/));
@@ -122,4 +122,39 @@ export async function showingSheetHandler(ctx: Ctx, text: string): Promise<Handl
   const addr = parseAddress(text);
   if (addr) return reply(`I don't have ${addr} saved yet. Tell me to add it as a listing (with the city and state) and I'll start the sheet from there.`, [], "smalltalk");
   return askBack(ctx, "showing_sheet", text, "address", "Which property is the showing sheet for? Give me the address.");
+}
+
+
+/** "Price drop on 12 Oak St, now $425k" / "12 Oak St actually has 4 bedrooms": the agent's word is the truth, so apply it and say exactly what changed. */
+export async function updateListingHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const prop = await resolveProperty(ctx, text, !parseAddress(text) && /\b(this|that|the|my|latest|last|new)\b.*\b(listing|house|home|property)\b|\bit\b/i.test(text));
+  const addr = parseAddress(text);
+  if (!prop) {
+    if (addr) return reply(`I don't have ${addr} saved yet. Want me to add it as a new listing? Just say “new listing at ${addr}” with the city and price.`, [], "smalltalk");
+    return askBack(ctx, "update_listing", text, "address", "Which listing is that for? Give me the address.");
+  }
+  const f = extractListingFacts(text);
+  // "reduced to 399", "change the price to 435,000", "now asking 1.2M": a price after to/now/at/for, with thousands implied for a bare 3 digits
+  if (f.list_price == null) {
+    const m = /\b(?:to|now|at|for|is)\s+\$?(\d[\d,]*(?:\.\d+)?)\s*(k|m|mm)?\b(?!\s*(?:sq|sf|square|bed|bd|br|bath|ba\b))/i.exec(text.replace(addr ? new RegExp(addr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+"), "i") : /\u0000/, " "));
+    if (m) { let v = parseFloat(m[1].replace(/,/g, "")); const u = (m[2] ?? "").toLowerCase(); if (u === "k") v *= 1000; else if (u === "m" || u === "mm") v *= 1_000_000; else if (v >= 100 && v < 1000 && !m[1].includes(",")) v *= 1000; if (v >= 20_000 && v <= 200_000_000) f.list_price = Math.round(v); }
+  }
+  const changes: { key: "list_price" | "beds" | "baths" | "sqft"; label: string; from: unknown; to: number }[] = [];
+  if (f.list_price != null && f.list_price !== prop.list_price) changes.push({ key: "list_price", label: "price", from: prop.list_price, to: f.list_price });
+  if (f.beds != null && f.beds !== prop.beds) changes.push({ key: "beds", label: "beds", from: prop.beds, to: f.beds });
+  if (f.baths != null && f.baths !== prop.baths) changes.push({ key: "baths", label: "baths", from: prop.baths, to: f.baths });
+  if (f.sqft != null && f.sqft !== prop.sqft) changes.push({ key: "sqft", label: "square feet", from: prop.sqft, to: f.sqft });
+  ctx.state.last_property_id = prop.id;
+  if (!changes.length) {
+    if (hasAnyFact(f)) return reply(`${prop.address} already has those details, so nothing changed.`, [], "smalltalk");
+    return askBack(ctx, "update_listing", text, "details", `What should I change on ${prop.address}? For example “price is now $425k”.`);
+  }
+  const patch: Record<string, unknown> = { verified: true }, undo: Record<string, unknown> = { verified: prop.verified };
+  for (const c of changes) { patch[c.key] = c.to; undo[c.key] = c.from; }
+  await ctx.store.update("properties", ctx.userId, prop.id, patch as never);
+  ctx.state.last_action = { type: "property", property_id: prop.id, patch: undo };
+  const fmt = (c: (typeof changes)[number], v: unknown) => (v == null ? "blank" : c.key === "list_price" ? money(Number(v)) : c.key === "sqft" ? `${Number(v).toLocaleString("en-US")}` : String(v));
+  const lines = changes.map((c) => `${c.label[0].toUpperCase() + c.label.slice(1)}: ${fmt(c, c.from)} → ${fmt(c, c.to)}`);
+  const priceDrop = changes.find((c) => c.key === "list_price" && typeof c.from === "number" && c.to < (c.from as number));
+  return reply(`Updated ${prop.address}.\n${lines.join("\n")}`, priceDrop ? [{ type: "choice", title: "Spread the word?", buttons: [{ label: "Make a price-improvement post", style: "primary", action: { type: "prompt", text: `Create a price improvement post for ${prop.address}` } }, { label: "Open property", style: "quiet", href: `/properties/${prop.id}` }] }] : [], "chat_simple");
 }

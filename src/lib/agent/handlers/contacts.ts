@@ -140,13 +140,22 @@ export async function mentionedContacts(ctx: Ctx, text: string): Promise<Contact
   const all = await ctx.store.list("contacts", ctx.userId);
   const full = all.filter((c) => t.includes(c.name.toLowerCase()));
   if (full.length) return full;
-  const words = new Set(t.split(/[^a-z0-9'’-]+/).filter((w) => w.length >= 3));
+  const words = new Set(t.replace(/['’]s\b/g, "").split(/[^a-z0-9'’-]+/).filter((w) => w.length >= 3)); // "Priya's number" names Priya
   const stop = new Set(["who", "the", "and", "for", "all", "tell", "about", "what", "contact", "contacts", "buyer", "seller", "lead", "client", "test"]);
-  return all.filter((c) => { const f = c.name.toLowerCase().split(/\s+/)[0]; return words.has(f) && !stop.has(f); });
+  const shortNames = new Set([...text.matchAll(/(?<![\p{L}])(\p{Lu}\p{Ll})(?![\p{L}])/gu)].map((m) => m[1].toLowerCase())); // "Li", "Mc": only when written as a name
+  return all.filter((c) => { const f = c.name.toLowerCase().split(/\s+/)[0]; return (f.length >= 3 ? words.has(f) : shortNames.has(f)) && !stop.has(f); });
 }
 
 export async function recallHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const found = await mentionedContacts(ctx, text);
+  const wantsEmail = /\b(e-?mail)\b/i.test(text), wantsPhone = /\b(phone|number|cell|mobile)\b/i.test(text);
+  if (found.length === 1 && (wantsEmail || wantsPhone)) {
+    const c = found[0];
+    const bits = [wantsPhone ? (c.phone ? `phone ${c.phone}` : null) : null, wantsEmail ? (c.email ? `email ${c.email}` : null) : null].filter(Boolean);
+    const missing = [wantsPhone && !c.phone ? "phone number" : null, wantsEmail && !c.email ? "email" : null].filter(Boolean);
+    ctx.state.last_contact_ids = [c.id];
+    return reply(`${bits.length ? `${c.name}: ${bits.join(" · ")}.` : ""}${missing.length ? `${bits.length ? " " : ""}I don't have a ${missing.join(" or ")} for ${c.name} yet. Tell me and I'll save it.` : ""}`, [{ type: "contacts", title: c.name, contacts: [{ id: c.id, name: c.name, type: label(c.type), color: c.avatar_color }], buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] }], "smalltalk");
+  }
   if (found.length === 1) {
     const c = found[0];
     const facts = await contactFacts(ctx, c);

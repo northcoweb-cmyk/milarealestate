@@ -63,7 +63,9 @@ export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> 
       const contacts = await ctx.store.list("contacts", ctx.userId);
       for (const c of contacts) {
         const first = c.name.split(/\s+/)[0];
-        if (first.length < 3 || !new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(s) || /\?\s*$/.test(s)) continue;
+        const esc = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        // short first names ("Li", "Mc") only count when written as a capitalised name, so ordinary words never match
+        if (/\?\s*$/.test(s) || !(first.length >= 3 ? new RegExp(`\\b${esc}\\b`, "i").test(s) : new RegExp(`(?<![\\p{L}])${esc}(?![\\p{L}])`, "u").test(s))) continue;
         for (const r of CLIENT) {
           const m = r.re.exec(s);
           if (!m) continue;
@@ -92,7 +94,7 @@ const SELLING = /\b(list(?:ing)? (?:their|his|her|the|my)|sell(?:ing)? (?:their|
 export async function clientUpdateHandler(ctx: Ctx, text: string, known: Contact[]): Promise<HandlerOut | null> {
   if (/\?\s*$/.test(text) || /^(what|who|when|where|how|why|do|does|did|is|are|can|could|show|tell|find|list)\b/i.test(text.trim())) return null;
   const items = (await learnDetailed(ctx, text)).filter((i) => i.contact);
-  if (!items.length) return null;
+  if (!items.length) return noteAboutClient(ctx, text, known);
   const c = items[0].contact!;
   const first = c.name.split(/\s+/)[0];
   const lines = items.map((i) => `• ${i.key}: ${i.value}`).join("\n");
@@ -128,4 +130,29 @@ export async function knowledgeFor(ctx: Ctx, text: string): Promise<string> {
     lines.push(`- Client ${c.name}${c.status ? ` (${c.status})` : ""}: ${f.join("; ") || "no details yet"}`);
   }
   return lines.join("\n");
+}
+
+
+/**
+ * "Dana hates carpet" / "Priya is relocating from Chicago": a plain statement that starts with a saved client's name is kept on
+ * that client verbatim, so nothing the agent says about a person is ever dropped just because it didn't fit a known pattern.
+ */
+async function noteAboutClient(ctx: Ctx, text: string, known: Contact[]): Promise<HandlerOut | null> {
+  const t = text.trim();
+  if (t.length < 8 || t.length > 400 || /^(remind|call|email|text|send|schedule|book|move|cancel|draft|make|show|tell|find|add|set|create|delete|remove|undo|what|who|when|where|how|why)\b/i.test(t)) return null;
+  for (const c of known) {
+    const m = new RegExp(`^(?:${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${c.name.split(/\s+/)[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?:['’]s)?\\s+(.{4,})$`, "iu").exec(t);
+    if (!m) continue;
+    const value = clip(m[1].replace(/[.!\s]+$/, ""));
+    const first = c.name.split(/\s+/)[0];
+    const mems = await listMemories(ctx);
+    const lv = value.toLowerCase();
+    // already known (the structured patterns saved it earlier, or this exact note exists): acknowledge, never store twice
+    const known1 = CLIENT.some((r) => r.re.test(t)) || mems.some((x) => x.scope === "contact" && x.subject_id === c.id && (x.value.toLowerCase() === lv || x.value.toLowerCase().includes(lv) || lv.includes(x.value.toLowerCase())));
+    if (known1) { ctx.state.last_contact_ids = [c.id]; return reply(`Got it — that's already on ${first}'s profile.`, [], "chat_simple"); }
+    await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: "Note", value, source: "user_stated", confidence: 0.9 });
+    ctx.state.last_contact_ids = [c.id];
+    return reply(`Got it. Saved to ${first}'s profile:\n• Note: ${value}\nI'll use this when I draft messages and suggest homes.`, [], "chat_simple");
+  }
+  return null;
 }

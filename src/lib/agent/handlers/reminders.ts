@@ -57,12 +57,13 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
       }
     }
   }
-  if (!when) return askBack(ctx, "reminder", text, "time", "When should I remind you?");
+  const recurring = /\b(every|each|daily|weekly|monthly|annually|yearly|recurring|repeat(?:ing)?)\b/i.test(text);
+  if (!when) return askBack(ctx, "reminder", text, "time", `When should I remind you?${recurring ? " (I can only set one-time reminders for now, not repeating ones.)" : ""}`);
   if (when.getTime() <= ctx.now.getTime()) return askBack(ctx, "reminder", text, "time", "That time has already passed — what other time should I use?");
   if (!title) title = "Reminder";
   title = title.charAt(0).toUpperCase() + title.slice(1);
   const out = await invoke(ctx, "create_reminder", { title, remind_at: when.toISOString(), event_id: eventId });
   if (out.status === "needs_approval") return reply("Ready to set that reminder.", [{ type: "notice", tone: "info", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: "Set reminder", style: "primary", approvalId: out.approval.id }] }]);
   if (!out.result.ok) return reply(out.result.message);
-  return reply(`I'll remind you ${fmtDayTime(when, ctx.tz).replace(" • ", " at ")}: ${title}.`);
+  return reply(`I'll remind you ${fmtDayTime(when, ctx.tz).replace(" • ", " at ")}: ${title}.${recurring ? " Heads up: I can only set one-time reminders for now, so this won't repeat. Tell me again after it goes off and I'll set the next one." : ""}`);
 }

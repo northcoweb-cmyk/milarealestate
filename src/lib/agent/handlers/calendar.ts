@@ -1,5 +1,5 @@
-import { fmtDay, fmtDayTime, fmtRange, fmtTime, partsIn, zonedToUtc } from "../../time";
-import type { Block, CalendarEvent, EmailDraft, Property, SocialPost } from "../../types";
+import { addDays, fmtDay, fmtDayTime, fmtRange, fmtShortDate, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
+import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost } from "../../types";
 import type { Ctx } from "../context";
 import { label, plural } from "../context";
 import { persistState } from "../conversation";
@@ -142,6 +142,7 @@ export async function applyMove(ctx: Ctx, event: CalendarEvent, start: Date, end
   }
   if (!out.result.ok) return reply(`I couldn't move it: ${out.result.message}`, [{ type: "notice", tone: "error", title: "Calendar wasn't changed", body: out.result.message }]);
   const data = out.result.data as { event: CalendarEvent; before: CalendarEvent; syncNote?: string };
+  if (data.before.start_at !== data.event.start_at || data.before.end_at !== data.event.end_at) ctx.state.last_action = { type: "move", event_id: data.event.id, start_at: data.before.start_at, end_at: data.before.end_at };
   const stale = await markCommsStale(ctx, data.before, data.event);
   return reply(`Moved to ${fmtDay(data.event.start_at, ctx.tz)} at ${fmtTime(data.event.start_at, ctx.tz)}.`, [
     eventCard(ctx, data.event, "Updated"),
@@ -260,8 +261,19 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   const addr = parseAddress(text);
   const prop = propertyId === undefined && addr && ["showing", "open_house"].includes(kind) ? await resolveProperty(ctx, text, false) : null;
   const nounTitle = noun && /^(inspection|walk-?through|consult|consultation|dinner|coffee|breakfast)$/i.test(noun) ? noun.charAt(0).toUpperCase() + noun.slice(1).toLowerCase() : null;
-  const finalTitle = title ?? `${nounTitle ?? label(kind)}${addr ? ` — ${addr}` : ""}`;
-  const args = { title: finalTitle, kind, start_at: start.toISOString(), end_at: end.toISOString(), location: addr, contact_id: contactId ?? null, property_id: propertyId ?? prop?.id ?? null };
+  // "call with Dana", "lunch with Mary-Kate O'Neil": keep who it's with, and link a saved contact
+  const notName = /^(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|january|february|march|april|may|june|july|august|september|october|november|december|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|today|tomorrow|tonight|at|on|for|and|about|next|this|a|an|the)$/i;
+  const rawWho = /\bwith\s+((?:the\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,2})/u.exec(text)?.[1];
+  const withWho = rawWho ? rawWho.split(/\s+/).reduce<string[]>((acc, w, i) => (acc.length === i && !(i > 0 && notName.test(w)) ? [...acc, w] : acc), []).join(" ") || undefined : undefined;
+  let who: Contact | null = null;
+  if (withWho && contactId === undefined) {
+    const all = await ctx.store.list("contacts", ctx.userId);
+    const lc = withWho.toLowerCase();
+    const hits = all.filter((c) => c.name.toLowerCase() === lc || c.name.toLowerCase().startsWith(lc + " ") || lc.startsWith(c.name.toLowerCase()));
+    if (hits.length === 1) who = hits[0];
+  }
+  const finalTitle = title ?? `${nounTitle ?? label(kind)}${withWho ? ` with ${who?.name ?? withWho}` : ""}${addr ? ` — ${addr}` : ""}`;
+  const args = { title: finalTitle, kind, start_at: start.toISOString(), end_at: end.toISOString(), location: addr, contact_id: contactId ?? who?.id ?? null, property_id: propertyId ?? prop?.id ?? null };
   return scheduleWithConflictCheck(ctx, args);
 }
 
@@ -289,6 +301,7 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
   if (!out.result.ok) return reply(`I couldn't add it: ${out.result.message}`, [{ type: "notice", tone: "error", title: "Not added", body: out.result.message }]);
   const ev = (out.result.data as { event: CalendarEvent; syncNote?: string }).event;
   ctx.state.last_event_id = ev.id;
+  ctx.state.last_action = { type: "create", event_id: ev.id };
   await persistState(ctx);
   await logContactEvent(ctx, ev.contact_id, "calendar_added", `${ev.title} — ${fmtDayTime(ev.start_at, ctx.tz)}`);
   const ahead = await thinkAhead(ctx, ev);
@@ -427,4 +440,73 @@ export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut
     ...clash.slice(0, 4).map((e) => eventCard(ctx, e, "Conflicts with time off")),
     { type: "choice", title: "Fix the conflicts", buttons: clash.slice(0, 4).map((e) => ({ label: `Move ${e.title}`, style: "secondary" as const, action: { type: "move_pick", eventId: e.id, text: "move to", declared: false } })) },
   ]);
+}
+
+
+// ---------------------------------------------------------------- questions about the calendar, and "undo"
+
+const eventLine = (ctx: Ctx, e: CalendarEvent) => `${fmtTime(e.start_at, ctx.tz)} – ${fmtTime(e.end_at, ctx.tz)}  ${e.title}`;
+const KIND_NOUN: [RegExp, CalendarEvent["kind"]][] = [[/open house/i, "open_house"], [/showing|tour/i, "showing"], [/lunch|dinner|coffee/i, "lunch"], [/closing/i, "closing"], [/call/i, "call"], [/meeting|appointment/i, "meeting"]];
+
+/** "what's on my calendar Friday", "am I free Friday at 3", "when is my next showing" — answered from the real calendar, nothing is changed. */
+export async function agendaHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const all = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed").sort((a, b) => a.start_at.localeCompare(b.start_at));
+  const w = parseWhen(text, ctx.now, ctx.tz);
+  const kind = KIND_NOUN.find(([re]) => re.test(text))?.[1];
+  const addr = parseAddress(text);
+
+  // "when is my next showing" / "what time is my showing at 12 Oak St"
+  if (kind && !w.date) {
+    let list = all.filter((e) => e.kind === kind && new Date(e.end_at).getTime() > ctx.now.getTime());
+    if (addr) list = list.filter((e) => `${e.title} ${e.location ?? ""}`.toLowerCase().includes(addr.toLowerCase()));
+    if (!list.length) return reply(`I don't see an upcoming ${label(kind).toLowerCase()}${addr ? ` at ${addr}` : ""} on your calendar.`, [], "smalltalk");
+    const shown = /\bnext\b/i.test(text) ? list.slice(0, 1) : list.slice(0, 5);
+    return reply(shown.length === 1 ? `Your ${/\bnext\b/i.test(text) ? "next " : ""}${label(kind).toLowerCase()}: ${shown[0].title}, ${fmtDay(shown[0].start_at, ctx.tz)} ${fmtShortDate(shown[0].start_at, ctx.tz)}, ${fmtTime(shown[0].start_at, ctx.tz)} – ${fmtTime(shown[0].end_at, ctx.tz)}.` : `Here are your upcoming ${label(kind).toLowerCase()}s:\n${shown.map((e) => `• ${fmtDay(e.start_at, ctx.tz)} ${fmtShortDate(e.start_at, ctx.tz)}  ${eventLine(ctx, e)}`).join("\n")}`, shown.map((e) => eventCard(ctx, e)), "smalltalk");
+  }
+
+  // "am I free Friday at 3?"
+  if (/\b(free|busy|available|open)\b|\bdo i have (?:anything|something)\b/i.test(text) && w.date && w.time) {
+    const start = w.start!, end = w.end ?? new Date(start.getTime() + 60 * 60_000);
+    const clash = all.filter((e) => new Date(e.start_at) < end && new Date(e.end_at) > start);
+    if (!clash.length) return reply(`Yes, you're free ${fmtDay(start, ctx.tz)} at ${fmtTime(start, ctx.tz)}. Nothing on your calendar then.`, [], "smalltalk");
+    return reply(`No, you're not free ${fmtDay(start, ctx.tz)} at ${fmtTime(start, ctx.tz)}. You have ${clash.map((e) => `${e.title} (${fmtTime(e.start_at, ctx.tz)} – ${fmtTime(e.end_at, ctx.tz)})`).join(" and ")}.`, clash.slice(0, 4).map((e) => eventCard(ctx, e)), "smalltalk");
+  }
+
+  // a day, or a stretch of days
+  let from = startOfDay(ctx.now, ctx.tz), to = startOfDay(addDays(from, 1, ctx.tz), ctx.tz), name = "today";
+  if (w.date) { from = zonedToUtc(w.date.y, w.date.m, w.date.d, 0, 0, ctx.tz); to = startOfDay(addDays(from, 1, ctx.tz), ctx.tz); name = ymdLabel(ctx, from); }
+  else if (/\bnext week\b/i.test(text)) { const dow = partsIn(ctx.now, ctx.tz).dow; from = startOfDay(addDays(ctx.now, 7 - dow, ctx.tz), ctx.tz); to = startOfDay(addDays(from, 7, ctx.tz), ctx.tz); name = "next week"; }
+  else if (/\b(this week|rest of the week|upcoming|coming up|next 7 days|this coming week)\b/i.test(text)) { to = startOfDay(addDays(from, 7, ctx.tz), ctx.tz); name = "the next 7 days"; }
+  const list = all.filter((e) => new Date(e.start_at) < to && new Date(e.end_at) > from);
+  if (!list.length) return reply(`Nothing on your calendar ${name === "today" || name.startsWith("next") || name.startsWith("the") ? name : `for ${name}`}. You're free.`, [], "smalltalk");
+  const multi = to.getTime() - from.getTime() > 26 * 3_600_000;
+  const lines = list.slice(0, 12).map((e) => `• ${multi ? `${fmtDay(e.start_at, ctx.tz)}  ` : ""}${eventLine(ctx, e)}`);
+  return reply(`${name === "today" ? "Today" : name[0].toUpperCase() + name.slice(1)} you have ${plural(list.length, "thing")}:\n${lines.join("\n")}`, list.slice(0, 6).map((e) => eventCard(ctx, e)), "smalltalk");
+}
+const ymdLabel = (ctx: Ctx, d: Date) => {
+  const diff = Math.round((startOfDay(d, ctx.tz).getTime() - startOfDay(ctx.now, ctx.tz).getTime()) / 86_400_000);
+  return diff === 0 ? "today" : diff === 1 ? "tomorrow" : diff > 1 && diff < 7 ? fmtDay(d, ctx.tz) : `${fmtDay(d, ctx.tz)}, ${fmtShortDate(d, ctx.tz)}`;
+};
+
+/** A typed "undo": reverses the last move (right away) or the last thing she added (which asks first, like every cancel). */
+export async function undoHandler(ctx: Ctx): Promise<HandlerOut> {
+  const la = ctx.state.last_action;
+  if (!la) return reply("There's nothing to undo right now.", [], "smalltalk");
+  ctx.state.last_action = null;
+  if (la.type === "move") {
+    const ev = await ctx.store.get("calendar_events", ctx.userId, la.event_id);
+    if (!ev || ev.status !== "confirmed") return reply("That event isn't on your calendar anymore, so there's nothing to put back.", [], "smalltalk");
+    const out = await applyMove(ctx, ev, new Date(la.start_at), new Date(la.end_at), true, true);
+    ctx.state.last_action = null;
+    return reply(`Undone. ${out.text}`, out.blocks, out.creditKey);
+  }
+  if (la.type === "create") {
+    const ev = await ctx.store.get("calendar_events", ctx.userId, la.event_id);
+    if (!ev || ev.status !== "confirmed") return reply("That event is already gone.", [], "smalltalk");
+    return cancelEvent(ctx, ev);
+  }
+  const prop = await ctx.store.get("properties", ctx.userId, la.property_id);
+  if (!prop) return reply("I can't find that listing anymore.", [], "smalltalk");
+  await ctx.store.update("properties", ctx.userId, prop.id, la.patch as never);
+  return reply(`Undone. I put ${prop.address} back the way it was.`, [], "smalltalk");
 }
