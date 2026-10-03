@@ -1,6 +1,7 @@
 "use client";
 
 import { pinTo, useVisualViewport } from "./use-visual-viewport";
+import { clearApiCache } from "./use-api";
 import { useScrollLock } from "./use-scroll-lock";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
@@ -140,6 +141,7 @@ export function Segmented<T extends string>({ value, options, onChange }: { valu
 export async function jfetch<T = any>(url: string, init?: RequestInit & { json?: unknown }): Promise<T & { error?: string }> {
   const r = await fetch(url, { ...init, headers: { ...(init?.json ? { "content-type": "application/json" } : {}), ...(init?.headers ?? {}) }, body: init?.json ? JSON.stringify(init.json) : init?.body });
   const data = await r.json().catch(() => ({}));
+  if (url.startsWith("/api/auth/")) clearApiCache(); // a different account must never see the last one's cached screens
   if (!r.ok) throw Object.assign(new Error(data.error ?? "Something went wrong."), { status: r.status, data });
   return data;
 }

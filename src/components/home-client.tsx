@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { peekApi, putApi } from "./use-api";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { motion } from "motion/react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { PromptInput } from "./ui/ai-chat-input";
@@ -25,9 +26,9 @@ const SHORT = ["Set up an open house", "Who should I follow up with?", "Add a ne
 export function HomeClient({ data }: { data: HomeData }) {
   const { toast } = useApp();
   const { ask, open, hasHistory, turns } = useMila();
-  const [helpSeen, setHelpSeen] = useState(true);
-  useEffect(() => { try { setHelpSeen(localStorage.getItem("mila.help.seen") === "1"); } catch { setHelpSeen(false); } }, []);
-  const dismissHelp = () => { setHelpSeen(true); try { localStorage.setItem("mila.help.seen", "1"); } catch { /* ignore */ } };
+  // Read synchronously on the client (server snapshot = "seen"), so the how-it-works card is there on the first paint instead of popping in and shoving the page down.
+  const helpSeen = useSyncExternalStore(subscribeHelp, readHelp, () => true);
+  const dismissHelp = () => { try { localStorage.setItem("mila.help.seen", "1"); } catch { /* ignore */ } helpListeners.forEach((l) => l()); };
 
   return (
     <main className="xl:grid xl:grid-cols-[minmax(0,1fr)_410px] xl:gap-8 xl:pr-8">
@@ -51,16 +52,20 @@ export function HomeClient({ data }: { data: HomeData }) {
   );
 }
 
+const helpListeners = new Set<() => void>();
+const subscribeHelp = (cb: () => void) => { helpListeners.add(cb); return () => { helpListeners.delete(cb); }; };
+const readHelp = () => { try { return localStorage.getItem("mila.help.seen") === "1"; } catch { return false; } };
+
 const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 2 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : "yesterday"; };
 
 /** Muse-style feed: what needs you, today's plan, what Mila did, what's next — nothing else. */
 function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData; refreshKey: number; helpSeen: boolean; onHelpSeen: () => void }) {
   const { toast } = useApp();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [f, setF] = useState<Feed | null>(data.feed);
+  const [f, setF] = useState<Feed | null>(() => data.feed ?? peekApi<Feed>("/api/feed")); // last feed paints at once on return visits, then refreshes
   const [, tick] = useState(0);
   const refresh = useCallback(async () => {
-    try { const r = await fetch("/api/feed", { cache: "no-store" }); if (r.ok) setF((await r.json()).feed); } catch { /* offline: keep what we have */ }
+    try { const r = await fetch("/api/feed", { cache: "no-store" }); if (r.ok) { const nf = (await r.json()).feed; putApi("/api/feed", nf); setF(nf); } } catch { /* offline: keep what we have */ }
   }, []);
   useEffect(() => { refresh(); }, [refreshKey, refresh]); // first load + after every Mila turn
   useEffect(() => {

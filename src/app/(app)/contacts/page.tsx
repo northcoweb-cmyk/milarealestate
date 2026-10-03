@@ -53,7 +53,7 @@ export default function ContactsPage() {
 
   return (
     <Page wide>
-      <PageHeader title="Contacts" sub={data ? `${all.length} people` : undefined} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
+      <PageHeader title="Contacts" sub={data ? `${all.length} people` : "\u00A0"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
       <div className="relative mb-4"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" /><input className="field !pl-11" placeholder="Search name, email, area, tag…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search contacts" /></div>
 
       <p className="kicker mb-2">Pipeline</p>
