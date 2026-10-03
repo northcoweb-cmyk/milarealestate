@@ -215,6 +215,20 @@ function Errors({ d, reload }: { d: AdminReport; reload: () => void }) {
   );
 }
 
+function MapsCheck() {
+  const [res, setRes] = useState<{ configured: boolean; checks: { name: string; ok: boolean; status: string; message: string; fix: string | null }[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useApp();
+  async function run() { setBusy(true); try { setRes(await jfetch("/api/admin/diagnostics")); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't run the check.", "error"); } finally { setBusy(false); } }
+  return (
+    <section className="glass mt-6 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="h2">Google Maps check</p><p className="muted text-[14px]">Asks Google, with your live key, whether address search and the house photos on cards will work.</p></div><button className="btn btn-primary btn-sm" onClick={run} disabled={busy}>{busy ? "Checking…" : "Run check"}</button></div>
+      {res && !res.configured && <p className="mt-3 text-[14px]">No <code>GOOGLE_MAPS_API_KEY</code> is set on this deployment.</p>}
+      {res?.checks.length ? <ul className="mt-3 divide-y" style={{ borderColor: "var(--line)" }}>{res.checks.map((c) => <li key={c.name} className="flex items-start gap-3 py-3"><span className="w-12 shrink-0"><Pill tone={c.ok ? "ok" : "danger"}>{c.ok ? "OK" : "Fix"}</Pill></span><div className="min-w-0"><p className="font-semibold">{c.name}</p>{c.ok ? <p className="muted text-[13.5px]">Working.</p> : <><p className="text-[14px]">{c.fix ?? c.message}</p><p className="faint mt-0.5 break-words text-[12.5px]">Google said: {c.status} — {c.message}</p></>}</div></li>)}</ul> : null}
+    </section>
+  );
+}
+
 function Health({ d }: { d: AdminReport }) {
   const h = d.health;
   const rows: [string, boolean, string][] = [
@@ -229,6 +243,7 @@ function Health({ d }: { d: AdminReport }) {
     ["Owner access locked down", h.adminEmailsSet, h.adminEmailsSet ? "ADMIN_EMAILS is set." : "Set ADMIN_EMAILS to your email."],
   ];
   return (
+    <>
     <section className="glass p-5">
       <p className="h2 mb-3">System health</p>
       <ul className="divide-y" style={{ borderColor: "var(--line)" }}>
@@ -236,5 +251,7 @@ function Health({ d }: { d: AdminReport }) {
       </ul>
       <p className="faint mt-4 text-[12.5px]">Auth: {h.auth} · Store: {h.store} · Env: {h.node || "n/a"}{h.vercel ? " · Vercel" : ""}</p>
     </section>
+    <MapsCheck />
+    </>
   );
 }
