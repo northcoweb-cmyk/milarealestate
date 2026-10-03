@@ -34,6 +34,14 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
   // Highlight the tapped tab immediately instead of waiting for the next screen to arrive.
   const [tapped, setTapped] = useState<{ href: string; from: string } | null>(null);
   const shown = tapped && tapped.from === path ? tapped.href : path;
+  // The highlight is only a preview of where the tap is going. Drop it once the page actually changes (otherwise coming back to the
+  // page you tapped from re-highlights the old tab), when the touch is cancelled, and if the navigation never happens.
+  useEffect(() => { setTapped(null); }, [path]);
+  useEffect(() => {
+    if (!tapped) return;
+    const t = setTimeout(() => setTapped(null), 1600);
+    return () => clearTimeout(t);
+  }, [tapped]);
   return (
     <>
       {/* desktop rail */}
@@ -43,7 +51,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
           {NAV.map((n) => {
             const active = n.match(shown);
             return (
-              <Link key={n.href} href={n.href} onPointerDown={() => setTapped({ href: n.href, from: path })} aria-current={active ? "page" : undefined} className={clsx("relative flex w-[68px] flex-col items-center gap-1 rounded-2xl py-3 text-[11.5px] font-semibold transition-colors", active ? "" : "text-ink-soft hover:bg-white/30")} style={active ? { color: "var(--accent-ink)" } : undefined}>
+              <Link key={n.href} href={n.href} onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className={clsx("relative flex w-[68px] flex-col items-center gap-1 rounded-2xl py-3 text-[11.5px] font-semibold transition-colors", active ? "" : "text-ink-soft hover:bg-white/30")} style={active ? { color: "var(--accent-ink)" } : undefined}>
                 {active && <motion.span layoutId="rail-pill" className="absolute inset-0 rounded-2xl" style={{ background: "linear-gradient(135deg,var(--accent),var(--accent-2))" }} transition={{ type: "spring", stiffness: 520, damping: 40 }} />}
                 <n.icon size={22} strokeWidth={active ? 2.3 : 1.9} className="relative" />
                 <span className="relative">{n.label}</span>
@@ -64,7 +72,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
           {NAV.map((n) => {
             const active = n.match(shown);
             return (
-              <Link key={n.href} href={n.href} scroll={false} onPointerDown={() => setTapped({ href: n.href, from: path })} aria-current={active ? "page" : undefined} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-semibold transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
+              <Link key={n.href} href={n.href} scroll={false} onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-semibold transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
                 {active && <motion.span layoutId="tab-pill" className="absolute inset-0 rounded-full" style={{ background: "linear-gradient(135deg,var(--accent),var(--accent-2))" }} transition={{ type: "spring", stiffness: 520, damping: 40 }} />}
                 <n.icon size={21} strokeWidth={active ? 2.3 : 1.9} className="relative" />
                 <span className="relative">{n.label}</span>
