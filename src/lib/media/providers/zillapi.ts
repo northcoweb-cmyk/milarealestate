@@ -61,7 +61,7 @@ export const zillapi: PhotoProvider = {
       const d = body?.data, a = d?.address ?? {};
       zpid = String(d?.zpid ?? "");
       // never attach photos from a neighbour: the returned home must be the SAME home
-      if (!zpid || !sameHome(q, { address: String(a.streetAddress ?? ""), city: str(a.city), state: str(a.state), zip: str(a.zipcode) })) throw Object.assign(new ProviderError("mismatch", "Matched a different home."), { requests });
+      if (!zpid || !sameHome(q, { address: String(a.streetAddress ?? ""), city: str(a.city), state: str(a.state), zip: str(a.zipcode) })) throw Object.assign(new ProviderError("mismatch", zpid ? `Zillapi returned "${[a.streetAddress, a.city, a.state, a.zipcode].filter(Boolean).join(", ") || "no address"}" for "${fullAddress(q)}"` : "Zillapi returned no home"), { requests });
     }
     try {
       const body = await call(`/properties/${encodeURIComponent(zpid)}/photos`);

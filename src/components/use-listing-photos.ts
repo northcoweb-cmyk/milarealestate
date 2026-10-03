@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { jfetch } from "./ui";
 
 export interface CardRef { key: string; address: string; city: string | null; state: string | null; zip: string | null; listingId?: string; propertyId?: string }
-type Res = { thumb: string | null; photoStatus: string };
+type Res = { thumb: string | null; photoStatus: string; reason?: string };
 
 // Module-level memo: re-renders, tab changes and remounts never ask the server twice in one session (the server caches too).
 const done = new Map<string, Res>();
@@ -35,5 +35,7 @@ export function useListingPhotos(cards: CardRef[], opts: { enrich?: boolean } = 
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig, opts.enrich]);
-  return (key: string) => done.get(key)?.thumb ?? null;
+  const get = (key: string) => done.get(key)?.thumb ?? null;
+  const reasons = () => [...new Set(cards.map((c) => done.get(c.key)).filter((r) => r && !r.thumb && r.reason).map((r) => r!.reason as string))]; // owner-only: why no photo
+  return Object.assign(get, { reasons });
 }

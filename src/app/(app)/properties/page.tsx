@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useApp } from "@/components/app-context";
 import { useMemo, useState } from "react";
 import { Building2, Plus, Search } from "lucide-react";
 import type { PropertyCardInfo, Group } from "@/lib/property-stage";
@@ -14,9 +16,26 @@ type Tab = "current" | "upcoming" | "past" | "all";
 const TABS: [Tab, string][] = [["current", "Current"], ["upcoming", "Upcoming"], ["past", "Past"], ["all", "All"]];
 const GROUP_TITLE: Record<Group, string> = { current: "Current", upcoming: "Upcoming", past: "Past" };
 
+const REASON: Record<string, string> = {
+  no_key: "no photo-provider key is set on this deployment (or it was added without redeploying)",
+  needs_city_state: "the home has no city/state",
+  limited: "this plan's monthly photo allowance is used up",
+  budget: "the shared monthly photo budget is used up",
+  provider_auth: "the provider rejected the key",
+  provider_credits: "the provider is out of credits",
+  provider_rate: "the provider is rate-limiting",
+  provider_network: "couldn't reach the provider",
+  provider_bad_response: "the provider's answer wasn't readable",
+  mismatch: "the provider found a different home at that address, so I refused to use its photos",
+  not_found: "the provider doesn't know this address",
+  empty: "the provider has no photos for this home",
+  error: "a server error (see Errors & gaps)",
+};
+
 export default function PropertiesPage() {
   const { data, loading, reload } = useApi<{ properties: PropertyCardInfo[] }>("/api/properties?view=cards");
   const mila = useMila();
+  const { admin } = useApp();
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Tab | null>(null);
   const all = data?.properties ?? [];
@@ -33,6 +52,7 @@ export default function PropertiesPage() {
   return (
     <Page wide>
       <PageHeader title="Properties" sub="Everything you're working on, coming up, and have closed." right={<button className="btn btn-primary" onClick={() => mila.open()}><Plus size={18} />Add</button>} />
+      {admin && photoOf.reasons().length > 0 && <p className="mb-4 rounded-2xl p-3 text-[13.5px] leading-snug" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}><b>Owner note - listing photos aren&apos;t loading:</b> {photoOf.reasons().map((r) => REASON[r] ?? r).join(" · ")} <Link href="/admin" className="font-semibold underline">Open the Health tab</Link> and run “Listing photos check”. (Agents don&apos;t see this.)</p>}
       {loading && !data ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-72" />)}</div> : !all.length ? (
         <Empty title="No properties yet" body="Tell Mila about a listing — “New listing at 12 Oak St, $650k, 3 bed 2 bath” — or ask her to prep any address, and it shows up here with its photo and numbers." action={<button className="btn btn-primary" onClick={() => mila.open()}>Tell Mila</button>} />
       ) : (

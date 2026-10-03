@@ -13,6 +13,8 @@ export interface ListingMedia {
   fetchedAt: string | null;
   expiresAt: string | null;
   cached: boolean;
+  /** Why there are no photos (owner-facing, never shown to agents): no_key, needs_city_state, limited, budget, provider_<code>, mismatch, not_found, empty, error */
+  reason?: string;
 }
 
 /** What we know about a home, strongest identifiers first. */

@@ -171,3 +171,27 @@ test("no provider key: listings still work, photos 'unavailable'", async () => {
   assert.equal(m.photoStatus, "unavailable"); assert.equal(calls.length, 0);
   process.env.ZILLAPI_API_KEY = k;
 });
+
+test("photos still load when the cache/usage tables don't exist yet (migration not run)", async () => {
+  reset();
+  const real = { find: store.findBy.bind(store), ins: store.insert.bind(store), list: store.list.bind(store) };
+  const boom = (t: string) => t === "listing_media_cache" || t === "api_usage";
+  store.findBy = async (t: string, ...a: any[]) => { if (boom(t)) throw new Error(`relation "${t}" does not exist`); return real.find(t, ...a); };
+  store.insert = async (t: string, ...a: any[]) => { if (boom(t)) throw new Error(`relation "${t}" does not exist`); return real.ins(t, ...a); };
+  store.list = async (t: string, ...a: any[]) => { if (t === "api_usage") throw new Error("relation does not exist"); return real.list(t, ...a); };
+  try {
+    const m = await getListingMedia(user.id, home(9300), { fetch: true });
+    assert.equal(m.photoStatus, "ok"); assert.equal(m.photos.length, 2);
+    calls.length = 0;
+    const again = await getListingMedia(user.id, home(9300), { fetch: true });
+    assert.equal(again.photoStatus, "ok"); assert.equal(calls.length, 0, "served from the in-process copy");
+  } finally { store.findBy = real.find; store.insert = real.ins; store.list = real.list; }
+});
+
+test("a wrong-home answer says why (owner-facing reason + the address the provider returned)", async () => {
+  reset(); mode = "neighbor";
+  const m = await getListingMedia(user.id, home(9400), { fetch: true });
+  assert.equal(m.reason, "mismatch");
+  const logs = (await store.listAll("error_logs")).filter((l: any) => /Listing photos/.test(l.message));
+  assert.ok(logs.some((l: any) => /returned "1233 Main Street, Bethesda/.test(l.message)));
+});

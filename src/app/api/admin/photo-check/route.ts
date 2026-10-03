@@ -25,7 +25,9 @@ export const GET = api(async ({ profile, url }) => {
     try { await getStore().findBy(t, NIL_USER, { id: "00000000-0000-0000-0000-000000000001" }); add(`Table ${t}`, true, "Exists."); }
     catch (e) { tablesOk = false; add(`Table ${t}`, false, `Missing or unreadable (${e instanceof Error ? e.message.slice(0, 120) : "error"}). Run supabase/migrations/0004_listing_media.sql in the Supabase SQL editor.`); }
   }
-  const address = (url.searchParams.get("address") || "350 5th Ave, New York, NY 10118").slice(0, 160);
+  const mine = (await getStore().list("properties", profile.id)).find((p) => p.city && p.state);
+  const address = (url.searchParams.get("address") || (mine ? `${mine.address}, ${mine.city}, ${mine.state}${mine.zip ? " " + mine.zip : ""}` : "350 5th Ave, New York, NY 10118")).slice(0, 160);
+  add("Testing address", true, `${address}${mine ? " (one of your own properties)" : ""}`);
   const hdr = { authorization: `Bearer ${zillapiKey()}`, accept: "application/json" };
   let zpid = "";
   try {
