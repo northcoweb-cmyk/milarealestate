@@ -21,4 +21,9 @@ export function useVisualViewport(active: boolean) {
 }
 
 /** Inline style that pins a `fixed inset-0` overlay to the visible area (no-op where there is no visual viewport). */
-export const pinTo = (box: { top: number; height: number } | null): React.CSSProperties | undefined => (box ? { top: box.top, height: box.height, bottom: "auto" } : undefined);
+export const pinTo = (box: { top: number; height: number } | null): React.CSSProperties | undefined =>
+  // the height eases as the keyboard slides in/out (iOS keyboard ≈ 250ms); `top` follows the page pan instantly so nothing lags
+  (box ? { top: box.top, height: box.height, bottom: "auto", transition: "height .26s cubic-bezier(.2,.8,.2,1)" } : undefined);
+
+/** True while the on-screen keyboard is up (the visible area is much shorter than the window). */
+export const keyboardUp = (box: { top: number; height: number } | null) => !!box && typeof window !== "undefined" && window.innerHeight - box.height > 120;

@@ -1,6 +1,6 @@
 "use client";
 
-import { pinTo, useVisualViewport } from "./use-visual-viewport";
+import { keyboardUp, pinTo, useVisualViewport } from "./use-visual-viewport";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -55,6 +55,12 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener("keydown", k);
     return () => { document.body.style.overflow = prev; document.removeEventListener("keydown", k); };
   }, [isOpen]);
+  // When the keyboard slides in or out the visible area changes: keep the newest message in view instead of leaving it behind the keyboard.
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = setTimeout(() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }), 80);
+    return () => clearTimeout(id);
+  }, [vvBox?.height, isOpen]);
   useEffect(() => {
     const el = scroller.current;
     if (!isOpen || !el) return;
@@ -172,7 +178,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
             <motion.div className="absolute inset-0 bg-black/45" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)} />
             <motion.div className="surface relative flex h-[92svh] max-h-full w-full flex-col overflow-hidden sm:h-[86svh] sm:max-w-2xl" style={{ borderRadius: 32, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
               initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: "spring", damping: 30, stiffness: 340 }}>
-              <div className="flex items-center justify-between px-5 pb-2 pt-4">
+              <div className="flex items-center justify-between px-5 pb-2 pt-4" style={keyboardUp(vvBox) ? { paddingTop: "max(env(safe-area-inset-top), 14px)" } : undefined}>
                 <p className="display text-[28px]">Mila</p>
                 <div className="flex gap-2"><button className="chip" onClick={newChat} disabled={busy}><Plus size={15} />New chat</button><button className="btn btn-quiet btn-sm !px-2" onClick={() => setOpen(false)} aria-label="Close"><X size={20} /></button></div>
               </div>
