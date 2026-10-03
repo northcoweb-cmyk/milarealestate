@@ -10,6 +10,7 @@ import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { logError } from "../server/errors";
+import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
@@ -181,6 +182,12 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
   switch (intent) {
     case "time_off": return timeOffHandler(ctx, text);
     case "add_listing": return addListingHandler(ctx, text);
+    case "transaction": return transactionHandler(ctx, text);
+    case "closed_deal": return closedDealHandler(ctx, text);
+    case "log_interaction": return logInteractionHandler(ctx, text);
+    case "draft_text": return draftTextHandler(ctx, text);
+    case "week_overview": return weekOverviewHandler(ctx);
+    case "pipeline_value": return pipelineHandler(ctx, text);
     case "showing_sheet": return showingSheetHandler(ctx, text);
     case "update_listing": return updateListingHandler(ctx, text);
     case "agenda": return agendaHandler(ctx, text);

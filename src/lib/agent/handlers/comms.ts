@@ -85,9 +85,12 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
 }
 
 export async function draftEmailHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const names = capitalisedNames(text);
+  const addrIn = parseAddress(text);
+  const names = capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " "));
   let c: Contact | null = null;
   for (const n of names) { const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any; if (r.ok && r.data.contacts.length === 1) { c = r.data.contacts[0]; break; } if (r.ok && r.data.contacts.length > 1) return reply(`Which ${n}?`, [{ type: "choice", title: `Which ${n}?`, buttons: r.data.contacts.slice(0, 5).map((x: Contact) => ({ label: `${x.name}${x.email ? ` · ${x.email}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: text.replace(n, x.name) } })) }]); }
+  // someone was named but isn't a contact: say so, never quietly send the draft to whoever came up last
+  if (!c && names.length) return askBack(ctx, "draft_email", text, "name", `I don't have ${names[0]} in your contacts. Who should the email go to? (Say their name, or add them first.)`);
   if (!c && ctx.state.last_contact_ids?.length === 1) c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
   if (!c) return askBack(ctx, "draft_email", text, "name", "Who is the email for?");
   const facts = await contactFacts(ctx, c);

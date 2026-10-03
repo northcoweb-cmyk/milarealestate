@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, FileText, Loader2, Plus, X } from "lucide-react";
+import { ArrowUp, FileText, Loader2, Mic, Plus, Square, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -147,6 +147,13 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const [submitting, setSubmitting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [areaH, setAreaH] = useState(28);
+  // voice dictation (Web Speech API: Safari/Chrome/Edge). Hidden where the browser doesn't offer it.
+  const [listening, setListening] = useState(false);
+  const [canDictate, setCanDictate] = useState(false);
+  const rec = useRef<{ stop: () => void } | null>(null);
+  const baseText = useRef("");
+  useEffect(() => { setCanDictate(typeof window !== "undefined" && !!((window as unknown as Record<string, unknown>).SpeechRecognition || (window as unknown as Record<string, unknown>).webkitSpeechRecognition)); }, []);
+  useEffect(() => () => rec.current?.stop(), []);
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const urls = useRef<Set<string>>(new Set());
@@ -156,6 +163,20 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const lg = size === "lg";
 
   const setValue = useCallback((v: string) => { if (controlled === undefined) setLocal(v); onChange?.(v); }, [controlled, onChange]);
+  const toggleDictation = () => {
+    if (listening) { rec.current?.stop(); return; }
+    const w = window as unknown as Record<string, new () => { lang: string; interimResults: boolean; continuous: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; onerror: (e: { error?: string }) => void; start: () => void; stop: () => void }>;
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR();
+    r.lang = navigator.language || "en-US"; r.interimResults = true; r.continuous = true;
+    baseText.current = value ? value.replace(/\s+$/, "") + " " : "";
+    r.onresult = (e) => { let t = ""; for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript; setValue(baseText.current + t.trim()); };
+    r.onerror = (e) => { setListening(false); if (e.error === "not-allowed" || e.error === "service-not-allowed") onError?.("Microphone access is blocked. Allow it in your browser settings to dictate."); };
+    r.onend = () => { setListening(false); rec.current = null; };
+    rec.current = r; setListening(true);
+    try { r.start(); } catch { setListening(false); }
+  };
 
   // auto-grow
   useEffect(() => {
@@ -202,6 +223,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   });
 
   const submit = async () => {
+    rec.current?.stop();
     if (!canSend) return;
     setSubmitting(true);
     try {
@@ -256,6 +278,13 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             >
               <Plus size={22} />
             </button>
+            <div className="flex items-center gap-1.5">
+            {canDictate && <button
+              type="button" onClick={toggleDictation} aria-label={listening ? "Stop dictation" : "Dictate with your voice"} aria-pressed={listening} title={listening ? "Stop" : "Speak instead of typing"}
+              className={cn("flex size-10 items-center justify-center rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-ring", listening ? "animate-pulse bg-[var(--danger)] text-white" : "text-foreground/60 hover:bg-muted hover:text-foreground")}
+            >
+              {listening ? <Square size={16} fill="currentColor" /> : <Mic size={21} />}
+            </button>}
             <button
               type="button" onClick={() => void submit()} disabled={!canSend} aria-label="Send"
               className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md outline-none transition duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:opacity-40 disabled:shadow-none"
@@ -263,6 +292,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             >
               {submitting || disabled ? <Loader2 size={19} className="animate-spin" /> : <ArrowUp size={21} strokeWidth={2.6} />}
             </button>
+            </div>
           </div>
         </div>
         {dragging && <p className="pointer-events-none absolute inset-x-0 -top-7 text-center text-[13px] font-semibold text-muted-foreground">Drop to attach</p>}
