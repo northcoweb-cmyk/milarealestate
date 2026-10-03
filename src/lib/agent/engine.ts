@@ -114,6 +114,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   let text = textIn;
   const pend = ctx.state.pending;
   let forced: Intent | null = null; // an answer to Mila's question continues THAT request, whatever the merged text looks like
+  let answering: { intent: string; missing: string } | null = null;
 
   if (pend?.kind === "stale_comms" && text) {
     if (isYes(text)) return { out: await resolveStale(ctx, pend.event_id, "update"), intent: "move_event" };
@@ -136,6 +137,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       const bareTime = pend.missing === "time" && /^\s*\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)?\s*$/i.test(text);
       text = `${orig} ${bareTime ? "at " : ""}${text}`;
       forced = pend.intent as Intent;
+      answering = { intent: String(pend.intent), missing: String(pend.missing ?? "") };
       ctx.state.pending = null;
     } else ctx.state.pending = null;
   } else if (pend && text && pend.kind !== "stale_comms") {
@@ -164,6 +166,20 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     lastIntent = d.intent;
     outs.push(await dispatch(ctx, d.intent, clause, !!d.declared));
   }
+  // NEVER LOOP: if the agent answered a question and the very same question comes back (identical wording, or a third ask in a row), stop asking.
+  // Say what's needed, once, and drop it. A question that has moved on ("what time on Sunday?" → "what time today?") is progress, not a loop.
+  if (answering && ctx.state.pending?.kind === "clarify" && ctx.state.pending.intent === answering.intent && String(ctx.state.pending.missing ?? "") === answering.missing) {
+    const key = `${answering.intent}|${answering.missing}`;
+    const streak = (ctx.state.clarify_streak?.key === key ? ctx.state.clarify_streak.n : 0) + 1;
+    const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+    const prevQ = [...(await recentHistory(ctx))].reverse().find((m) => m.role === "assistant")?.content ?? "";
+    if (norm(outs[0]?.text ?? "") === norm(prevQ) || streak >= 2) {
+      ctx.state.pending = null; ctx.state.asked_location = null; ctx.state.clarify_streak = null;
+      const HINT: Record<string, string> = { location: "Send the address with its city, like “1231 Main Street, Gaithersburg MD”.", address: "Send the street address, like “123 Main Street”.", time: "Send it all in one line, like “Showing at 456 Oak Lane Sunday at 3 PM”.", date: "Send it all in one line, like “Inspection Friday at 10 AM”.", name: "Send their full name, like “Dana Whitfield”." };
+      outs.length = 0;
+      outs.push(reply(`I couldn't make that out, and I don't want to keep asking, so I haven't changed anything. ${HINT[answering.missing] ?? "Send me the whole request in one message and I'll take it from there."}`, [], "smalltalk"));
+    } else ctx.state.clarify_streak = { key, n: streak };
+  } else ctx.state.clarify_streak = null;
   if (outs.length === 1) return { out: outs[0], intent: lastIntent };
   const costs = await Promise.all(outs.map(async (o) => ({ k: o.creditKey ?? "chat_simple", c: await creditCost(o.creditKey ?? "chat_simple") })));
   const top = costs.sort((a, b) => b.c - a.c)[0];

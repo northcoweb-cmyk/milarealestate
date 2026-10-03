@@ -386,6 +386,10 @@ export interface ConversationState {
   last_workflow_run_id?: ID | null;
   last_event_id?: ID | null;
   last_property_id?: ID | null;
+  /** the street Mila last asked a city/state for: a second pass for the same street never asks again */
+  asked_location?: string | null;
+  /** how many times in a row the same clarifying question (intent + missing slot) has been asked */
+  clarify_streak?: { key: string; n: number } | null;
   last_contact_ids?: ID[];
   last_import_batch?: ID[]; // contact ids from most recent sign-in/import
   pending?: PendingQuestion | null;

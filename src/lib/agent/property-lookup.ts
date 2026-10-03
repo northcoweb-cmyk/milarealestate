@@ -110,21 +110,80 @@ export type Resolve = { status: "ok"; place: Place; street: string; unverified?:
  * Does this text give a full address? Reuses what we already know about the property, then parses, then geocodes.
  * An address Google can't find is NOT refused — we carry on and flag it as unverified so the agent can double-check.
  */
-export async function resolveAddress(ctx: Ctx, text: string, street: string): Promise<Resolve> {
+export async function resolveAddress(ctx: Ctx, text: string, street: string, opts: { answering?: boolean } = {}): Promise<Resolve> {
   const known = (await ctx.store.list("properties", ctx.userId)).find((p) => addrKey(p.address) === addrKey(street) && p.city && p.state);
   if (known) return { status: "ok", street, place: { city: known.city, state: known.state, zip: known.zip, county: known.county } };
-  const p = extractPlace(text);
-  const complete = !!(p.state && p.city) || !!p.zip;
+  let p = extractPlace(text);
+  // the agent's own state ("Rockville, MD" in their profile or "Montgomery County, MD" as their market) fills a state they didn't repeat
+  const mine = homeOf(ctx.profile.location), market = homeOf(ctx.profile.primary_market);
+  const homeState = mine.state ?? market.state ?? null;
+  if (!p.city && !p.zip) {
+    // the reply to "what city?" is the last thing in the message: "…1231 Main Street Gaithersburg", "gaithersburg md", "20877"
+    const tail = opts.answering ? tailAnswer(text, street) : null;
+    if (tail) p = { ...p, ...tail };
+    else if (opts.answering && aiAvailable()) { const ai = await llmPlace(ctx, text, street); if (ai) p = { ...p, ...ai }; }
+  }
+  if (p.city && !p.state && !p.zip && homeState) p.state = homeState; // a city with no state is in the agent's own state
+  const complete = !!(p.city) || !!p.zip;
   if (!complete) {
     // Agents list in their own market. If we know it, assume it (and say so) instead of quizzing them; they can correct it in one line.
-    const home = extractPlace(`${street}, ${ctx.profile.location ?? ""}`);
-    if (home.city && home.state) return { status: "ok", street, place: { ...home }, assumed: true };
+    const city = mine.city && !/\bcounty\b/i.test(mine.city) ? mine : null;
+    if (city?.city) return { status: "ok", street, place: { city: city.city, state: city.state ?? homeState ?? undefined, zip: undefined }, assumed: true };
     return { status: "ask" };
   }
   const g = await geocode(street, p);
   if (g === "not_found") return { status: "ok", street, place: p, unverified: true };
   if (g) return { status: "ok", street, place: { city: g.city ?? p.city, state: g.state ?? p.state, zip: g.zip ?? p.zip, county: g.county, lat: g.lat, lng: g.lng, formatted: g.formatted } };
   return { status: "ok", street, place: p };
+}
+
+/** The agent's own place from their profile: "Rockville, MD", "Rockville MD", or just "Rockville". */
+function homeOf(loc: string | null | undefined): Place {
+  const v = (loc ?? "").trim();
+  if (!v) return {};
+  const p = extractPlace(v);
+  if (p.city || p.zip || p.state) return p;
+  return /^[\p{L}][\p{L} .'-]{1,39}$/u.test(v) ? { city: v.replace(/\s+/g, " ").split(" ").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") } : {};
+}
+const TAIL_STOP = new Set(["at", "on", "in", "for", "the", "a", "an", "am", "pm", "to", "is", "it", "its", "it's", "yes", "no", "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "today", "tomorrow", "tonight", "morning", "afternoon", "evening", "noon", "street", "st", "road", "rd", "avenue", "ave", "drive", "dr", "lane", "ln", "court", "ct", "way", "boulevard", "blvd", "place", "pl", "terrace", "circle", "trail"]);
+/** "Gaithersburg", "gaithersburg md", "Gaithersburg, MD 20877" at the very end of the message → a place. */
+function tailAnswer(text: string, street: string): Place | null {
+  const span = findAddress(text);
+  const after = span ? text.slice((text.toLowerCase().indexOf(span.raw.toLowerCase()) >= 0 ? text.toLowerCase().indexOf(span.raw.toLowerCase()) : 0) + span.raw.length) : text;
+  void street;
+  const zip = /\b(\d{5})(?:-\d{4})?\s*[.!?]*$/.exec(after);
+  const words = after.replace(/[.!?]+$/, "").replace(/\b\d{5}(?:-\d{4})?\s*$/, "").split(/[\s,]+/).filter(Boolean);
+  let state: string | undefined;
+  const last = words[words.length - 1];
+  if (last && /^[A-Za-z]{2}$/.test(last) && ABBR.has(last.toUpperCase()) && !TAIL_STOP.has(last.toLowerCase())) { state = last.toUpperCase(); words.pop(); }
+  const city: string[] = [];
+  while (words.length && city.length < 3) { const w = words[words.length - 1]; if (!/^[A-Za-z][A-Za-z.'-]*$/.test(w) || TAIL_STOP.has(w.toLowerCase())) break; city.unshift(words.pop()!); }
+  if (!city.length && !zip) return null;
+  const out: Place = {};
+  if (city.length) out.city = city.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+  if (state) out.state = state;
+  if (zip) out.zip = zip[1];
+  return out;
+}
+
+/** When the rules can't read the reply, let the model read it. Cheap, bounded, and never invents: it returns nothing unless the reply names a place. */
+async function llmPlace(ctx: Ctx, text: string, street: string): Promise<Place | null> {
+  try {
+    const r = await getProvider().complete({
+      tier: "fast", maxTokens: 120,
+      system: "A real-estate agent was asked which US city/state (or ZIP) a street address is in. Extract the place from their reply (the last part of the message). Return only what the reply states; never guess. Use a 2-letter state code.",
+      messages: [{ role: "user", content: `Address: ${street}\nMessage: ${text.slice(-300)}` }],
+      jsonSchema: { name: "place", description: "The place named in the reply", schema: { type: "object", properties: { city: { type: "string" }, state: { type: "string" }, zip: { type: "string" } } } },
+    });
+    ctx.usage.aiCalls++;
+    await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: "place_reading", creditKey: "chat_simple", creditsOverride: 0, tier: "fast", provider: r.info.provider, model: r.info.model, inputUnits: r.usage.inputTokens, outputUnits: r.usage.outputTokens, estCostUsd: estimateCost(r.info, r.usage.inputTokens, r.usage.outputTokens) });
+    const j = (r.json ?? {}) as { city?: string; state?: string; zip?: string };
+    const out: Place = {};
+    if (j.city && /^[\p{L}.' -]{2,40}$/u.test(j.city)) out.city = j.city.trim();
+    if (j.state && ABBR.has(j.state.toUpperCase())) out.state = j.state.toUpperCase();
+    if (j.zip && /^\d{5}$/.test(j.zip)) out.zip = j.zip;
+    return out.city || out.zip ? out : null;
+  } catch { return null; }
 }
 
 // ------------------------------------------------------------------ listing facts via web search

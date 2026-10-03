@@ -3,7 +3,8 @@ import type { Ctx } from "../context";
 import { fullMoney } from "../context";
 import { hit } from "../../server/rate-limit";
 import { type ListingCard, type PropertyExtra, newListings, rentcastConfigured, RentcastError } from "../../listing-data/rentcast";
-import { extractPlace, enrichProperty, resolveAddress, type LookupMemory } from "../property-lookup";
+import { extractPlace, enrichProperty, type LookupMemory } from "../property-lookup";
+import { locationGate } from "./location";
 import { parseAddress, parseBeds, parseMoney } from "../nlu";
 import { TOOLS } from "../tools";
 import { askBack } from "./ask";
@@ -35,9 +36,9 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
   const street = parseAddress(text);
   let prop: Property | null = null;
   if (street) {
-    const r = await resolveAddress(ctx, text, street);
-    if (r.status === "ask") return askBack(ctx, "prep_property", text, "location", `What city and state is ${street} in? A ZIP works too.`);
-    const place = r.place;
+    const gate = await locationGate(ctx, "prep_property", text, street);
+    if (!gate.ok) return gate.out;
+    const place = gate.found.place;
     prop = ((await TOOLS.create_property.run(ctx, { address: street, city: place.city, state: place.state, zip: place.zip, county: place.county })) as any).data.property as Property;
   } else if (ctx.state.last_property_id) prop = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id);
   if (!prop) return askBack(ctx, "prep_property", text, "address", "Which address should I prep? (Street number and name — I'll find the rest.)");

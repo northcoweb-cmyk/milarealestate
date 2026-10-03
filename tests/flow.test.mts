@@ -192,7 +192,7 @@ test("a bare street address uses the agent's own market instead of quizzing them
 test("with no home market on file, Mila asks for the city and state, then carries on", async () => {
   await store.update("profiles", p.id, p.id, { location: "" }); (p as any).location = "";
   const a = await say("I have an open house at 33 Hickory Road Friday at 8 AM");
-  assert.match(a.milaMessage.content, /What city and state is 33 Hickory Road in/);
+  assert.match(a.milaMessage.content, /What city is 33 Hickory Road in/);
   const b = await say("Frederick, MD");
   assert.match(b.milaMessage.content, /prepared your open house/);
   assert.equal((await store.list("properties", p.id)).find((x) => x.address === "33 Hickory Road")!.city, "Frederick");

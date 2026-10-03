@@ -7,7 +7,8 @@ import { extractListingFacts } from "../listing";
 import { learnDetailed } from "../learn";
 import { listMemories, saveMemory } from "../memory";
 import { capitalisedNames, parseAddress, parseDate } from "../nlu";
-import { resolveAddress } from "../property-lookup";
+import type { Intent } from "../intents";
+import { locationGate } from "./location";
 import { TOOLS, invoke, logContactEvent } from "../tools";
 import { askBack } from "./ask";
 import { mentionedContacts } from "./contacts";
@@ -18,14 +19,15 @@ const when = (d: Date | string, tz: string) => `${fmtDay(d, tz).slice(0, 3)}, ${
 const at = (base: Date, tz: string, h: number, mi = 0) => { const p = partsIn(base, tz); return zonedToUtc(p.y, p.m, p.d, h, mi, tz); };
 
 /** The property an agent is talking about: the address they gave, the one they just mentioned, or one we can create in their market. */
-async function propertyFor(ctx: Ctx, text: string): Promise<Property | null> {
+async function propertyFor(ctx: Ctx, text: string, intent: Intent): Promise<{ prop: Property } | { out: HandlerOut } | null> {
   const street = parseAddress(text);
-  if (!street) return ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id) : null;
-  const r = await resolveAddress(ctx, text, street);
-  const place = r.status === "ok" ? r.place : {};
+  if (!street) { const p = ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id) : null; return p ? { prop: p } : null; }
+  const gate = await locationGate(ctx, intent, text, street);
+  if (!gate.ok) return { out: gate.out };
+  const place = gate.found.place;
   const f = extractListingFacts(text);
   const made = (await TOOLS.create_property.run(ctx, { address: street, city: place.city, state: place.state, zip: place.zip, county: place.county, list_price: undefined, beds: f.beds, baths: f.baths, sqft: f.sqft })) as any;
-  return made.data.property as Property;
+  return { prop: made.data.property as Property };
 }
 
 // ------------------------------------------------------------------ transaction coordinator
@@ -50,7 +52,9 @@ function dateAfter(text: string, re: RegExp, all: RegExp[], now: Date, tz: strin
 }
 
 export async function transactionHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const prop = await propertyFor(ctx, text);
+  const found0 = await propertyFor(ctx, text, "transaction");
+  if (found0 && "out" in found0) return found0.out;
+  const prop = found0?.prop ?? null;
   if (!prop) return askBack(ctx, "transaction", text, "address", "Congrats! Which property is it? Give me the address and the closing date and I'll build the whole timeline.");
   ctx.state.last_property_id = prop.id;
   const all = MILESTONES.map((m) => m.re);
@@ -106,7 +110,9 @@ export async function transactionHandler(ctx: Ctx, text: string): Promise<Handle
 // ------------------------------------------------------------------ closed deal
 
 export async function closedDealHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const prop = await propertyFor(ctx, text);
+  const found1 = await propertyFor(ctx, text, "closed_deal");
+  if (found1 && "out" in found1) return found1.out;
+  const prop = found1?.prop ?? null;
   if (!prop) return askBack(ctx, "closed_deal", text, "address", "Congratulations! Which property closed?");
   ctx.state.last_property_id = prop.id;
   const price = extractListingFacts(text.replace(/\bclosed on\b/i, "")).list_price;
