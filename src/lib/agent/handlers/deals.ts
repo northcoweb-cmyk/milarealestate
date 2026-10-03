@@ -15,6 +15,7 @@ import { mentionedContacts } from "./contacts";
 import { type HandlerOut, reply } from "./types";
 
 const TX_NOTE = "Transaction milestone";
+const fullDate = (d: Date | string, tz: string) => new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric", year: "numeric" }).format(new Date(d));
 const when = (d: Date | string, tz: string) => `${fmtDay(d, tz).slice(0, 3)}, ${fmtShortDate(d, tz)} · ${fmtTime(d, tz)}`;
 const at = (base: Date, tz: string, h: number, mi = 0) => { const p = partsIn(base, tz); return zonedToUtc(p.y, p.m, p.d, h, mi, tz); };
 
@@ -90,7 +91,7 @@ export async function transactionHandler(ctx: Ctx, text: string): Promise<Handle
     await invoke(ctx, "create_calendar_event", { title: `${r.label} — ${prop.address}`, kind: r.kind, start_at: r.start.toISOString(), end_at: new Date(r.start.getTime() + (r.key === "closing" ? 2 : 1) * 3_600_000).toISOString(), location: prop.address, property_id: prop.id, notes: TX_NOTE, ignoreConflicts: true });
     await TOOLS.create_task.run(ctx, { kind: "task", title: `${r.label} — ${prop.address}`, subtitle: `${TX_NOTE}${r.estimated ? " · typical timing, confirm with your contract" : ""}`, property_id: prop.id, due_at: r.start.toISOString(), internal: true });
   }
-  await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Under contract · closing ${fmtDay(closeAt, ctx.tz)}`, source: "user_stated" });
+  await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Under contract · closing ${fullDate(closeAt, ctx.tz)}`, source: "user_stated" });
   await persistState(ctx);
 
   const weekend = rows.filter((r) => [0, 6].includes(partsIn(r.start, ctx.tz).dow));
@@ -118,7 +119,7 @@ export async function closedDealHandler(ctx: Ctx, text: string): Promise<Handler
   const price = extractListingFacts(text.replace(/\bclosed on\b/i, "")).list_price;
   const who = /\b(?:buyers?|sellers?|clients?)\s+(?:were|are|was|is)\s+(?:the\s+)?([A-Z][\p{L}'’.-]+(?:\s+(?:and|&)\s+[A-Z][\p{L}'’.-]+)?(?:\s+[A-Z][\p{L}'’.-]+)?)/u.exec(text)?.[1];
   const closedOn = ctx.now;
-  await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Sold${price ? ` ${fullMoney(price)}` : ""} · closed ${fmtDay(closedOn, ctx.tz)}`, source: "user_stated" });
+  await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Sold${price ? ` ${fullMoney(price)}` : ""} · closed ${fullDate(closedOn, ctx.tz)}`, source: "user_stated" });
   // finish what the transaction timeline had left open
   const open = (await ctx.store.list("tasks", ctx.userId)).filter((t) => t.property_id === prop.id && t.status === "open" && t.subtitle?.startsWith(TX_NOTE));
   for (const t of open) await TOOLS.complete_task.run(ctx, { id: t.id });

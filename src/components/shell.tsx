@@ -4,16 +4,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Gauge, Home, Megaphone, Menu, Users } from "lucide-react";
+import { Building2, CalendarDays, Gauge, Home, Megaphone, Menu, Users } from "lucide-react";
 import { useApp } from "./app-context";
 import clsx from "clsx";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" || p.startsWith("/tasks") || p.startsWith("/done") },
   { href: "/contacts", label: "Contacts", icon: Users, match: (p: string) => p.startsWith("/contacts") },
+  { href: "/properties", label: "Properties", short: "Homes", icon: Building2, match: (p: string) => p.startsWith("/properties") },
   { href: "/content", label: "Content", icon: Megaphone, match: (p: string) => p.startsWith("/content") },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, match: (p: string) => p.startsWith("/calendar") },
-  { href: "/more", label: "More", icon: Menu, match: (p: string) => p.startsWith("/more") || p.startsWith("/settings") || p.startsWith("/memory") || p.startsWith("/templates") || p.startsWith("/documents") || p.startsWith("/workflows") || p.startsWith("/admin") || p.startsWith("/properties") || p.startsWith("/showings") },
+  { href: "/more", label: "More", icon: Menu, match: (p: string) => p.startsWith("/more") || p.startsWith("/settings") || p.startsWith("/memory") || p.startsWith("/templates") || p.startsWith("/documents") || p.startsWith("/workflows") || p.startsWith("/admin") || p.startsWith("/showings") },
 ];
 
 /** Which way the new screen should arrive from: sideways between tabs, forward/back inside a tab. */
@@ -72,10 +73,10 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
           {NAV.map((n) => {
             const active = n.match(shown);
             return (
-              <Link key={n.href} href={n.href} scroll={false} onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className="relative flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-semibold transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
+              <Link key={n.href} href={n.href} scroll={false} onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className="relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-full px-0.5 py-2 text-[10px] font-semibold tracking-tight transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
                 {active && <motion.span layoutId="tab-pill" className="absolute inset-0 rounded-full" style={{ background: "linear-gradient(135deg,var(--accent),var(--accent-2))" }} transition={{ type: "spring", stiffness: 520, damping: 40 }} />}
                 <n.icon size={21} strokeWidth={active ? 2.3 : 1.9} className="relative" />
-                <span className="relative">{n.label}</span>
+                <span className="relative">{"short" in n && n.short ? <><span className="min-[380px]:hidden">{n.short}</span><span className="hidden min-[380px]:inline">{n.label}</span></> : n.label}</span>
                 {n.href === "/" && approvals > 0 && <span className="absolute right-[22%] top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">{approvals}</span>}
               </Link>
             );

@@ -3,6 +3,7 @@ import { cleanText } from "@/lib/server/sanitize";
 import { getStore } from "@/lib/db/store";
 import { deleteProperty, propertyUsage } from "@/lib/property-delete";
 import { aiAvailable } from "@/lib/ai/provider";
+import { STAGES, STAGE_KEY } from "@/lib/property-stage";
 import { LOOKUP_KEY, type LookupMemory } from "@/lib/agent/property-lookup";
 
 export const GET = api<{ id: string }>(async ({ profile, params }) => {
@@ -36,7 +37,17 @@ export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
   if (patch.listing_url) { // rendered as a link: web links only (never javascript: or data:)
     try { const u = new URL(String(patch.listing_url)); if (u.protocol !== "http:" && u.protocol !== "https:") throw 0; } catch { throw bad("Listing links must start with http:// or https://."); }
   }
-  const p = await getStore().update("properties", profile.id, params.id, patch);
+  // the agent can set where the home is in its life; it overrides what Mila works out by herself
+  if ("stage" in b) {
+    if (typeof b.stage !== "string" || (b.stage !== "auto" && !STAGES.some((s) => s.key === b.stage))) throw bad("That stage isn't valid.");
+    const st = getStore();
+    if (!(await st.get("properties", profile.id, params.id))) throw notFound("That property");
+    const hit = (await st.list("memories", profile.id)).find((m) => m.scope === "property" && m.subject_id === params.id && m.key === STAGE_KEY);
+    if (b.stage === "auto") { if (hit) await st.remove("memories", profile.id, hit.id); }
+    else if (hit) await st.update("memories", profile.id, hit.id, { value: b.stage });
+    else await st.insert("memories", profile.id, { scope: "property", subject_id: params.id, key: STAGE_KEY, value: b.stage, source: "user_stated", confidence: 1, pinned: false });
+  }
+  const p = Object.keys(patch).length ? await getStore().update("properties", profile.id, params.id, patch) : await getStore().get("properties", profile.id, params.id);
   if (!p) throw notFound("That property");
   return { property: p };
 });

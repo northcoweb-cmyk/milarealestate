@@ -17,23 +17,15 @@ import { ClipboardCheck } from "lucide-react";
 
 export default function PropertyPage() {
   const { id } = useParams<{ id: string }>();
-  if (id === "all") return <PropertyList />;
+  if (id === "all") return <GoToProperties />;
   return <PropertyDetail id={id} />;
 }
 
-function PropertyList() {
-  const { data, loading, reload } = useApi<{ properties: Property[] }>("/api/properties");
-  const [del, setDel] = useState<Property | null>(null);
-  return (
-    <Page>
-      <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
-      <PageHeader title="Properties" sub="Mila only uses facts you've confirmed." />
-      {loading && !data ? <Skeleton className="h-40" /> : !data?.properties.length ? <Empty title="No properties yet" body="They're created automatically when you tell Mila about an open house, showing or listing." /> : (
-        <ul className="glass divide-y overflow-hidden" style={{ borderColor: "var(--line)" }}>{data.properties.map((p) => <li key={p.id} className="flex items-center"><div className="min-w-0 flex-1"><Link href={`/properties/${p.id}`} className="flex items-center gap-3 px-5 py-4 transition hover:bg-white/30"><div className="min-w-0 flex-1"><p className="font-semibold">{p.address}</p><p className="faint text-[13.5px]">{[p.city, p.state].filter(Boolean).join(", ") || "Details not added yet"}</p></div>{p.is_demo && <Pill>Demo</Pill>}<Pill tone={p.verified ? "ok" : "warn"}>{p.verified ? "Verified facts" : "Unverified"}</Pill></Link></div><button className="btn btn-quiet btn-sm mr-2 shrink-0 !px-2.5" aria-label={`Delete ${p.address}`} onClick={() => setDel(p)}><Trash2 size={18} /></button></li>)}</ul>
-      )}
-      {del && <DeletePropertyConfirm id={del.id} address={del.address} open onClose={() => setDel(null)} onDeleted={reload} />}
-    </Page>
-  );
+/** The old /properties/all address now lives at /properties (the tab). */
+function GoToProperties() {
+  const router = useRouter();
+  useEffect(() => { router.replace("/properties"); }, [router]);
+  return <Page><Skeleton className="h-40" /></Page>;
 }
 
 function PropertyDetail({ id }: { id: string }) {

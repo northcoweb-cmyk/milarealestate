@@ -1,0 +1,56 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Building2, Plus, Search } from "lucide-react";
+import type { PropertyCardInfo, Group } from "@/lib/property-stage";
+import { Empty, PageHeader, Skeleton } from "@/components/ui";
+import { Page } from "@/components/page";
+import { useApi } from "@/components/use-api";
+import { PropertyCard } from "@/components/property-card";
+import { useMila } from "@/components/mila-chat";
+
+type Tab = "current" | "upcoming" | "past" | "all";
+const TABS: [Tab, string][] = [["current", "Current"], ["upcoming", "Upcoming"], ["past", "Past"], ["all", "All"]];
+const GROUP_TITLE: Record<Group, string> = { current: "Current", upcoming: "Upcoming", past: "Past" };
+
+export default function PropertiesPage() {
+  const { data, loading, reload } = useApi<{ properties: PropertyCardInfo[] }>("/api/properties?view=cards");
+  const mila = useMila();
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState<Tab | null>(null);
+  const all = data?.properties ?? [];
+  const counts = useMemo(() => ({ current: all.filter((p) => p.group === "current").length, upcoming: all.filter((p) => p.group === "upcoming").length, past: all.filter((p) => p.group === "past").length, all: all.length }), [all]);
+  // open on whatever the agent is most likely here for: what's live now, else what's coming, else everything
+  const tab: Tab = picked ?? (counts.current ? "current" : counts.upcoming ? "upcoming" : "all");
+  const shown = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return all.filter((p) => (tab === "all" || p.group === tab) && (!t || `${p.address} ${p.city ?? ""} ${p.state ?? ""} ${p.zip ?? ""}`.toLowerCase().includes(t)));
+  }, [all, tab, q]);
+
+  return (
+    <Page wide>
+      <PageHeader title="Properties" sub="Everything you're working on, coming up, and have closed." right={<button className="btn btn-primary" onClick={() => mila.open()}><Plus size={18} />Add</button>} />
+      {loading && !data ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-72" />)}</div> : !all.length ? (
+        <Empty title="No properties yet" body="Tell Mila about a listing — “New listing at 12 Oak St, $650k, 3 bed 2 bath” — or ask her to prep any address, and it shows up here with its photo and numbers." action={<button className="btn btn-primary" onClick={() => mila.open()}>Tell Mila</button>} />
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0" role="tablist" aria-label="Show">
+              {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={"chip shrink-0 " + (tab === k ? "is-selected" : "")} onClick={() => setPicked(k)}>{l} · {counts[k]}</button>)}
+            </div>
+            <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-xs"><Search size={16} className="faint absolute left-3 top-1/2 -translate-y-1/2" aria-hidden /><input className="field !pl-9" placeholder="Search address or city" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search properties" /></div>
+          </div>
+          {!shown.length ? <Empty title={q ? "Nothing matches" : `No ${tab === "all" ? "" : TABS.find(([k]) => k === tab)![1].toLowerCase() + " "}properties`} body={q ? "Try another address or city." : tab === "past" ? "Closed deals land here after you tell Mila “I closed on…”." : tab === "upcoming" ? "New listings you're prepping show up here before they go live." : "Put a listing on the calendar and it moves here."} /> : tab === "all" ? (
+            (["current", "upcoming", "past"] as Group[]).map((g) => { const list = shown.filter((p) => p.group === g); return list.length ? (
+              <section key={g} className="mb-8" aria-label={GROUP_TITLE[g]}>
+                <h2 className="kicker mb-3 flex items-center gap-2"><Building2 size={14} aria-hidden />{GROUP_TITLE[g]} · {list.length}</h2>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{list.map((p) => <PropertyCard key={p.id} p={p} onChanged={reload} />)}</div>
+              </section>) : null; })
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{shown.map((p) => <PropertyCard key={p.id} p={p} onChanged={reload} />)}</div>
+          )}
+        </>
+      )}
+    </Page>
+  );
+}

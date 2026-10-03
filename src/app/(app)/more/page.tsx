@@ -42,7 +42,7 @@ export default function MorePage() {
         <Row href="/workflows" icon={Workflow} title="Workflows" sub="Open house, new buyer, and more" />
         <Row href="/templates" icon={FileText} title="Templates" sub="Documents, emails and checklists" />
         <Row href="/documents" icon={FolderOpen} title="Documents" sub="Files you've shared with Mila" />
-        <Row href="/properties/all" icon={HomeIcon} title="Properties" sub="Listings, facts and photos" />
+        <Row href="/properties" icon={HomeIcon} title="Properties" sub="Listings, facts and photos" />
       </Group>
       <Group title="Settings">
         <Row href="/settings/profile" icon={User} title="Profile" />

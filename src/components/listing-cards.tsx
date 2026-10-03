@@ -8,7 +8,7 @@ import type { ActionButton, ListingCardData } from "@/lib/types";
 type Act = (a: { type: string; [k: string]: unknown }) => void;
 const money = (n: number | null) => (n == null ? "" : `$${n.toLocaleString("en-US")}`);
 
-function Photo({ src, alt }: { src: string | null; alt: string }) {
+export function Photo({ src, alt }: { src: string | null; alt: string }) {
   const [bad, setBad] = useState(!src);
   if (bad) return <div className="flex h-full w-full items-center justify-center" style={{ background: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--ink) 8%, transparent))" }} aria-hidden><Home size={34} className="faint" /></div>;
   // eslint-disable-next-line @next/next/no-img-element
