@@ -497,7 +497,20 @@ export async function invoke(ctx: Ctx, name: string, args: Args, opts: { approve
 export interface DecisionOutcome { approval: Approval; result?: ToolResult; followUp?: import("../types").Block[]; message: string }
 
 /** Approve (and execute) or reject a pending approval. Never claims success that didn't happen. */
+const deciding = new Set<string>();
 export async function decideApproval(ctx: Ctx, id: string, decision: "approve" | "reject"): Promise<DecisionOutcome> {
+  // A double-click / replayed request must not run the same approval (e.g. send the same email) twice at once.
+  const lock = `${ctx.userId}:${id}`;
+  if (deciding.has(lock)) {
+    const cur = await ctx.store.get("approvals", ctx.userId, id);
+    if (!cur) throw new Error("Approval not found");
+    return { approval: cur, message: "That's already being handled." };
+  }
+  deciding.add(lock);
+  try { return await decideApprovalOnce(ctx, id, decision); } finally { deciding.delete(lock); }
+}
+
+async function decideApprovalOnce(ctx: Ctx, id: string, decision: "approve" | "reject"): Promise<DecisionOutcome> {
   const a = await ctx.store.get("approvals", ctx.userId, id);
   if (!a) throw new Error("Approval not found");
   const task = (await ctx.store.list("tasks", ctx.userId)).find((t) => t.approval_id === id);

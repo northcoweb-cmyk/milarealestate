@@ -1,4 +1,5 @@
 import { api, bad, notFound, readJson } from "@/lib/server/route";
+import { rateLimit } from "@/lib/server/rate-limit";
 import { buildCtx } from "@/lib/agent/engine";
 import { ensureCredits, recordUsage } from "@/lib/credits";
 import { PLATFORMS, platformLimit } from "@/lib/content/templates";
@@ -42,7 +43,7 @@ export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
       if (!r.ok) throw bad(r.error);
       post = r.post; break;
     }
-    case "regenerate": { await ensureCredits(profile.id, 1); post = await regenerate(ctx, post); await recordUsage({ userId: profile.id, operation: "content_regenerate", creditKey: "social_generation" }); break; }
+    case "regenerate": { rateLimit(`content:${profile.id}`, 20); await ensureCredits(profile.id, 1); post = await regenerate(ctx, post); await recordUsage({ userId: profile.id, operation: "content_regenerate", creditKey: "social_generation" }); break; }
     case "duplicate": {
       const targets = (Array.isArray(b.platforms) ? b.platforms : []).filter((p: string) => PLAT.includes(p as SocialPlatform)) as SocialPlatform[];
       if (!targets.length) throw bad("Choose a platform to copy to.");

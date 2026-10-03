@@ -1,6 +1,5 @@
 "use client";
 
-import { typeColor } from "@/lib/emoji";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect } from "react";
@@ -72,7 +71,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
           >
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="h2">{title}</h2>
-              <button className="btn btn-quiet btn-sm !px-2" onClick={onClose} aria-label="Close"><X size={20} /></button>
+              <button className="btn btn-quiet btn-sm !min-w-[44px] !px-2" onClick={onClose} aria-label="Close"><X size={20} /></button>
             </div>
             {children}
           </motion.div>
@@ -107,8 +106,8 @@ export function Empty({ title, body, action }: { title: string; body?: string; a
 
 export function PageHeader({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
   return (
-    <header className="mb-6 flex items-end justify-between gap-4 pt-2">
-      <div>
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3 pt-2">
+      <div className="min-w-0 flex-1 basis-[13rem]">
         <h1 className="h1">{title}</h1>
         {sub && <p className="muted mt-1.5">{sub}</p>}
       </div>
@@ -119,7 +118,7 @@ export function PageHeader({ title, sub, right }: { title: string; sub?: string;
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <button role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className="relative h-8 w-[52px] shrink-0 rounded-full transition-colors" style={{ background: checked ? "linear-gradient(135deg,var(--accent),var(--accent-2))" : "color-mix(in srgb, var(--ink) 18%, transparent)" }}>
+    <button role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className="relative h-8 w-[52px] shrink-0 rounded-full transition-colors before:absolute before:-inset-2 before:content-['']" style={{ background: checked ? "linear-gradient(135deg,var(--accent),var(--accent-2))" : "color-mix(in srgb, var(--ink) 18%, transparent)" }}>
       <span className="absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all" style={{ left: checked ? 24 : 4 }} />
     </button>
   );
@@ -129,7 +128,7 @@ export function Segmented<T extends string>({ value, options, onChange }: { valu
   return (
     <div className="inline-flex rounded-full p-1" style={{ background: "color-mix(in srgb, var(--ink) 7%, transparent)" }}>
       {options.map((o) => (
-        <button key={o.value} onClick={() => onChange(o.value)} className="rounded-full px-4 py-1.5 text-[14px] font-semibold transition" style={value === o.value ? { background: "var(--glass-strong)", boxShadow: "var(--shadow)", color: "var(--ink)" } : { color: "var(--ink-soft)" }}>{o.label}</button>
+        <button key={o.value} onClick={() => onChange(o.value)} className="rounded-full px-4 py-1.5 text-[14px] font-semibold transition pointer-coarse:min-h-11" style={value === o.value ? { background: "var(--glass-strong)", boxShadow: "var(--shadow)", color: "var(--ink)" } : { color: "var(--ink-soft)" }}>{o.label}</button>
       ))}
     </div>
   );
@@ -144,8 +143,8 @@ export async function jfetch<T = any>(url: string, init?: RequestInit & { json?:
 
 /** Coloured label for what kind of contact someone is (buyer, seller, …). */
 export function TypeBadge({ type, label, emoji }: { type: string; label: string; emoji?: string }) {
-  const c = typeColor(type);
-  return <span className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-[3px] text-[12.5px] font-bold" style={{ color: c, background: `color-mix(in srgb, ${c} 16%, transparent)`, border: `1px solid color-mix(in srgb, ${c} 38%, transparent)` }}>{emoji && <span aria-hidden>{emoji}</span>}{label}</span>;
+  void type; // black/white palette: the label carries the meaning, not a hue
+  return <span className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-[3px] text-[12.5px] font-bold" style={{ color: "var(--ink)", background: "color-mix(in srgb, var(--ink) 8%, transparent)", border: "1px solid var(--line)" }}>{emoji && <span aria-hidden>{emoji}</span>}{label}</span>;
 }
 
 /** Round check that draws itself when completed. */

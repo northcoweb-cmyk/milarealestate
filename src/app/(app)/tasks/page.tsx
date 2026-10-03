@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { X } from "lucide-react";
 import { taskEmoji, approvalEmoji } from "@/lib/emoji";
 import clsx from "clsx";
 import type { Approval, Task, TaskKind, TaskPriority } from "@/lib/types";
@@ -78,7 +79,7 @@ function TasksInner() {
                         {t.subtitle && <p className="muted text-[14px]">{t.subtitle}</p>}
                         <p className="faint mt-0.5 text-[12.5px]">{[t.kind.replace("_", " "), t.due_at && `due ${new Date(t.due_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`, t.priority_reason].filter(Boolean).join(" · ")}</p>
                       </div>
-                      <button className="btn btn-quiet btn-sm !px-2 text-[13px]" onClick={() => complete(t, true)}>Dismiss</button>
+                      <button className="btn btn-quiet btn-sm !min-w-[44px] !px-2 text-[13px]" aria-label={`Dismiss ${t.title}`} onClick={() => complete(t, true)}><X size={18} className="sm:hidden" aria-hidden /><span className="hidden sm:inline">Dismiss</span></button>
                     </motion.li>
                   ))}</AnimatePresence>
                 </ul>

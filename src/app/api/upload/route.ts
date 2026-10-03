@@ -20,6 +20,7 @@ export const POST = api(async ({ profile, req }) => {
   const files = (form?.getAll("file") ?? []).filter((f): f is File => f instanceof File);
   if (!files.length) throw bad("Choose a file to upload.");
   const propertyId = (form?.get("propertyId") as string) || null;
+  if (propertyId && !(await getStore().get("properties", profile.id, propertyId))) throw bad("That property wasn't found.");
   const out: DocumentRow[] = [];
   for (const f of files.slice(0, 10)) {
     if (f.size > MAX_UPLOAD_BYTES) throw bad(`${f.name} is larger than 12 MB.`);

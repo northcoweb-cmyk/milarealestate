@@ -6,6 +6,8 @@ import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, putFile } from "@/lib/files";
 export const PUT = api<{ id: string }>(async ({ profile, params, req }) => {
   const doc = await getStore().get("documents", profile.id, params.id);
   if (!doc || !(doc.extracted as { media?: boolean } | null)?.media) throw notFound("That file");
+  const cap = doc.mime.startsWith("video/") ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  if (Number(req.headers.get("content-length") ?? 0) > cap) throw bad("That file is too large.");
   const buf = Buffer.from(await req.arrayBuffer());
   if (!buf.length) throw bad("Empty file.");
   if (buf.length > (doc.mime.startsWith("video/") ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES)) throw bad("That file is too large.");

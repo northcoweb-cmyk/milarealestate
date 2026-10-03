@@ -21,8 +21,9 @@ export default function MorePage() {
   const install = useInstall();
   const pct = Math.min(100, Math.round((credits.balance / Math.max(credits.allowance, 1)) * 100));
   return (
-    <Page>
+    <Page wide>
       <PageHeader title="More" />
+<div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
       <Link href="/settings/profile" className="glass-strong mb-7 flex items-center gap-4 p-5"><Avatar name={profile.full_name} size={56} src={profile.settings.brand?.pfp ? `/api/files/${profile.settings.brand.pfp}` : null} /><div className="min-w-0 flex-1"><p className="text-[19px] font-semibold leading-tight">{profile.full_name}</p><p className="muted truncate text-[14.5px]">{profile.email}</p></div><ChevronRight className="text-ink-faint" /></Link>
 
       <Link href="/settings/credits" className="glass mb-7 block p-5" style={{ borderRadius: 26 }}>
@@ -31,6 +32,8 @@ export default function MorePage() {
         <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
       </Link>
 
+</div>
+<div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
       <Group title="Mila's workspace">
         <Row href="/showings" icon={ClipboardCheck} title="Showing sheets" sub="Checklist, notes, photos and video" />
         <Row href="/done" icon={ListChecks} title="Completed" sub="Everything finished, in order" />
@@ -53,7 +56,9 @@ export default function MorePage() {
         <Row href="/settings/security" icon={Lock} title="Security" />
         {admin && <Row href="/admin" icon={Gauge} title="Owner dashboard" sub="Credit costs, pricing and margins" />}
       </Group>
+</div>
 
+      <div className="mx-auto lg:max-w-xl">
       {!install.standalone && <section id="install" className="glass mb-5 p-5"><p className="mb-1 flex items-center gap-2 font-semibold"><Smartphone size={18} />Add Mila to your Home Screen</p><p className="muted mb-3 text-[14px]">For the full experience — it opens like a real app.</p>{install.deferred ? <button className="btn btn-primary btn-sm" onClick={install.install}>Install</button> : <InstallSteps platform={install.platform} />}</section>}
 
       {profile.is_demo && <button className="btn btn-quiet mb-3 w-full" onClick={() => setClearing(true)}>Remove sample data</button>}
@@ -61,6 +66,7 @@ export default function MorePage() {
         onConfirm={async () => { setClearing(false); try { const r = await jfetch<{ removed: number }>("/api/me/remove-sample-data", { method: "POST" }); toast(r.removed ? "Sample data removed." : "There was no sample data to remove.", "success"); router.refresh(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't remove it.", "error"); } }} />
       <button className="btn w-full" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); router.replace("/welcome"); router.refresh(); }}><LogOut size={18} />Sign out</button>
       {profile.is_demo && <p className="faint mt-4 text-center text-[12.5px]">You're using fictional demo data.</p>}
+      </div>
     </Page>
   );
 }

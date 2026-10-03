@@ -224,3 +224,9 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 @keyframes pg-push { from { opacity: .55; transform: translate3d(16px, 0, 0); } }
 @keyframes pg-pop { from { opacity: .55; transform: translate3d(-16px, 0, 0); } }
 @media (prefers-reduced-motion: reduce) { .page-in-right, .page-in-left, .page-in-push, .page-in-pop { animation: none; } }
+
+/* Touch devices: every control meets the 44px minimum. */
+@media (pointer: coarse) { .btn-sm, .chip { min-height: 44px; } }
+
+/* Native controls follow the black/white palette (no browser-blue checkboxes). */
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }

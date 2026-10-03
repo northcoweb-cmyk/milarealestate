@@ -1,3 +1,4 @@
+import { rateLimit } from "@/lib/server/rate-limit";
 import { api, bad, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { ensureCredits, recordUsage } from "@/lib/credits";
@@ -9,6 +10,7 @@ export const maxDuration = 60;
 
 // Mila drafts a content calendar (suggested times, max 3/day). Nothing is scheduled until you approve.
 export const POST = api(async ({ profile, req }) => {
+  rateLimit(`plan:${profile.id}`, 10);
   const b = await readJson<{ postsPerWeek: number; categories: Category[]; platforms: SocialPlatform[]; days?: number; approve?: boolean }>(req);
   const platforms = (b.platforms ?? []).filter((p) => PLATFORMS.some((x) => x.key === p));
   if (!platforms.length) throw bad("Choose at least one platform.");

@@ -1,4 +1,5 @@
 import { api, bad, notFound, readJson } from "@/lib/server/route";
+import { cleanText } from "@/lib/server/sanitize";
 import { getStore } from "@/lib/db/store";
 import { deleteProperty, propertyUsage } from "@/lib/property-delete";
 import { aiAvailable } from "@/lib/ai/provider";
@@ -19,8 +20,22 @@ export const GET = api<{ id: string }>(async ({ profile, params }) => {
 export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
   const b = await readJson(req);
   const patch: Record<string, unknown> = {};
-  for (const k of ["city", "state", "zip", "county", "list_price", "beds", "baths", "sqft", "listing_url", "description"]) if (k in b) patch[k] = b[k] === "" ? null : b[k];
-  if (typeof b.verified === "boolean") patch.verified = b.verified;
+  const text = { city: 60, state: 30, zip: 12, county: 60, description: 5000, listing_url: 500 } as const;
+  const num = { list_price: 2_000_000_000, beds: 100, baths: 100, sqft: 10_000_000 } as const;
+  for (const [k, max] of Object.entries(text)) if (k in b) {
+    if (b[k] === "" || b[k] == null) { patch[k] = null; continue; }
+    if (typeof b[k] !== "string") throw bad(`${k} isn't valid.`);
+    patch[k] = cleanText(b[k], max, k === "description");
+  }
+  for (const [k, max] of Object.entries(num)) if (k in b) {
+    if (b[k] === "" || b[k] == null) { patch[k] = null; continue; }
+    const n = Number(b[k]);
+    if (!Number.isFinite(n) || n < 0 || n > max) throw bad(`${k} isn't valid.`);
+    patch[k] = n;
+  }
+  if (patch.listing_url) { // rendered as a link: web links only (never javascript: or data:)
+    try { const u = new URL(String(patch.listing_url)); if (u.protocol !== "http:" && u.protocol !== "https:") throw 0; } catch { throw bad("Listing links must start with http:// or https://."); }
+  }
   const p = await getStore().update("properties", profile.id, params.id, patch);
   if (!p) throw notFound("That property");
   return { property: p };

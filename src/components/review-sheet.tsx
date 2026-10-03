@@ -41,7 +41,7 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
   const pending = a?.status === "pending";
   return (
     <Sheet open={!!approvalId} onClose={onClose} title={a?.title ?? "Review"} wide>
-      {!d ? <Skeleton className="h-48" /> : (
+      {!d ? <Skeleton className="h-[232px]" /> : (
         <div className="space-y-5">
           {a?.summary && <p className="muted">{a.summary}</p>}
           {a?.status === "approved" && a.error && <p className="rounded-2xl p-3 text-[14.5px]" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}>{a.error} {a.blocked_integration === "google" && <Link className="font-semibold underline" href="/settings/connections">Connect Google</Link>}</p>}

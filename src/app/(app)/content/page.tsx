@@ -70,7 +70,7 @@ function ContentInner() {
   }
 
   return (
-    <Page>
+    <Page wide>
       <PageHeader title="Content" sub="Mila designs the posts. You post them." right={<div className="flex gap-2"><button className="btn btn-quiet btn-sm" onClick={() => setPlanning(true)}><Sparkles size={16} /> Plan</button><button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}><Plus size={16} /> New</button></div>} />
 
       {!profile.settings.brand?.credentials?.trim() && (
@@ -100,7 +100,8 @@ function ContentInner() {
 
       {loading && !data ? <div className="space-y-3"><Skeleton className="h-36" /><Skeleton className="h-36" /></div>
         : posts.length === 0 ? <Empty title={tab === "drafts" ? "No drafts yet" : `Nothing ${tab === "scheduled" ? "planned" : tab} yet`} body="Tap New for a single post, or Plan to have Mila fill your week." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>Create a post</button>} />
-        : <ul className="space-y-3">{posts.map((p) => (
+        
+        : <ul className="grid gap-3 lg:grid-cols-2">{posts.map((p) => (
           <li key={p.id}><button onClick={() => setOpen(p)} className="glass flex w-full gap-3.5 p-3 text-left" style={{ borderRadius: 24 }}>
             <SlideImage slide={p.slides[0] ?? { role: "hero", headline: p.caption.split("\n")[0] }} index={0} total={p.slides.length || 1} post={p} brand={brand} width={300} className="w-[96px] shrink-0 self-start" rounded={14} />
             <div className="min-w-0 flex-1 py-0.5">

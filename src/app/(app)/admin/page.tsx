@@ -30,7 +30,7 @@ export default function AdminPage() {
     <Page wide>
       <div className="lg:hidden"><Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link></div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="display text-[40px] leading-none">Owner dashboard</h1><p className="muted mt-1.5 text-[14.5px]">{data ? `Updated ${ago(data.generatedAt)}` : "Accounts, usage, errors and what needs fixing."}</p></div>
+        <div><h1 className="h1">Owner dashboard</h1><p className="muted mt-1.5 text-[14.5px]">{data ? `Updated ${ago(data.generatedAt)}` : "Accounts, usage, errors and what needs fixing."}</p></div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-[13.5px] muted"><input type="checkbox" checked={hideTest} onChange={(e) => setHideTest(e.target.checked)} />Hide test accounts{data ? ` (${data.kpis.testAccounts})` : ""}</label>
           <button className="btn btn-sm" onClick={reload} aria-label="Refresh"><RefreshCw size={16} />Refresh</button>
@@ -231,7 +231,7 @@ function Health({ d }: { d: AdminReport }) {
     <section className="glass p-5">
       <p className="h2 mb-3">System health</p>
       <ul className="divide-y" style={{ borderColor: "var(--line)" }}>
-        {rows.map(([name, okk, note]) => <li key={name} className="flex items-start gap-3 py-3"><Pill tone={okk ? "ok" : "warn"}>{okk ? "OK" : "Fix"}</Pill><div><p className="font-semibold">{name}</p><p className="muted text-[13.5px]">{note}</p></div></li>)}
+        {rows.map(([name, okk, note]) => <li key={name} className="flex items-start gap-3 py-3"><span className="inline-flex w-10 shrink-0 justify-center"><Pill tone={okk ? "ok" : "warn"}>{okk ? "OK" : "Fix"}</Pill></span><div className="min-w-0"><p className="font-semibold">{name}</p><p className="muted text-[13.5px]">{note}</p></div></li>)}
       </ul>
       <p className="faint mt-4 text-[12.5px]">Auth: {h.auth} · Store: {h.store} · Env: {h.node || "n/a"}{h.vercel ? " · Vercel" : ""}</p>
     </section>

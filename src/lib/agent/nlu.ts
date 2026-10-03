@@ -44,6 +44,16 @@ export function invalidTimeToken(text: string): string | null {
 
 /** Parses "1 PM", "1:30pm", "1–3 PM", "from 10 to noon", "at three", "noon", "morning". */
 export function parseTime(text: string): TimeSpec | null {
+  const t = parseTimeRaw(text);
+  // "tonight at 7" / "this evening at 6:30" with no am/pm means the evening
+  if (t && !/\d\s*[ap]\.?m\b|\b[ap]\.?m\b|\bnoon\b|\bmidnight\b/i.test(text) && /\b(tonight|tonite|this evening|evening|at night)\b/i.test(text)) {
+    const pm = (x: TimeOfDay) => (x.h >= 1 && x.h <= 11 ? { h: x.h + 12, mi: x.mi } : x);
+    return { ...t, start: pm(t.start), end: t.end ? pm(t.end) : undefined };
+  }
+  return t;
+}
+
+function parseTimeRaw(text: string): TimeSpec | null {
   if (invalidTimeToken(text)) return null;
   const t = text.toLowerCase().replace(/[–—]/g, "-");
   const word = "(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)";
@@ -65,6 +75,16 @@ export function parseTime(text: string): TimeSpec | null {
   if (oclock && toNum(oclock[1]) >= 1 && toNum(oclock[1]) <= 12) return { start: to24(toNum(oclock[1]), 0), explicit: true };
   const shortMer = /\b(\d{1,2})\s*([ap])(?![a-z.])/i.exec(t);
   if (shortMer && +shortMer[1] >= 1 && +shortMer[1] <= 12) return { start: to24(+shortMer[1], 0, shortMer[2] + "m"), explicit: true };
+
+  // "1030am", "230pm"
+  const compact = /(?<![\d:,.$])\b(\d{1,2})([0-5]\d)\s*([ap])\.?m\b\.?/i.exec(t);
+  if (compact && +compact[1] >= 1 && +compact[1] <= 12) return { start: to24(+compact[1], +compact[2], compact[3] + "m"), explicit: true };
+  // "two thirty", "five fifteen pm", "ten forty-five"
+  const said = new RegExp(`\\b${word}\\s+(fifteen|thirty|forty[- ]?five)\\b\\s*(a\\.?m\\.?|p\\.?m\\.?)?`, "i").exec(t);
+  if (said) return { start: to24(toNum(said[1]), /^f/.test(said[2]) && !/^forty/.test(said[2]) ? 15 : /^t/.test(said[2]) ? 30 : 45, said[3]), explicit: true };
+  // "3ish", "around 3-ish"
+  const ish = /\b(\d{1,2})\s*-?\s*ish\b/.exec(t);
+  if (ish && +ish[1] >= 1 && +ish[1] <= 12) return { start: to24(+ish[1], 0), explicit: true };
 
   // ranges: "1-3 pm", "1 pm to 3 pm", "from 10 to noon"
   const range = new RegExp(`(?:from\\s+|between\\s+)?\\b${clock}\\s*(?:-|to|until|till)\\s*(noon|${clock})(?!\\d)`, "i").exec(t);
@@ -92,7 +112,7 @@ export function parseTime(text: string): TimeSpec | null {
   const colon = /\b(\d{1,2}):(\d{2})\b/.exec(t);
   if (colon) return { start: to24(+colon[1], +colon[2]), explicit: true };
 
-  const at = new RegExp(`\\b(?:at|to|around|by|@)\\s+(\\d{1,2}|${word})(?![\\d,]|\\s*(?:bed|br|bath|k\\b|m\\b|%|people|units|min))`, "i").exec(t);
+  const at = new RegExp(`(?:\\b(?:at|to|around|by)\\s+|@\\s*)(\\d{1,2}|${word})(?![\\d,]|\\s*(?:bed|br|bath|k\\b|m\\b|%|people|units|min))`, "i").exec(t);
   if (at) {
     const n = toNum(at[1]);
     if (n >= 1 && n <= 12) return { start: to24(n, 0), explicit: true };
@@ -185,22 +205,50 @@ export function parseWhen(textIn: string, now: Date, tz: string): WhenSpec {
 
 // --------------------------------------------------------------------- entities
 
-const SUFFIX = "pike|plaza|row|run|loop|path|pass|point|ridge|crossing|walk|hill|park|street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|way|place|pl|terrace|ter|circle|cir|trail|trl|parkway|pkwy|highway|hwy|square|sq";
+const SUFFIX = "pike|plaza|row|run|loop|path|pass|point|ridge|crossing|walk|hill|park|street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|boul|way|place|pl|terrace|terr|ter|circle|cir|trail|trl|parkway|pkwy|pky|highway|hwy|square(?![.\\s]*f(?:t|eet|oot))|sq(?![.\\s]*f(?:t|eet|oot))";
+/** words that are often part of a street NAME and are then followed by the real suffix ("Pine Ridge Rd", "Cherry Hill Ln", "Fox Run Dr", "Park Place") */
+const NAMEY = "pike|plaza|row|run|loop|path|pass|point|ridge|crossing|walk|hill|park|square|sq";
+const FORMAL = "street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd|boul|way|place|pl|terrace|terr|ter|circle|cir|trail|trl|parkway|pkwy|pky|highway|hwy";
+const DIRS = "(?:northeast|northwest|southeast|southwest|north|south|east|west|ne|nw|se|sw|[nsew])";
 
-const titleCase = (s: string) => s.replace(/\b([a-z])([a-z']*)/gi, (_, a: string, b: string) => a.toUpperCase() + b.toLowerCase());
+const MIXED = /^[A-Za-z][a-z']*[A-Z]/; // "McKinley", "O'Brien", "DeLuca": the agent already capitalised it deliberately
+const titleCase = (s: string) => s.split(/(\s+)/).map((w) => {
+  if (!w.trim()) return w;
+  if (MIXED.test(w) && /[a-z]/.test(w)) return w;
+  return w.replace(/\b([a-z])([a-z']*)/gi, (_, a: string, b: string) => a.toUpperCase() + b.toLowerCase().replace(/^'([a-z])/, (_m, c: string) => "'" + (a.toUpperCase() === "O" || a.toUpperCase() === "D" ? c.toUpperCase() : c)));
+}).join("");
 
-const SUFFIX_FULL: Record<string, string> = { st: "Street", ave: "Avenue", rd: "Road", dr: "Drive", ln: "Lane", ct: "Court", blvd: "Boulevard", pl: "Place", ter: "Terrace", cir: "Circle", trl: "Trail", pkwy: "Parkway", hwy: "Highway", sq: "Square" };
+const SUFFIX_FULL: Record<string, string> = { st: "Street", ave: "Avenue", rd: "Road", dr: "Drive", ln: "Lane", ct: "Court", blvd: "Boulevard", boul: "Boulevard", pl: "Place", ter: "Terrace", terr: "Terrace", cir: "Circle", trl: "Trail", pkwy: "Parkway", pky: "Parkway", hwy: "Highway", sq: "Square" };
 
-/** Finds a street address; returns the normalised form and the raw matched text. */
+/** Finds a street address; returns the normalised form (and unit, e.g. "#4B") and the raw matched text. */
 export function findAddress(text: string): { address: string; raw: string } | null {
-  // words between the number and the street suffix must start with a letter and not be am/pm ("1 PM 55 Pine Road" is a time, then an address)
-  const re = new RegExp(`\\b(\\d{1,6}\\s+(?:(?:[nsew]\\.?|north|south|east|west)\\s+)?(?:(?!(?:a\\.?m\\.?|p\\.?m\\.?)\\s)[a-z][a-z0-9'.]*\\s+){0,3}?(?:${SUFFIX}))\\b\\.?`, "i");
-  const m = re.exec(text);
+  const num = "(\\d{1,6}[A-Za-z]?)";
+  const wordRe = "(?:(?!(?:a\\.?m\\.?|p\\.?m\\.?)\\s)(?:[a-z][a-z0-9'.]*|\\d+(?:st|nd|rd|th))\\s+)";
+  const dir = `(?:${DIRS}\\.?\\s+)?`;
+  const tail = `(?:\\s+(?:ne|nw|se|sw)\\b\\.?)?`; // "1600 Penn Ave NW"
+  const unit = `(?:\\s*,?\\s*(?:#\\s*|(?:apt|apartment|unit|suite|ste)\\.?\\s+#?)([a-z0-9][a-z0-9-]{0,5})(?![a-z0-9]))?`;
+  const build = (body: string) => new RegExp(`(?<![\\d,.$])\\b${num}\\s+${dir}${body}${tail}${unit}`, "i");
+  // "17 St. Mary's Rd": "St." right after the number is Saint, not the street suffix
+  const saint = build(`(?:st\\.|saint)\\s+(?:[a-z][a-z0-9'.]*\\s+){0,2}?(?:${SUFFIX})\\b\\.?`);
+  const plain = build(`(?:${wordRe}){0,4}?(?:(?:${NAMEY})\\s+(?:${FORMAL})|(?:${SUFFIX}))\\b\\.?`);
+  const m = saint.exec(text) ?? plain.exec(text);
   if (!m) return null;
-  const words = titleCase(m[1]).split(/\s+/);
-  const last = words[words.length - 1].replace(/\.$/, "").toLowerCase();
-  if (SUFFIX_FULL[last]) words[words.length - 1] = SUFFIX_FULL[last];
-  return { address: words.join(" "), raw: m[0] };
+  // m[1] = number(+letter); rebuild the street part from the raw match, minus the unit
+  let street = m[0];
+  let unitTxt = "";
+  if (m[2]) { const u = new RegExp(`\\s*,?\\s*(?:#\\s*|(?:apt|apartment|unit|suite|ste)\\.?\\s+#?)${m[2].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i").exec(street); if (u) { street = street.slice(0, u.index); unitTxt = ` #${m[2].toUpperCase()}`; } }
+  street = street.replace(/\.$/, "");
+  const words = titleCase(street.replace(/^(\d{1,6})([A-Za-z])\b/, (_x, n: string, l: string) => n + l.toUpperCase())).split(/\s+/).map((w, i, all) => {
+    const bare = w.replace(/\.$/, "");
+    if (i > 0 && i < all.length - 1 && new RegExp(`^${DIRS}$`, "i").test(bare) && !/^(north|south|east|west)$/i.test(bare)) return bare.toUpperCase(); // "N." → "N", "Sw" → "SW"
+    if (i === all.length - 1 && /^(ne|nw|se|sw)$/i.test(bare) && all.length > 3) return bare.toUpperCase();
+    return w;
+  });
+  // the suffix: last word that is a known suffix (a trailing NW/SE stays as written)
+  const li = words.length - 1 - (/^(NE|NW|SE|SW)$/.test(words[words.length - 1]) && words.length > 3 ? 1 : 0);
+  const last = words[li].replace(/\.$/, "").toLowerCase();
+  if (SUFFIX_FULL[last]) words[li] = SUFFIX_FULL[last];
+  return { address: words.join(" ") + unitTxt, raw: m[0] };
 }
 
 export function parseAddress(text: string): string | null {
@@ -208,7 +256,7 @@ export function parseAddress(text: string): string | null {
 }
 
 export function parseMoney(text: string): { min: number | null; max: number | null } {
-  const t = text.toLowerCase().replace(/,/g, "");
+  const t = text.slice(0, 5000).toLowerCase().replace(/,/g, ""); // bounded: these regexes are not linear on huge input
   const one = (s: string, u?: string) => {
     let n = parseFloat(s);
     if (u === "k" || u === "thousand") n *= 1000;
@@ -250,10 +298,10 @@ export function parseTimeline(text: string): string | null {
 }
 
 export function parseEmail(text: string): string | null {
-  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.exec(text)?.[0].toLowerCase() ?? null;
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.exec(text.slice(0, 5000))?.[0].toLowerCase() ?? null;
 }
 export function parsePhone(text: string): string | null {
-  const m = /(?:\+?1[\s.-]?)?\(?\b(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})\b/.exec(text);
+  const m = /(?:\+?1[\s.-]?)?\(?\b(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})\b/.exec(text.slice(0, 5000));
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : null;
 }
 
@@ -305,6 +353,7 @@ export function parseContactType(text: string): ContactTypeGuess {
 
 /** Split compound requests ("remind me Friday to call Sarah and also move my showing to three"). */
 export function splitClauses(text: string): string[] {
+  text = text.slice(0, 6000); // bounded: the lazy patterns below are not linear on huge input
   // "Book a showing at 5 and another at 5:30" → two showings
   const another = /^(.*?\b(showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)s?\b.*?)\s+and\s+(?:another|one more|a second)\s+(?:(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)\s+)?(.+)$/i.exec(text.trim());
   if (another) return [another[1].trim(), `${another[2]} ${another[3]}`.trim()];

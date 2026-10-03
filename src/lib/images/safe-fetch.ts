@@ -77,6 +77,28 @@ export async function safeFetch(url: string, opts: { maxBytes: number; timeoutMs
   throw new FetchBlocked("status", "That link redirects too many times.");
 }
 
+/**
+ * robots.txt pattern match ("*" wildcard, trailing "$" anchor) without RegExp: the pattern comes from a remote
+ * server, so a regex built from it could be used for catastrophic backtracking. This is O(pattern x path), no backtracking blowup.
+ */
+export function robotsPatternMatches(pattern: string, path: string): boolean {
+  const anchored = pattern.endsWith("$");
+  const parts = (anchored ? pattern.slice(0, -1) : pattern).split("*");
+  const first = parts[0];
+  if (!path.startsWith(first)) return false;
+  let pos = first.length;
+  if (parts.length === 1) return anchored ? path === first : true;
+  for (let i = 1; i < parts.length - 1; i++) {
+    if (!parts[i]) continue;
+    const at = path.indexOf(parts[i], pos);
+    if (at < 0) return false;
+    pos = at + parts[i].length;
+  }
+  const last = parts[parts.length - 1];
+  if (!anchored) return last === "" || path.indexOf(last, pos) >= 0;
+  return path.length - pos >= last.length && path.endsWith(last) && path.length - last.length >= pos;
+}
+
 /** Minimal robots.txt check for our user agent ("milabot", falling back to "*"). */
 export function robotsAllows(robots: string, path: string): boolean {
   const groups: { agents: string[]; rules: { allow: boolean; p: string }[] }[] = [];
@@ -96,8 +118,8 @@ export function robotsAllows(robots: string, path: string): boolean {
   let best: { allow: boolean; len: number } | null = null;
   for (const g of use) for (const r of g.rules) {
     if (!r.p) { continue; }
-    const re = new RegExp("^" + r.p.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\\\$$/, "$"));
-    if (re.test(path) && (!best || r.p.length > best.len || (r.p.length === best.len && r.allow))) best = { allow: r.allow, len: r.p.length };
+    if (r.p.length > 512 || !robotsPatternMatches(r.p, path)) continue;
+    if (!best || r.p.length > best.len || (r.p.length === best.len && r.allow)) best = { allow: r.allow, len: r.p.length };
   }
   return best ? best.allow : true;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
+import { oauthStateSig } from "@/lib/integrations/oauth-state";
 import { cookies } from "next/headers";
 import { getUserId } from "@/lib/auth";
 import { exchangeCode, saveConnection } from "@/lib/integrations/google";
@@ -16,8 +17,8 @@ export async function GET(req: Request) {
   jar.delete("mila_oauth");
   if (!code || !state || !cookie) return back("error=state");
   const [nonce, sig] = cookie.split(".");
-  const exp = createHmac("sha256", process.env.SESSION_SECRET || process.env.INTEGRATION_ENCRYPTION_KEY || "dev").update(`${nonce}.${uid}`).digest("hex");
-  if (nonce !== state || sig.length !== exp.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(exp))) return back("error=state");
+  const exp = oauthStateSig(nonce ?? "", uid);
+  if (!exp || !sig || nonce !== state || sig.length !== exp.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(exp))) return back("error=state");
   try {
     const { tokens, scopes } = await exchangeCode(code);
     await saveConnection(uid, tokens, scopes);

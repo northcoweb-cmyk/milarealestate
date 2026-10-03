@@ -1,4 +1,5 @@
 import { api, bad, readJson } from "@/lib/server/route";
+import { rateLimit } from "@/lib/server/rate-limit";
 import { buildCtx } from "@/lib/agent/engine";
 import { aiAvailable } from "@/lib/ai/provider";
 import { ensureCredits, recordUsage } from "@/lib/credits";
@@ -23,6 +24,7 @@ export const GET = api(async ({ profile, url }) => {
 });
 
 export const POST = api(async ({ profile, req }) => {
+  rateLimit(`content:${profile.id}`, 20);
   const b = await readJson<{ category: Category; platforms: SocialPlatform[]; property_id?: string | null; topic?: string | null }>(req);
   const valid = PLATFORMS.map((p) => p.key);
   const platforms = (b.platforms ?? []).filter((p) => valid.includes(p));

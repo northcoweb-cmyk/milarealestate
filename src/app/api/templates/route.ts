@@ -9,7 +9,8 @@ export const GET = api(async ({ profile }) => ({ templates: (await getStore().li
 
 export const POST = api(async ({ profile, req }) => {
   const b = await readJson(req);
-  if (!b.name?.trim() || !b.body?.trim()) throw bad("Give the template a name and some text.");
+  if (typeof b.name !== "string" || typeof b.body !== "string" || !b.name.trim() || !b.body.trim()) throw bad("Give the template a name and some text.");
+  if (b.name.length > 120 || b.body.length > 50_000) throw bad("That template is too long.");
   if (!KINDS.includes(b.kind)) throw bad("Unknown template type.");
   const store = getStore();
   if (b.is_default) for (const t of (await store.list("document_templates", profile.id)).filter((x) => x.kind === b.kind && x.is_default)) await store.update("document_templates", profile.id, t.id, { is_default: false });

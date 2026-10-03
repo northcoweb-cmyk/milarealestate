@@ -3,6 +3,7 @@ import type { Ctx } from "../context";
 import { persistState } from "../conversation";
 import { describeStated, extractListingFacts, hasAnyFact } from "../listing";
 import { parseAddress } from "../nlu";
+import { askBack } from "./ask";
 import { describeFacts, enrichProperty } from "../property-lookup";
 import { TOOLS } from "../tools";
 import { type HandlerOut, reply } from "./types";
@@ -84,4 +85,41 @@ export async function listingChecklist(ctx: Ctx, propertyId: string): Promise<Ha
     await TOOLS.create_task.run(ctx, { kind: "task", title: `${title} — ${prop.address}`, property_id: prop.id, due_at: new Date(ctx.now.getTime() + days * 86_400_000).toISOString(), internal: true });
   }
   return reply(`Added a ${CHECKLIST.length}-step new-listing checklist for ${prop.address} to your tasks, spaced over the next few days.`, [{ type: "choice", title: "Checklist ready", buttons: [{ label: "See tasks", style: "secondary", href: "/tasks" }] }], "chat_simple");
+}
+
+
+const STREET_NOISE = new Set(["street", "st", "avenue", "ave", "road", "rd", "drive", "dr", "lane", "ln", "court", "ct", "way", "boulevard", "blvd", "place", "pl", "terrace", "circle", "cir", "trail", "parkway", "highway", "square", "n", "s", "e", "w", "ne", "nw", "se", "sw", "north", "south", "east", "west"]);
+const baseAddress = (a: string) => a.replace(/\s*#.*$/, "").toLowerCase();
+/**
+ * Which saved property is the agent talking about? By full address ("12 Oak St"), by street name ("the Oak St listing"),
+ * or, when `fallbackToLast` is set, "this listing"/"it" meaning the one we were just working on.
+ */
+export async function resolveProperty(ctx: Ctx, text: string, fallbackToLast = false): Promise<Property | null> {
+  const props = await ctx.store.list("properties", ctx.userId);
+  const addr = parseAddress(text);
+  if (addr) {
+    const exact = props.find((p) => p.address.toLowerCase() === addr.toLowerCase()) ?? props.find((p) => baseAddress(p.address) === baseAddress(addr));
+    if (exact) return exact;
+  }
+  const words = new Set(text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/));
+  const byName = props.filter((p) => {
+    const name = p.address.toLowerCase().replace(/#.*$/, "").split(/\s+/).slice(1).filter((w) => !STREET_NOISE.has(w.replace(/\./g, "")));
+    return name.length > 0 && name.every((w) => w.length >= 3 && words.has(w));
+  });
+  if (!addr && byName.length === 1) return byName[0];
+  if (!addr && fallbackToLast && ctx.state.last_property_id) return props.find((p) => p.id === ctx.state.last_property_id) ?? null;
+  return null;
+}
+
+/** "Start a showing sheet for 12 Oak St" — the sheet lives on the property page; one tap gets there. */
+export async function showingSheetHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const prop = await resolveProperty(ctx, text, /\b(this|that|the|it|my|new|latest|last)\b/i.test(text) && !parseAddress(text));
+  if (prop) {
+    ctx.state.last_property_id = prop.id;
+    await persistState(ctx);
+    return reply(`Your showing sheet for ${prop.address} is ready. Open it and tap through the walkthrough as you tour; notes and photos save to the property.`, [{ type: "choice", title: "Showing sheet", buttons: [{ label: "Open showing sheet", style: "primary", href: `/properties/${prop.id}` }] }], "chat_simple");
+  }
+  const addr = parseAddress(text);
+  if (addr) return reply(`I don't have ${addr} saved yet. Tell me to add it as a listing (with the city and state) and I'll start the sheet from there.`, [], "smalltalk");
+  return askBack(ctx, "showing_sheet", text, "address", "Which property is the showing sheet for? Give me the address.");
 }

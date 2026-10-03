@@ -124,7 +124,9 @@ export async function requireProfile(): Promise<Profile> {
 export function isAdmin(p: Profile) {
   const list = (process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   if (list.length) return list.includes(p.email.toLowerCase());
-  return process.env.NODE_ENV !== "production"; // in dev the single local owner is admin
+  // Open-door fallback ONLY for a local, passwordless dev box. Never on a deployment (Vercel sets VERCEL for preview + production),
+  // never in production, and never when real (Supabase) accounts exist: there, ADMIN_EMAILS must be set explicitly.
+  return process.env.NODE_ENV !== "production" && !process.env.VERCEL && authMode() === "local";
 }
 
 export async function localSignIn(email: string, name: string) {

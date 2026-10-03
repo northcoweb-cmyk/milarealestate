@@ -1,3 +1,4 @@
+import { rateLimit } from "@/lib/server/rate-limit";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { ensureCredits } from "@/lib/credits";
@@ -7,6 +8,7 @@ export const maxDuration = 60;
 
 // "Find this home": completes the address (geocoder) and prefills beds / baths / size / price from listing sites.
 export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
+  rateLimit(`lookup:${profile.id}`, 12);
   const b = await readJson<{ street?: string; city?: string; state?: string; zip?: string }>(req).catch(() => ({} as { street?: string; city?: string; state?: string; zip?: string }));
   const ctx = await buildCtx(profile);
   let prop = await ctx.store.get("properties", profile.id, params.id);

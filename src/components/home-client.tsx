@@ -31,8 +31,8 @@ export function HomeClient({ data }: { data: HomeData }) {
 
   return (
     <main className="xl:grid xl:grid-cols-[minmax(0,1fr)_410px] xl:gap-8 xl:pr-8">
-      <section className="relative mx-auto flex w-full max-w-3xl flex-col px-4 pb-2 pt-[max(env(safe-area-inset-top),20px)] xl:max-w-none xl:px-6">
-        <div className="flex flex-col items-center pt-6 text-center">
+      <section className="relative mx-auto flex w-full max-w-3xl flex-col px-4 pb-2 pt-[max(env(safe-area-inset-top),20px)] xl:sticky xl:top-0 xl:h-[100svh] xl:max-w-none xl:justify-center xl:px-6 xl:pb-16 xl:pt-0">
+        <div className="flex flex-col items-center pt-6 text-center xl:pt-0">
           <p className="kicker mb-4">{data.dateLine}</p>
           <h1 className="display text-[clamp(38px,9vw,64px)]">{data.greeting}</h1>
           <div className="mt-6 w-full max-w-2xl"><PromptInput onSubmit={(t, f) => ask(t, f)} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>

@@ -1,8 +1,10 @@
+import { rateLimit } from "@/lib/server/rate-limit";
 import { api, bad } from "@/lib/server/route";
 import { isValidTz } from "@/lib/time";
 
 // Resolves a picked suggestion into a verified place: address, city/state, coordinates, time zone.
-export const GET = api(async ({ url }) => {
+export const GET = api(async ({ url, profile }) => {
+  rateLimit(`places:${profile.id}`, 120);
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) throw bad("Place search isn't set up on this server.");
   const id = url.searchParams.get("id") ?? "";

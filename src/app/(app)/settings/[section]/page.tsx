@@ -180,7 +180,7 @@ function Autonomy() {
   return (
     <>
       <p className="muted mb-5">Choose what Mila can do on her own. Anything set to “Ask every time” shows up in Tasks for your approval first.</p>
-      <div className="space-y-3">{AUTONOMY.map((x) => (
+      <div className="grid gap-3 lg:grid-cols-2">{AUTONOMY.map((x) => (
         <div key={x.key} className="glass flex flex-wrap items-center gap-3 p-4 sm:p-5" style={{ borderRadius: 24 }}>
           <div className="min-w-0 flex-1"><p className="font-semibold">{x.title}</p><p className="muted text-[14px]">{x.sub}</p></div>
           <Segmented value={a[x.key]} onChange={(v) => set(x.key, v)} options={[{ value: "ask", label: "Ask every time" }, { value: "auto", label: "Automatic" }]} />

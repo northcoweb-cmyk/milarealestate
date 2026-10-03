@@ -19,12 +19,12 @@ export default function WorkflowsPage() {
     try { await jfetch(`/api/workflows/${w.id}`, { method: "PATCH", json: patch }); reload(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't save.", "error"); }
   }
   return (
-    <Page>
+    <Page wide>
       <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <PageHeader title="Workflows" sub="What Mila does for each kind of request. Edit any of them to match how you work." />
       {loading && !data ? <Skeleton className="h-64" /> : (
         <>
-          <ul className="space-y-3">
+          <ul className="grid gap-3 lg:grid-cols-2 lg:items-start">
             {data?.workflows.map((w) => {
               const steps = draft[w.id] ?? w.steps; const isOpen = open === w.id;
               return (

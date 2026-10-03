@@ -14,6 +14,7 @@ export const POST = api(async ({ profile, req }) => {
   if (!isImage && !isVideo) throw bad("That file type isn't supported. Use a photo (JPG, PNG, HEIC) or a video (MP4, MOV).");
   if (isImage && size > MAX_IMAGE_BYTES) throw bad("That photo is larger than 15 MB.");
   if (isVideo && size > MAX_VIDEO_BYTES) throw bad("That video is larger than 50 MB. Record a shorter clip (about a minute).");
+  if (b.propertyId && !(await getStore().get("properties", profile.id, String(b.propertyId)))) throw bad("That property wasn't found.");
   const id = randomUUID();
   const rel = `${safeName(profile.id)}/${safeName(id)}`;
   const direct = await signedUpload(profile.id, id);

@@ -1,10 +1,12 @@
+import { rateLimit } from "@/lib/server/rate-limit";
 import { api } from "@/lib/server/route";
 
 export interface PlaceSuggestion { id: string; main: string; secondary: string; text: string }
 
 // Server-side proxy so the Google key never reaches the browser.
 // mode: "city" (towns/zip codes), "address" (street addresses), "place" (anything: addresses, businesses).
-export const GET = api(async ({ url }) => {
+export const GET = api(async ({ url, profile }) => {
+  rateLimit(`places:${profile.id}`, 120);
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return { available: false, suggestions: [] as PlaceSuggestion[] };
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 120);

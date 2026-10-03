@@ -80,11 +80,13 @@ function PropertyDetail({ id }: { id: string }) {
   const p = data.property;
   const addrComplete = !!((p.city && p.state) || p.zip);
   return (
-    <Page>
+    <Page wide>
       <Link href="/properties/all" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />Properties</Link>
       <PageHeader title={p.address} sub={p.is_demo ? "Fictional demo property" : undefined} right={<button className="btn btn-quiet btn-sm" onClick={() => setDelOpen(true)}><Trash2 size={16} />Delete</button>} />
       <DeletePropertyConfirm id={p.id} address={p.address} open={delOpen} onClose={() => setDelOpen(false)} onDeleted={() => window.location.assign("/properties/all")} />
       <SheetsSection propertyId={id} />
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
+      <div>
       <section className="glass mb-5 p-5 sm:p-6" style={{ borderRadius: 26 }}>
         <p className="kicker mb-1">Find this home</p>
         {data.lookup?.found ? (
@@ -115,15 +117,19 @@ function PropertyDetail({ id }: { id: string }) {
         <input ref={ref} type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
         <p className="faint mt-4 text-[13px]">No luck with a link? <button type="button" className="font-semibold text-accent underline" onClick={() => ref.current?.click()} disabled={busy}>Add your own photos</button> instead. Only use photos you have the right to share.</p>
       </section>
+      </div>
+      <div>
       <form onSubmit={save} className="glass p-5 sm:p-6">
         <p className="kicker mb-1">Facts</p><p className="muted mb-4 text-[14px]">Mila only puts price, beds, baths and size in emails and posts after you confirm they're accurate.</p>
-        <div className="grid gap-3 sm:grid-cols-3"><div><label className="lbl">City</label><input className="field" value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} /></div><div><label className="lbl">State</label><input className="field" maxLength={2} value={f.state} onChange={(e) => setF({ ...f, state: e.target.value.toUpperCase() })} /></div><div><label className="lbl">ZIP</label><input className="field" value={f.zip} onChange={(e) => setF({ ...f, zip: e.target.value })} /></div></div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-4"><div><label className="lbl">Price</label><input className="field" inputMode="numeric" value={f.list_price} onChange={(e) => setF({ ...f, list_price: e.target.value })} /></div><div><label className="lbl">Beds</label><input className="field" inputMode="decimal" value={f.beds} onChange={(e) => setF({ ...f, beds: e.target.value })} /></div><div><label className="lbl">Baths</label><input className="field" inputMode="decimal" value={f.baths} onChange={(e) => setF({ ...f, baths: e.target.value })} /></div><div><label className="lbl">Sq ft</label><input className="field" inputMode="numeric" value={f.sqft} onChange={(e) => setF({ ...f, sqft: e.target.value })} /></div></div>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3"><div><label className="lbl">City</label><input className="field" value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} /></div><div><label className="lbl">State</label><input className="field" maxLength={2} value={f.state} onChange={(e) => setF({ ...f, state: e.target.value.toUpperCase() })} /></div><div><label className="lbl">ZIP</label><input className="field" value={f.zip} onChange={(e) => setF({ ...f, zip: e.target.value })} /></div></div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4"><div><label className="lbl">Price</label><input className="field" inputMode="numeric" value={f.list_price} onChange={(e) => setF({ ...f, list_price: e.target.value })} /></div><div><label className="lbl">Beds</label><input className="field" inputMode="decimal" value={f.beds} onChange={(e) => setF({ ...f, beds: e.target.value })} /></div><div><label className="lbl">Baths</label><input className="field" inputMode="decimal" value={f.baths} onChange={(e) => setF({ ...f, baths: e.target.value })} /></div><div><label className="lbl">Sq ft</label><input className="field" inputMode="numeric" value={f.sqft} onChange={(e) => setF({ ...f, sqft: e.target.value })} /></div></div>
         <div className="mt-3"><label className="lbl">Listing link (for your reference)</label><input className="field" type="url" value={f.listing_url} onChange={(e) => setF({ ...f, listing_url: e.target.value })} placeholder="https://" /></div>
         <label className="mt-4 flex items-center gap-3 text-[15px]"><input type="checkbox" className="h-5 w-5" checked={f.verified} onChange={(e) => setF({ ...f, verified: e.target.checked })} /><span><b>I've confirmed these facts are accurate</b><span className="faint block text-[13px]">Required before Mila uses them in communications.</span></span></label>
         <button className="btn btn-primary mt-5" disabled={busy}>Save</button>
       </form>
       {data.events.length > 0 && <section className="mt-5"><p className="kicker mb-2">Events</p><ul className="space-y-2">{data.events.map((e) => <li key={e.id} className="glass px-4 py-3" style={{ borderRadius: 20 }}><b>{e.title}</b><span className="muted ml-2 text-[14px]">{new Date(e.start_at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></li>)}</ul></section>}
+      </div>
+      </div>
     </Page>
   );
 }

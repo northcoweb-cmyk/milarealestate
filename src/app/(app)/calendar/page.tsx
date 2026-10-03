@@ -35,6 +35,7 @@ export default function CalendarPage() {
   const key = (d: Date) => { const p = partsIn(d, tz); return `${p.y}-${p.m}-${p.d}`; };
   const byDay = useMemo(() => { const m = new Map<string, CalendarEvent[]>(); for (const e of data?.events ?? []) { const k = key(new Date(e.start_at)); m.set(k, [...(m.get(k) ?? []), e]); } return m; }, [data, tz]); // eslint-disable-line react-hooks/exhaustive-deps
   const dayEvents = byDay.get(key(days[sel])) ?? [];
+  const todaysShowings = (showings.data?.showings ?? []).filter((x) => key(new Date(x.when.startIso)) === key(days[sel]));
   const overlaps = (e: CalendarEvent) => dayEvents.some((o) => o.id !== e.id && new Date(o.start_at) < new Date(e.end_at) && new Date(e.start_at) < new Date(o.end_at));
 
   async function sync() {
@@ -45,13 +46,15 @@ export default function CalendarPage() {
   const dayLabel = (d: Date, i: number) => (i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(d));
 
   return (
-    <Page>
+    <Page wide>
       <PageHeader title="Calendar" sub={data?.google.connected ? `Google Calendar · ${data.google.account ?? "connected"}` : "Mila's calendar"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
-      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 pb-1" role="tablist" aria-label="Days">
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-8">
+      <div className="min-w-0">
+      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-7 lg:overflow-visible lg:px-0 lg:pb-0" role="tablist" aria-label="Days">
         {days.map((d, i) => {
           const n = byDay.get(key(d))?.length ?? 0; const p = partsIn(d, tz);
           return (
-            <button key={i} role="tab" aria-selected={sel === i} onClick={() => setSel(i)} className="glass flex w-[62px] shrink-0 flex-col items-center py-3 transition" style={{ borderRadius: 22, ...(sel === i ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)", borderColor: "transparent" } : {}) }}>
+            <button key={i} role="tab" aria-selected={sel === i} onClick={() => setSel(i)} className="glass flex min-h-[44px] w-[62px] shrink-0 flex-col items-center py-3 transition lg:w-auto lg:py-2.5" style={{ borderRadius: 22, ...(sel === i ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)", borderColor: "transparent" } : {}) }}>
               <span className="text-[11.5px] font-bold uppercase tracking-wider opacity-80">{new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(d)}</span>
               <span className="display text-[28px] leading-tight">{p.d}</span>
               <span className="mt-0.5 h-1.5 w-1.5 rounded-full" style={{ background: n ? (sel === i ? "var(--accent-ink)" : "var(--accent)") : "transparent" }} />
@@ -60,12 +63,12 @@ export default function CalendarPage() {
         })}
       </div>
       <h2 className="h2 mb-3">{dayLabel(days[sel], sel)}</h2>
-      {(() => { const todays = (showings.data?.showings ?? []).filter((x) => key(new Date(x.when.startIso)) === key(days[sel])); return todays.length ? <div className="mb-5"><ShowingsRail items={todays} /></div> : null; })()}
+      <div className="lg:hidden">{todaysShowings.length ? <div className="mb-5"><ShowingsRail items={todaysShowings} /></div> : null}</div>
       {loading && !data ? <Skeleton className="h-40" /> : dayEvents.length ? (
         <ul className="space-y-3">
           {dayEvents.map((e) => (
             <li key={e.id}><button onClick={() => setOpenEv(e)} className="glass flex w-full gap-4 p-4 text-left" style={{ borderRadius: 24 }}>
-              <div className="w-[72px] shrink-0"><p className="font-semibold leading-tight">{fmtTime(e.start_at, tz)}</p><p className="faint mt-0.5 text-[12.5px]">{Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000)} min</p></div>
+              <div className="w-[84px] shrink-0 whitespace-nowrap"><p className="font-semibold leading-tight">{fmtTime(e.start_at, tz)}</p><p className="faint mt-0.5 text-[12.5px]">{Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000)} min</p></div>
               <div className="min-w-0 flex-1 border-l-[3px] pl-4" style={{ borderColor: KIND_COLOR[e.kind] ?? KIND_COLOR.other }}>
                 <p className="font-semibold leading-snug"><span aria-hidden>{eventEmoji(e.kind)} </span>{e.title}</p>
                 {e.location && <p className="faint truncate text-[13.5px]">{e.location}</p>}
@@ -81,6 +84,9 @@ export default function CalendarPage() {
       <div className="glass mt-8 flex flex-wrap items-center gap-4 p-5" style={{ borderRadius: 24 }}>
         <div className="min-w-0 flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">{data?.google.connected ? "Mila checks it for conflicts and adds events to it." : capabilities.google ? "Connect so Mila can check conflicts and add events." : "Not set up on this server yet."}</p></div>
         {data?.google.connected ? <button className="btn btn-sm" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />Sync now</button> : capabilities.google ? <a className="btn btn-primary btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : null}
+      </div>
+      </div>
+      <aside className="hidden lg:sticky lg:top-8 lg:block">{todaysShowings.length ? <ShowingsRail items={todaysShowings} className="lg:flex-col lg:overflow-visible" /> : null}</aside>
       </div>
       {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} />}
       <AddEvent open={adding} onClose={() => setAdding(false)} defaultDay={days[sel]} onDone={reload} />

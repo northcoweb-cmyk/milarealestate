@@ -10,7 +10,7 @@ import { Avatar, TypeBadge, Confirm, Pill, Sheet, Skeleton, jfetch } from "@/com
 import { Page, STATUS_LABEL, TYPE_LABEL, ago, money } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
-import { contactEmoji, typeColor } from "@/lib/emoji";
+import { contactEmoji } from "@/lib/emoji";
 
 interface Detail { contact: Contact; facts: string[]; memories: Memory[]; timeline: ContactEvent[]; notes: ContactNote[]; tasks: Task[]; drafts: EmailDraft[] }
 
@@ -32,7 +32,7 @@ export default function ContactPage() {
       <Link href="/contacts" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />Contacts</Link>
       <div className="glass-strong mb-5 p-5 sm:p-6">
         <div className="flex items-center gap-4">
-          <Avatar name={c.name} seed={c.id} size={64} ring={typeColor(c.type)} />
+          <Avatar name={c.name} seed={c.id} size={64} ring="var(--ink-faint)" />
           <div className="min-w-0 flex-1"><h1 className="display text-[34px] leading-none">{c.name}</h1><div className="mt-2 flex flex-wrap gap-2"><TypeBadge type={c.type} label={TYPE_LABEL[c.type]} emoji={contactEmoji(c.type)} /><Pill tone={c.status === "inactive" ? "neutral" : "ok"}>{STATUS_LABEL[c.status]}</Pill>{c.tags.slice(0, 3).map((t) => <Pill key={t}>{t}</Pill>)}</div></div>
           <button className="btn btn-sm" onClick={() => setEdit(true)}><Pencil size={15} />Edit</button>
         </div>

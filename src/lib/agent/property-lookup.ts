@@ -19,12 +19,18 @@ export interface Place { city?: string | null; state?: string | null; zip?: stri
 
 const STOP = new Set(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "pm", "am", "at", "on", "in", "the", "open", "house", "showing", "set", "up", "my", "a", "and", "for", "to", "it", "is", "its", "it's", "next", "this", "tomorrow", "today", "noon", "its"]);
 /** The run of capitalised words right before a state, minus dates/times ("…Sunday at 2 PM Frederick" → "Frederick"). */
-function cityBefore(s: string): string {
+function cityBefore(s: string, lower = false): string {
   const words = s.replace(/[,\s]+$/, "").split(/\s+/);
   const out: string[] = [];
-  for (let k = words.length - 1; k >= 0; k--) { const w = words[k]; if (!/^[A-Z][A-Za-z.'-]*$/.test(w) || STOP.has(w.toLowerCase().replace(/\./g, ""))) break; out.unshift(w); }
+  const word = lower ? /^[a-z][a-z.'-]*$/ : /^[A-Z][A-Za-z.'-]*$/;
+  for (let k = words.length - 1; k >= 0; k--) { const w = words[k]; if (!word.test(w) || STOP.has(w.toLowerCase().replace(/\./g, "")) || (lower && LOWER_STOP.has(w))) break; out.unshift(w); }
   return out.slice(-3).join(" ");
 }
+/** "FREDERICK" / "rockville" / "new york" → "Frederick" / "Rockville" / "New York" */
+const nameCase = (c: string) => c.split(/\s+/).map((w) => (w.length > 1 && (w === w.toUpperCase() || w === w.toLowerCase()) ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(" ");
+const LOWER_STOP = new Set(["listing", "listed", "new", "just", "got", "add", "signed", "bed", "bath", "price", "asking", "with", "that", "from", "near", "off", "out", "of", "by", "if", "so", "do", "can", "you", "me", "i", "we", "please", "pls"]);
+/** two-letter state codes that are also everyday words: only trusted when typed in capitals */
+const AMBIGUOUS_ABBR = new Set(["in", "or", "me", "hi", "ok", "oh", "id", "al", "la", "ma", "pa", "de", "co", "mo", "ne", "ar", "ga", "ms", "ct"]);
 
 /** City/state/ZIP written after (or near) the street address. Pure text parsing; no network. */
 export function extractPlace(text: string): Place {
@@ -40,10 +46,19 @@ export function extractPlace(text: string): Place {
     if (city) { out.city = city; out.state = m[1]; break; }
     if (!out.state && out.zip) out.state = m[1];
   }
+  if (!out.state && !/[A-Z]/.test(rest.replace(/\|/g, ""))) {
+    // a message typed entirely in lower case ("…12 oak st rockville md 3bd"): trust the state code when it is not also an everyday word
+    const low = new RegExp(`(?:^|[\\s,|])(${[...ABBR].map((a) => a.toLowerCase()).filter((a) => !AMBIGUOUS_ABBR.has(a)).join("|")})(?=$|[\\s,.]|\\d)`, "g");
+    for (const m of rest.matchAll(low)) {
+      const city = cityBefore(rest.slice(Math.max(0, (m.index ?? 0) - 60), m.index ?? 0), true);
+      if (city) { out.city = city; out.state = m[1].toUpperCase(); break; }
+    }
+  }
   if (!out.state) {
     const full = new RegExp(`\\b(${Object.keys(STATES).sort((a, b) => b.length - a.length).join("|")})\\b`, "i").exec(rest);
     if (full) { const city = cityBefore(rest.slice(Math.max(0, full.index - 60), full.index)); if (city || out.zip) { out.state = STATES[full[1].toLowerCase()]; if (city) out.city = city; } }
   }
+  if (out.city) out.city = nameCase(out.city);
   return out;
 }
 

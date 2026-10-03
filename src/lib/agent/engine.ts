@@ -10,7 +10,7 @@ import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { logError } from "../server/errors";
-import { addListingHandler, listingChecklist } from "./handlers/listing";
+import { addListingHandler, listingChecklist, showingSheetHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
 import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, eventReminder } from "./handlers/calendar";
@@ -24,7 +24,7 @@ import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { importCandidates } from "./ingest";
-import { dropNegatedDate, invalidTimeToken, overrideWhen, parseDate, parseLocation, parseTime } from "./nlu";
+import { dropNegatedDate, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
 
 export type Action = { type: string; [k: string]: any };
 
@@ -91,7 +91,7 @@ export async function handleTurn(profile: Profile, input: TurnInput): Promise<Tu
     } else {
       console.error("[mila] turn failed", e);
       await logError({ source: "agent", message: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack ?? null : null, route: `chat: ${text.slice(0, 120)}`, userId: profile.id, email: profile.email });
-      out = reply("Something went wrong on my side, and I didn't complete that. Nothing was changed that I can't tell you about — please try again.", [{ type: "notice", tone: "error", title: "That didn't work", body: e instanceof Error ? e.message : undefined }], "smalltalk");
+      out = reply("Something went wrong on my side, and I didn't complete that. Nothing was changed that I can't tell you about — please try again.", [{ type: "notice", tone: "error", title: "That didn't work" }], "smalltalk");
     }
   }
 
@@ -125,7 +125,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     const timeLike = !!(parseTime(text) || parseDate(text, ctx.now, ctx.tz));
     const miss = String(pend.missing ?? "");
     const looksLikeAnswer = d.intent === pend.intent
-      || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" ? words <= 8 : timeLike)))
+      || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" ? words <= 8 || !!parseAddress(text) : timeLike)))
       || (words <= 4 && timeLike);
     if (looksLikeAnswer && !/\?\s*$/.test(text)) {
       text = dropNegatedDate(text);
@@ -181,6 +181,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
   switch (intent) {
     case "time_off": return timeOffHandler(ctx, text);
     case "add_listing": return addListingHandler(ctx, text);
+    case "showing_sheet": return showingSheetHandler(ctx, text);
     case "open_house": return openHouseHandler(ctx, text);
     case "move_event": return moveEventHandler(ctx, text, declared);
     case "cancel_event": return cancelEventHandler(ctx, text);
@@ -249,10 +250,10 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
 async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
   switch (a.type) {
     case "noop": return reply("Okay.", [], "smalltalk");
-    case "prompt": { const r = await runText(ctx, String(a.text ?? ""), []); return r.out; }
+    case "prompt": { const r = await runText(ctx, String(a.text ?? "").slice(0, 6000), []); return r.out; }
     case "approve":
     case "reject": {
-      const r = await decideApproval(ctx, a.id, a.type);
+      const r = await decideApproval(ctx, String(a.id), a.type);
       const blocks: Block[] = [...(r.followUp ?? [])];
       if (r.approval.status === "approved" && r.approval.blocked_integration) {
         blocks.unshift({ type: "notice", tone: "warn", title: r.message, buttons: [{ label: r.approval.blocked_integration === "google" ? "Connect Google" : "See connections", style: "primary", href: "/settings/connections" }] });
@@ -288,9 +289,11 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       return moveEventHandler(ctx, `${a.text} ${ev.kind.replace("_", " ")}`.trim(), !!a.declared);
     }
     case "move_apply": {
-      const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId);
+      const ev = await ctx.store.get("calendar_events", ctx.userId, String(a.eventId));
       if (!ev) return reply("I couldn't find that event.", [], "smalltalk");
-      return applyMove(ctx, ev, new Date(a.start), new Date(a.end), !!a.declared, !!a.ignoreConflicts);
+      const s = new Date(a.start), e = new Date(a.end);
+      if (isNaN(s.getTime()) || isNaN(e.getTime()) || e.getTime() <= s.getTime()) return reply("That time isn't valid, so I haven't moved anything.", [], "smalltalk");
+      return applyMove(ctx, ev, s, e, !!a.declared, !!a.ignoreConflicts);
     }
     case "find_time": return findTimeForEvent(ctx, a.eventId, a.durationMin ?? 60);
     case "cancel_pick": { const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId); return ev ? cancelEvent(ctx, ev) : reply("I couldn't find that event.", [], "smalltalk"); }
@@ -310,11 +313,11 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
     case "event_reminder": return eventReminder(ctx, String(a.eventId), Number(a.minutes) || 60, a.title ? String(a.title) : undefined);
     case "listing_checklist": return listingChecklist(ctx, String(a.propertyId));
     case "tag_contact": {
-      const r = (await (await import("./tools")).TOOLS.update_contact.run(ctx, { id: a.contactId, patch: { tags: [String(a.tag)] }, eventTitle: `Also a ${a.tag}`, eventKind: "note" })) as any;
+      const r = (await (await import("./tools")).TOOLS.update_contact.run(ctx, { id: a.contactId, patch: { tags: [String(a.tag).slice(0, 40)] }, eventTitle: `Also a ${String(a.tag).slice(0, 40)}`, eventKind: "note" })) as any;
       return reply(r.ok ? `Done — added "${a.tag}" to ${r.data.contact.name}'s profile.` : "I couldn't find that contact.", [], "smalltalk");
     }
     case "quick_task": {
-      const r = (await (await import("./tools")).TOOLS.create_task.run(ctx, { kind: "follow_up", title: a.title, subtitle: a.subtitle, contact_id: a.contactId, due_at: new Date(ctx.now.getTime() + 24 * 3_600_000).toISOString() })) as any;
+      const r = (await (await import("./tools")).TOOLS.create_task.run(ctx, { kind: "follow_up", title: String(a.title ?? "Follow up").slice(0, 200), subtitle: a.subtitle ? String(a.subtitle).slice(0, 300) : undefined, contact_id: typeof a.contactId === "string" && (await ctx.store.get("contacts", ctx.userId, a.contactId)) ? a.contactId : undefined, due_at: new Date(ctx.now.getTime() + 24 * 3_600_000).toISOString() })) as any;
       return reply(r.ok ? "Added to your tasks." : r.message, [], "smalltalk");
     }
     default: return reply("I'm not sure what that button does yet.", [], "smalltalk");

@@ -7,6 +7,8 @@ import { getGoogle, googleContacts, sheetRows, GoogleError } from "@/lib/integra
 export const POST = api(async ({ profile, req }) => {
   const b = await readJson<{ source: "text" | "csv" | "google_contacts" | "google_sheet" | "document" | "manual"; text?: string; url?: string; documentId?: string; force?: Candidate[] }>(req);
   const ctx = await buildCtx(profile);
+  if (typeof b.text === "string" && b.text.length > 1_000_000) throw bad("That's too much text to import at once. Split it up.");
+  if (b.force && (!Array.isArray(b.force) || b.force.length > 500)) throw bad("Import up to 500 people at a time.");
   if (b.force?.length) {
     const r = await importCandidates(ctx, b.force, { source: "Import", forceAdd: true });
     return { created: r.created.length, updated: r.updated.length, needsClarification: [], skipped: r.skipped };
