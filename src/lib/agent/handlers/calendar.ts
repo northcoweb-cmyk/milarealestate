@@ -8,6 +8,7 @@ import { capitalisedNames, parseAddress, parseDate, parseWhen } from "../nlu";
 import { TOOLS, eventConflicts, freeSlots, invoke, logContactEvent } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
+import { resolveProperty } from "./listing";
 
 const KIND_WORDS: [RegExp, CalendarEvent["kind"]][] = [
   [/open house/i, "open_house"], [/showing|tour/i, "showing"], [/lunch|dinner|coffee/i, "lunch"], [/closing/i, "closing"], [/call/i, "call"], [/meeting|appointment/i, "meeting"],
@@ -35,6 +36,13 @@ export async function resolveEvent(ctx: Ctx, text: string): Promise<{ event?: Ca
     const byAddr = c.filter((e) => `${e.title} ${e.location ?? ""}`.toLowerCase().includes(addr.toLowerCase()));
     if (byAddr.length) c = byAddr;
   }
+  if (!addr) {
+    // "the showing at 12 Oak" (no street suffix): match the street-name words against where each event is
+    const words = new Set(text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/));
+    const noise = new Set(["street", "st", "avenue", "ave", "road", "rd", "drive", "dr", "lane", "ln", "court", "ct", "way", "boulevard", "blvd", "place", "pl", "terrace", "circle", "cir", "n", "s", "e", "w", "ne", "nw", "se", "sw"]);
+    const byLoc = c.filter((e) => { const name = (e.location ?? "").toLowerCase().split(/\s+/).slice(1).filter((w) => !noise.has(w) && !w.startsWith("#")); return name.length > 0 && name.every((w) => w.length >= 3 && words.has(w)); });
+    if (byLoc.length) c = byLoc;
+  }
   const names = capitalisedNames(text).map((n) => n.toLowerCase());
   if (names.length) {
     const contacts = await ctx.store.list("contacts", ctx.userId);
@@ -52,11 +60,38 @@ export async function resolveEvent(ctx: Ctx, text: string): Promise<{ event?: Ca
   return { candidates: c };
 }
 
+/** "push it back an hour", "move it up 30 min", "an hour earlier": a shift relative to where the event is now. */
+function relativeShift(text: string): number | null {
+  const m = /\b(\d+(?:\.\d+)?|an?|one|two|three|half an?|a half)\s*(hours?|hrs?|minutes?|mins?)\b/i.exec(text);
+  if (!m) return null;
+  const words: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, "half a": 0.5, "half an": 0.5, "a half": 0.5 };
+  const n = words[m[1].toLowerCase()] ?? parseFloat(m[1]);
+  if (!(n > 0)) return null;
+  const mins = /^h/i.test(m[2]) ? n * 60 : n;
+  const rest = text.replace(m[0], " ");
+  if (/\b(earlier|sooner|up|before|forward)\b/i.test(rest)) return -mins;
+  if (/\b(later|back|after|out|delay|ahead)\b/i.test(rest)) return mins;
+  return null;
+}
+
+/** Where is it moving TO? "move my 9am showing to 4pm" must read 4pm, not the 9am it is leaving. */
+function destinationOf(text: string, ctx: Ctx): string {
+  const parts = text.split(/\b(?:to|until|till|for|into)\b|→|->/i);
+  for (let i = parts.length - 1; i >= 1; i--) if (parseWhen(parts[i], ctx.now, ctx.tz).start || parseWhen(parts[i], ctx.now, ctx.tz).time) return parts[i];
+  return text;
+}
+
 function computeNewTimes(ctx: Ctx, ev: CalendarEvent, text: string): { start: Date; end: Date } | null {
-  const w = parseWhen(text, ctx.now, ctx.tz);
-  if (!w.date && !w.time) return null;
-  const cur = partsIn(new Date(ev.start_at), ctx.tz);
   const dur = new Date(ev.end_at).getTime() - new Date(ev.start_at).getTime();
+  const dest = destinationOf(text, ctx);
+  const w = parseWhen(dest, ctx.now, ctx.tz);
+  if (!w.date && !w.time) {
+    const shift = relativeShift(text);
+    if (shift == null) return null;
+    const start = new Date(new Date(ev.start_at).getTime() + shift * 60_000);
+    return { start, end: new Date(start.getTime() + dur) };
+  }
+  const cur = partsIn(new Date(ev.start_at), ctx.tz);
   const d = w.date ?? { y: cur.y, m: cur.m, d: cur.d };
   const t = w.time?.start ?? { h: cur.h, mi: cur.mi };
   const start = zonedToUtc(d.y, d.m, d.d, t.h, t.mi, ctx.tz);
@@ -203,8 +238,13 @@ export async function refreshComms(ctx: Ctx, ev: CalendarEvent) {
 /** "Schedule a showing at 1 PM" — always checks the calendar first. */
 export async function createEventHandler(ctx: Ctx, text: string, kindHint?: CalendarEvent["kind"], title?: string, contactId?: string | null, propertyId?: string | null): Promise<HandlerOut> {
   const w = parseWhen(text, ctx.now, ctx.tz);
+  const noun = /\b(inspection|walk-?through|consult(?:ation)?|appointment|dinner|coffee|breakfast|closing|lunch|call|meeting|showing|tour)\b/i.exec(text)?.[1];
   const kind = kindHint ?? KIND_WORDS.find(([re]) => re.test(text))?.[1] ?? "meeting";
   if (!w.time && !w.date) return askBack(ctx, "create_event", text, "date", "What day and time works?");
+  if (!kindHint && !title && !noun && !/open house/i.test(text)) {
+    const day = w.date ? ` on ${fmtDay(w.start!, ctx.tz)}` : "";
+    return askBack(ctx, "create_event", text, "kind", `What should I put on your calendar${day}${w.time ? "" : ", and at what time"} (a showing, call, meeting…)?`);
+  }
   let start = w.start!;
   if (!w.date) {
     // time only → today if still ahead, otherwise tomorrow
@@ -218,8 +258,10 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
   const end = w.end ?? new Date(start.getTime() + durMin * 60_000);
   const addr = parseAddress(text);
-  const finalTitle = title ?? `${label(kind)}${addr ? ` — ${addr}` : ""}`;
-  const args = { title: finalTitle, kind, start_at: start.toISOString(), end_at: end.toISOString(), location: addr, contact_id: contactId ?? null, property_id: propertyId ?? null };
+  const prop = propertyId === undefined && addr && ["showing", "open_house"].includes(kind) ? await resolveProperty(ctx, text, false) : null;
+  const nounTitle = noun && /^(inspection|walk-?through|consult|consultation|dinner|coffee|breakfast)$/i.test(noun) ? noun.charAt(0).toUpperCase() + noun.slice(1).toLowerCase() : null;
+  const finalTitle = title ?? `${nounTitle ?? label(kind)}${addr ? ` — ${addr}` : ""}`;
+  const args = { title: finalTitle, kind, start_at: start.toISOString(), end_at: end.toISOString(), location: addr, contact_id: contactId ?? null, property_id: propertyId ?? prop?.id ?? null };
   return scheduleWithConflictCheck(ctx, args);
 }
 
@@ -364,7 +406,7 @@ export type { Property, SocialPost };
 
 /** "I'm out of town next Friday" / "off Monday through Wednesday": block the days, and warn about anything already booked. */
 export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const [a, b] = text.split(/\b(?:through|thru|until|till|to)\b/i);
+  const [a, b] = text.split(/\b(?:through|thru|until|till|to)\b|(?<=\d)\s*[-–—]\s*(?=\d|[a-z]{3})/i);
   const d1 = parseDate(a, ctx.now, ctx.tz);
   if (!d1) return askBack(ctx, "time_off", text, "date", "Which day or days will you be out?");
   const d2 = b ? parseDate(b, ctx.now, ctx.tz) : null;

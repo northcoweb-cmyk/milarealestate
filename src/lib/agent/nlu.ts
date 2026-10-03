@@ -395,6 +395,17 @@ export function overrideWhen(orig: string, reply: string, now: Date, tz: string)
   return o.replace(/\s{2,}/g, " ").trim();
 }
 
+/** The words of a request with the date/time phrases taken out ("call Dana tomorrow at 9am" → "call Dana"). */
+export function stripWhenWords(text: string): string {
+  return text
+    .replace(/\bin\s+(?:\d+(?:\.\d+)?|an?|one|two|three|four|five|half an?)\s*(?:hours?|hrs?|minutes?|mins?)\b/gi, " ")
+    .replace(/\b(?:on|for|by|at|around)?\s*(?:\d{1,2})(?:\d{2})?\s*(?:a|p)\.?m\.?\b/gi, " ")
+    .replace(DATE_WORDS, " ").replace(TIME_WORDS, " ")
+    .replace(/\bnext\s+week\b/gi, " ")
+    .replace(/\s+(?:on|at|for|by|around)\s*$/i, " ").replace(/^\s*(?:on|at|for|by)\s+/i, "")
+    .replace(/\s{2,}/g, " ").replace(/\s+([,.!?])/g, "$1").trim();
+}
+
 /** "actually Wednesday not Saturday" → "actually Wednesday": drop the day being corrected away from. */
 export function dropNegatedDate(reply: string): string {
   return reply.replace(new RegExp(`\\b(?:and\\s+)?(?:not|instead of|rather than)\\s+(?:on\\s+)?(?:${DATE_ALT})\\b`, "gi"), " ").replace(/\s{2,}/g, " ").trim();

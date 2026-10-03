@@ -1,21 +1,32 @@
 import { addDays, fmtDayTime, partsIn, zonedToUtc } from "../../time";
 import type { Ctx } from "../context";
-import { stripPunct, parseWhen } from "../nlu";
+import { stripPunct, stripWhenWords, parseWhen } from "../nlu";
 import { invoke } from "../tools";
 import { resolveEvent } from "./calendar";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
 
-const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, a: 1 };
+const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, a: 1, an: 1 };
+
+/** "in 2 hours", "in an hour", "in 45 min", "in half an hour" */
+function relativeAhead(text: string): number | null {
+  const m = /\bin\s+(\d+(?:\.\d+)?|an?|one|two|three|four|five|half an?)\s*(hours?|hrs?|minutes?|mins?)\b/i.exec(text);
+  if (!m) return null;
+  const n = m[1].toLowerCase().startsWith("half") ? 0.5 : (WORDS[m[1].toLowerCase()] ?? parseFloat(m[1]));
+  return /^h/i.test(m[2]) ? n * 60 : n;
+}
 
 export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const titleMatch = /\bremind me\b.*?\b(?:to|about|that)\s+(.+)$/i.exec(text);
-  let title = titleMatch ? stripPunct(titleMatch[1]) : "";
-  // strip trailing temporal phrases from the title
+  // everything after "remind me" / "set a reminder": a head (when) and a tail (what), in either order
+  const body = text.replace(/^.*?\b(?:remind me|set (?:a )?reminder)\b/i, "");
+  const split = /\b(?:to|about|that)\b\s*/i.exec(body);
+  const head = split ? body.slice(0, split.index) : body;
+  const tail = split ? body.slice(split.index + split[0].length) : "";
+  let title = stripPunct(stripWhenWords(tail || (split ? "" : "")));
   let when: Date | null = null;
   let eventId: string | null = null;
 
-  const before = /\b(\d+|one|two|three|four|five|a)\s+(day|hour|week)s?\s+before\b/i.exec(text);
+  const before = /\b(\d+|one|two|three|four|five|a|an)\s+(day|hour|week)s?\s+before\b/i.exec(text);
   const after = /\bafter\s+(?:the|my)\s+(showing|open house|call|meeting|appointment|closing)\b/i.exec(text);
   if (before || after) {
     const { event } = await resolveEvent(ctx, text);
@@ -30,14 +41,20 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
     } else when = new Date(new Date(ev.end_at).getTime() + 30 * 60_000);
     title ||= `${ev.title}`;
   } else {
-    const head = text.replace(/\bremind me\b/i, "").split(/\b(?:to|about|that)\b/i)[0];
-    const w = parseWhen(head, ctx.now, ctx.tz);
-    if (w.date && !w.time) when = zonedToUtc(w.date.y, w.date.m, w.date.d, 9, 0, ctx.tz);
-    else if (w.start) when = w.start;
-    else if (w.time) {
-      const p = partsIn(ctx.now, ctx.tz);
-      when = zonedToUtc(p.y, p.m, p.d, w.time.start.h, w.time.start.mi, ctx.tz);
-      if (when.getTime() <= ctx.now.getTime()) when = new Date(when.getTime() + 86_400_000);
+    const ahead = relativeAhead(head) ?? relativeAhead(tail);
+    if (ahead != null) when = new Date(ctx.now.getTime() + ahead * 60_000);
+    else {
+      for (const part of [head, tail]) {
+        if (when) break;
+        const w = parseWhen(part, ctx.now, ctx.tz);
+        if (w.date && !w.time) when = zonedToUtc(w.date.y, w.date.m, w.date.d, 9, 0, ctx.tz);
+        else if (w.start) when = w.start;
+        else if (w.time) {
+          const p = partsIn(ctx.now, ctx.tz);
+          when = zonedToUtc(p.y, p.m, p.d, w.time.start.h, w.time.start.mi, ctx.tz);
+          if (when.getTime() <= ctx.now.getTime()) when = new Date(when.getTime() + 86_400_000);
+        }
+      }
     }
   }
   if (!when) return askBack(ctx, "reminder", text, "time", "When should I remind you?");
