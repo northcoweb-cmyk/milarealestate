@@ -3,7 +3,7 @@ import { aiAvailable } from "../ai/provider";
 import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../time";
 import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types";
 import type { Ctx } from "../agent/context";
-import { polish, verifiedFacts } from "../agent/comms";
+import { polish, propertyPostData } from "../agent/comms";
 import { LAYOUTS, pickLayout, pickTheme } from "./design";
 import { pullListingPhotos } from "../images/listing";
 import { brandOf, buildSignature, stripSignature, withSignature } from "../signature";
@@ -44,6 +44,12 @@ async function nextVariant(ctx: Ctx, category: Category): Promise<number> {
   return existing % variantCount(category);
 }
 
+/** The next confirmed open house for a property, as the day + time range a post shows. */
+async function openHouseWhen(ctx: Ctx, prop: Property): Promise<{ day: string; range: string } | null> {
+  const ev = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.property_id === prop.id && e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
+  return ev ? { day: fmtDay(ev.start_at, ctx.tz), range: fmtRange(ev.start_at, ev.end_at, ctx.tz) } : null;
+}
+
 export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateResult> {
   const def = CATEGORIES.find((c) => c.key === input.category);
   if (!def) return { ok: false, error: "Unknown post type." };
@@ -52,16 +58,13 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
   if (input.propertyId) prop = await ctx.store.get("properties", ctx.userId, input.propertyId);
   if (def.needsProperty && !prop) return { ok: false, error: `A ${def.label.toLowerCase()} post needs a property.` };
 
-  let when: { day: string; range: string } | null = null;
-  if (input.category === "open_house" && prop) {
-    const ev = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.property_id === prop!.id && e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
-    if (ev) when = { day: fmtDay(ev.start_at, ctx.tz), range: fmtRange(ev.start_at, ev.end_at, ctx.tz) };
-  }
+  const when = input.category === "open_house" && prop ? await openHouseWhen(ctx, prop) : null;
   let ids = await imageUrls(ctx, prop?.id ?? null);
   // "Pull the images": a listing post with no photos yet reads the listing link's public preview photos.
   if (prop && !ids.length && prop.listing_url) {
     try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); ids = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ }
   }
+  const data = prop ? await propertyPostData(ctx, prop, { sold: input.category === "just_sold" }) : null;
   const everyPost = (await ctx.store.list("social_posts", ctx.userId)).length;
   const general = await anyPhotoUrls(ctx);
   const variant = input.variantSeed ?? (await nextVariant(ctx, input.category));
@@ -73,7 +76,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
     const built = buildPost({
       category: input.category, platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage,
       market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic,
-      property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null, when, contact: contactLine(ctx.profile),
+      property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, fullAddress: data.fullAddress, placeLine: data.placeLine } : null, when, contact: contactLine(ctx.profile),
     });
     let caption = built.caption;
     if (aiAvailable() && platform !== "x") {
@@ -141,8 +144,12 @@ export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost
   const hasPhoto = ids.length > 0;
   const order = LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes").map((l) => l.key);
   const nextLayout = order[(Math.max(0, order.indexOf(curLayout)) + 1) % order.length];
-  const built = buildPost({ category, platform: post.platform, variant, contact: contactLine(ctx.profile), name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, property: prop ? { address: prop.address, city: prop.city, state: prop.state, facts: verifiedFacts(prop) } : null });
-  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: withSignature(built.caption, buildSignature(ctx.profile), platformLimit(post.platform)), hashtags: built.hashtags, slides: withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout), variant, stale: false, stale_reason: null }))!;
+  const data = prop ? await propertyPostData(ctx, prop, { sold: category === "just_sold" }) : null;
+  const when = category === "open_house" && prop ? await openHouseWhen(ctx, prop) : null;
+  const built = buildPost({ category, platform: post.platform, variant, contact: contactLine(ctx.profile), name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, when, property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, fullAddress: data.fullAddress, placeLine: data.placeLine } : null });
+  // photos the agent picked or uploaded stay on their slides; only empty slides get a fresh pick
+  const designed = withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout).map((sl, i) => ({ ...sl, image_url: post.slides[i]?.image_url ?? sl.image_url }));
+  return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: withSignature(built.caption, buildSignature(ctx.profile), platformLimit(post.platform)), hashtags: built.hashtags, slides: designed, variant, stale: false, stale_reason: null }))!;
 }
 
 export async function duplicateTo(ctx: Ctx, post: SocialPost, platforms: SocialPlatform[]): Promise<SocialPost[]> {

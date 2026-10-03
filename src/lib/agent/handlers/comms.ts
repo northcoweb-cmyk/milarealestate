@@ -68,7 +68,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   let post: SocialPost;
   if (ev && /open house|carousel/i.test(text) || (ev && !/just listed|price/i.test(text))) {
-    const s = openHouseSocial(ctx, prop, new Date(ev!.start_at), new Date(ev!.end_at), images);
+    const s = await openHouseSocial(ctx, prop, new Date(ev!.start_at), new Date(ev!.end_at), images);
     post = ((await TOOLS.create_social_post.run(ctx, { platform, caption: s.caption, hashtags: s.hashtags, slides: s.slides, property_id: prop.id, event_id: ev!.id })) as any).data.post;
   } else {
     const facts = verifiedFacts(prop);

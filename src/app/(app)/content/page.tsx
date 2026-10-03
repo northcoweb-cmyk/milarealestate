@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Sparkles, Plus, Copy, Share2, Trash2, Download, ChevronDown } from "lucide-react";
+import { Sparkles, Plus, Copy, Share2, Trash2, Download, ChevronDown, ImagePlus } from "lucide-react";
+import { uploadMedia } from "@/lib/media-upload";
 import type { SocialPlatform, SocialPost, SocialSlide } from "@/lib/types";
 import { Confirm, Empty, PageHeader, Pill, Sheet, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -16,7 +17,7 @@ import { fileEntry, makeZip } from "@/lib/content/zip";
 
 type Tab = "drafts" | "ready" | "scheduled" | "posted";
 interface Data {
-  posts: SocialPost[]; photos: Record<string, string[]>; counts: Record<Tab | "archived", number>;
+  posts: SocialPost[]; photos: Record<string, string[]>; uploads: string[]; counts: Record<Tab | "archived", number>;
   properties: { id: string; address: string; verified: boolean }[];
   categories: { key: string; label: string; blurb: string; needsProperty: boolean; group: string }[];
   platforms: { key: SocialPlatform; label: string; limit: number }[]; tz: string; ai: boolean;
@@ -130,7 +131,13 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const over = caption.length > limit;
   const theme = slides[0]?.theme ?? "noir";
   const photos = post.property_id ? data.photos[post.property_id] ?? [] : Object.values(data.photos).flat();
-  const heroPhoto = slides.find((s) => s.role === "hero")?.image_url ?? null;
+  const [target, setTarget] = useState<number | "all">(0);
+  const [uploads, setUploads] = useState<string[]>(data.uploads ?? []);
+  const [uploading, setUploading] = useState(false);
+  const [link, setLink] = useState("");
+  const [pulling, setPulling] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const propInfo = data.properties.find((x) => x.id === post.property_id);
   const dirty = caption !== post.caption || JSON.stringify(slides) !== JSON.stringify(post.slides);
   const live: SocialPost = { ...post, caption, slides };
 
@@ -138,7 +145,32 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const layout = layoutOf(slides[0]?.layout).key;
   const hasPhoto = slides.some((s) => s.image_url);
   const setLayout = (l: string) => setSlides((x) => x.map((s) => ({ ...s, layout: l })));
-  const setPhoto = (url: string | null) => setSlides((x) => x.map((s, i) => ({ ...s, image_url: url ? (s.role === "hero" ? url : [url, ...photos.filter((p) => p !== url)][i % Math.max(1, photos.length)]) : null })));
+  // photo shown on the slide(s) being edited
+  const shown = target === "all" ? (slides.every((s) => s.image_url === slides[0]?.image_url) ? slides[0]?.image_url ?? null : undefined) : slides[target]?.image_url ?? null;
+  const setPhoto = (url: string | null) => setSlides((x) => x.map((s, i) => (target === "all" || target === i ? { ...s, image_url: url } : s)));
+  const library = [...new Set([...photos, ...uploads])];
+  async function addFiles(files: FileList | null) {
+    const list = [...(files ?? [])].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, 8);
+    if (!list.length) { toast("Choose a photo (JPG, PNG or HEIC).", "error"); return; }
+    setUploading(true);
+    try {
+      const made: string[] = [];
+      for (const f of list) made.push((await uploadMedia(f, {})).url);
+      setUploads((u) => [...made, ...u.filter((x) => !made.includes(x))]);
+      setSlides((x) => x.map((s, i) => {
+        if (target === "all") return { ...s, image_url: made[i % made.length] }; // several photos spread across the images
+        return target === i ? { ...s, image_url: made[0] } : s;
+      }));
+      toast(made.length === 1 ? "Photo added." : `${made.length} photos added.`, "success");
+    } catch (e) { toast(e instanceof Error ? e.message : "Couldn't upload that photo.", "error"); } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+  }
+  async function pullFromLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!post.property_id || !link.trim()) return;
+    setPulling(true);
+    try { const r = await jfetch<{ message: string; added: number }>(`/api/properties/${post.property_id}/pull-photos`, { method: "POST", json: { url: link.trim() } }); toast(r.message, r.added ? "success" : "info"); if (r.added) { setLink(""); onChanged(); } }
+    catch (er) { toast(er instanceof Error ? er.message : "Couldn't read that link.", "error"); } finally { setPulling(false); }
+  }
   const setText = (i: number, k: "headline" | "sub", v: string) => setSlides((x) => x.map((s, n) => (n === i ? { ...s, [k]: v } : s)));
 
   async function act(action: string | null, extra: Record<string, unknown> = {}, msg?: string) {
@@ -185,20 +217,31 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
           </div>
         </div>
 
-        {(post.property_id || photos.length > 0) && (
-          <div>
-            <p className="kicker mb-2">Photo</p>
-            {photos.length ? (
-              <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1">
-                <button onClick={() => setPhoto(null)} aria-pressed={!heroPhoto} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-[12.5px] font-semibold" style={{ boxShadow: !heroPhoto ? "0 0 0 2px var(--ink)" : "inset 0 0 0 1px var(--line)" }}>None</button>
-                {photos.map((u) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <button key={u} onClick={() => setPhoto(u)} aria-pressed={heroPhoto === u} className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl" style={{ boxShadow: heroPhoto === u ? "0 0 0 2px var(--ink)" : "none" }}><img src={u} alt="Property photo" className="h-full w-full object-cover" /></button>
-                ))}
-              </div>
-            ) : <p className="muted text-[14px]">This property has no photos yet. <a className="font-semibold text-accent" href={`/properties/${post.property_id}`}>Pull photos</a> to make a photo post.</p>}
+        <div>
+          <p className="kicker mb-2">Photos</p>
+          <div className="no-scrollbar -mx-1 mb-3 flex gap-2 overflow-x-auto px-1 py-1" role="tablist" aria-label="Which image to put a photo on">
+            {slides.length > 1 && <button role="tab" aria-selected={target === "all"} className={"chip shrink-0 " + (target === "all" ? "is-selected" : "")} onClick={() => setTarget("all")}>All images</button>}
+            {slides.map((s, i) => <button key={i} role="tab" aria-selected={target === i} className={"chip shrink-0 " + (target === i ? "is-selected" : "")} onClick={() => setTarget(i)}>Image {i + 1}{s.image_url ? " ✓" : ""}</button>)}
           </div>
-        )}
+          <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1">
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl text-[11.5px] font-semibold" style={{ boxShadow: "inset 0 0 0 1.5px var(--line-strong, var(--line))" }} aria-label="Add a photo from your phone or computer"><ImagePlus size={20} />{uploading ? "…" : "Add"}</button>
+            <button onClick={() => setPhoto(null)} aria-pressed={shown === null} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-[12.5px] font-semibold" style={{ boxShadow: shown === null ? "0 0 0 2px var(--ink)" : "inset 0 0 0 1.5px var(--line)" }}>None</button>
+            {library.map((u) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <button key={u} onClick={() => setPhoto(u)} aria-pressed={shown === u} className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl" style={{ boxShadow: shown === u ? "0 0 0 2px var(--ink)" : "none" }}><img src={u} alt="Your photo" className="h-full w-full object-cover" loading="lazy" /></button>
+            ))}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => addFiles(e.target.files)} />
+          <p className="faint mt-2 text-[12.5px]">{library.length ? "Tap a photo to put it on the selected image." : "Add your own photos — a listing shot, a headshot, a neighborhood picture."}</p>
+          {post.property_id && (
+            <form className="mt-3 flex gap-2" onSubmit={pullFromLink}>
+              <input className="field flex-1" inputMode="url" placeholder="…or paste the listing link to pull its photos" value={link} onChange={(e) => setLink(e.target.value)} aria-label="Listing link" />
+              <button className="btn btn-sm" disabled={pulling || !link.trim()}>{pulling ? "Pulling…" : "Pull"}</button>
+            </form>
+          )}
+        </div>
+
+        {propInfo && !propInfo.verified && <p className="rounded-2xl p-3 text-[13.5px]" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}>The numbers on this post come from public records or an online lookup. Check the price, beds, baths and size before you post — or confirm them on the <a className="font-semibold underline" href={`/properties/${propInfo.id}`}>property page</a> and I'll stop flagging this.</p>}
 
         <div>
           <p className="kicker mb-2">Caption</p>

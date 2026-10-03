@@ -228,7 +228,7 @@ export async function refreshComms(ctx: Ctx, ev: CalendarEvent) {
   for (const p of posts) {
     if (!prop) continue;
     const imgs = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop.id).sort((a, b) => a.position - b.position).map((i) => i.id);
-    const s = openHouseSocial(ctx, prop, start, end, imgs);
+    const s = await openHouseSocial(ctx, prop, start, end, imgs);
     await ctx.store.update("social_posts", ctx.userId, p.id, { caption: s.caption, slides: s.slides, hashtags: s.hashtags, stale: false, stale_reason: null });
     done.push("the social post");
   }

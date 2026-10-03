@@ -4,6 +4,9 @@ import { fmtDay, fmtRange, fmtShortDate } from "../time";
 import type { Contact, Profile, Property, SocialSlide } from "../types";
 import type { Ctx } from "./context";
 import { firstName, fullMoney } from "./context";
+import { type ListingPostData, listingPostData } from "../content/listing-data";
+import { buildPost } from "../content/templates";
+import type { PropertyExtra } from "../listing-data/rentcast";
 
 /**
  * Message generation. Templates are free and deterministic and are used by
@@ -43,24 +46,25 @@ export function openHouseEmail(ctx: Ctx, prop: Property, start: Date, end: Date)
   };
 }
 
-export function openHouseSocial(ctx: Ctx, prop: Property, start: Date, end: Date, imageIds: string[]) {
-  const day = fmtDay(start, ctx.tz), range = fmtRange(start, end, ctx.tz);
-  const facts = verifiedFacts(prop);
-  const slides: SocialSlide[] = [
-    { role: "hero", headline: prop.address, sub: `Open House • ${day} • ${range}`, image_id: imageIds[0] ?? null },
-    { role: "highlight", headline: facts.length ? facts.join(" • ") : "Come see it in person", sub: prop.city ?? undefined, image_id: imageIds[1] ?? imageIds[0] ?? null },
-    { role: "cta", headline: `Join me ${day}`, sub: `${range} • ${prop.address}`, image_id: imageIds[2] ?? imageIds[0] ?? null },
-  ];
-  const caption = [
-    `Open House this ${day}! 🏡`,
-    "",
-    `${prop.address}${prop.city ? `, ${prop.city}` : ""}`,
-    `${day} • ${range}`,
-    facts.length ? facts.join(" • ") : "",
-    "",
-    "Stop by, take a look, and bring your questions. I'd love to meet you.",
-  ].filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n").trim();
-  return { slides, caption, hashtags: ["#OpenHouse", "#RealEstate", ...(prop.city ? ["#" + prop.city.replace(/\W/g, "")] : []), "#HomesForSale"] };
+/** Everything we know about a home, ready for a post: price, full address, beds/baths/size, plus year built, lot, HOA, taxes and days on market when known. */
+export async function propertyPostData(ctx: Ctx, prop: Property, o: { sold?: boolean } = {}): Promise<ListingPostData> {
+  const mems = await ctx.store.list("memories", ctx.userId);
+  let extra: PropertyExtra | null = null;
+  try { const raw = mems.find((m) => m.key === `cache:property_lookup:${prop.id}`)?.value; extra = raw ? ((JSON.parse(raw) as { extra?: PropertyExtra }).extra ?? null) : null; } catch { /* no lookup yet */ }
+  const txn = mems.find((m) => m.scope === "property" && m.subject_id === prop.id && m.key === "Transaction")?.value ?? "";
+  const soldPrice = o.sold && /^Sold/i.test(txn) ? Number(/\$([\d,]+)/.exec(txn)?.[1]?.replace(/,/g, "")) || null : null;
+  return listingPostData(prop, { extra, soldPrice });
+}
+
+export async function openHouseSocial(ctx: Ctx, prop: Property, start: Date, end: Date, imageIds: string[]) {
+  const d = await propertyPostData(ctx, prop);
+  const built = buildPost({
+    category: "open_house", platform: "instagram", variant: 0, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location || undefined,
+    property: { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: d.stats, details: d.details, descriptors: d.descriptors, fullAddress: d.fullAddress, placeLine: d.placeLine },
+    when: { day: fmtDay(start, ctx.tz), range: fmtRange(start, end, ctx.tz) },
+  });
+  const slides: SocialSlide[] = built.slides.map((sl, i) => ({ ...sl, image_id: imageIds[i] ?? imageIds[0] ?? null }));
+  return { slides, caption: built.caption, hashtags: built.hashtags };
 }
 
 export type LeadClass = "financing" | "nurture" | "seller" | "rental" | "investor" | "hot" | "general";

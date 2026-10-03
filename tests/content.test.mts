@@ -31,13 +31,50 @@ test("every category × platform builds clean, within limits, with no invented f
     assert.ok(post.caption.length <= platformLimit(p.key), `${c.key}/${p.key} over limit (${post.caption.length})`);
     assert.ok(!/undefined|NaN|\[object|\{\{/.test(post.caption + JSON.stringify(post.slides)), `${c.key}/${p.key} leaks junk`);
     assert.ok(post.slides.length >= 1 && post.slides.every((s: any) => s.headline.trim()));
-    if (c.needsProperty) assert.ok(!/999,?999|5 bed|4 bath|4,?000|sq ft/.test(post.caption + JSON.stringify(post.slides)), `${c.key} used unverified facts`);
+    if (c.needsProperty) assert.ok(/9 Elm Street, Gaithersburg, MD/.test(post.caption) && /\$999,999/.test(post.caption), `${c.key} should carry the full address and price`);
   }
 });
 
-test("verified facts are used, unverified are not", async () => {
+test("listing posts carry the full data: address with city/state/zip, price, beds/baths/size, and the extras we know", async () => {
+  await store.insert("memories", prof.id, { scope: "property", subject_id: verified.id, key: `cache:property_lookup:${verified.id}`, value: JSON.stringify({ at: "x", found: true, facts: null, sources: [], extra: { year_built: 1998, lot_sqft: 7405, hoa_fee: 250, tax_amount: 7812, list_status: "Active", days_on_market: 12, property_type: "Single Family", garage_spaces: 2, pool: false } }), source: "system", confidence: 0.6, pinned: false });
+  await store.update("properties", prof.id, verified.id, { zip: "20850" });
   const r: any = await svc.createPosts(ctx, { category: "just_listed", platforms: ["instagram"], propertyId: verified.id });
-  assert.match(r.posts[0].caption, /4 bed/); assert.match(r.posts[0].caption, /\$650,000/);
+  const post = r.posts[0];
+  assert.match(post.caption, /📍 12 Oak Lane, Rockville, MD 20850/);
+  assert.match(post.caption, /💰 \$650,000/);
+  assert.match(post.caption, /🛏 4 bd • 3 ba • 2,400 sq ft/);
+  assert.match(post.caption, /✨ Single Family • 2-car garage • 1998 built • 7,405 sq ft lot • \$250 HOA\/mo • \$7,812 taxes\/yr • 12 days on market/);
+  const slides = post.slides;
+  assert.equal(slides[0].headline, "12 Oak Lane"); assert.equal(slides[0].sub, "Just Listed • $650,000");
+  assert.equal(slides[1].headline, "$650,000 • 4 bd • 3 ba • 2,400 sq ft"); assert.equal(slides[1].sub, "Rockville, MD 20850");
+  assert.equal(slides[2].headline, "1998 built • 7,405 sq ft lot • $250 HOA/mo • $7,812 taxes/yr"); // 4 tiles max
+  assert.equal(slides[slides.length - 1].role, "cta");
+});
+
+test("an open house post leads with the date and time and still carries all the numbers", async () => {
+  const start = new Date("2026-10-04T17:00:00Z"), end = new Date("2026-10-04T19:00:00Z");
+  await store.insert("calendar_events", prof.id, { title: "Open House — 12 Oak Lane", kind: "open_house", start_at: start.toISOString(), end_at: end.toISOString(), location: "12 Oak Lane", property_id: verified.id, contact_id: null, status: "confirmed", source: "mila", external_id: null, synced_at: null, workflow_run_id: null, notes: null });
+  const r: any = await svc.createPosts(ctx, { category: "open_house", platforms: ["instagram", "instagram_story"], propertyId: verified.id });
+  for (const post of r.posts) {
+    assert.match(post.caption, /🗓 Sunday • /); assert.match(post.caption, /📍 12 Oak Lane, Rockville, MD 20850/); assert.match(post.caption, /💰 \$650,000/);
+    assert.match(post.slides[0].sub, /^Open House • Sunday • /);
+    assert.ok(post.slides.some((s: any) => s.headline.startsWith("$650,000 • 4 bd")));
+  }
+});
+
+test("a sparse property never prints blanks: missing numbers are left out, not invented", async () => {
+  const bare = await store.insert("properties", prof.id, { address: "3 Pine Road", city: "Frederick", state: "MD", zip: null, county: null, list_price: null, beds: null, baths: null, sqft: null, listing_url: null, description: null, verified: false, is_demo: false });
+  const r: any = await svc.createPosts(ctx, { category: "just_listed", platforms: ["instagram"], propertyId: bare.id });
+  const t = r.posts[0].caption + r.posts[0].slides.map((s: any) => `${s.headline} ${s.sub ?? ""}`).join(" ");
+  assert.match(r.posts[0].caption, /📍 3 Pine Road, Frederick, MD/);
+  assert.doesNotMatch(t, /💰|🛏|✨|undefined|null|NaN|\$0\b|0 bd|0 ba/);
+});
+
+test("rewriting a post keeps the photos the agent put on it", async () => {
+  const r: any = await svc.createPosts(ctx, { category: "just_listed", platforms: ["instagram"], propertyId: verified.id });
+  const mine = { ...r.posts[0], slides: r.posts[0].slides.map((s: any, i: number) => ({ ...s, image_url: i === 0 ? "/api/files/my-own-photo" : s.image_url })) };
+  const again = await svc.regenerate(ctx, mine);
+  assert.equal(again.slides[0].image_url, "/api/files/my-own-photo");
 });
 
 test("property categories require a property; platform required", async () => {

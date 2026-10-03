@@ -42,7 +42,7 @@ export interface BuildInput {
   role?: string;
   brokerage?: string | null;
   market?: string; // "Montgomery County, MD"
-  property?: { address: string; city?: string | null; state?: string | null; facts: string[] } | null;
+  property?: { address: string; city?: string | null; state?: string | null; zip?: string | null; facts: string[]; details?: string[]; descriptors?: string[]; fullAddress?: string; placeLine?: string } | null;
   when?: { day: string; range: string } | null; // for open houses
   topic?: string | null;
   /** Shown on the last image's button, e.g. "Call or text 301.509.7280". Defaults to the agent's name. */
@@ -114,8 +114,17 @@ function baseTags(i: BuildInput): string[] {
 function core(i: BuildInput): { headline: string; lines: string[]; cta: string; slides: SocialSlide[] } {
   const v = i.variant ?? 0;
   const prop = i.property;
-  const where = prop ? `${prop.address}${prop.city ? `, ${prop.city}` : ""}` : "";
+  const where = prop ? (prop.fullAddress || `${prop.address}${prop.city ? `, ${prop.city}` : ""}`) : "";
   const facts = prop?.facts ?? [];
+  const details = prop?.details ?? [];
+  const price = facts.find((f) => f.startsWith("$"));
+  const specs = facts.filter((f) => !f.startsWith("$"));
+  // the data every listing post carries: full address, price, beds/baths/size, and the extras we know
+  const dataLines = prop ? [prop.fullAddress || where ? `📍 ${prop.fullAddress || where}` : "", price ? `💰 ${price}` : "", specs.length ? `🛏 ${specs.join(" • ")}` : "", details.length || prop.descriptors?.length ? `✨ ${[...(prop.descriptors ?? []), ...details].join(" • ")}` : ""].filter(Boolean) : [];
+  const tiles = (role: SocialSlide["role"] = "highlight"): SocialSlide[] => [
+    ...(facts.length >= 2 ? [slide(role, facts.join(" • "), prop?.placeLine || prop?.city || undefined)] : facts.length ? [slide(role, facts[0], prop?.placeLine || prop?.city || undefined)] : []),
+    ...(details.length >= 2 ? [slide("highlight", details.slice(0, 4).join(" • "), "About the home")] : []),
+  ];
   const sig = i.contact?.trim() || i.name;
   const market = i.market ? i.market.replace(/,\s*[A-Z]{2}$/, "") : "";
   const slide = (role: SocialSlide["role"], headline: string, sub?: string): SocialSlide => ({ role, headline, sub, image_id: null });
@@ -123,29 +132,29 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
   switch (i.category) {
     case "just_listed":
       return {
-        headline: "Just Listed! 🏡", lines: [where, facts.join(" • ")].filter(Boolean),
+        headline: "Just Listed! 🏡", lines: dataLines.length ? dataLines : [where].filter(Boolean),
         cta: pick(v, ["Message me for details or a private showing.", "DM me to schedule a tour.", "Want to see it in person? Reach out."]),
-        slides: [slide("hero", prop?.address ?? "New listing", "Just Listed"), slide("highlight", facts.join(" • ") || "Come see it in person", prop?.city ?? undefined), slide("cta", "Let's tour it", sig)],
+        slides: [slide("hero", prop?.address ?? "New listing", price ? `Just Listed • ${price}` : "Just Listed"), ...(tiles().length ? tiles() : [slide("highlight", "Come see it in person", prop?.city ?? undefined)]), slide("cta", "Let's tour it", sig)],
       };
     case "open_house": {
       const when = i.when ? `${i.when.day} • ${i.when.range}` : "";
       return {
-        headline: i.when ? `Open House this ${i.when.day}! 🏡` : "Open House! 🏡", lines: [where, when, facts.join(" • ")].filter(Boolean),
+        headline: i.when ? `Open House this ${i.when.day}! 🏡` : "Open House! 🏡", lines: [...(when ? [`🗓 ${when}`] : []), ...dataLines].filter(Boolean),
         cta: pick(v, ["Stop by, take a look, and bring your questions.", "Come walk through — no appointment needed.", "I'd love to meet you there."]),
-        slides: [slide("hero", prop?.address ?? "Open house", when ? `Open House • ${when}` : "Open House"), slide("highlight", facts.join(" • ") || "Come see it in person", prop?.city ?? undefined), slide("cta", i.when ? `Join me ${i.when.day}` : "Join me", [i.when?.range, prop?.address].filter(Boolean).join(" • "))],
+        slides: [slide("hero", prop?.address ?? "Open house", when ? `Open House • ${when}` : "Open House"), ...(tiles().length ? tiles() : [slide("highlight", "Come see it in person", prop?.city ?? undefined)]), slide("cta", i.when ? `Join me ${i.when.day}` : "Come say hello", i.when ? `${i.when.range} • ${prop?.address ?? ""}`.trim() : sig)],
       };
     }
     case "price_improvement":
       return {
-        headline: "Price Improvement! 🔔", lines: [where, facts.join(" • ")].filter(Boolean),
+        headline: "Price Improvement! 🔔", lines: dataLines.length ? dataLines : [where].filter(Boolean),
         cta: pick(v, ["Now's a great time to take another look. Message me!", "Questions about the update? I'm happy to help."]),
-        slides: [slide("hero", prop?.address ?? "Price improvement", "Price Improvement"), slide("highlight", facts.join(" • ") || "Take another look", prop?.city ?? undefined), slide("cta", "Let's talk", sig)],
+        slides: [slide("hero", prop?.address ?? "Price improvement", price ? `New price • ${price}` : "Price Improvement"), ...(tiles().length ? tiles() : [slide("highlight", "Take another look", prop?.city ?? undefined)]), slide("cta", "Let's talk", sig)],
       };
     case "just_sold":
       return {
-        headline: "Just Sold! 🎉", lines: [where].filter(Boolean),
+        headline: "Just Sold! 🎉", lines: dataLines.length ? dataLines : [where].filter(Boolean),
         cta: pick(v, ["Congratulations to my wonderful clients! Thinking about your own move? Let's talk.", "So proud of this one. If you're thinking of selling, I'd love to help."]),
-        slides: [slide("hero", prop?.address ?? "Just sold", "Just Sold"), slide("highlight", "Congratulations!", "Another happy closing"), slide("cta", "Thinking of selling?", sig)],
+        slides: [slide("hero", prop?.address ?? "Just sold", price ? `Just Sold • ${price}` : "Just Sold"), ...(facts.length >= 2 ? [slide("highlight", facts.join(" • "), prop?.placeLine || prop?.city || undefined)] : []), slide("highlight", "Congratulations!", "Another happy closing"), slide("cta", "Thinking of selling?", sig)],
       };
     case "buyer_tip": case "seller_tip": case "education": {
       const t = pickTip(i.category === "buyer_tip" ? BUYER_TIPS : i.category === "seller_tip" ? SELLER_TIPS : EDU_TIPS, v);

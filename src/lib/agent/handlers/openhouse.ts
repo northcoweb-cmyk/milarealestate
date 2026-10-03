@@ -180,7 +180,7 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
   // 6. social post
   ctx.steps.push("Designing the post");
   const images = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop.id).sort((a, b) => a.position - b.position).map((i) => i.id);
-  const soc = openHouseSocial(ctx, prop, start, end, images);
+  const soc = await openHouseSocial(ctx, prop, start, end, images);
   const sp = (await TOOLS.create_social_post.run(ctx, { platform: "instagram", caption: soc.caption, hashtags: soc.hashtags, slides: soc.slides, property_id: prop.id, event_id: eventId, workflow_run_id: run.id })) as any;
   const post = sp.data.post as SocialPost;
   outputs.social_post_id = post.id;

@@ -84,7 +84,8 @@ function parseStats(text: string): Stat[] | null {
     const m = p.match(/\$[\d,.]+\s?[kKmM]?|\d[\d,.]*/);
     if (!m) return null;
     const rest = p.replace(m[0], "").replace(/\b(offered|listed|priced)\s+at\b/i, "").replace(/[()]/g, "").trim();
-    const label = m[0].startsWith("$") ? "Price" : /^(bd|bed|beds|bedrooms?)$/i.test(rest) ? "Beds" : /^(ba|bath|baths|bathrooms?)$/i.test(rest) ? "Baths" : /^sq\.?\s?ft\.?$/i.test(rest) ? "Sq ft" : rest.replace(/\b\w/g, (x) => x.toUpperCase());
+    const NICE: [RegExp, string][] = [[/^(bd|bed|beds|bedrooms?)$/i, "Beds"], [/^(ba|bath|baths|bathrooms?)$/i, "Baths"], [/^sq\.?\s?ft\.?$/i, "Sq ft"], [/^built$/i, "Built"], [/^sq\.?\s?ft\.? lot$/i, "Lot (sq ft)"], [/^hoa\/mo$/i, "HOA / mo"], [/^taxes\/yr$/i, "Taxes / yr"], [/^days on market$/i, "Days on market"]];
+    const label = m[0].startsWith("$") && !rest ? "Price" : NICE.find(([re]) => re.test(rest))?.[1] ?? rest.replace(/\b\w/g, (x) => x.toUpperCase());
     out.push({ value: m[0].trim(), label });
   }
   out.sort((a, b) => (a.label === "Price" ? -1 : b.label === "Price" ? 1 : 0));
