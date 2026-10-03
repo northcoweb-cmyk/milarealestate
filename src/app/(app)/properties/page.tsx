@@ -7,6 +7,7 @@ import { Empty, PageHeader, Skeleton } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { PropertyCard } from "@/components/property-card";
+import { useListingPhotos } from "@/components/use-listing-photos";
 import { useMila } from "@/components/mila-chat";
 
 type Tab = "current" | "upcoming" | "past" | "all";
@@ -19,6 +20,8 @@ export default function PropertiesPage() {
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Tab | null>(null);
   const all = data?.properties ?? [];
+  // listing photos only for homes that are live or coming up, and not when the agent already uploaded one (the server caps how many it enriches at once)
+  const photoOf = useListingPhotos(useMemo(() => all.filter((p) => p.image_source !== "photo" && p.group !== "past" && p.city && p.state).slice(0, 8).map((p) => ({ key: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, propertyId: p.id })), [all]), { enrich: true });
   const counts = useMemo(() => ({ current: all.filter((p) => p.group === "current").length, upcoming: all.filter((p) => p.group === "upcoming").length, past: all.filter((p) => p.group === "past").length, all: all.length }), [all]);
   // open on whatever the agent is most likely here for: what's live now, else what's coming, else everything
   const tab: Tab = picked ?? (counts.current ? "current" : counts.upcoming ? "upcoming" : "all");
@@ -44,10 +47,10 @@ export default function PropertiesPage() {
             (["current", "upcoming", "past"] as Group[]).map((g) => { const list = shown.filter((p) => p.group === g); return list.length ? (
               <section key={g} className="mb-8" aria-label={GROUP_TITLE[g]}>
                 <h2 className="kicker mb-3 flex items-center gap-2"><Building2 size={14} aria-hidden />{GROUP_TITLE[g]} · {list.length}</h2>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{list.map((p) => <PropertyCard key={p.id} p={p} onChanged={reload} />)}</div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{list.map((p) => <PropertyCard key={p.id} p={p} photo={photoOf(p.id)} onChanged={reload} />)}</div>
               </section>) : null; })
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{shown.map((p) => <PropertyCard key={p.id} p={p} onChanged={reload} />)}</div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{shown.map((p) => <PropertyCard key={p.id} p={p} photo={photoOf(p.id)} onChanged={reload} />)}</div>
           )}
         </>
       )}

@@ -104,6 +104,7 @@ function PropertyDetail({ id }: { id: string }) {
         <div className="mt-3 flex flex-wrap items-center gap-3"><button className="btn btn-sm" disabled={finding || !addrComplete} onClick={() => findHome()}>{finding ? "Looking…" : data.lookup ? "Look up again" : "Find details"}</button>{!data.lookupAvailable && <span className="faint text-[12.5px]">Lookup isn't available right now.</span>}</div></> : <button className="mt-3 text-[13.5px] font-semibold text-accent underline" onClick={() => setShowAddr(true)}>Wrong address? Edit it</button>}
         {findMsg && <p className="mt-3 rounded-2xl p-3 text-[14px]" style={{ background: "color-mix(in srgb, var(--ink) 6%, transparent)" }}>{findMsg}</p>}
       </section>
+      {addrComplete && <ListingGallery id={id} address={p.address} />}
       <section className="glass mb-5 p-5 sm:p-6">
         <p className="kicker mb-1">Photos</p>
         <p className="muted mb-3 text-[14px]">Paste the listing link and Mila pulls the photos for you. She only uses what the page itself shares publicly, and never stock images.</p>
@@ -154,6 +155,37 @@ function SheetsSection({ propertyId }: { propertyId: string }) {
         <li key={s.id}><Link href={`/showings/${s.id}`} className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--ink) 5%, transparent)" }}>
           <span className="min-w-0"><span className="block text-[15px] font-semibold">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(s.completed_at ?? s.started_at))} · {s.status === "complete" ? "Saved" : "In progress"}</span><span className="faint block text-[13px]">{s.progress.done}/{s.progress.total} checked{s.progress.issues ? ` · ⚑ ${s.progress.issues}` : ""}{s.progress.mediaCount ? ` · 📷 ${s.progress.mediaCount}` : ""}</span></span>
         </Link></li>))}</ul>}
+    </section>
+  );
+}
+
+type Gallery = { photoStatus: string; photos: { url: string; thumbUrl?: string; caption: string | null }[] };
+const galleryMemo = new Map<string, Gallery>();
+
+/** Full listing gallery, fetched once when the page opens (the server serves it from cache whenever it can). Hides itself when there's nothing to show. */
+function ListingGallery({ id, address }: { id: string; address: string }) {
+  const [g, setG] = useState<Gallery | null>(galleryMemo.get(id) ?? null);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (galleryMemo.has(id)) return;
+    let live = true;
+    jfetch<{ media: Gallery }>(`/api/properties/${id}/photos`).then((r) => { galleryMemo.set(id, r.media); if (live) setG(r.media); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [id]);
+  if (!g || !g.photos.length) return null;
+  const cur = g.photos[Math.min(i, g.photos.length - 1)];
+  return (
+    <section className="glass mb-5 overflow-hidden !p-0" aria-label="Listing photos">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={cur.url} alt={cur.caption || `Listing photo of ${address}`} className="h-full w-full object-cover" />
+        <span className="absolute bottom-2 right-3 rounded-full bg-black/50 px-2 py-0.5 text-[11.5px] text-white">{i + 1} / {g.photos.length}</span>
+      </div>
+      {g.photos.length > 1 && <div className="no-scrollbar flex gap-2 overflow-x-auto p-3">{g.photos.slice(0, 40).map((ph, n) => (
+        <button key={n} type="button" onClick={() => setI(n)} aria-label={`Show photo ${n + 1}`} className="h-14 w-20 shrink-0 overflow-hidden rounded-lg" style={{ outline: n === i ? "2px solid var(--accent)" : "none" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={ph.thumbUrl ?? ph.url} alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }} />
+        </button>))}</div>}
     </section>
   );
 }

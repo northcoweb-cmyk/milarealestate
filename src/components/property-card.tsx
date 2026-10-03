@@ -18,7 +18,7 @@ const KIND: Record<string, string> = { open_house: "Open house", showing: "Showi
 
 const DOT: Record<Stage, string> = { active: "var(--ok)", under_contract: "var(--warn)", upcoming: "var(--ink-faint)", sold: "var(--accent)", archived: "var(--ink-faint)" };
 
-export function PropertyCard({ p, onChanged }: { p: PropertyCardInfo; onChanged: () => void }) {
+export function PropertyCard({ p, photo, onChanged }: { p: PropertyCardInfo; photo?: string | null; onChanged: () => void }) {
   const { profile } = useApp();
   const tz = profile.timezone;
   const mila = useMila();
@@ -46,7 +46,7 @@ export function PropertyCard({ p, onChanged }: { p: PropertyCardInfo; onChanged:
     <article className="glass-strong flex flex-col overflow-hidden !p-0" aria-label={`${p.address}, ${p.stage_label}`}>
       <Link href={`/properties/${p.id}`} className="block outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
         <div className="relative aspect-[16/10] w-full overflow-hidden">
-          <Photo src={p.image} alt={`${p.image_source === "photo" ? "Photo" : "Street view"} of ${p.address}`} />
+          <Photo src={p.image_source === "photo" ? p.image : photo ?? p.image} alt={`${p.image_source === "photo" || photo ? "Photo" : "Street view"} of ${p.address}`} />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2" style={{ background: "linear-gradient(to top, rgba(0,0,0,.62), transparent)" }} />
           <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ background: "rgba(255,255,255,.93)", color: "#111" }}>
             <span className="h-2 w-2 rounded-full" style={{ background: DOT[p.stage] }} aria-hidden />{p.stage_label}

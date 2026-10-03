@@ -239,6 +239,7 @@ function Health({ d }: { d: AdminReport }) {
     ["Email sending", h.email, h.email ? "Configured." : "RESEND_API_KEY not set."],
     ["Stripe payments", h.stripe, h.stripe ? "Configured." : "Not configured — nobody can pay."],
     ["Property & listing data (RentCast)", h.propertyData, h.propertyData ? `Connected with ${h.propertyKeys} API key${h.propertyKeys === 1 ? "" : "s"} — “prep for…” and “new listings” use live data.` : "Not connected — set RENTCAST_API_KEY. Without it, house info is a web-search guess and new-listing cards are off."],
+    [`Listing photos (${h.photoProvider})`, h.photosConfigured, h.photosConfigured ? "Connected. Photo URLs are cached for 30 days, so repeat views cost nothing." : "Not connected — cards use street imagery or a placeholder."],
     ["Address lookup (Google Maps)", h.maps, h.maps ? "Configured." : "Not set — addresses are accepted but not verified."],
     ["Owner access locked down", h.adminEmailsSet, h.adminEmailsSet ? "ADMIN_EMAILS is set." : "Set ADMIN_EMAILS to your email."],
   ];
@@ -250,6 +251,11 @@ function Health({ d }: { d: AdminReport }) {
         {rows.map(([name, okk, note]) => <li key={name} className="flex items-start gap-3 py-3"><span className="inline-flex w-10 shrink-0 justify-center"><Pill tone={okk ? "ok" : "warn"}>{okk ? "OK" : "Fix"}</Pill></span><div className="min-w-0"><p className="font-semibold">{name}</p><p className="muted text-[13.5px]">{note}</p></div></li>)}
       </ul>
       <p className="faint mt-4 text-[12.5px]">Auth: {h.auth} · Store: {h.store} · Env: {h.node || "n/a"}{h.vercel ? " · Vercel" : ""}</p>
+    </section>
+    <section className="glass mt-5 p-5">
+      <p className="h2 mb-3">Third-party API usage · this month</p>
+      {d.apiUsage.length === 0 ? <p className="muted text-[14px]">No paid API calls yet.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-[14px]"><thead><tr className="muted"><th className="py-1 pr-3">Provider</th><th className="pr-3">Calls</th><th className="pr-3">Failed</th><th className="pr-3">Units</th><th>Est. cost</th></tr></thead><tbody>{d.apiUsage.map((u) => <tr key={u.provider} className="border-t" style={{ borderColor: "var(--line)" }}><td className="py-1.5 pr-3 font-semibold">{u.provider}</td><td className="pr-3">{u.calls}</td><td className="pr-3">{u.failed}</td><td className="pr-3">{u.units}</td><td>${u.costUsd.toFixed(2)}</td></tr>)}</tbody></table></div>}
+      {d.apiUsageByUser.length > 0 && <><p className="kicker mb-1 mt-4">Cost per user</p><div className="overflow-x-auto"><table className="w-full text-left text-[14px]"><thead><tr className="muted"><th className="py-1 pr-3">User</th><th className="pr-3">Photo lookups</th><th className="pr-3">Calls</th><th>Est. cost</th></tr></thead><tbody>{d.apiUsageByUser.map((u) => <tr key={u.email} className="border-t" style={{ borderColor: "var(--line)" }}><td className="py-1.5 pr-3">{u.email}</td><td className="pr-3">{u.photoLookups}</td><td className="pr-3">{u.calls}</td><td>${u.costUsd.toFixed(2)}</td></tr>)}</tbody></table></div></>}
     </section>
     <MapsCheck />
     </>

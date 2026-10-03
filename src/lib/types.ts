@@ -415,7 +415,7 @@ export interface Message extends Row {
 /** One home in a rail of listing cards. `image` is a same-origin URL (Street View or a photo the agent supplied); the card shows a placeholder when it fails. */
 export interface ListingCardData {
   id: string; address: string; city: string | null; state: string | null; zip: string | null; price: number | null; beds: number | null; baths: number | null; sqft: number | null;
-  type: string | null; days_on_market: number | null; listed_date: string | null; mls: string | null; image: string | null; badge?: string; lines?: string[]; propertyId?: string;
+  type: string | null; days_on_market: number | null; listed_date: string | null; mls: string | null; image: string | null; photo?: string | null; photoStatus?: "ok" | "unavailable" | "pending"; badge?: string; lines?: string[]; propertyId?: string;
 }
 
 export interface ActionButton {
@@ -461,6 +461,31 @@ export interface UsageRow extends Row {
   output_units: number;
   est_cost_usd: number;
   credits: number;
+}
+
+/** Shared (not per-user) cache of listing photo URLs, keyed by provider + normalized address. Written by the server only. user_id is the nil UUID. */
+export interface ListingMediaCache extends Row {
+  provider: string;
+  normalized_address: string; // "123 MAIN ST|AUSTIN|TX|78701"
+  listing_id: string | null; // RentCast listing id
+  property_id: string | null; // RentCast / Mila property id
+  provider_property_id: string | null; // e.g. Zillow ZPID
+  photos_json: { url: string; thumbUrl?: string; width: number | null; height: number | null; caption: string | null; sortOrder: number }[];
+  photo_count: number;
+  status: "ok" | "unavailable";
+  fetched_at: string;
+  expires_at: string;
+}
+
+/** One paid third-party call (or a refused/failed attempt), for cost tracking per user and provider. */
+export interface ApiUsage extends Row {
+  provider: string; // "zillapi" | "rapidapi" | "rentcast" | "google_places"
+  endpoint: string;
+  success: boolean;
+  est_cost_usd: number;
+  units: number; // provider credits / requests consumed
+  property_id: string | null;
+  detail: string | null;
 }
 
 /** Owner-visible problems: server errors, browser errors, AI failures, and things Mila didn't understand. user_id is the affected user, or the nil UUID when unknown. */
@@ -528,7 +553,7 @@ export const TABLES = [
   "profiles", "businesses", "contacts", "contact_notes", "contact_events", "properties", "property_images",
   "calendar_events", "tasks", "approvals", "documents", "document_templates", "workflows", "workflow_runs",
   "memories", "emails", "email_drafts", "social_posts", "reminders", "notifications", "integrations", "usage",
-  "credit_transactions", "subscriptions", "conversations", "messages", "error_logs",
+  "credit_transactions", "subscriptions", "conversations", "messages", "error_logs", "listing_media_cache", "api_usage",
 ] as const;
 export type TableName = (typeof TABLES)[number];
 
@@ -560,4 +585,6 @@ export interface TableMap {
   conversations: Conversation;
   messages: Message;
   error_logs: ErrorLog;
+  listing_media_cache: ListingMediaCache;
+  api_usage: ApiUsage;
 }

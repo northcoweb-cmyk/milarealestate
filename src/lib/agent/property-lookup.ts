@@ -1,3 +1,4 @@
+import { trackApi } from "../media/usage";
 import { type PropertyExtra, lookupAddress, rentcastConfigured } from "../listing-data/rentcast";
 import { aiAvailable, estimateCost, getProvider } from "../ai/provider";
 import { recordUsage } from "../credits";
@@ -237,6 +238,7 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
     try {
       rc = await lookupAddress(cur.address, place, { full: opts.full });
       // cost = requests made × the per-request price of your RentCast plan (default: Foundation, $74 / 1,000 requests)
+      await trackApi({ userId: ctx.userId, provider: "rentcast", endpoint: opts.full ? "property+listing+avm" : "properties", success: rc.found, units: rc.requests, estCostUsd: rc.requests * (Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074), propertyId: cur.id });
       await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: opts.full ? "property_prep" : "property_lookup", creditKey: opts.full ? "property_prep" : "property_lookup", provider: "rentcast", model: "property-data", estCostUsd: rc.requests * (Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074) });
     } catch (e) { console.warn("[mila] rentcast lookup failed", e instanceof Error ? e.message : e); }
   }

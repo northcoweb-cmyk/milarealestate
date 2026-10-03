@@ -24,6 +24,8 @@ export interface Store {
   get<K extends TableName>(table: K, userId: string, id: string): Promise<TableMap[K] | null>;
   insert<K extends TableName>(table: K, userId: string, data: NewRow<K>): Promise<TableMap[K]>;
   update<K extends TableName>(table: K, userId: string, id: string, patch: Partial<TableMap[K]>): Promise<TableMap[K] | null>;
+  /** Indexed equality lookup (first match) so shared caches don't need a full table scan. */
+  findBy<K extends TableName>(table: K, userId: string, match: Record<string, string | number | boolean>): Promise<TableMap[K] | null>;
   remove(table: TableName, userId: string, id: string): Promise<boolean>;
   removeWhere(table: TableName, userId: string, pred: (r: Row) => boolean): Promise<number>;
   // privileged lookups (used by auth only)
@@ -86,6 +88,10 @@ class FileStore implements Store {
   }
   async get<K extends TableName>(table: K, userId: string, id: string) {
     const r = this.rows(table).find((x) => x.id === id && x.user_id === userId);
+    return r ? (structuredClone(r) as unknown as TableMap[K]) : null;
+  }
+  async findBy<K extends TableName>(table: K, userId: string, match: Record<string, string | number | boolean>) {
+    const r = this.rows(table).find((x) => x.user_id === userId && Object.entries(match).every(([k, v]) => (x as unknown as Record<string, unknown>)[k] === v));
     return r ? (structuredClone(r) as unknown as TableMap[K]) : null;
   }
   async insert<K extends TableName>(table: K, userId: string, data: NewRow<K>) {
@@ -154,6 +160,11 @@ class SupabaseStore implements Store {
   async get<K extends TableName>(table: K, userId: string, id: string) {
     const { data, error } = await this.sb.from(table).select("*").eq("id", id).eq(this.col(table), userId).maybeSingle();
     this.fail(error, `get ${table}`);
+    return (data ?? null) as TableMap[K] | null;
+  }
+  async findBy<K extends TableName>(table: K, userId: string, match: Record<string, string | number | boolean>) {
+    const { data, error } = await this.sb.from(table).select("*").eq(this.col(table), userId).match(match).limit(1).maybeSingle();
+    this.fail(error, `find ${table}`);
     return (data ?? null) as TableMap[K] | null;
   }
   /** If the database hasn't had a newer migration applied yet, drop the unknown column and retry (degrades, never crashes). */

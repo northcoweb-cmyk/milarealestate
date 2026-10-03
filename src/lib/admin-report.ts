@@ -3,6 +3,8 @@ import { aiProviderName } from "./ai/provider";
 import { getStore, ephemeralStoreBlocked, schemaGaps, supabaseConfigured } from "./db/store";
 import { googleConfigured } from "./integrations/google";
 import type { ErrorLog } from "./types";
+import { activeProvider, providerName } from "./media/providers";
+import { monthStartIso } from "./media/usage";
 import { rentcastConfigured, rentcastKeys } from "./listing-data/rentcast";
 import { NIL_USER } from "./server/errors";
 
@@ -21,7 +23,9 @@ export interface AdminReport {
   errors: { signature: string; source: string; level: string; message: string; count: number; users: number; firstSeen: string; lastSeen: string; route: string | null; stack: string | null; status: "open" | "resolved"; ids: string[]; emails: string[] }[];
   unhandled: { phrase: string; count: number; last: string }[];
   models: { model: string; calls: number; costUsd: number }[];
-  health: { store: string; persistent: boolean; blocked: boolean; schemaGaps: string[]; auth: string; ai: string | null; google: boolean; stripe: boolean; email: boolean; maps: boolean; propertyData: boolean; propertyKeys: number; node: string; vercel: boolean; adminEmailsSet: boolean };
+  apiUsage: { provider: string; calls: number; failed: number; units: number; costUsd: number }[];
+  apiUsageByUser: { email: string; photoLookups: number; calls: number; costUsd: number }[];
+  health: { store: string; persistent: boolean; blocked: boolean; schemaGaps: string[]; auth: string; ai: string | null; google: boolean; stripe: boolean; email: boolean; maps: boolean; propertyData: boolean; propertyKeys: number; photoProvider: string; photosConfigured: boolean; node: string; vercel: boolean; adminEmailsSet: boolean };
   attention: { severity: "high" | "medium" | "low"; title: string; detail: string; tab?: string }[];
 }
 
@@ -97,9 +101,13 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
   }
   const unhandled = [...un.values()].sort((a, b) => b.count - a.count || b.last.localeCompare(a.last)).slice(0, 40);
 
+  const monthStart = monthStartIso();
+  const apiRows = (await s.listAll("api_usage").catch(() => [])).filter((r) => r.created_at >= monthStart);
+  const apiUsage = [...new Set(apiRows.map((r) => r.provider))].map((provider) => { const r = apiRows.filter((x) => x.provider === provider); return { provider, calls: r.length, failed: r.filter((x) => !x.success).length, units: r.reduce((n, x) => n + x.units, 0), costUsd: +r.reduce((n, x) => n + x.est_cost_usd, 0).toFixed(3) }; });
+  const apiUsageByUser = profiles.map((p) => { const r = apiRows.filter((x) => x.user_id === p.id); return { email: p.email, photoLookups: r.filter((x) => x.detail?.startsWith("attempt") && (x.provider === "zillapi" || x.provider === "rapidapi")).length, calls: r.length, costUsd: +r.reduce((n, x) => n + x.est_cost_usd, 0).toFixed(3) }; }).filter((u) => u.calls).sort((a, b) => b.costUsd - a.costUsd).slice(0, 30);
   const health: AdminReport["health"] = {
     store: s.kind, persistent: supabaseConfigured(), blocked: ephemeralStoreBlocked(), schemaGaps: [...schemaGaps], auth: authMode(), ai: aiProviderName(), google: googleConfigured(),
-    stripe: Boolean(process.env.STRIPE_SECRET_KEY), email: Boolean(process.env.RESEND_API_KEY), maps: Boolean(process.env.GOOGLE_MAPS_API_KEY), propertyData: rentcastConfigured(), propertyKeys: rentcastKeys().length, node: process.env.NODE_ENV ?? "", vercel: Boolean(process.env.VERCEL),
+    stripe: Boolean(process.env.STRIPE_SECRET_KEY), email: Boolean(process.env.RESEND_API_KEY), maps: Boolean(process.env.GOOGLE_MAPS_API_KEY), propertyData: rentcastConfigured(), propertyKeys: rentcastKeys().length, photoProvider: providerName(), photosConfigured: Boolean(activeProvider()), node: process.env.NODE_ENV ?? "", vercel: Boolean(process.env.VERCEL),
     adminEmailsSet: Boolean((process.env.ADMIN_EMAILS || "").trim()),
   };
 
@@ -136,6 +144,6 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
       aiCost30d: aiRows.reduce((a, u) => a + (u.est_cost_usd || 0), 0), aiCalls30d: aiRows.length,
       openErrors: openErr.length, errors24h: realLogs.filter((l) => l.level === "error" && l.created_at >= since(1)).length, unhandled7d: realLogs.filter((l) => l.source === "unhandled" && l.created_at >= since(7)).length,
     },
-    signups, dau, funnel, adoption, accounts, errors, unhandled, models, health, attention,
+    signups, dau, funnel, adoption, accounts, errors, unhandled, models, health, attention, apiUsage, apiUsageByUser,
   };
 }

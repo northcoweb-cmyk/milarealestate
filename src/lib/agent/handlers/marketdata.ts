@@ -2,6 +2,9 @@ import type { Block, ListingCardData, Property } from "../../types";
 import type { Ctx } from "../context";
 import { fullMoney } from "../context";
 import { hit } from "../../server/rate-limit";
+import { peekMedia } from "../../media/service";
+import { tierLimits, tierOf } from "../../media/limits";
+import { trackApi, usageFor } from "../../media/usage";
 import { type ListingCard, type PropertyExtra, newListings, rentcastConfigured, RentcastError } from "../../listing-data/rentcast";
 import { extractPlace, enrichProperty, type LookupMemory } from "../property-lookup";
 import { locationGate } from "./location";
@@ -55,6 +58,8 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
     type: x?.property_type ?? null, days_on_market: x?.days_on_market ?? null, listed_date: x?.listed_date ?? null, mls: x?.mls ?? null, image: streetViewUrl(prop),
     badge: x?.list_status === "Active" ? `Active${x.days_on_market != null ? ` · ${x.days_on_market}d` : ""}` : !prop.list_price && x?.est_value ? "Est. value" : undefined,
   };
+  const cachedPrep = await peekMedia({ address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, propertyId: prop.id }).catch(() => null);
+  if (cachedPrep?.photos[0]) { card.photo = cachedPrep.photos[0].thumbUrl ?? cachedPrep.photos[0].url; card.photoStatus = "ok"; }
   const lines: string[] = [];
   const specs = [prop.beds != null && `${prop.beds} bd`, prop.baths != null && `${prop.baths} ba`, prop.sqft && `${plus(prop.sqft)} sq ft`, x?.year_built && `built ${x.year_built}`, x?.lot_sqft && `${plus(x.lot_sqft)} sq ft lot`, x?.property_type].filter(Boolean);
   if (specs.length) lines.push(specs.join(" · "));
@@ -96,15 +101,18 @@ export async function newListingsHandler(ctx: Ctx, text: string): Promise<Handle
   const beds = parseBeds(text) ?? undefined;
   const type = /\bcondos?\b/i.test(text) ? "Condo" : /\btown ?(?:home|house)s?\b/i.test(text) ? "Townhouse" : /\b(single.family|houses?)\b/i.test(text) ? "Single Family" : undefined;
   ctx.steps.push("Checking new listings");
+  if ((await usageFor(ctx.userId)).listingApiRequests >= tierLimits(await tierOf(ctx.userId)).listingSearches) return reply("You've used this month's listing searches on your plan. They reset on the 1st, or you can upgrade for more.", [], "smalltalk");
   let cards: ListingCard[];
   try { cards = await newListings({ city: city ?? undefined, state: state ?? undefined, zip: zip ?? undefined, beds, minPrice: money.min ?? undefined, maxPrice: money.max ?? undefined, propertyType: type, days, limit: 7 }); }
   catch (e) {
     const code = e instanceof RentcastError ? e.code : "network";
     return reply(code === "limit" ? "I've hit the listing-data limit for now. Try again a little later." : code === "auth" ? "The listing-data connection isn't working (the key was rejected). The owner needs to check it." : "I couldn't reach the listing data just now. Try again in a minute.", [], "smalltalk");
   }
+  await trackApi({ userId: ctx.userId, provider: "rentcast", endpoint: "listings/sale", success: true, units: 1, estCostUsd: Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074 });
   const where = loc || zip || "your area";
   if (!cards.length) return reply(`I don't see any new listings in ${where} in the last ${days === 1 ? "day" : `${days} days`}${beds ? ` with ${beds}+ beds` : ""}${money.max ? ` under ${fullMoney(money.max)}` : ""}. Want me to widen the search?`, [{ type: "choice", title: "Widen it", buttons: [{ label: "Last 30 days", style: "primary", action: { type: "prompt", text: `New listings in ${where} in the last 30 days` } }, ...(beds || money.max ? [{ label: "Drop my filters", style: "secondary" as const, action: { type: "prompt", text: `New listings in ${where}` } }] : [])] }], "new_listings");
   const out: ListingCardData[] = cards.map((c) => ({ id: c.id, address: c.address, city: c.city, state: c.state, zip: c.zip, price: c.price, beds: c.beds, baths: c.baths, sqft: c.sqft, type: c.type, days_on_market: c.days_on_market, listed_date: c.listed_date, mls: c.mls, image: streetViewUrl(c), badge: ageLabel(c.days_on_market), lines: c.office ? [c.office] : undefined }));
+  await Promise.all(out.map(async (c) => { const m = await peekMedia({ address: c.address, city: c.city, state: c.state, zip: c.zip, listingId: c.id }).catch(() => null); if (m?.photos[0]) { c.photo = m.photos[0].thumbUrl ?? m.photos[0].url; c.photoStatus = "ok"; } }));
   const filt = [beds && `${beds}+ bd`, type, money.max && `under ${fullMoney(money.max)}`, money.min && `over ${fullMoney(money.min)}`].filter(Boolean).join(" · ");
   return reply(`Here ${cards.length === 1 ? "is the newest listing" : `are the ${cards.length} newest listings`} in ${where} from the last ${days === 1 ? "day" : `${days} days`}${filt ? ` (${filt})` : ""}. Tap one to prep it, or save it to your properties.`, [{ type: "listings", title: `New in ${where}`, subtitle: filt || undefined, cards: out }, { type: "choice", title: "Refine", buttons: [{ label: "Last 30 days", style: "secondary", action: { type: "prompt", text: `New listings in ${where} in the last 30 days` } }, { label: "Under my buyers' budgets", style: "secondary", action: { type: "prompt", text: `New listings in ${where} under ${money.max ? fullMoney(money.max) : "$750k"}` } }] }], "new_listings");
 }
