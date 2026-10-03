@@ -10,6 +10,7 @@ import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { logError } from "../server/errors";
+import { newListingsHandler, prepPropertyHandler, saveListingCard } from "./handlers/marketdata";
 import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
@@ -182,6 +183,8 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
   switch (intent) {
     case "time_off": return timeOffHandler(ctx, text);
     case "add_listing": return addListingHandler(ctx, text);
+    case "prep_property": return prepPropertyHandler(ctx, text);
+    case "new_listings": return newListingsHandler(ctx, text);
     case "transaction": return transactionHandler(ctx, text);
     case "closed_deal": return closedDealHandler(ctx, text);
     case "log_interaction": return logInteractionHandler(ctx, text);
@@ -320,6 +323,7 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       ctx.state.last_import_batch = [...new Set([...(ctx.state.last_import_batch ?? []), cur.id])];
       return reply(`Merged into ${cur.name}.`, [], "smalltalk");
     }
+    case "save_listing": return saveListingCard(ctx, (a.card ?? {}) as Record<string, unknown>);
     case "event_reminder": return eventReminder(ctx, String(a.eventId), Number(a.minutes) || 60, a.title ? String(a.title) : undefined);
     case "listing_checklist": return listingChecklist(ctx, String(a.propertyId));
     case "tag_contact": {

@@ -20,7 +20,7 @@ export interface AdminReport {
   errors: { signature: string; source: string; level: string; message: string; count: number; users: number; firstSeen: string; lastSeen: string; route: string | null; stack: string | null; status: "open" | "resolved"; ids: string[]; emails: string[] }[];
   unhandled: { phrase: string; count: number; last: string }[];
   models: { model: string; calls: number; costUsd: number }[];
-  health: { store: string; persistent: boolean; blocked: boolean; schemaGaps: string[]; auth: string; ai: string | null; google: boolean; stripe: boolean; email: boolean; maps: boolean; node: string; vercel: boolean; adminEmailsSet: boolean };
+  health: { store: string; persistent: boolean; blocked: boolean; schemaGaps: string[]; auth: string; ai: string | null; google: boolean; stripe: boolean; email: boolean; maps: boolean; propertyData: boolean; node: string; vercel: boolean; adminEmailsSet: boolean };
   attention: { severity: "high" | "medium" | "low"; title: string; detail: string; tab?: string }[];
 }
 
@@ -98,7 +98,7 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
 
   const health: AdminReport["health"] = {
     store: s.kind, persistent: supabaseConfigured(), blocked: ephemeralStoreBlocked(), schemaGaps: [...schemaGaps], auth: authMode(), ai: aiProviderName(), google: googleConfigured(),
-    stripe: Boolean(process.env.STRIPE_SECRET_KEY), email: Boolean(process.env.RESEND_API_KEY), maps: Boolean(process.env.GOOGLE_MAPS_API_KEY), node: process.env.NODE_ENV ?? "", vercel: Boolean(process.env.VERCEL),
+    stripe: Boolean(process.env.STRIPE_SECRET_KEY), email: Boolean(process.env.RESEND_API_KEY), maps: Boolean(process.env.GOOGLE_MAPS_API_KEY), propertyData: Boolean(process.env.RENTCAST_API_KEY), node: process.env.NODE_ENV ?? "", vercel: Boolean(process.env.VERCEL),
     adminEmailsSet: Boolean((process.env.ADMIN_EMAILS || "").trim()),
   };
 
@@ -117,6 +117,8 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
   const broke = real.filter((r) => r.errors7d > 0).sort((a, b) => b.errors7d - a.errors7d).slice(0, 3);
   for (const b of broke) attention.push({ severity: "medium", title: `${b.email} hit ${b.errors7d} error${b.errors7d === 1 ? "" : "s"} this week`, detail: "Worth reaching out — they may be stuck.", tab: "errors" });
   if (!health.google) attention.push({ severity: "low", title: "Google (Calendar/Gmail) isn't configured", detail: "Calendar sync and email sending are off for everyone.", tab: "health" });
+  if (!health.propertyData) attention.push({ severity: "medium", title: "Property & listing data isn't connected", detail: "Without a RENTCAST_API_KEY, “prep for 123 Main St” falls back to a web-search guess and “new listings in my area” is unavailable. Many agents will expect this.", tab: "health" });
+  if (health.propertyData && !health.maps) attention.push({ severity: "low", title: "Listing cards have no photos", detail: "Set GOOGLE_MAPS_API_KEY so cards show the street-level photo. RentCast itself returns no photos.", tab: "health" });
   if (!health.stripe) attention.push({ severity: "low", title: "Stripe isn't configured", detail: "Nobody can pay yet.", tab: "health" });
   const rank = { high: 0, medium: 1, low: 2 };
   attention.sort((a, b) => rank[a.severity] - rank[b.severity]);

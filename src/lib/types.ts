@@ -408,6 +408,12 @@ export interface Message extends Row {
 
 // ---------- UI blocks (rich cards rendered inside Mila replies) ----------
 
+/** One home in a rail of listing cards. `image` is a same-origin URL (Street View or a photo the agent supplied); the card shows a placeholder when it fails. */
+export interface ListingCardData {
+  id: string; address: string; city: string | null; state: string | null; zip: string | null; price: number | null; beds: number | null; baths: number | null; sqft: number | null;
+  type: string | null; days_on_market: number | null; listed_date: string | null; mls: string | null; image: string | null; badge?: string; lines?: string[]; propertyId?: string;
+}
+
 export interface ActionButton {
   label: string;
   style?: "primary" | "secondary" | "quiet";
@@ -435,6 +441,7 @@ export type Block =
   | { type: "debrief"; greeting: string; counts: { appointments: number; followups: number; approvals: number }; noticed: string[]; buttons?: ActionButton[] }
   | { type: "draft_email"; draftId: ID; to: string; subject: string; body: string; status: string; buttons?: ActionButton[] }
   | { type: "draft_social"; postId: ID; platform: string; caption: string; slides: SocialSlide[]; status: string; buttons?: ActionButton[] }
+  | { type: "listings"; title: string; subtitle?: string; cards: ListingCardData[]; buttons?: ActionButton[] }
   | { type: "market"; title: string; location: string; asOf: string; dataPeriod: string; bullets: string[]; sources: { title: string; url: string }[] }
   | { type: "event"; eventId: ID; title: string; when: string; where?: string; status?: string };
 

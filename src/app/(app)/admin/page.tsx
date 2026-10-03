@@ -224,6 +224,7 @@ function Health({ d }: { d: AdminReport }) {
     ["Google (Calendar / Gmail)", h.google, h.google ? "Configured." : "Not configured."],
     ["Email sending", h.email, h.email ? "Configured." : "RESEND_API_KEY not set."],
     ["Stripe payments", h.stripe, h.stripe ? "Configured." : "Not configured — nobody can pay."],
+    ["Property & listing data (RentCast)", h.propertyData, h.propertyData ? "Connected — “prep for…” and “new listings” use live data." : "Not connected — set RENTCAST_API_KEY. Without it, house info is a web-search guess and new-listing cards are off."],
     ["Address lookup (Google Maps)", h.maps, h.maps ? "Configured." : "Not set — addresses are accepted but not verified."],
     ["Owner access locked down", h.adminEmailsSet, h.adminEmailsSet ? "ADMIN_EMAILS is set." : "Set ADMIN_EMAILS to your email."],
   ];

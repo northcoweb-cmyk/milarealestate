@@ -1,3 +1,4 @@
+import { type PropertyExtra, lookupAddress, rentcastConfigured } from "../listing-data/rentcast";
 import { aiAvailable, estimateCost, getProvider } from "../ai/provider";
 import { recordUsage } from "../credits";
 import type { Property } from "../types";
@@ -128,7 +129,7 @@ export async function resolveAddress(ctx: Ctx, text: string, street: string): Pr
 
 // ------------------------------------------------------------------ listing facts via web search
 export interface Facts { beds: number | null; baths: number | null; sqft: number | null; list_price: number | null; year_built: number | null; status: string | null; type: string | null }
-export interface LookupMemory { at: string; found: boolean; facts: Facts | null; sources: { title: string; url: string }[]; note?: string }
+export interface LookupMemory { at: string; found: boolean; facts: Facts | null; sources: { title: string; url: string }[]; note?: string; extra?: PropertyExtra }
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
@@ -171,7 +172,20 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
   if (!cur.state && place.state) fill.state = place.state;
   if (!cur.zip && place.zip) fill.zip = place.zip;
   if (!cur.county && place.county) fill.county = place.county;
-  const lk = await lookupListingFacts(ctx, cur.address, place);
+  // 1) licensed property data when RentCast is connected: exact, structured, and cheap. 2) otherwise the web-search lookup.
+  let rc: Awaited<ReturnType<typeof lookupAddress>> | null = null;
+  if (rentcastConfigured()) {
+    try {
+      rc = await lookupAddress(cur.address, place);
+      await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: "property_lookup", creditKey: "property_lookup", provider: "rentcast", model: "property-data", estCostUsd: Number(process.env.MILA_RENTCAST_COST_PER_LOOKUP) || 0.09 });
+    } catch (e) { console.warn("[mila] rentcast lookup failed", e instanceof Error ? e.message : e); }
+  }
+  const lk: Awaited<ReturnType<typeof lookupListingFacts>> = rc?.found
+    ? { ok: true, facts: { beds: rc.beds, baths: rc.baths, sqft: rc.sqft, list_price: rc.list_price, year_built: rc.extra.year_built, status: rc.extra.list_status, type: rc.extra.property_type }, sources: [{ title: "RentCast property data", url: "https://www.rentcast.io" }] }
+    : await lookupListingFacts(ctx, cur.address, place);
+  if (rc?.found) { // place fields the geocoder didn't give us
+    if (!cur.city && rc.city) fill.city = rc.city; if (!cur.state && rc.state) fill.state = rc.state; if (!cur.zip && rc.zip) fill.zip = rc.zip; if (!cur.county && rc.county) fill.county = rc.county;
+  }
   let memory: LookupMemory;
   if (lk.ok) {
     const f = lk.facts;
@@ -181,7 +195,7 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
     if (cur.list_price == null && f.list_price) fill.list_price = f.list_price;
     const tokens = cur.address.toLowerCase().split(/\s+/).slice(0, 2);
     if (!cur.listing_url) { const s = lk.sources.find((x) => tokens.every((t) => x.url.toLowerCase().includes(t.replace(/[^a-z0-9]/g, "")) || x.title.toLowerCase().includes(t))); if (s) fill.listing_url = s.url; }
-    memory = { at: ctx.now.toISOString(), found: true, facts: f, sources: lk.sources };
+    memory = { at: ctx.now.toISOString(), found: true, facts: f, sources: lk.sources, ...(rc?.found ? { extra: rc.extra } : {}) };
   } else memory = { at: ctx.now.toISOString(), found: false, facts: null, sources: [], note: lk.reason };
   if (Object.keys(fill).length) cur = (await ctx.store.update("properties", ctx.userId, cur.id, { ...fill, verified: false } as never)) ?? cur;
   if (prior) await ctx.store.update("memories", ctx.userId, prior.id, { value: JSON.stringify(memory) });

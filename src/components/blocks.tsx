@@ -1,5 +1,6 @@
 "use client";
 
+import { ListingRail } from "./listing-cards";
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "motion/react";
@@ -129,6 +130,8 @@ export function BlockView(p: Props) {
           <Buttons buttons={b.buttons} {...btns} />
         </div>
       );
+    case "listings":
+      return <ListingRail title={b.title} subtitle={b.subtitle} cards={b.cards} buttons={b.buttons} onAction={p.onAction} onNavigate={p.onNavigate} busy={p.busy} />;
     case "market":
       return (
         <div className="glass-strong p-5 sm:p-6">
