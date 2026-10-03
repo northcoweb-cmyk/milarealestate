@@ -8,10 +8,10 @@ import { type Ctx, firstName, plural } from "./context";
 import { appendMila, persistState } from "./conversation";
 import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
-import { learnFromTurn } from "./learn";
+import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
-import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale } from "./handlers/calendar";
+import { applyMove, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler } from "./handlers/calendar";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
@@ -22,7 +22,7 @@ import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { importCandidates } from "./ingest";
-import { dropNegatedDate, invalidTimeToken, overrideWhen, parseLocation } from "./nlu";
+import { dropNegatedDate, invalidTimeToken, overrideWhen, parseDate, parseLocation, parseTime } from "./nlu";
 
 export type Action = { type: string; [k: string]: any };
 
@@ -116,7 +116,11 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   }
   if (pend?.kind === "clarify" && text) {
     const d = detectIntent(text);
-    if (d.intent === "general" || d.intent === "smalltalk" || text.split(/\s+/).length < 7) {
+    const words = text.split(/\s+/).length;
+    // A reply continues the open question only if it looks like an answer. A different request ("remind me to call Dana") or a
+    // question moves on — the old question is dropped, never allowed to swallow what the agent actually said.
+    const looksLikeAnswer = d.intent === "general" || d.intent === "smalltalk" || d.intent === pend.intent || (words <= 4 && !!(parseTime(text) || parseDate(text, ctx.now, ctx.tz)));
+    if (looksLikeAnswer && !/\?\s*$/.test(text)) {
       text = dropNegatedDate(text);
       const orig = overrideWhen((pend.slots as { text: string }).text, text, ctx.now, ctx.tz);
       // a bare "12" / "2:30" answering "what time?" means "at 12" / "at 2:30"
@@ -131,6 +135,16 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   }
 
   if (docs.length) return { out: await handleAttachments(ctx, docs, text), intent: "signin_paste" };
+
+  // "Actually make that 4" / "no, Sunday" / "sorry 4pm" right after Mila put something on the calendar means: change THAT event.
+  if (!forced && !pend && ctx.state.last_event_id && text.split(/\s+/).length <= 8) {
+    const m = /^(?:(?:actually|no|nope|wait|oops|sorry|hmm|ok(?:ay)?|um)[,.!\s]+)*(?:(?:can we |could we |let'?s |lets )?(?:make|do|change|move|push|switch|say)\s+(?:it|that|this)(?:\s+(?:to|at|for))?|it'?s|its|how about|what about|at|for|to)?\s*(.+?)[.!\s]*$/i.exec(text);
+    const rest = m?.[1]?.trim();
+    if (rest && /^(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?|noon|(?:today|tomorrow|tonight|mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)[a-z]*(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?)?)$/i.test(rest) && (parseTime(rest) || parseDate(rest, ctx.now, ctx.tz) || /^\d{1,2}$/.test(rest))) {
+      const when = /^\d{1,2}$/.test(rest) ? `at ${rest}` : rest;
+      return { out: await dispatch(ctx, "move_event", `move that to ${when}`, true), intent: "move_event" };
+    }
+  }
 
   const clauses = splitClauses(text);
   const outs: HandlerOut[] = [];
@@ -153,7 +167,12 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     const bad = invalidTimeToken(text);
     if (bad) return reply(`“${bad}” isn't a real time, so I haven't changed anything. What time did you mean? (for example 2 PM or 14:00)`, [], "smalltalk");
   }
+  if (["general", "recall", "find_contacts", "save_memory"].includes(intent)) {
+    const known = await mentionedContacts(ctx, text);
+    if (known.length) { const u = await clientUpdateHandler(ctx, text, known); if (u) return u; }
+  }
   switch (intent) {
+    case "time_off": return timeOffHandler(ctx, text);
     case "open_house": return openHouseHandler(ctx, text);
     case "move_event": return moveEventHandler(ctx, text, declared);
     case "cancel_event": return cancelEventHandler(ctx, text);
@@ -278,6 +297,10 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       await ctx.store.update("contacts", ctx.userId, cur.id, { email: cur.email ?? c.email ?? null, phone: cur.phone ?? c.phone ?? null, notes: [cur.notes, c.notes].filter(Boolean).join("\n") || null, tags: [...new Set([...cur.tags, ...(a.tag ? [a.tag] : [])])] });
       ctx.state.last_import_batch = [...new Set([...(ctx.state.last_import_batch ?? []), cur.id])];
       return reply(`Merged into ${cur.name}.`, [], "smalltalk");
+    }
+    case "tag_contact": {
+      const r = (await (await import("./tools")).TOOLS.update_contact.run(ctx, { id: a.contactId, patch: { tags: [String(a.tag)] }, eventTitle: `Also a ${a.tag}`, eventKind: "note" })) as any;
+      return reply(r.ok ? `Done — added "${a.tag}" to ${r.data.contact.name}'s profile.` : "I couldn't find that contact.", [], "smalltalk");
     }
     case "quick_task": {
       const r = (await (await import("./tools")).TOOLS.create_task.run(ctx, { kind: "follow_up", title: a.title, subtitle: a.subtitle, contact_id: a.contactId, due_at: new Date(ctx.now.getTime() + 24 * 3_600_000).toISOString() })) as any;

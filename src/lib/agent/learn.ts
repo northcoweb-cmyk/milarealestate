@@ -1,4 +1,6 @@
+import type { Block, Contact } from "../types";
 import type { Ctx } from "./context";
+import { type HandlerOut, reply } from "./handlers/types";
 import { listMemories, saveMemory } from "./memory";
 
 /**
@@ -28,11 +30,18 @@ const CLIENT: { key: string; re: RegExp }[] = [
   { key: "Concern", re: /\b(?:worried|nervous|concerned|hesitant|afraid|stressed) (?:about|that)\b[^.!?\n]{3,120}/i },
 ];
 
+export interface Learned { scope: "user" | "business" | "contact"; key: string; value: string; contact?: Contact }
+
 /** Returns how many facts were saved. Never throws. */
 export async function learnFromTurn(ctx: Ctx, text: string): Promise<number> {
+  return (await learnDetailed(ctx, text)).length;
+}
+
+/** Saves the durable facts in a message and returns exactly what was saved. Never throws. */
+export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> {
+  const saved: Learned[] = [];
   try {
-    if (!text || text.length < 12 || text.length > 1500) return 0;
-    let saved = 0;
+    if (!text || text.length < 12 || text.length > 1500) return saved;
     const known = await listMemories(ctx);
     const have = (scope: string, subject: string | null, key: string, value: string) =>
       known.some((m) => m.scope === scope && (m.subject_id ?? null) === subject && m.key === key && m.value.toLowerCase() === value.toLowerCase());
@@ -47,7 +56,7 @@ export async function learnFromTurn(ctx: Ctx, text: string): Promise<number> {
           // preferences/goals accumulate (distinct key per sentence); single-valued facts replace
           const multi = r.key === "Preference" || r.key === "Goal" || r.key === "Availability" || r.key === "Writing style";
           await saveMemory(ctx, { scope: r.scope, key: multi ? `${r.key}: ${clip(value, 40)}` : r.key, value, source: "inferred", confidence: 0.8 });
-          saved++;
+          saved.push({ scope: r.scope, key: r.key, value });
         }
       }
       // statements about a client we know
@@ -58,18 +67,51 @@ export async function learnFromTurn(ctx: Ctx, text: string): Promise<number> {
         for (const r of CLIENT) {
           const m = r.re.exec(s);
           if (!m) continue;
-          const value = clip(m[0].trim().replace(/[,;:\s]+$/, ""));
-          if (value.length < 6 || have("contact", c.id, r.key, value)) continue;
+          let value = m[0].trim().replace(/\s+(?:and|but)\s+(?:also\s+)?(?:wants?|needs?|has|have|is|are|loves?|prefers?)\b.*$/i, "").replace(/^(?:wants?|needs?|is looking for|are looking for|looking for|hoping for|loves?|prefers?)\s+/i, "").replace(/[,;:\s]+$/, "");
+          value = clip(value);
+          if (value.length < 3 || have("contact", c.id, r.key, value)) continue;
           await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: r.key, value, source: "inferred", confidence: 0.75 });
-          saved++;
+          saved.push({ scope: "contact", key: r.key, value, contact: c });
         }
       }
     }
     return saved;
   } catch (e) {
     console.warn("[mila] learn skipped", e);
-    return 0;
+    return saved;
   }
+}
+
+const BUYING = /\b(pre-?approved|approved for|budget|wants? (?:a |an |to buy)|looking (?:to buy|for a|for an)|buy(?:ing)?|offer on)\b/i;
+const SELLING = /\b(list(?:ing)? (?:their|his|her|the|my)|sell(?:ing)? (?:their|his|her|the)|wants? to sell|thinking of selling|cma|price (?:their|the) home)\b/i;
+
+/**
+ * When the agent TELLS Mila something about a client (not asks), Mila saves it, says exactly what she saved,
+ * checks it against what she already knows (a "seller" who is pre-approved to buy), and offers the obvious next step.
+ */
+export async function clientUpdateHandler(ctx: Ctx, text: string, known: Contact[]): Promise<HandlerOut | null> {
+  if (/\?\s*$/.test(text) || /^(what|who|when|where|how|why|do|does|did|is|are|can|could|show|tell|find|list)\b/i.test(text.trim())) return null;
+  const items = (await learnDetailed(ctx, text)).filter((i) => i.contact);
+  if (!items.length) return null;
+  const c = items[0].contact!;
+  const first = c.name.split(/\s+/)[0];
+  const lines = items.map((i) => `• ${i.key}: ${i.value}`).join("\n");
+  const blocks: Block[] = [];
+  let ask = "";
+  const buying = BUYING.test(text), selling = SELLING.test(text);
+  if (buying && c.type === "seller") ask = `${first} is saved as a seller, but this sounds like they're buying too. Should I add that? I'll keep them as a seller and tag them as a buyer.`;
+  else if (selling && (c.type === "buyer" || c.type === "lead")) ask = `${first} is saved as a ${c.type}, but this sounds like they're selling. Should I note that too?`;
+  if (ask) blocks.push({ type: "choice", title: "Quick check", body: ask, buttons: [
+    { label: buying ? "Yes, also a buyer" : "Yes, also a seller", style: "primary", action: { type: "tag_contact", contactId: c.id, tag: buying ? "buyer" : "seller" } },
+    { label: "No, leave as is", style: "quiet", action: { type: "noop" } },
+  ] });
+  const mentionsBudget = items.some((i) => i.key === "Budget" || i.key === "Wants");
+  if (mentionsBudget || /\b(wants|looking)\b/i.test(text)) blocks.push({ type: "choice", title: `Next for ${first}`, buttons: [
+    { label: "Remind me to send listings", style: "secondary", action: { type: "quick_task", contactId: c.id, title: `Send listings to ${first}`, subtitle: items.map((i) => i.value).join(" • ") } },
+    { label: "Open profile", style: "quiet", href: `/contacts/${c.id}` },
+  ] });
+  void known;
+  return reply(`Got it. Saved to ${first}'s profile:\n${lines}${ask ? "" : "\nI'll use this when I draft messages and suggest homes."}`, blocks, "chat_simple");
 }
 
 /** Everything Mila knows that is relevant to this message, as plain text for the model. */

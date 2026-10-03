@@ -4,7 +4,7 @@ import type { Ctx } from "../context";
 import { label, plural } from "../context";
 import { persistState } from "../conversation";
 import { openHouseEmail, openHouseSocial, polish } from "../comms";
-import { capitalisedNames, parseAddress, parseWhen } from "../nlu";
+import { capitalisedNames, parseAddress, parseDate, parseWhen } from "../nlu";
 import { TOOLS, eventConflicts, freeSlots, invoke, logContactEvent } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
@@ -331,3 +331,29 @@ export async function cancelEvent(ctx: Ctx, event: CalendarEvent): Promise<Handl
 }
 
 export type { Property, SocialPost };
+
+
+/** "I'm out of town next Friday" / "off Monday through Wednesday": block the days, and warn about anything already booked. */
+export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const [a, b] = text.split(/\b(?:through|thru|until|till|to)\b/i);
+  const d1 = parseDate(a, ctx.now, ctx.tz);
+  if (!d1) return askBack(ctx, "time_off", text, "date", "Which day or days will you be out?");
+  const d2 = b ? parseDate(b, ctx.now, ctx.tz) : null;
+  const first = zonedToUtc(d1.y, d1.m, d1.d, 8, 0, ctx.tz);
+  const last = d2 ? zonedToUtc(d2.y, d2.m, d2.d, 18, 0, ctx.tz) : zonedToUtc(d1.y, d1.m, d1.d, 18, 0, ctx.tz);
+  if (last.getTime() < first.getTime()) return reply("That end date is before the start. Which days did you mean?");
+  if (last.getTime() < ctx.now.getTime()) return reply("That's already passed, so I haven't blocked anything. Which upcoming days did you mean?");
+  const clash = (await upcomingEvents(ctx)).filter((e) => new Date(e.start_at) < last && new Date(e.end_at) > first && e.kind !== "other");
+  const out = await invoke(ctx, "create_calendar_event", { title: "Out of office", kind: "other", start_at: first.toISOString(), end_at: last.toISOString(), ignoreConflicts: true });
+  if (out.status === "needs_approval") {
+    await persistState(ctx);
+    return reply("This will change your calendar, so I need a yes first.", [{ type: "notice", tone: "info", title: "Block time off", body: `${fmtDay(first, ctx.tz)}${d2 ? ` – ${fmtDay(last, ctx.tz)}` : ""}`, buttons: [{ label: "Confirm", style: "primary", approvalId: out.approval.id }] }]);
+  }
+  if (!out.result.ok) return reply(`I couldn't block that: ${out.result.message}`);
+  const when = d2 ? `${fmtDay(first, ctx.tz)} – ${fmtDay(last, ctx.tz)}` : fmtDay(first, ctx.tz);
+  if (!clash.length) return reply(`Blocked ${when} as out of office. Nothing else is booked then.`, [eventCard(ctx, (out.result as any).data.event)]);
+  return reply(`Blocked ${when} as out of office. Heads up — you already have ${plural(clash.length, "thing")} on those days. Want me to move them?`, [
+    ...clash.slice(0, 4).map((e) => eventCard(ctx, e, "Conflicts with time off")),
+    { type: "choice", title: "Fix the conflicts", buttons: clash.slice(0, 4).map((e) => ({ label: `Move ${e.title}`, style: "secondary" as const, action: { type: "move_pick", eventId: e.id, text: "move to", declared: false } })) },
+  ]);
+}

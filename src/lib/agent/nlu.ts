@@ -303,6 +303,9 @@ export function parseContactType(text: string): ContactTypeGuess {
 
 /** Split compound requests ("remind me Friday to call Sarah and also move my showing to three"). */
 export function splitClauses(text: string): string[] {
+  // "Book a showing at 5 and another at 5:30" → two showings
+  const another = /^(.*?\b(showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)s?\b.*?)\s+and\s+(?:another|one more|a second)\s+(?:(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)\s+)?(.+)$/i.exec(text.trim());
+  if (another) return [another[1].trim(), `${another[2]} ${another[3]}`.trim()];
   const parts = text
     .split(/\s*(?:;|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b)\s*/i)
     .map((s) => s.trim())
