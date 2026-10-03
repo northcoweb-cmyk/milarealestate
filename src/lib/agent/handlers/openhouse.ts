@@ -10,7 +10,7 @@ import { type HandlerOut, reply } from "./types";
 import { autoPhotos, explainPull, firstUrl } from "./photos";
 import { locationGate } from "./location";
 import { extractListingFacts } from "../listing";
-import { describeFacts, enrichProperty, hostOf } from "../property-lookup";
+import { describeFacts, enrichProperty } from "../property-lookup";
 
 type Item = WorkflowRun["plan"][number];
 
@@ -119,7 +119,7 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
   const lookupItem: Item = unverified
     ? { label: "Property details", tool: "lookup_property", state: "skipped", detail: "I couldn't find this address on the map — double-check the spelling, then open the property page to look it up" }
     : enr.memory?.found
-    ? { label: "Property details", tool: "lookup_property", state: "done", detail: `${describeFacts(enr.memory.facts) || "Found"} — from ${[...new Set(enr.memory.sources.map((s) => hostOf(s.url)))].slice(0, 2).join(", ")} · confirm on the property page` }
+    ? { label: "Property details", tool: "lookup_property", state: "done", detail: `${describeFacts(enr.memory.facts) || "Found"} — found automatically` }
     : { label: "Property details", tool: "lookup_property", state: "skipped", detail: enr.memory?.note === "no_ai" ? "Add beds, baths and size on the property page" : "Couldn't find this exact home online — add the details on the property page" };
 
   const run = await ctx.store.insert("workflow_runs", ctx.userId, {

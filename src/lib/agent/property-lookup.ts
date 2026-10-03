@@ -241,7 +241,7 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
     } catch (e) { console.warn("[mila] rentcast lookup failed", e instanceof Error ? e.message : e); }
   }
   const lk: Awaited<ReturnType<typeof lookupListingFacts>> = rc?.found
-    ? { ok: true, facts: { beds: rc.beds, baths: rc.baths, sqft: rc.sqft, list_price: rc.list_price, year_built: rc.extra.year_built, status: rc.extra.list_status, type: rc.extra.property_type }, sources: [{ title: "RentCast property data", url: "https://www.rentcast.io" }] }
+    ? { ok: true, facts: { beds: rc.beds, baths: rc.baths, sqft: rc.sqft, list_price: rc.list_price, year_built: rc.extra.year_built, status: rc.extra.list_status, type: rc.extra.property_type }, sources: [{ title: "Public records & listing data", url: "" }] }
     : await lookupListingFacts(ctx, cur.address, place);
   if (rc?.found) { // place fields the geocoder didn't give us
     if (!cur.city && rc.city) fill.city = rc.city; if (!cur.state && rc.state) fill.state = rc.state; if (!cur.zip && rc.zip) fill.zip = rc.zip; if (!cur.county && rc.county) fill.county = rc.county;
@@ -257,7 +257,7 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
     if (!cur.listing_url) { const s = lk.sources.find((x) => tokens.every((t) => x.url.toLowerCase().includes(t.replace(/[^a-z0-9]/g, "")) || x.title.toLowerCase().includes(t))); if (s) fill.listing_url = s.url; }
     memory = { at: ctx.now.toISOString(), found: true, facts: f, sources: lk.sources, ...(rc?.found ? { extra: rc.extra, full: Boolean(opts.full) } : {}) };
   } else memory = { at: ctx.now.toISOString(), found: false, facts: null, sources: [], note: lk.reason };
-  if (Object.keys(fill).length) cur = (await ctx.store.update("properties", ctx.userId, cur.id, { ...fill, verified: false } as never)) ?? cur;
+  if (Object.keys(fill).length) cur = (await ctx.store.update("properties", ctx.userId, cur.id, { ...fill, verified: Boolean(rc?.found) } as never)) ?? cur;
   if (prior) await ctx.store.update("memories", ctx.userId, prior.id, { value: JSON.stringify(memory) });
   else await ctx.store.insert("memories", ctx.userId, { scope: "property", subject_id: cur.id, key: memKey, value: JSON.stringify(memory), source: "system", confidence: 0.6, pinned: false });
   return { property: cur, memory };

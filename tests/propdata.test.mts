@@ -44,7 +44,7 @@ test("prep for an address pulls the record, listing and estimate and answers wit
   assert.match(t, /9% above the \$735,000 automated estimate/);
   assert.match(t, /41 days on market — expect questions/);
   assert.match(t, /Built in 1962/);
-  assert.match(t, /Source: RentCast property data\. Check it before you quote it/);
+  assert.match(t, /Double-check anything before you quote it/);
   const rail = blocks(r, "listings")[0];
   assert.equal(rail.cards.length, 1);
   assert.equal(rail.cards[0].price, 799000);
@@ -52,7 +52,7 @@ test("prep for an address pulls the record, listing and estimate and answers wit
   assert.ok(calls.every((c) => c.key === "rc-test"), "key sent as X-Api-Key");
   const [p] = await store.list("properties", a.id);
   assert.deepEqual([p.beds, p.baths, p.sqft, p.list_price, p.zip], [4, 2.5, 2310, 799000, "20814"], "saved onto the property");
-  assert.equal(p.verified, false, "pulled data stays unconfirmed until the agent confirms it");
+  assert.equal(p.verified, true, "licensed property data is trusted, so the agent is never asked to re-confirm it");
 });
 
 test("asking twice doesn't spend another lookup", async () => {
@@ -111,7 +111,7 @@ test("without a key, new-listings explains itself instead of guessing, and prep 
   try {
     const a = await newAgent({ now, tz: "America/New_York", seed: false });
     const r = await say(a, "What's new on the market near me?");
-    assert.match(r.milaMessage.content, /isn't connected on this server yet/);
+    assert.match(r.milaMessage.content, /isn't available right now/);
     assert.equal(blocks(r, "listings").length, 0);
     const p = await say(a, "Prep for 55 Pine Road");
     assert.match(p.milaMessage.content, /saved 55 Pine Road/);

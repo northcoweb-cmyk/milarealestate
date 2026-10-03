@@ -65,7 +65,7 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
   const notes = prepNotes(prop, x);
   const found = Boolean(mem?.found);
   const head = found ? `Here's what I pulled on ${prop.address}${prop.city ? `, ${prop.city}` : ""}:` : `I saved ${prop.address}, but I couldn't find its details${rentcastConfigured() ? " in the property data" : " — live property data isn't connected yet"}.`;
-  const body = [head, ...lines, ...(notes.length ? ["", "Worth knowing:", ...notes.map((n) => `• ${n}`)] : []), ...(found ? ["", `Source: ${mem!.sources.map((s) => s.title).join(", ")}. Check it before you quote it to a client.`] : [])].join("\n");
+  const body = [head, ...lines, ...(notes.length ? ["", "Worth knowing:", ...notes.map((n) => `• ${n}`)] : []), ...(found ? ["", "Double-check anything before you quote it to a client."] : [])].join("\n");
   const blocks: Block[] = [{ type: "listings", title: prop.address, subtitle: found ? undefined : "Details not found", cards: [card] }, {
     type: "choice", title: "Next",
     buttons: [
@@ -81,7 +81,7 @@ const DAYS: [RegExp, number][] = [[/\b(today|last 24|past 24|past day|overnight)
 
 /** "What listings are new in my area?": 5–7 of the newest active listings as cards. */
 export async function newListingsHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  if (!rentcastConfigured()) return reply("Live new-listing search isn't connected on this server yet. Once the property-data connection is on, ask me again and I'll show the newest listings as cards. In the meantime I can pull details on any single address — just say “prep for 123 Main Street”.", [{ type: "notice", tone: "info", title: "Property data not connected", body: "The owner can connect it with a RENTCAST_API_KEY (see the Health tab in the owner dashboard)." }], "smalltalk");
+  if (!rentcastConfigured()) return reply("New-listing search isn't available right now. Check back soon and I'll show the newest listings as cards. In the meantime I can pull details on any single address — just say “prep for 123 Main Street”.", [{ type: "notice", tone: "info", title: "Listing search unavailable", body: "This isn't available right now. Try again a little later." }], "smalltalk");
   const here = extractPlace(text);
   // the agent's city (profile location) beats a "Montgomery County" style market, because the listing search needs a real city or ZIP
   const real = (p: ReturnType<typeof extractPlace>) => (p.city && !/\bcounty\b/i.test(p.city) ? p : { ...p, city: undefined });

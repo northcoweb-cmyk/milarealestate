@@ -2,7 +2,7 @@ import { rateLimit } from "@/lib/server/rate-limit";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { ensureCredits } from "@/lib/credits";
-import { describeFacts, enrichProperty, extractPlace, geocode, hostOf } from "@/lib/agent/property-lookup";
+import { describeFacts, enrichProperty, extractPlace, geocode } from "@/lib/agent/property-lookup";
 
 export const maxDuration = 60;
 
@@ -27,5 +27,5 @@ export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
   await ensureCredits(profile.id, 3);
   const r = await enrichProperty(ctx, prop, { place: geoPlace, force: true });
   const m = r.memory;
-  return { property: r.property, lookup: m, message: m?.found ? `Found ${describeFacts(m.facts) || "details"} on ${[...new Set(m.sources.map((s) => hostOf(s.url)))].slice(0, 3).join(", ")}. Check them, then tick “confirmed”.` : m?.note === "no_ai" ? "Online lookup isn't turned on for this server yet, but your address is saved. Add the details by hand." : "I couldn't find this exact home on listing sites. Add the details by hand." };
+  return { property: r.property, lookup: m, message: m?.found ? `Found ${describeFacts(m.facts) || "details"}.` : m?.note === "no_ai" ? "Lookup isn't available right now, but your address is saved. Add the details by hand." : "I couldn't find this exact home. Add the details by hand." };
 });
