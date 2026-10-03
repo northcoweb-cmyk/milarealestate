@@ -3,6 +3,7 @@ import { aiProviderName } from "./ai/provider";
 import { getStore, ephemeralStoreBlocked, schemaGaps, supabaseConfigured } from "./db/store";
 import { googleConfigured } from "./integrations/google";
 import type { ErrorLog } from "./types";
+import { rentcastConfigured, rentcastKeys } from "./listing-data/rentcast";
 import { NIL_USER } from "./server/errors";
 
 const DAY = 86_400_000;
@@ -20,7 +21,7 @@ export interface AdminReport {
   errors: { signature: string; source: string; level: string; message: string; count: number; users: number; firstSeen: string; lastSeen: string; route: string | null; stack: string | null; status: "open" | "resolved"; ids: string[]; emails: string[] }[];
   unhandled: { phrase: string; count: number; last: string }[];
   models: { model: string; calls: number; costUsd: number }[];
-  health: { store: string; persistent: boolean; blocked: boolean; schemaGaps: string[]; auth: string; ai: string | null; google: boolean; stripe: boolean; email: boolean; maps: boolean; propertyData: boolean; node: string; vercel: boolean; adminEmailsSet: boolean };
+  health: { store: string; persistent: boolean; blocked: boolean; schemaGaps: string[]; auth: string; ai: string | null; google: boolean; stripe: boolean; email: boolean; maps: boolean; propertyData: boolean; propertyKeys: number; node: string; vercel: boolean; adminEmailsSet: boolean };
   attention: { severity: "high" | "medium" | "low"; title: string; detail: string; tab?: string }[];
 }
 
@@ -98,7 +99,7 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
 
   const health: AdminReport["health"] = {
     store: s.kind, persistent: supabaseConfigured(), blocked: ephemeralStoreBlocked(), schemaGaps: [...schemaGaps], auth: authMode(), ai: aiProviderName(), google: googleConfigured(),
-    stripe: Boolean(process.env.STRIPE_SECRET_KEY), email: Boolean(process.env.RESEND_API_KEY), maps: Boolean(process.env.GOOGLE_MAPS_API_KEY), propertyData: Boolean(process.env.RENTCAST_API_KEY), node: process.env.NODE_ENV ?? "", vercel: Boolean(process.env.VERCEL),
+    stripe: Boolean(process.env.STRIPE_SECRET_KEY), email: Boolean(process.env.RESEND_API_KEY), maps: Boolean(process.env.GOOGLE_MAPS_API_KEY), propertyData: rentcastConfigured(), propertyKeys: rentcastKeys().length, node: process.env.NODE_ENV ?? "", vercel: Boolean(process.env.VERCEL),
     adminEmailsSet: Boolean((process.env.ADMIN_EMAILS || "").trim()),
   };
 

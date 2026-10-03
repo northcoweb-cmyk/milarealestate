@@ -44,8 +44,9 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
   ctx.state.last_property_id = prop.id;
   ctx.steps.push("Pulling property data");
   const prior = (await ctx.store.list("memories", ctx.userId)).find((m) => m.key === `cache:property_lookup:${prop!.id}`);
-  const stale = rentcastConfigured() && prior && !(JSON.parse(prior.value) as LookupMemory).extra && (JSON.parse(prior.value) as LookupMemory).sources.every((s) => !/rentcast/i.test(s.title));
-  const enr = await enrichProperty(ctx, prop, { force: Boolean(stale) });
+  // a quick lookup earlier (or a web-search one) doesn't have the listing + estimate: upgrade it once
+  const prev = prior ? (JSON.parse(prior.value) as LookupMemory) : null;
+  const enr = await enrichProperty(ctx, prop, { full: true, force: Boolean(rentcastConfigured() && prev && !prev.full) });
   prop = enr.property;
   const mem = enr.memory, x = mem?.extra;
   const card: ListingCardData = {
@@ -72,7 +73,7 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
       { label: "Open property", style: "quiet", href: `/properties/${prop.id}` },
     ],
   }];
-  return reply(body, blocks, "property_lookup");
+  return reply(body, blocks, "smalltalk"); // the lookup itself is billed when it runs (cached repeats are free)
 }
 
 const DAYS: [RegExp, number][] = [[/\b(today|last 24|past 24|past day|overnight)\b/i, 1], [/\b(last|past) (2|two|few) days|48 hours\b/i, 3], [/\b(this|last|past) week\b|\b7 days\b/i, 7], [/\b(last|past|this) (2|two) weeks\b|\b14 days\b/i, 14], [/\b(last|past|this) month\b|\b30 days\b/i, 30]];

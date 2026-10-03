@@ -18,6 +18,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     image_generation: 10,
     market_research: 10,
     property_lookup: 3,
+    property_prep: 5,
     new_listings: 2,
     contact_import_base: 1,
     contact_import_per_25: 1,

@@ -129,7 +129,7 @@ export async function resolveAddress(ctx: Ctx, text: string, street: string): Pr
 
 // ------------------------------------------------------------------ listing facts via web search
 export interface Facts { beds: number | null; baths: number | null; sqft: number | null; list_price: number | null; year_built: number | null; status: string | null; type: string | null }
-export interface LookupMemory { at: string; found: boolean; facts: Facts | null; sources: { title: string; url: string }[]; note?: string; extra?: PropertyExtra }
+export interface LookupMemory { at: string; found: boolean; facts: Facts | null; sources: { title: string; url: string }[]; note?: string; extra?: PropertyExtra; full?: boolean }
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
@@ -160,7 +160,7 @@ export const LOOKUP_KEY = (propertyId: string) => `${CACHE_PREFIX}property_looku
  * Fill a property from the address: place fields (geocoder) and listing facts (web search). Only fills EMPTY fields,
  * leaves the property unconfirmed, and remembers what was tried so it isn't repeated (and costs credits) every visit.
  */
-export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: Place; force?: boolean } = {}): Promise<{ property: Property; memory: LookupMemory | null; skipped?: boolean }> {
+export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: Place; force?: boolean; full?: boolean } = {}): Promise<{ property: Property; memory: LookupMemory | null; skipped?: boolean }> {
   const mems = await ctx.store.list("memories", ctx.userId);
   const memKey = LOOKUP_KEY(prop.id);
   const prior = mems.find((m) => m.key === memKey);
@@ -176,8 +176,9 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
   let rc: Awaited<ReturnType<typeof lookupAddress>> | null = null;
   if (rentcastConfigured()) {
     try {
-      rc = await lookupAddress(cur.address, place);
-      await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: "property_lookup", creditKey: "property_lookup", provider: "rentcast", model: "property-data", estCostUsd: Number(process.env.MILA_RENTCAST_COST_PER_LOOKUP) || 0.09 });
+      rc = await lookupAddress(cur.address, place, { full: opts.full });
+      // cost = requests made × the per-request price of your RentCast plan (default: Foundation, $74 / 1,000 requests)
+      await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: opts.full ? "property_prep" : "property_lookup", creditKey: opts.full ? "property_prep" : "property_lookup", provider: "rentcast", model: "property-data", estCostUsd: rc.requests * (Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074) });
     } catch (e) { console.warn("[mila] rentcast lookup failed", e instanceof Error ? e.message : e); }
   }
   const lk: Awaited<ReturnType<typeof lookupListingFacts>> = rc?.found
@@ -195,7 +196,7 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
     if (cur.list_price == null && f.list_price) fill.list_price = f.list_price;
     const tokens = cur.address.toLowerCase().split(/\s+/).slice(0, 2);
     if (!cur.listing_url) { const s = lk.sources.find((x) => tokens.every((t) => x.url.toLowerCase().includes(t.replace(/[^a-z0-9]/g, "")) || x.title.toLowerCase().includes(t))); if (s) fill.listing_url = s.url; }
-    memory = { at: ctx.now.toISOString(), found: true, facts: f, sources: lk.sources, ...(rc?.found ? { extra: rc.extra } : {}) };
+    memory = { at: ctx.now.toISOString(), found: true, facts: f, sources: lk.sources, ...(rc?.found ? { extra: rc.extra, full: Boolean(opts.full) } : {}) };
   } else memory = { at: ctx.now.toISOString(), found: false, facts: null, sources: [], note: lk.reason };
   if (Object.keys(fill).length) cur = (await ctx.store.update("properties", ctx.userId, cur.id, { ...fill, verified: false } as never)) ?? cur;
   if (prior) await ctx.store.update("memories", ctx.userId, prior.id, { value: JSON.stringify(memory) });

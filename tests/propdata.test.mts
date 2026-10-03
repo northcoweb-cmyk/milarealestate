@@ -117,3 +117,47 @@ test("without a key, new-listings explains itself instead of guessing, and prep 
     assert.match(p.milaMessage.content, /saved 55 Pine Road/);
   } finally { process.env.RENTCAST_API_KEY = saved; }
 });
+
+test("automatic lookups use 1 RentCast request; only a full prep uses 3 (cost control)", async () => {
+  clearRentcastCache();
+  const a = await newAgent({ now, tz: "America/New_York", seed: false });
+  calls.length = 0;
+  await say(a, "New listing at 1231 Main Street, Bethesda, MD");
+  assert.deepEqual(calls.map((c) => c.path), ["/v1/properties"], "saving a listing only reads the public record");
+  calls.length = 0;
+  await say(a, "Prep for 1231 Main Street, Bethesda, MD");
+  assert.deepEqual(calls.map((c) => c.path).sort(), ["/v1/avm/value", "/v1/listings/sale", "/v1/properties"], "prep upgrades it with the listing and estimate");
+  calls.length = 0;
+  await say(a, "Prep for 1231 Main Street, Bethesda, MD");
+  assert.equal(calls.length, 0, "and a repeat is free");
+  const usage = (await store.list("usage", a.id)).filter((u: any) => u.provider === "rentcast");
+  assert.deepEqual(usage.map((u: any) => u.operation).sort(), ["property_lookup", "property_prep"]);
+  assert.ok(Math.abs(usage.find((u: any) => u.operation === "property_prep").est_cost_usd - 3 * 0.074) < 1e-9);
+});
+
+test("several RentCast keys share the load and a used-up key is skipped", async () => {
+  const { resetRentcastKeys, rentcastKeys } = await import("../src/lib/listing-data/rentcast.ts");
+  const saved = { a: process.env.RENTCAST_API_KEY, b: process.env.RENTCAST_API_KEY1, c: process.env.RENTCAST_API_KEY2 };
+  process.env.RENTCAST_API_KEY = "key-main"; process.env.RENTCAST_API_KEY1 = "key-one"; process.env.RENTCAST_API_KEY2 = "key-main, key-extra";
+  assert.deepEqual(rentcastKeys(), ["key-main", "key-one", "key-extra"], "all sources merged, duplicates removed");
+  // "key-one" is out of requests (429); everything else works
+  const prev = globalThis.fetch;
+  const used: string[] = [];
+  globalThis.fetch = (async (url: any, init: any) => {
+    const u = new URL(String(url));
+    if (u.hostname === "api.rentcast.io") { const k = init.headers["X-Api-Key"]; used.push(k); if (k === "key-one") return new Response("{}", { status: 429 }); return new Response(JSON.stringify(LISTINGS), { status: 200 }); }
+    return prev(url, init);
+  }) as typeof fetch;
+  try {
+    clearRentcastCache(); resetRentcastKeys();
+    const { newListings } = await import("../src/lib/listing-data/rentcast.ts");
+    for (let i = 0; i < 6; i++) { clearRentcastCache(); assert.ok((await newListings({ city: "Bethesda", state: "MD" })).length > 0, "every search still succeeds"); }
+    const ok = used.filter((k) => k !== "key-one");
+    assert.ok(new Set(ok).size === 2, "load spread over the two working keys");
+    assert.equal(used.filter((k) => k === "key-one").length, 1, "the used-up key is tried once, then benched");
+    // every key exhausted → a clean 'limit' error, not a crash
+    globalThis.fetch = (async (url: any, init: any) => (new URL(String(url)).hostname === "api.rentcast.io" ? new Response("{}", { status: 429 }) : prev(url, init))) as typeof fetch;
+    clearRentcastCache(); resetRentcastKeys();
+    await assert.rejects(() => newListings({ city: "Bethesda", state: "MD" }), (e: any) => e.code === "limit");
+  } finally { globalThis.fetch = prev; resetRentcastKeys(); process.env.RENTCAST_API_KEY = saved.a!; if (saved.b === undefined) delete process.env.RENTCAST_API_KEY1; else process.env.RENTCAST_API_KEY1 = saved.b; if (saved.c === undefined) delete process.env.RENTCAST_API_KEY2; else process.env.RENTCAST_API_KEY2 = saved.c; }
+});

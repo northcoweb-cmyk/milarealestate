@@ -5,7 +5,19 @@
  * RentCast returns NO photos; images come from Google Street View (see /api/places/streetview) or a listing link the agent gives us.
  */
 const BASE = (process.env.RENTCAST_BASE_URL || "https://api.rentcast.io/v1").replace(/\/$/, ""); // override only for local testing against a mock
-export const rentcastConfigured = () => Boolean(process.env.RENTCAST_API_KEY);
+/**
+ * Keys come from RENTCAST_API_KEY (may hold several, comma-separated) and RENTCAST_API_KEY1 … RENTCAST_API_KEY9.
+ * Requests rotate across them; a key that hits its monthly limit (429) or is rejected is skipped for an hour, then retried.
+ */
+export function rentcastKeys(): string[] {
+  const raw = [process.env.RENTCAST_API_KEY, ...Array.from({ length: 9 }, (_, i) => process.env[`RENTCAST_API_KEY${i + 1}`])];
+  return [...new Set(raw.flatMap((v) => (v ?? "").split(",")).map((k) => k.trim()).filter(Boolean))];
+}
+export const rentcastConfigured = () => rentcastKeys().length > 0;
+const benched = new Map<string, number>(); // key → time it may be tried again
+const BENCH_MS = 3_600_000;
+let turn = 0;
+export const resetRentcastKeys = () => { benched.clear(); turn = 0; };
 
 export class RentcastError extends Error { constructor(public code: "auth" | "limit" | "not_found" | "bad_request" | "network", message: string) { super(message); } }
 
@@ -23,18 +35,26 @@ const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 const pos = (v: unknown) => { const x = n(v); return x != null && x > 0 ? x : null; };
 
 async function rc<T = unknown>(path: string, params: Record<string, string | number | undefined>): Promise<T> {
-  const key = process.env.RENTCAST_API_KEY;
-  if (!key) throw new RentcastError("auth", "RentCast isn't connected.");
+  const keys = rentcastKeys();
+  if (!keys.length) throw new RentcastError("auth", "RentCast isn't connected.");
   const qs = new URLSearchParams(); for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") qs.set(k, String(v));
-  let res: Response;
-  try { res = await fetch(`${BASE}${path}?${qs}`, { headers: { "X-Api-Key": key, accept: "application/json" }, signal: AbortSignal.timeout(15_000) }); }
-  catch { throw new RentcastError("network", "RentCast didn't respond."); }
-  if (res.status === 401 || res.status === 403) throw new RentcastError("auth", "RentCast rejected the API key.");
-  if (res.status === 429) throw new RentcastError("limit", "RentCast request limit reached.");
-  if (res.status === 404) throw new RentcastError("not_found", "Not found.");
-  if (res.status === 400) throw new RentcastError("bad_request", "RentCast couldn't read that address.");
-  if (!res.ok) throw new RentcastError("network", `RentCast error ${res.status}.`);
-  return (await res.json()) as T;
+  const now = Date.now();
+  const start = turn++ % keys.length; // spread load evenly across keys
+  const order = keys.map((_, i) => keys[(start + i) % keys.length]).filter((k) => (benched.get(k) ?? 0) <= now);
+  if (!order.length) throw new RentcastError("limit", "RentCast request limit reached.");
+  let last: RentcastError | null = null;
+  for (const key of order) {
+    let res: Response;
+    try { res = await fetch(`${BASE}${path}?${qs}`, { headers: { "X-Api-Key": key, accept: "application/json" }, signal: AbortSignal.timeout(15_000) }); }
+    catch { throw new RentcastError("network", "RentCast didn't respond."); }
+    if (res.status === 429) { benched.set(key, now + BENCH_MS); last = new RentcastError("limit", "RentCast request limit reached."); continue; } // this key is used up: try the next
+    if (res.status === 401 || res.status === 403) { benched.set(key, now + BENCH_MS); last = new RentcastError("auth", "RentCast rejected the API key."); continue; }
+    if (res.status === 404) throw new RentcastError("not_found", "Not found.");
+    if (res.status === 400) throw new RentcastError("bad_request", "RentCast couldn't read that address.");
+    if (!res.ok) throw new RentcastError("network", `RentCast error ${res.status}.`);
+    return (await res.json()) as T;
+  }
+  throw last ?? new RentcastError("network", "RentCast didn't respond.");
 }
 
 const memo = new Map<string, { at: number; v: unknown }>();
@@ -52,13 +72,15 @@ const fullAddress = (street: string, p: { city?: string | null; state?: string |
 
 type Raw = Record<string, any>;
 /** Everything RentCast knows about one address: the public record, the active listing (if any), and a value estimate — fetched in parallel. */
-export async function lookupAddress(street: string, place: { city?: string | null; state?: string | null; zip?: string | null }): Promise<PropertySnapshot> {
+export async function lookupAddress(street: string, place: { city?: string | null; state?: string | null; zip?: string | null }, opts: { full?: boolean } = {}): Promise<PropertySnapshot & { requests: number }> {
   const address = fullAddress(street, place);
-  return cached(`addr:${address.toLowerCase()}`, 6 * 3_600_000, async () => {
+  const full = Boolean(opts.full);
+  // basic = the public record only (1 request); full also asks for the active listing and a value estimate (3 requests)
+  return cached(`addr:${full ? "full" : "basic"}:${address.toLowerCase()}`, 6 * 3_600_000, async () => {
     const [rec, lst, avm] = await Promise.all([
       rc<Raw[]>("/properties", { address, limit: 1 }).catch((e) => { if (e instanceof RentcastError && e.code === "not_found") return [] as Raw[]; throw e; }),
-      rc<Raw[]>("/listings/sale", { address, status: "Active", limit: 1 }).catch(() => [] as Raw[]),
-      rc<Raw>("/avm/value", { address, compCount: 5 }).catch(() => ({} as Raw)),
+      full ? rc<Raw[]>("/listings/sale", { address, status: "Active", limit: 1 }).catch(() => [] as Raw[]) : Promise.resolve([] as Raw[]),
+      full ? rc<Raw>("/avm/value", { address, compCount: 5 }).catch(() => ({} as Raw)) : Promise.resolve({} as Raw),
     ]);
     const r: Raw = Array.isArray(rec) ? rec[0] ?? {} : {}, l: Raw = Array.isArray(lst) ? lst[0] ?? {} : {};
     const taxes: Raw = r.propertyTaxes && typeof r.propertyTaxes === "object" ? r.propertyTaxes : {};
@@ -76,7 +98,7 @@ export async function lookupAddress(street: string, place: { city?: string | nul
     const any = Object.keys(r).length || Object.keys(l).length;
     return {
       found: Boolean(any), address: s(l.addressLine1) ?? s(r.addressLine1) ?? street, city: s(l.city) ?? s(r.city), state: s(l.state) ?? s(r.state), zip: s(l.zipCode) ?? s(r.zipCode), county: s(r.county) ?? s(l.county),
-      beds: n(l.bedrooms) ?? n(r.bedrooms), baths: n(l.bathrooms) ?? n(r.bathrooms), sqft: pos(l.squareFootage) ?? pos(r.squareFootage), list_price: pos(l.price), extra,
+      beds: n(l.bedrooms) ?? n(r.bedrooms), baths: n(l.bathrooms) ?? n(r.bathrooms), sqft: pos(l.squareFootage) ?? pos(r.squareFootage), list_price: pos(l.price), extra, requests: full ? 3 : 1,
     };
   });
 }
