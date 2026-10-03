@@ -104,7 +104,7 @@ interface Art { ink: string; accent: string; soft: string; bg: string; panel: st
 const sparkle = (c: Ctx, x: number, y: number, r: number, col: string) => { c.fillStyle = col; c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.fill(); };
 
 /** Draws a 400x300 scene into the rect, scaled to fit and centred. */
-function illustrate(c: Ctx, kind: string, x: number, y: number, w: number, h: number, a: Art, initials: string, sans: string, shape: Shape = "round") {
+function illustrate(c: Ctx, kind: string, x: number, y: number, w: number, h: number, a: Art, initials: string, sans: string, shape: Shape = "round", pfp: CanvasImageSource | null = null) {
   c.save(); shapePath(c, shape, x, y, w, h); c.clip();
   c.fillStyle = a.panel; c.fillRect(x, y, w, h);
   const k = Math.min(w / 400, h / 300) * 0.92; c.translate(x + (w - 400 * k) / 2, y + (h - 300 * k) / 2 + 6 * k); c.scale(k, k);
@@ -166,7 +166,11 @@ function illustrate(c: Ctx, kind: string, x: number, y: number, w: number, h: nu
     backdrop();
     c.strokeStyle = a.accent; c.lineWidth = 6; c.setLineDash([2, 18]); c.lineCap = "round"; c.beginPath(); c.arc(200, 140, 118, 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
     fill(a.accent); circle(200, 140, 92);
-    c.fillStyle = a.panel; c.font = `800 92px ${sans}`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(initials, 200, 146); c.textAlign = "left"; c.textBaseline = "alphabetic";
+    if (pfp) { // the agent's own photo takes the place of their initials
+      const iw = (pfp as HTMLImageElement).width, ih = (pfp as HTMLImageElement).height, d = 184, sc = Math.max(d / iw, d / ih);
+      c.save(); c.beginPath(); c.arc(200, 140, 92, 0, Math.PI * 2); c.clip(); c.drawImage(pfp, 200 - (iw * sc) / 2, 140 - (ih * sc) / 2, iw * sc, ih * sc); c.restore();
+      c.strokeStyle = a.panel; c.lineWidth = 5; c.beginPath(); c.arc(200, 140, 92, 0, Math.PI * 2); c.stroke();
+    } else { c.fillStyle = a.panel; c.font = `800 92px ${sans}`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(initials, 200, 146); c.textAlign = "left"; c.textBaseline = "alphabetic"; }
     reset(); sparkle(c, 330, 60, 20, a.accent); sparkle(c, 66, 220, 14, a.soft);
   }
   c.restore();
@@ -254,7 +258,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
       c.save(); shapePath(c, shape, x, y, w, h); c.clip();
       const s = Math.max(w / photo.width, h / photo.height); const pw = photo.width * s, ph = photo.height * s;
       c.drawImage(photo, x + (w - pw) / 2, y + (h - ph) / 2, pw, ph); c.restore();
-    } else illustrate(c, kind, x, y, w, h, art, ini, f.sans, shape);
+    } else illustrate(c, kind, x, y, w, h, art, ini, f.sans, shape, pfpImg);
   };
   const pill = (text: string, x: number, y: number, dark = false) => {
     c.font = sans(25 * u, 800); const tw = spacedWidth(c, text.toUpperCase(), 4 * u); const pw = tw + 52 * u, ph = 56 * u;
