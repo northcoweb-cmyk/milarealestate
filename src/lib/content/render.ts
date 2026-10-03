@@ -89,7 +89,7 @@ function parseStats(text: string): Stat[] | null {
     out.push({ value: m[0].trim(), label });
   }
   out.sort((a, b) => (a.label === "Price" ? -1 : b.label === "Price" ? 1 : 0));
-  return out.slice(0, 4);
+  return out.slice(0, 6);
 }
 
 type Shape = "round" | "arch" | "circle" | "sharp";

@@ -121,10 +121,11 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
   const specs = facts.filter((f) => !f.startsWith("$"));
   // the data every listing post carries: full address, price, beds/baths/size, and the extras we know
   const dataLines = prop ? [prop.fullAddress || where ? `📍 ${prop.fullAddress || where}` : "", price ? `💰 ${price}` : "", specs.length ? `🛏 ${specs.join(" • ")}` : "", details.length || prop.descriptors?.length ? `✨ ${[...(prop.descriptors ?? []), ...details].join(" • ")}` : ""].filter(Boolean) : [];
-  const tiles = (role: SocialSlide["role"] = "highlight"): SocialSlide[] => [
-    ...(facts.length >= 2 ? [slide(role, facts.join(" • "), prop?.placeLine || prop?.city || undefined)] : facts.length ? [slide(role, facts[0], prop?.placeLine || prop?.city || undefined)] : []),
-    ...(details.length >= 2 ? [slide("highlight", details.slice(0, 4).join(" • "), "About the home")] : []),
-  ];
+  // ONE stats image: price, beds/baths/size AND the extras (year built, lot, taxes…) together, so a post never needs a second stats slide.
+  const tiles = (role: SocialSlide["role"] = "highlight"): SocialSlide[] => {
+    const all = [...facts, ...details.slice(0, 3)];
+    return all.length ? [slide(role, all.length >= 2 ? all.join(" • ") : all[0], prop?.placeLine || prop?.city || undefined)] : [];
+  };
   const sig = i.contact?.trim() || i.name;
   const market = i.market ? i.market.replace(/,\s*[A-Z]{2}$/, "") : "";
   const slide = (role: SocialSlide["role"], headline: string, sub?: string): SocialSlide => ({ role, headline, sub, image_id: null });
@@ -202,6 +203,10 @@ export function fitToPlatform(platform: SocialPlatform, body: string, tags: stri
   return { caption: withTags, hashtags };
 }
 
+/** A post is at most 3 images: the opener, one middle image, and the closing call to action. */
+export const MAX_SLIDES = 3;
+export const capSlides = (s: SocialSlide[]): SocialSlide[] => (s.length <= MAX_SLIDES ? s : [s[0], s[1], s[s.length - 1]]);
+
 /** Build the final caption (hashtags included where the platform uses them inline), tags and slides. */
 export function buildPost(i: BuildInput): Built {
   const c = core(i);
@@ -209,7 +214,7 @@ export function buildPost(i: BuildInput): Built {
   const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const f = fitToPlatform(i.platform, body, baseTags(i));
   const carousel = PLATFORMS.find((p) => p.key === i.platform)?.carousel ?? true;
-  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? c.slides : c.slides.slice(0, 1) };
+  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capSlides(c.slides) : c.slides.slice(0, 1) };
 }
 
 export const variantCount = (cat: Category) => (cat === "buyer_tip" || cat === "seller_tip" ? 10 : cat === "education" ? 8 : cat === "local" ? 5 : 3);

@@ -46,8 +46,8 @@ test("listing posts carry the full data: address with city/state/zip, price, bed
   assert.match(post.caption, /✨ Single Family • 2-car garage • 1998 built • 7,405 sq ft lot • \$250 HOA\/mo • \$7,812 taxes\/yr • 12 days on market/);
   const slides = post.slides;
   assert.equal(slides[0].headline, "12 Oak Lane"); assert.equal(slides[0].sub, "Just Listed • $650,000");
-  assert.equal(slides[1].headline, "$650,000 • 4 bd • 3 ba • 2,400 sq ft"); assert.equal(slides[1].sub, "Rockville, MD 20850");
-  assert.equal(slides[2].headline, "1998 built • 7,405 sq ft lot • $250 HOA/mo • $7,812 taxes/yr"); // 4 tiles max
+  assert.equal(slides.length, 3, "a post is at most 3 images");
+  assert.equal(slides[1].headline, "$650,000 • 4 bd • 3 ba • 2,400 sq ft • 1998 built • 7,405 sq ft lot • $250 HOA/mo", "price, specs and extras share ONE stats image"); assert.equal(slides[1].sub, "Rockville, MD 20850");
   assert.equal(slides[slides.length - 1].role, "cta");
 });
 
