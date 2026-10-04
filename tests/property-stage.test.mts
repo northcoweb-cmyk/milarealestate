@@ -42,3 +42,10 @@ test("ordering: closing soonest first, then live, then prepping, then sold", () 
   assert.deepEqual(sortCards(cards).map((c) => c.id), ["d", "c", "b", "a"]);
   assert.equal(STAGES.length, 5);
 });
+
+test("on-market vs off-market: only a live listing is 'on'; prepping, under contract, sold and archived are 'off'", () => {
+  assert.equal(buildCard(prop("m1"), [], [ev("m1", "open_house", "2026-10-11T17:00:00Z")], [], now).market, "on");
+  assert.equal(buildCard(prop("m2"), [], [], [], now).market, "off");
+  assert.equal(buildCard(prop("m3"), [mem("m3", "Transaction", "Under contract · x")], [], [], now).market, "off");
+  assert.equal(buildCard(prop("m4"), [mem("m4", "Transaction", "Sold $600,000 · closed Monday")], [], [], now).market, "off");
+});

@@ -52,6 +52,7 @@ export function PropertyCard({ p, photo, onChanged }: { p: PropertyCardInfo; pho
             <span className="h-2 w-2 rounded-full" style={{ background: DOT[p.stage] }} aria-hidden />{p.stage_label}
           </span>
           {price ? <span className="absolute bottom-3 left-3.5 flex items-baseline gap-1.5 text-white drop-shadow"><span className="text-[24px] font-extrabold leading-none">{money(price)}</span>{priceTag && <span className="text-[12px] font-semibold opacity-90">{priceTag}</span>}</span> : <span className="absolute bottom-3 left-3.5 text-[14px] font-semibold text-white/90 drop-shadow">Price not set</span>}
+          <span className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ background: p.market === "on" ? "rgba(34,160,90,.95)" : "rgba(30,30,32,.72)", color: "#fff" }}>{p.market === "on" ? "On market" : "Off market"}</span>
           {p.days_on_market != null && p.stage === "active" && <span className="absolute bottom-3 right-3.5 text-[12px] font-semibold text-white/90 drop-shadow">{p.days_on_market}d on market</span>}
         </div>
         <div className="space-y-2 px-4 pt-3.5">

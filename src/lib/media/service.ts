@@ -1,7 +1,7 @@
 import { getStore } from "../db/store";
 import type { ListingMediaCache } from "../types";
 import { NIL_USER } from "../server/errors";
-import { proxiedImage } from "./proxy";
+import { isListingImageHost, proxiedImage } from "./proxy";
 import { addressKey } from "./address";
 import { tierLimits, tierOf } from "./limits";
 import { activeProvider, providerName } from "./providers";
@@ -31,7 +31,8 @@ const benchReason = new Map<string, string>();
 const failedUntil = new Map<string, number>(); // per home (network errors): short backoff, never cached
 
 const empty = (q: MediaQuery, status: ListingMedia["photoStatus"], reason?: string, source = providerName()): ListingMedia => ({ reason, listingId: q.listingId ?? null, propertyId: q.propertyId ?? null, providerPropertyId: q.providerPropertyId ?? null, source, photos: [], photoCount: 0, photoStatus: status, fetchedAt: null, expiresAt: null, cached: false });
-const fromRow = (r: ListingMediaCache, q: MediaQuery): ListingMedia => ({ listingId: r.listing_id ?? q.listingId ?? null, propertyId: r.property_id ?? q.propertyId ?? null, providerPropertyId: r.provider_property_id, source: r.provider, photos: r.status === "ok" ? r.photos_json : [], photoCount: r.status === "ok" ? r.photo_count : 0, photoStatus: r.status === "ok" && r.photo_count > 0 ? "ok" : "unavailable", fetchedAt: r.fetched_at, expiresAt: r.expires_at, cached: true });
+const realPhotos = (r: ListingMediaCache) => (r.status === "ok" ? r.photos_json : []).filter((p) => { try { return isListingImageHost(new URL(p.url).hostname); } catch { return false; } }); // anything cached before the host check (e.g. a map image) is ignored
+const fromRow = (r: ListingMediaCache, q: MediaQuery): ListingMedia => ({ listingId: r.listing_id ?? q.listingId ?? null, propertyId: r.property_id ?? q.propertyId ?? null, providerPropertyId: r.provider_property_id, source: r.provider, photos: realPhotos(r), photoCount: realPhotos(r).length, photoStatus: realPhotos(r).length > 0 ? "ok" : "unavailable", fetchedAt: r.fetched_at, expiresAt: r.expires_at, cached: true });
 
 /** Strongest identifier first: provider id (ZPID) -> RentCast listing id -> exact normalized address. Never fuzzy. */
 async function findCached(provider: string, q: MediaQuery, key: string): Promise<ListingMediaCache | null> {

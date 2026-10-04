@@ -24,6 +24,8 @@ export const TXN_KEY = "Transaction";
 
 export interface PropertyCardInfo extends Property {
   stage: Stage; stage_label: string; group: Group; manual_stage: boolean;
+  /** "on" = listed and available right now; "off" = everything else (prepping, under contract, sold, set aside) */
+  market: "on" | "off";
   next: { title: string; start_at: string; kind: string } | null;
   closing_at: string | null; sold_price: number | null; sold_note: string | null;
   est_value: number | null; days_on_market: number | null; year_built: number | null; property_type: string | null; list_status: string | null;
@@ -59,7 +61,7 @@ export function buildCard(p: Property, mems: Memory[], events: CalendarEvent[], 
   const street = !photo && p.city && p.state ? `/api/properties/${p.id}/streetview?size=640x440` : null;
   const def = STAGES.find((s) => s.key === stage)!;
   return {
-    ...p, stage, stage_label: def.label, group: def.group, manual_stage: isManual,
+    ...p, stage, stage_label: def.label, group: def.group, manual_stage: isManual, market: stage === "active" ? "on" : "off",
     next: next ? { title: next.title, start_at: next.start_at, kind: next.kind } : null,
     closing_at: closing?.start_at ?? null, sold_price: soldPrice, sold_note: /^Sold/i.test(txn) ? txn.replace(/^Sold\s*(\$[\d,]+)?\s*·?\s*/i, "").trim() || null : null,
     est_value: x?.est_value ?? null, days_on_market: x?.days_on_market ?? null, year_built: x?.year_built ?? null, property_type: x?.property_type ?? null, list_status: x?.list_status ?? null,

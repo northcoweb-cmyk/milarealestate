@@ -38,6 +38,7 @@ export default function PropertiesPage() {
   const { admin } = useApp();
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Tab | null>(null);
+  const [mkt, setMkt] = useState<"all" | "on" | "off">("all");
   const all = data?.properties ?? [];
   // listing photos only for homes that are live or coming up, and not when the agent already uploaded one (the server caps how many it enriches at once)
   const photoOf = useListingPhotos(useMemo(() => all.filter((p) => p.image_source !== "photo" && p.group !== "past" && p.city && p.state).slice(0, 8).map((p) => ({ key: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, propertyId: p.id })), [all]), { enrich: true });
@@ -46,8 +47,9 @@ export default function PropertiesPage() {
   const tab: Tab = picked ?? (counts.current ? "current" : counts.upcoming ? "upcoming" : "all");
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return all.filter((p) => (tab === "all" || p.group === tab) && (!t || `${p.address} ${p.city ?? ""} ${p.state ?? ""} ${p.zip ?? ""}`.toLowerCase().includes(t)));
-  }, [all, tab, q]);
+    return all.filter((p) => (tab === "all" || p.group === tab) && (mkt === "all" || p.market === mkt) && (!t || `${p.address} ${p.city ?? ""} ${p.state ?? ""} ${p.zip ?? ""}`.toLowerCase().includes(t)));
+  }, [all, tab, q, mkt]);
+  const mktCounts = { all: all.length, on: all.filter((p) => p.market === "on").length, off: all.filter((p) => p.market === "off").length };
 
   return (
     <Page wide>
@@ -60,6 +62,9 @@ export default function PropertiesPage() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0" role="tablist" aria-label="Show">
               {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={"chip shrink-0 " + (tab === k ? "is-selected" : "")} onClick={() => setPicked(k)}>{l} · {counts[k]}</button>)}
+            </div>
+            <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0" role="tablist" aria-label="Market status">
+              {([["all", "Any status"], ["on", "On the market"], ["off", "Off the market"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={mkt === k} className={"chip shrink-0 " + (mkt === k ? "is-selected" : "")} onClick={() => setMkt(k)}>{l} · {mktCounts[k]}</button>)}
             </div>
             <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-xs"><Search size={16} className="faint absolute left-3 top-1/2 -translate-y-1/2" aria-hidden /><input className="field !pl-9" placeholder="Search address or city" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search properties" /></div>
           </div>
