@@ -31,6 +31,7 @@ test("every category × platform builds clean, within limits, with no invented f
     assert.ok(post.caption.length <= platformLimit(p.key), `${c.key}/${p.key} over limit (${post.caption.length})`);
     assert.ok(!/undefined|NaN|\[object|\{\{/.test(post.caption + JSON.stringify(post.slides)), `${c.key}/${p.key} leaks junk`);
     assert.ok(post.slides.length >= 1 && post.slides.every((s: any) => s.headline.trim()));
+    assert.ok((post.caption.match(/(^|\s)#[\p{L}\p{N}_]+/gu) ?? []).length <= 5 && post.hashtags.length <= 5, `${c.key}/${p.key}: at most 5 hashtags`);
     if (c.needsProperty) assert.ok(/9 Elm Street, Gaithersburg, MD/.test(post.caption) && /\$999,999/.test(post.caption), `${c.key} should carry the full address and price`);
   }
 });
@@ -180,4 +181,12 @@ test("a listing post with no photos of its own uses the Street View photo of the
   const { isStreetViewPostUrl } = await import("../src/lib/media/proxy.ts");
   assert.ok(isStreetViewPostUrl(imgs[0]) && !isStreetViewPostUrl("/api/properties/x/streetview?size=640x640&key=evil"));
   delete process.env.GOOGLE_MAPS_API_KEY;
+});
+
+test("hashtags are capped at 5 per post, wherever they came from", async () => {
+  const { capHashtags } = await import("../src/lib/content/templates.ts");
+  const out = capHashtags("Great home! #one #two\n\n#three #four #five #six #seven");
+  assert.equal((out.match(/#\w+/g) ?? []).length, 5);
+  assert.ok(out.includes("#five") && !out.includes("#six") && !out.includes("#seven") && out.startsWith("Great home!"));
+  assert.equal(capHashtags("No tags here, price $5 #1 spot"), "No tags here, price $5 #1 spot");
 });

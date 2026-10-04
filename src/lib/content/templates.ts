@@ -186,9 +186,16 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
 const pick = <T,>(v: number, a: T[]): T => a[((v % a.length) + a.length) % a.length];
 
 // -------------------------------------------------------------------- platform shaping
+/** A post carries at most this many hashtags (in the caption and in the tag list). */
+export const MAX_HASHTAGS = 5;
+/** Keeps the first `max` hashtags in a caption and drops the rest (whatever wrote them: templates, the AI, or the agent). */
+export function capHashtags(text: string, max = MAX_HASHTAGS): string {
+  let n = 0;
+  return text.replace(/(^|\s)#[\p{L}\p{N}_]+/gu, (m, lead) => (++n > max ? lead : m)).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trimEnd();
+}
 export function fitToPlatform(platform: SocialPlatform, body: string, tags: string[]): { caption: string; hashtags: string[] } {
   const limit = platformLimit(platform);
-  const n = platform === "x" ? 2 : platform === "facebook" ? 2 : platform === "linkedin" ? 3 : platform === "tiktok" ? 4 : 8;
+  const n = platform === "x" ? 2 : platform === "facebook" ? 2 : platform === "linkedin" ? 3 : platform === "tiktok" ? 4 : MAX_HASHTAGS;
   let hashtags = tags.slice(0, n);
   const tagLine = (t: string[]) => (t.length ? "\n\n" + t.join(" ") : "");
   if (platform === "x") {
@@ -196,11 +203,11 @@ export function fitToPlatform(platform: SocialPlatform, body: string, tags: stri
     while ((text + tagLine(hashtags)).length > limit && hashtags.length) hashtags = hashtags.slice(0, -1);
     const room = limit - tagLine(hashtags).length;
     if (text.length > room) text = text.slice(0, Math.max(0, room - 1)).replace(/\s+\S*$/, "") + "…";
-    return { caption: text, hashtags };
+    return { caption: capHashtags(text), hashtags };
   }
   const withTags = (platform === "instagram" || platform === "instagram_story" || platform === "tiktok" || platform === "linkedin") ? body + tagLine(hashtags) : body;
-  if (withTags.length > limit) return { caption: withTags.slice(0, limit - 1).replace(/\s+\S*$/, "") + "…", hashtags };
-  return { caption: withTags, hashtags };
+  if (withTags.length > limit) return { caption: capHashtags(withTags.slice(0, limit - 1).replace(/\s+\S*$/, "") + "…"), hashtags };
+  return { caption: capHashtags(withTags), hashtags };
 }
 
 /** A post is at most 3 images: the opener, one middle image, and the closing call to action. */

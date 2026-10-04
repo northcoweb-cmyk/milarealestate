@@ -1,3 +1,4 @@
+import { capHashtags, MAX_HASHTAGS } from "@/lib/content/templates";
 import { isListingImageHost, isStreetViewPostUrl } from "@/lib/media/proxy";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -32,8 +33,8 @@ export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
 
   // plain field edits
   const patch: Partial<SocialPost> = {};
-  if ("caption" in b) { const c = str(b.caption, 10_000); if (!c.trim()) throw bad("A post needs some text."); patch.caption = c; }
-  if ("hashtags" in b && Array.isArray(b.hashtags)) patch.hashtags = b.hashtags.map((h: unknown) => str(h, 40).replace(/\s+/g, "")).filter((h: string) => /^#?\w+$/.test(h)).map((h: string) => (h.startsWith("#") ? h : "#" + h)).slice(0, 30);
+  if ("caption" in b) { const c = str(b.caption, 10_000); if (!c.trim()) throw bad("A post needs some text."); patch.caption = capHashtags(c); }
+  if ("hashtags" in b && Array.isArray(b.hashtags)) patch.hashtags = b.hashtags.map((h: unknown) => str(h, 40).replace(/\s+/g, "")).filter((h: string) => /^#?\w+$/.test(h)).map((h: string) => (h.startsWith("#") ? h : "#" + h)).slice(0, MAX_HASHTAGS);
   if ("platform" in b) { if (!PLAT.includes(b.platform)) throw bad("Unknown platform."); patch.platform = b.platform as SocialPlatform; }
   if ("property_id" in b) patch.property_id = b.property_id || null;
   if ("slides" in b && Array.isArray(b.slides)) patch.slides = b.slides.slice(0, 10).map((s: any): SocialSlide => ({ role: ["hero", "highlight", "cta"].includes(s.role) ? s.role : "highlight", headline: str(s.headline, 120), sub: s.sub ? str(s.sub, 160) : undefined, image_id: s.image_id || null, image_url: typeof s.image_url === "string" && (/^\/api\/files\/[\w-]+$/.test(s.image_url) || okProxied(s.image_url) || isStreetViewPostUrl(s.image_url)) ? s.image_url : null, theme: PALETTES.some((p) => p.key === s.theme) ? s.theme : undefined, layout: LAYOUTS.some((l) => l.key === s.layout) ? s.layout : undefined })).filter((s: SocialSlide) => s.headline.trim());
