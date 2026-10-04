@@ -170,3 +170,14 @@ test("listing photos already found for a home are used in its posts (as same-ori
   const used = (r as any).posts[0].slides.map((s: any) => s.image_url).filter(Boolean);
   assert.ok(used.length >= 1 && used.every((u: string) => u.startsWith("/api/media/image?u=https%3A%2F%2Fphotos.zillowstatic.com%2F")), "post slides carry the listing photos");
 });
+
+test("a listing post with no photos of its own uses the Street View photo of the address as the main image", async () => {
+  process.env.GOOGLE_MAPS_API_KEY = "test-key";
+  const home = await store.insert("properties", prof.id, { address: "5 Willow Way", city: "Rockville", state: "MD", zip: "20850", county: null, list_price: 500000, beds: 3, baths: 2, sqft: 1800, listing_url: null, verified: true, notes: null, is_demo: false } as never);
+  const r = await svc.createPosts(ctx, { category: "open_house", platforms: ["instagram"], propertyId: home.id });
+  const imgs = (r as any).posts[0].slides.map((s: any) => s.image_url);
+  assert.ok(imgs.every((u: string) => u === `/api/properties/${home.id}/streetview?size=640x640`), `all slides use the Street View photo: ${imgs}`);
+  const { isStreetViewPostUrl } = await import("../src/lib/media/proxy.ts");
+  assert.ok(isStreetViewPostUrl(imgs[0]) && !isStreetViewPostUrl("/api/properties/x/streetview?size=640x640&key=evil"));
+  delete process.env.GOOGLE_MAPS_API_KEY;
+});

@@ -1,5 +1,6 @@
 import { MAX_SOCIAL_POSTS_PER_DAY } from "../config";
 import { cachedListingPhotoUrls } from "../media/service";
+import { streetViewPostUrl } from "../media/proxy";
 import { aiAvailable } from "../ai/provider";
 import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../time";
 import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types";
@@ -22,7 +23,10 @@ async function imageUrls(ctx: Ctx, propertyId: string | null): Promise<string[]>
   // the agent's own photos first, then the listing photos already found for this home
   const prop = await ctx.store.get("properties", ctx.userId, propertyId);
   const listing = prop?.city && prop.state ? await cachedListingPhotoUrls({ address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, propertyId: prop.id }) : [];
-  return [...own, ...listing.filter((u) => !own.includes(u))];
+  const all = [...own, ...listing.filter((u) => !own.includes(u))];
+  // no photos of their own yet: the Street View photo of the address is the main image, so every listing post has a real picture of the home
+  if (!all.length && prop?.city && prop.state && process.env.GOOGLE_MAPS_API_KEY) all.push(streetViewPostUrl(prop.id));
+  return all;
 }
 
 /** The agent's own photos across all their properties (for tips, market posts, etc.). */
