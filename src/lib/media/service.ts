@@ -23,6 +23,7 @@ const g = globalThis as unknown as { __photoTrail?: string[] };
 export const photoTrail = (): string[] => (g.__photoTrail ??= []);
 const note = (msg: string) => { const t = photoTrail(); t.unshift(`${new Date().toISOString().slice(11, 19)} ${msg}`); t.length = Math.min(t.length, 12); };
 
+const MISS_RESET = "2026-10-04T09:00:00Z";
 const inflight = new Map<string, Promise<ListingMedia>>();
 const benchedUntil = new Map<string, number>(); // provider-wide (credits / auth / rate)
 const benchReason = new Map<string, string>();
@@ -81,7 +82,9 @@ async function lookupMedia(userId: string, q: MediaQuery, o: { fetch: boolean })
     const m = mem.get(flight);
     if (m && m.exp > Date.now()) return m.m;
     const hit = await findCached(name, q, key);
-    if (hit && (new Date(hit.expires_at).getTime() > Date.now() || !o.fetch)) return fromRow(hit, q);
+    // misses recorded before the matching fixes (MISS_RESET) are retried once; a 404 costs the provider nothing
+    const staleMiss = hit?.status === "unavailable" && hit.fetched_at < MISS_RESET;
+    if (hit && !staleMiss && (new Date(hit.expires_at).getTime() > Date.now() || !o.fetch)) return fromRow(hit, q);
     if (!o.fetch) return empty(q, "pending");
     const provider = activeProvider();
     if (!provider) return hit ? fromRow(hit, q) : empty(q, "unavailable", "no_key");
