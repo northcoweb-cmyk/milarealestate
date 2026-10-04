@@ -18,6 +18,11 @@ const mem = new Map<string, { m: ListingMedia; exp: number }>();
 const memCount = new Map<string, number>(); // enrichments per user per month, used when the usage table can't be read
 const remember = (k: string, m: ListingMedia, ms: number) => { if (mem.size > 500) mem.clear(); mem.set(k, { m: { ...m, cached: true }, exp: Date.now() + Math.min(ms, 6 * 3_600_000) }); };
 
+/** Last few outcomes in this server instance (no addresses): lets the owner's health check show what actually happened even when the database tables aren't there. */
+const g = globalThis as unknown as { __photoTrail?: string[] };
+export const photoTrail = (): string[] => (g.__photoTrail ??= []);
+const note = (msg: string) => { const t = photoTrail(); t.unshift(`${new Date().toISOString().slice(11, 19)} ${msg}`); t.length = Math.min(t.length, 12); };
+
 const inflight = new Map<string, Promise<ListingMedia>>();
 const benchedUntil = new Map<string, number>(); // provider-wide (credits / auth / rate)
 const benchReason = new Map<string, string>();
@@ -65,6 +70,12 @@ async function save(provider: string, key: string, q: MediaQuery, photos: MediaP
  * budget isn't spent. NEVER throws: the listing keeps working with photoStatus "unavailable" / "limited".
  */
 export async function getListingMedia(userId: string, q: MediaQuery, o: { fetch: boolean }): Promise<ListingMedia> {
+  const m = await lookupMedia(userId, q, o);
+  if (o.fetch) note(`${m.photoStatus}${m.reason ? ` (${m.reason})` : ""}${m.cached ? " cached" : ""} photos=${m.photoCount}`);
+  return m;
+}
+
+async function lookupMedia(userId: string, q: MediaQuery, o: { fetch: boolean }): Promise<ListingMedia> {
   const name = providerName(), key = addressKey(q), flight = `${name}|${key}`;
   try {
     const m = mem.get(flight);
@@ -105,7 +116,7 @@ async function enrich(userId: string, q: MediaQuery, key: string, name: string):
 
   let res: ProviderPhotos | null = null, err: ProviderError | null = null, reqs: { endpoint: string; units: number }[] = [];
   try { res = await provider.fetchPhotos(q); reqs = res.requests; }
-  catch (e) { err = e instanceof ProviderError ? e : new ProviderError("network", "Photo lookup failed."); reqs = (e as { requests?: typeof reqs }).requests ?? []; }
+  catch (e) { note(`provider error ${e instanceof ProviderError ? e.code : "unknown"}`); // code only: addresses never go in the trail err = e instanceof ProviderError ? e : new ProviderError("network", "Photo lookup failed."); reqs = (e as { requests?: typeof reqs }).requests ?? []; }
 
   if (!reqs.length) await trackApi({ userId, provider: name, endpoint: "photo-lookup", success: false, propertyId: q.propertyId, detail: `attempt:${err?.code ?? "none"}` });
   for (const [i, r] of reqs.entries()) {

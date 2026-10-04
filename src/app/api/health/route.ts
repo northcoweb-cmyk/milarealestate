@@ -4,6 +4,7 @@ import { authMode } from "@/lib/auth";
 import { googleConfigured } from "@/lib/integrations/google";
 import { activeProvider, providerName } from "@/lib/media/providers";
 import { zillapiBase, zillapiKey } from "@/lib/media/providers/zillapi";
+import { photoTrail } from "@/lib/media/service";
 import { getStore, schemaGaps, ephemeralStoreBlocked, supabaseConfigured } from "@/lib/db/store";
 
 /** Photo pipeline status for deployment checks: booleans, counts and a one-word failure code - never keys or addresses. */
@@ -23,6 +24,7 @@ async function photoStatus() {
     out.last_issue_at = last?.created_at ?? null;
     out.recent = (await s.listAll("error_logs")).filter((l) => l.route === "listing-photos").sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6).map((l) => `${l.created_at.slice(11, 19)} ${l.message.replace(/ for .*?: /, ": ").slice(0, 70)}`);
   } catch { /* ignore */ }
+  out.trail = photoTrail();
   // zero-credit key check: asking for a photo set of a home that doesn't exist is a free 404 when the key is good, a 401 when it isn't
   if (activeProvider() && providerName() === "zillapi") {
     try { const r = await fetch(`${zillapiBase()}/properties/0/photos`, { headers: { authorization: `Bearer ${zillapiKey()}` }, signal: AbortSignal.timeout(8000) }); out.key_status = r.status === 401 || r.status === 403 ? "rejected" : r.status === 402 ? "out_of_credits" : r.status === 429 ? "rate_limited" : "ok"; out.key_http = r.status; }
