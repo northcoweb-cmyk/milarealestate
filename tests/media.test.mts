@@ -61,9 +61,19 @@ test("sameHome never matches a neighbour or a different unit/ZIP", () => {
   assert.ok(!sameHome(a, { ...a, address: "1231 Maine Street" }));
 });
 
+test("matching tolerates a provider that omits the ZIP/city, but never a different street, unit or state", () => {
+  const a = { address: "18104 Coachmans Road", city: "Gaithersburg", state: "MD", zip: "20874" };
+  assert.ok(sameHome(a, { address: "18104 Coachmans Rd", city: null, state: "MD", zip: null }), "street + state agree, provider gave no city/zip");
+  assert.ok(sameHome(a, { address: "18104 Coachmans Rd", city: "Germantown", state: "MD", zip: "20874" }), "same ZIP wins over the post-office city name");
+  assert.ok(!sameHome(a, { address: "18104 Coachmans Rd", city: "Germantown", state: "MD", zip: null }), "no ZIP and a different city: refuse");
+  assert.ok(!sameHome(a, { address: "18104 Coachmans Rd", city: null, state: "VA", zip: null }), "different state: refuse");
+  assert.ok(!sameHome(a, { address: "18104 Coachmans Rd #2", city: null, state: "MD", zip: null }), "a unit we didn't ask for: refuse");
+});
+
 test("photo parsing: HTTPS only, small thumb + large image, bounded", () => {
   const p = parsePhotos(photoBody);
   assert.equal(p.length, 2, "http:// url dropped");
+  assert.equal(parsePhotos({ data: [{ url: "https://maps.googleapis.com/maps/api/streetview?x=1" }] }).length, 0, "street-view/map images are not listing photos");
   assert.match(p[0].thumbUrl!, /a-384/); assert.match(p[0].url, /a-1536/); assert.equal(p[0].sortOrder, 0); assert.equal(p[1].sortOrder, 1);
   assert.deepEqual(parseRapidPhotos({ primary_photo: { href: "https://x/1.jpg" }, photos: [{ href: "https://x/1.jpg" }, { href: "https://x/2.jpg" }, "http://bad/3.jpg"] }).map((x: any) => x.url), ["https://x/1.jpg", "https://x/2.jpg"]);
 });
@@ -193,5 +203,5 @@ test("a wrong-home answer says why (owner-facing reason + the address the provid
   const m = await getListingMedia(user.id, home(9400), { fetch: true });
   assert.equal(m.reason, "mismatch");
   const logs = (await store.listAll("error_logs")).filter((l: any) => /Listing photos/.test(l.message));
-  assert.ok(logs.some((l: any) => /returned "1233 Main Street, Bethesda/.test(l.message)));
+  assert.ok(logs.some((l: any) => /street differs \(provider returned: 1233 Main Street, Bethesda/.test(l.message)));
 });

@@ -1,5 +1,6 @@
 import { ProviderError, type MediaPhoto, type MediaQuery, type PhotoProvider, type ProviderPhotos } from "../types";
-import { fullAddress, sameHome } from "../address";
+import { fullAddress, sameHome, whyDifferent } from "../address";
+import { isListingImageHost } from "../proxy";
 
 /** The key may be saved under the name Zillapi's own docs use (ZILLOW_API_KEY) or ours; accept any. */
 export const ZILLAPI_KEY_VARS = ["ZILLAPI_API_KEY", "ZILLAPI_KEY", "ZILLOW_API_KEY", "ZILLAPI_TOKEN"];
@@ -43,7 +44,7 @@ export function parsePhotos(body: any): MediaPhoto[] {
     const jpeg = r?.mixedSources?.jpeg;
     const big = pick(jpeg, 1000), small = pick(jpeg, 360);
     const url = big?.url ?? str(r?.url);
-    if (!url || !/^https:\/\//i.test(url)) continue;
+    if (!url || !/^https:\/\//i.test(url) || !isListingImageHost(new URL(url).hostname)) continue; // listing photos only (not a map/street-view image)
     out.push({ url, thumbUrl: small && /^https:\/\//i.test(small.url) ? small.url : undefined, width: big?.width ?? null, height: null, caption: str(r?.caption), sortOrder: out.length });
     if (out.length >= 60) break;
   }
@@ -70,8 +71,9 @@ export const zillapi: PhotoProvider = {
       requests.push({ endpoint: "properties/by-address", units: 3 });
       const d = body?.data, a = d?.address ?? {};
       zpid = String(d?.zpid ?? "");
+      const got = { address: String(a.streetAddress ?? a.street ?? d?.streetAddress ?? ""), city: str(a.city ?? d?.city), state: str(a.state ?? d?.state), zip: str(a.zipcode ?? a.zip ?? a.zipCode ?? a.postalCode ?? d?.zipcode ?? d?.zip) };
       // never attach photos from a neighbour: the returned home must be the SAME home
-      if (!zpid || !sameHome(q, { address: String(a.streetAddress ?? ""), city: str(a.city), state: str(a.state), zip: str(a.zipcode) })) throw Object.assign(new ProviderError("mismatch", zpid ? `Zillapi returned "${[a.streetAddress, a.city, a.state, a.zipcode].filter(Boolean).join(", ") || "no address"}" for "${fullAddress(q)}"` : "Zillapi returned no home"), { requests });
+      if (!zpid || !sameHome(q, got)) throw Object.assign(new ProviderError("mismatch", zpid ? `${whyDifferent(q, got)} (provider returned: ${[got.address, got.city, got.state, got.zip].filter(Boolean).join(", ") || "no address"})` : "provider returned no home"), { requests });
     }
     try {
       const body = await call(`/properties/${encodeURIComponent(zpid)}/photos`);

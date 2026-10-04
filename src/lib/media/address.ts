@@ -37,8 +37,21 @@ export function sameHome(a: Pick<MediaQuery, "address" | "city" | "state" | "zip
   const [sa, sb] = [normalizeStreet(a.address), normalizeStreet(b.address)];
   if (!sa.street || sa.street !== sb.street || sa.unit !== sb.unit) return false;
   const [za, zb] = [normalizeZip(a.zip), normalizeZip(b.zip)];
-  if (za && zb) return za === zb;
-  return clean(a.city) === clean(b.city) && clean(a.state).slice(0, 2) === clean(b.state).slice(0, 2) && Boolean(clean(a.city));
+  const sameState = clean(a.state).slice(0, 2) === clean(b.state).slice(0, 2);
+  if (za && zb) return za === zb && sameState;
+  if (!sameState) return false;
+  return !clean(b.city) || clean(a.city) === clean(b.city); // same number + street + state; the provider's city (if any) must agree when there's no ZIP to compare
+}
+
+/** Which part of two addresses disagrees (for the owner's diagnostics - never the addresses themselves). */
+export function whyDifferent(a: Pick<MediaQuery, "address" | "city" | "state" | "zip">, b: Pick<MediaQuery, "address" | "city" | "state" | "zip">): string {
+  const [sa, sb] = [normalizeStreet(a.address), normalizeStreet(b.address)];
+  if (!sb.street) return "no street returned";
+  if (sa.street !== sb.street) return "street differs";
+  if (sa.unit !== sb.unit) return sb.unit && !sa.unit ? "provider home has a unit number, yours has none" : "unit differs";
+  const [za, zb] = [normalizeZip(a.zip), normalizeZip(b.zip)];
+  if (za && zb && za !== zb) return "zip differs";
+  return "city/state differs";
 }
 
 export const fullAddress = (q: Pick<MediaQuery, "address" | "city" | "state" | "zip">) => [q.address, q.city, [q.state, q.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");

@@ -24,7 +24,7 @@ const g = globalThis as unknown as { __photoTrail?: string[] };
 export const photoTrail = (): string[] => (g.__photoTrail ??= []);
 const note = (msg: string) => { const t = photoTrail(); t.unshift(`${new Date().toISOString().slice(11, 19)} ${msg}`); t.length = Math.min(t.length, 12); };
 
-const MISS_RESET = "2026-10-04T09:00:00Z";
+const MISS_RESET = "2026-10-04T07:37:00Z";
 const inflight = new Map<string, Promise<ListingMedia>>();
 const benchedUntil = new Map<string, number>(); // provider-wide (credits / auth / rate)
 const benchReason = new Map<string, string>();

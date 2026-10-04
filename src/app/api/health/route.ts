@@ -22,9 +22,7 @@ async function photoStatus() {
     const code = last && /: (auth|credits|rate|network|bad_response|mismatch|not_found) -|lookup failed/.exec(last.message);
     out.last_issue = code ? (code[1] ?? "error") : last ? "error" : null;
     out.last_issue_at = last?.created_at ?? null;
-    const ok = (await s.listAll("listing_media_cache")).filter((r) => r.status === "ok").sort((a, b) => b.fetched_at.localeCompare(a.fetched_at))[0];
-    if (ok?.photos_json[0]) out.sample = { photos: ok.photo_count, thumb: ok.photos_json[0].thumbUrl ?? null, full: ok.photos_json[0].url }; // a CDN image link, not an address
-    out.recent = (await s.listAll("error_logs")).filter((l) => l.route === "listing-photos").sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6).map((l) => `${l.created_at.slice(11, 19)} ${l.message.replace(/ for .*?: /, ": ").slice(0, 70)}`);
+    out.recent = (await s.listAll("error_logs")).filter((l) => l.route === "listing-photos").sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6).map((l) => `${l.created_at.slice(11, 19)} ${l.message.replace(/ for .*?: /, ": ").replace(/ \(provider returned.*$/, "").slice(0, 90)}`);
   } catch { /* ignore */ }
   out.trail = photoTrail();
   // zero-credit key check: asking for a photo set of a home that doesn't exist is a free 404 when the key is good, a 401 when it isn't
