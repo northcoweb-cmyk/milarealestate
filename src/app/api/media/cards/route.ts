@@ -1,6 +1,7 @@
 import { api, bad, readJson } from "@/lib/server/route";
 import { isAdmin } from "@/lib/auth";
 import { rateLimit } from "@/lib/server/rate-limit";
+import { logError } from "@/lib/server/errors";
 import { getListingMedia, peekMedia } from "@/lib/media/service";
 import type { MediaQuery } from "@/lib/media/types";
 
@@ -20,6 +21,7 @@ export const POST = api(async ({ profile, req }) => {
   const out: { key: string; photoStatus: string; thumb: string | null; photoCount: number; reason?: string }[] = [];
   for (const it of items) { // sequential: keeps provider concurrency at 1 per request
     const m = b.enrich ? await getListingMedia(profile.id, it.q, { fetch: true }) : (await peekMedia(it.q)) ?? { photoStatus: "pending", photos: [], photoCount: 0, reason: undefined as string | undefined };
+    if (b.enrich && m.photoStatus !== "ok") await logError({ source: "api", level: "info", message: `Listing photos: result ${m.photoStatus}${m.reason ? ` (${m.reason})` : ""}`, route: "listing-photos", userId: profile.id }); // owner-only trail, no addresses
     const first = m.photos[0];
     out.push({ key: it.key, photoStatus: m.photoStatus, thumb: first ? first.thumbUrl ?? first.url : null, photoCount: m.photoCount, ...(isAdmin(profile) && m.reason ? { reason: m.reason } : {}) }); // the reason is for the owner only
   }

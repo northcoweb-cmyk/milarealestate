@@ -29,7 +29,15 @@ export function useListingPhotos(cards: CardRef[], opts: { enrich?: boolean } = 
       const need = cards.filter((c) => !done.has(c.key) && !asked.has(`enrich:${c.key}`) && c.city && c.state);
       if (!need.length) return;
       need.forEach((c) => asked.add(`enrich:${c.key}`));
-      try { const r = await jfetch<{ items: ({ key: string } & Res)[] }>("/api/media/cards", { method: "POST", json: { items: need, enrich: true } }); for (const i of r.items) done.set(i.key, i); if (live) bump((n) => n + 1); } catch { /* ignore */ }
+      // one home per request (progressive: each photo appears as soon as its lookup finishes, and no request can outlive the server's time limit), two at a time
+      const queue = [...need];
+      const worker = async () => {
+        for (let c = queue.shift(); c; c = queue.shift()) {
+          try { const r = await jfetch<{ items: ({ key: string } & Res)[] }>("/api/media/cards", { method: "POST", json: { items: [c], enrich: true } }); for (const i of r.items) done.set(i.key, i); } catch { done.set(c.key, { thumb: null, photoStatus: "unavailable", reason: "error" }); }
+          if (live) bump((n) => n + 1);
+        }
+      };
+      await Promise.all([worker(), worker()]);
     };
     void run();
     return () => { live = false; };
