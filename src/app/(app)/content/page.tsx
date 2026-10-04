@@ -10,7 +10,7 @@ import { Confirm, Empty, PageHeader, Pill, Sheet, Skeleton, jfetch } from "@/com
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
-import { SlideImage, PLATFORM_META, PlatformBadge, STATUS_META, toLocalInput } from "@/components/content/shared";
+import { SlideImage, SlideViewer, PLATFORM_META, PlatformBadge, STATUS_META, toLocalInput } from "@/components/content/shared";
 import { downloadBlob, renderPostFiles, shareOrDownload, type Brand } from "@/lib/content/render";
 import { LAYOUTS, PALETTES, layoutOf, paletteOf } from "@/lib/content/design";
 import { fileEntry, makeZip } from "@/lib/content/zip";
@@ -40,6 +40,7 @@ function ContentInner() {
   const [platform, setPlatform] = useState<SocialPlatform | "">("");
   const { data, loading, reload } = useApi<Data>(`/api/content?status=${tab}${platform ? `&platform=${platform}` : ""}`);
   const [open, setOpen] = useState<SocialPost | null>(null);
+  const [view, setView] = useState<{ post: SocialPost; start: number } | null>(null);
   const [creating, setCreating] = useState(false);
   const [planning, setPlanning] = useState(params.get("plan") === "1");
   const { toast, profile } = useApp();
@@ -103,15 +104,16 @@ function ContentInner() {
         : posts.length === 0 ? <Empty title={tab === "drafts" ? "No drafts yet" : `Nothing ${tab === "scheduled" ? "planned" : tab} yet`} body="Tap New for a single post, or Plan to have Mila fill your week." action={<button className="btn btn-primary" onClick={() => setCreating(true)}>Create a post</button>} />
         
         : <ul className="grid gap-3 lg:grid-cols-2">{posts.map((p) => (
-          <li key={p.id}><button onClick={() => setOpen(p)} className="glass flex w-full gap-3.5 p-3 text-left" style={{ borderRadius: 24 }}>
-            <SlideImage slide={p.slides[0] ?? { role: "hero", headline: p.caption.split("\n")[0] }} index={0} total={p.slides.length || 1} post={p} brand={brand} width={300} className="w-[96px] shrink-0 self-start" rounded={14} />
-            <div className="min-w-0 flex-1 py-0.5">
+          <li key={p.id} className="glass flex w-full gap-3.5 p-3 text-left" style={{ borderRadius: 24 }}>
+            <button type="button" className="shrink-0 self-start" aria-label="View images larger" onClick={() => setView({ post: p, start: 0 })}><SlideImage slide={p.slides[0] ?? { role: "hero", headline: p.caption.split("\n")[0] }} index={0} total={p.slides.length || 1} post={p} brand={brand} width={300} className="w-[96px]" rounded={14} /></button>
+            <button type="button" onClick={() => setOpen(p)} className="min-w-0 flex-1 py-0.5 text-left">
               <div className="mb-1.5 flex flex-wrap items-center gap-2"><PlatformBadge platform={p.platform} size={22} /><Pill tone={STATUS_META[p.status]?.tone}>{STATUS_META[p.status]?.label}</Pill>{p.slides.length > 1 && <span className="faint text-[12px]">{p.slides.length} images</span>}{p.stale && <Pill tone="warn">Outdated</Pill>}</div>
               <p className="line-clamp-3 text-[14.5px] leading-snug">{p.caption}</p>
               {p.scheduled_for && <p className="faint mt-1 text-[12.5px]">{new Intl.DateTimeFormat("en-US", { timeZone: data?.tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(p.scheduled_for))}</p>}
-            </div>
-          </button></li>))}</ul>}
+            </button>
+          </li>))}</ul>}
 
+      {view && <SlideViewer slides={view.post.slides} start={view.start} post={view.post} brand={brand} onClose={() => setView(null)} />}
       {open && data && <Editor post={open} data={data} brand={brand} onClose={() => setOpen(null)} onChanged={reload} />}
       {creating && data && <NewPost data={data} onClose={() => setCreating(false)} onDone={() => { setCreating(false); setTab("drafts"); reload(); }} />}
       {planning && data && <PlanSheet data={data} onClose={() => setPlanning(false)} onDone={() => { setPlanning(false); setTab("drafts"); reload(); }} />}
@@ -120,6 +122,7 @@ function ContentInner() {
 }
 
 function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; data: Data; brand: Brand; onClose: () => void; onChanged: () => void }) {
+  const [viewAt, setViewAt] = useState<number | null>(null);
   const { toast } = useApp();
   const [caption, setCaption] = useState(post.caption);
   const [slides, setSlides] = useState<SocialSlide[]>(post.slides);
@@ -198,9 +201,10 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const pal = paletteOf(theme);
   return (
     <Sheet open onClose={onClose} title={PLATFORM_META[post.platform].label + " post"} wide>
+      {viewAt != null && <SlideViewer slides={slides} start={viewAt} post={post} brand={brand} onClose={() => setViewAt(null)} />}
       <div className="space-y-5">
         <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-1">
-          {slides.map((s, i) => <SlideImage key={i} slide={s} index={i} total={slides.length} post={post} brand={brand} width={640} rounded={20} className={"shrink-0 snap-center " + (post.platform === "x" || post.platform === "linkedin" ? "w-[88%]" : "w-[66%] sm:w-[48%]")} />)}
+          {slides.map((s, i) => <button type="button" key={i} aria-label={`View image ${i + 1} larger`} onClick={() => setViewAt(i)} className={"shrink-0 snap-center " + (post.platform === "x" || post.platform === "linkedin" ? "w-[88%]" : "w-[66%] sm:w-[48%]")}><SlideImage slide={s} index={i} total={slides.length} post={post} brand={brand} width={640} rounded={20} className="w-full" /></button>)}
         </div>
 
         <div>
