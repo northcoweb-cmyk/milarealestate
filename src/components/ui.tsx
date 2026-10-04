@@ -68,7 +68,9 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" style={pinTo(vvBox)} role="dialog" aria-modal="true" aria-label={title}>
-          <motion.div className="absolute inset-0 touch-none bg-black/45" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+          <motion.div className="fixed inset-0 touch-none bg-black/45" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+          {/* safety net: if the phone ever reports a short screen, the sheet still reaches the bottom edge instead of floating above a blank strip */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-[160px] sm:hidden" style={{ background: "var(--surface)" }} />
           <motion.div
             className={clsx("surface relative max-h-[min(92svh,100%)] w-full touch-pan-y overflow-y-auto overscroll-contain p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]", wide ? "sm:max-w-2xl" : "sm:max-w-lg", "rounded-b-none sm:rounded-b-[28px]")}
             style={{ borderRadius: 32 }} initial={{ y: 60, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 60, opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 320 }}

@@ -14,8 +14,17 @@ export function useVisualViewport(active: boolean) {
     if (!active || !vv) { setBox(null); return; }
     const read = () => setBox((b) => (b && Math.abs(b.top - vv.offsetTop) < 0.5 && Math.abs(b.height - vv.height) < 0.5 ? b : { top: vv.offsetTop, height: vv.height }));
     read();
+    // iPhone doesn't always fire "resize" when the keyboard goes away (a stale small box would leave a blank strip under the sheet),
+    // so also re-read when a field loses focus, when the page comes back, and on a light timer while the keyboard looks open.
+    const later = () => { for (const ms of [60, 250, 600, 1000]) setTimeout(read, ms); };
+    const tick = window.setInterval(() => { if (window.innerHeight - vv.height > 120 && !document.activeElement?.matches?.("input, textarea, select, [contenteditable]")) read(); }, 400);
     vv.addEventListener("resize", read); vv.addEventListener("scroll", read);
-    return () => { vv.removeEventListener("resize", read); vv.removeEventListener("scroll", read); };
+    document.addEventListener("focusout", later); document.addEventListener("visibilitychange", read); window.addEventListener("orientationchange", later); window.addEventListener("pageshow", read);
+    return () => {
+      vv.removeEventListener("resize", read); vv.removeEventListener("scroll", read);
+      document.removeEventListener("focusout", later); document.removeEventListener("visibilitychange", read); window.removeEventListener("orientationchange", later); window.removeEventListener("pageshow", read);
+      clearInterval(tick);
+    };
   }, [active]);
   return box;
 }
