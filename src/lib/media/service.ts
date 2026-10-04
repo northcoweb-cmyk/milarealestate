@@ -116,7 +116,7 @@ async function enrich(userId: string, q: MediaQuery, key: string, name: string):
 
   let res: ProviderPhotos | null = null, err: ProviderError | null = null, reqs: { endpoint: string; units: number }[] = [];
   try { res = await provider.fetchPhotos(q); reqs = res.requests; }
-  catch (e) { note(`provider error ${e instanceof ProviderError ? e.code : "unknown"}`); // code only: addresses never go in the trail err = e instanceof ProviderError ? e : new ProviderError("network", "Photo lookup failed."); reqs = (e as { requests?: typeof reqs }).requests ?? []; }
+  catch (e) { note(`provider error ${e instanceof ProviderError ? e.code : "unknown"}`); err = e instanceof ProviderError ? e : new ProviderError("network", "Photo lookup failed."); reqs = (e as { requests?: typeof reqs }).requests ?? []; }
 
   if (!reqs.length) await trackApi({ userId, provider: name, endpoint: "photo-lookup", success: false, propertyId: q.propertyId, detail: `attempt:${err?.code ?? "none"}` });
   for (const [i, r] of reqs.entries()) {
