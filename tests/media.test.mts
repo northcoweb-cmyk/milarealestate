@@ -70,6 +70,13 @@ test("matching tolerates a provider that omits the ZIP/city, but never a differe
   assert.ok(!sameHome(a, { address: "18104 Coachmans Rd #2", city: null, state: "MD", zip: null }), "a unit we didn't ask for: refuse");
 });
 
+test("the provider's home is read from any of its address shapes", async () => {
+  const { identityOf } = await import("../src/lib/media/providers/zillapi.ts");
+  assert.deepEqual(identityOf({ address: { streetAddress: "1 A St", city: "X", state: "MD", zipcode: "20874" } }), { address: "1 A St", city: "X", state: "MD", zip: "20874", shape: "object" });
+  assert.deepEqual(identityOf({ address: "1 A St", city: "X", state: "MD", zipcode: "20874" }), { address: "1 A St", city: "X", state: "MD", zip: "20874", shape: "flat" });
+  assert.deepEqual(identityOf({ address: "1 A St, Germantown, MD 20874" }), { address: "1 A St", city: "Germantown", state: "MD", zip: "20874", shape: "full-string" });
+});
+
 test("photo parsing: HTTPS only, small thumb + large image, bounded", () => {
   const p = parsePhotos(photoBody);
   assert.equal(p.length, 2, "http:// url dropped");
@@ -203,5 +210,5 @@ test("a wrong-home answer says why (owner-facing reason + the address the provid
   const m = await getListingMedia(user.id, home(9400), { fetch: true });
   assert.equal(m.reason, "mismatch");
   const logs = (await store.listAll("error_logs")).filter((l: any) => /Listing photos/.test(l.message));
-  assert.ok(logs.some((l: any) => /street differs \(provider returned: 1233 Main Street, Bethesda/.test(l.message)));
+  assert.ok(logs.some((l: any) => /street differs \[shape=object [^\]]*\] \(provider returned: 1233 Main Street, Bethesda/.test(l.message)));
 });

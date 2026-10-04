@@ -54,4 +54,11 @@ export function whyDifferent(a: Pick<MediaQuery, "address" | "city" | "state" | 
   return "city/state differs";
 }
 
+/** Non-identifying booleans about how two addresses compare, for diagnostics. */
+export function matchFlags(a: Pick<MediaQuery, "address" | "city" | "state" | "zip">, b: Pick<MediaQuery, "address" | "city" | "state" | "zip">): string {
+  const [sa, sb] = [normalizeStreet(a.address), normalizeStreet(b.address)];
+  const [na, nb] = [sa.street.split(" "), sb.street.split(" ")];
+  return `num=${na[0] === nb[0]} name=${na[1] === nb[1]} words=${na.length}/${nb.length} unit=${sa.unit === sb.unit} zip=${normalizeZip(a.zip) && normalizeZip(b.zip) ? normalizeZip(a.zip) === normalizeZip(b.zip) : "n/a"} state=${clean(a.state).slice(0, 2) === clean(b.state).slice(0, 2)}`;
+}
+
 export const fullAddress = (q: Pick<MediaQuery, "address" | "city" | "state" | "zip">) => [q.address, q.city, [q.state, q.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");

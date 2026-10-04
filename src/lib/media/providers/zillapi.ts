@@ -1,5 +1,5 @@
 import { ProviderError, type MediaPhoto, type MediaQuery, type PhotoProvider, type ProviderPhotos } from "../types";
-import { fullAddress, sameHome, whyDifferent } from "../address";
+import { fullAddress, matchFlags, sameHome, whyDifferent } from "../address";
 import { isListingImageHost } from "../proxy";
 
 /** The key may be saved under the name Zillapi's own docs use (ZILLOW_API_KEY) or ours; accept any. */
@@ -51,6 +51,19 @@ export function parsePhotos(body: any): MediaPhoto[] {
   return out;
 }
 
+/**
+ * The home the provider says it found, from whichever shape it used: a nested {streetAddress, city, state, zipcode} object, flat
+ * fields on the record (address: "123 Main St", city, state, zipcode), or one full "123 Main St, City, ST 12345" string.
+ */
+export function identityOf(d: any): { address: string; city: string | null; state: string | null; zip: string | null; shape: string } {
+  const a = d?.address;
+  if (a && typeof a === "object") return { address: String(a.streetAddress ?? a.street ?? a.line1 ?? ""), city: str(a.city ?? d?.city), state: str(a.state ?? d?.state), zip: str(a.zipcode ?? a.zip ?? a.zipCode ?? a.postalCode ?? d?.zipcode ?? d?.zip), shape: "object" };
+  const full = typeof a === "string" ? a : String(d?.streetAddress ?? "");
+  const parts = full.split(",").map((x) => x.trim());
+  const tail = /^([A-Za-z]{2})\s+(\d{5})/.exec(parts[2] ?? "");
+  return { address: parts[0] ?? "", city: str(d?.city) ?? (parts.length >= 3 ? str(parts[1]) : null), state: str(d?.state) ?? tail?.[1] ?? null, zip: str(d?.zipcode ?? d?.zip) ?? tail?.[2] ?? null, shape: typeof a === "string" ? (parts.length > 1 ? "full-string" : "flat") : "none" };
+}
+
 export const zillapi: PhotoProvider = {
   key: "zillapi",
   configured: () => Boolean(zillapiKey()),
@@ -71,9 +84,9 @@ export const zillapi: PhotoProvider = {
       requests.push({ endpoint: "properties/by-address", units: 3 });
       const d = body?.data, a = d?.address ?? {};
       zpid = String(d?.zpid ?? "");
-      const got = { address: String(a.streetAddress ?? a.street ?? d?.streetAddress ?? ""), city: str(a.city ?? d?.city), state: str(a.state ?? d?.state), zip: str(a.zipcode ?? a.zip ?? a.zipCode ?? a.postalCode ?? d?.zipcode ?? d?.zip) };
+      const got = identityOf(d);
       // never attach photos from a neighbour: the returned home must be the SAME home
-      if (!zpid || !sameHome(q, got)) throw Object.assign(new ProviderError("mismatch", zpid ? `${whyDifferent(q, got)} (provider returned: ${[got.address, got.city, got.state, got.zip].filter(Boolean).join(", ") || "no address"})` : "provider returned no home"), { requests });
+      if (!zpid || !sameHome(q, got)) throw Object.assign(new ProviderError("mismatch", zpid ? `${whyDifferent(q, got)} [shape=${got.shape} ${matchFlags(q, got)}] (provider returned: ${[got.address, got.city, got.state, got.zip].filter(Boolean).join(", ") || "no address"})` : "provider returned no home"), { requests });
     }
     try {
       const body = await call(`/properties/${encodeURIComponent(zpid)}/photos`);
