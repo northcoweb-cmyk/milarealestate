@@ -14,7 +14,7 @@ export function Photo({ src, alt }: { src: string | null; alt: string }) {
   const bad = !src || badSrc === src;
   if (bad) return <div className="flex h-full w-full items-center justify-center" style={{ background: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--ink) 8%, transparent))" }} aria-hidden><Home size={34} className="faint" /></div>;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src!} alt={alt} loading="lazy" onError={() => setBadSrc(src)} className="h-full w-full object-cover" />;
+  return <img src={src!} alt={alt} loading="lazy" referrerPolicy="no-referrer" onError={() => setBadSrc(src)} className="h-full w-full object-cover" />;
 }
 
 export function ListingCard({ c, photo, onAction, onNavigate, busy }: { c: ListingCardData; photo?: string | null; onAction: Act; onNavigate: (href: string) => void; busy?: boolean }) {

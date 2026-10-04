@@ -178,13 +178,13 @@ function ListingGallery({ id, address }: { id: string; address: string }) {
     <section className="glass mb-5 overflow-hidden !p-0" aria-label="Listing photos">
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={cur.url} alt={cur.caption || `Listing photo of ${address}`} className="h-full w-full object-cover" />
+        <img src={cur.url} referrerPolicy="no-referrer" alt={cur.caption || `Listing photo of ${address}`} className="h-full w-full object-cover" />
         <span className="absolute bottom-2 right-3 rounded-full bg-black/50 px-2 py-0.5 text-[11.5px] text-white">{i + 1} / {g.photos.length}</span>
       </div>
       {g.photos.length > 1 && <div className="no-scrollbar flex gap-2 overflow-x-auto p-3">{g.photos.slice(0, 40).map((ph, n) => (
         <button key={n} type="button" onClick={() => setI(n)} aria-label={`Show photo ${n + 1}`} className="h-14 w-20 shrink-0 overflow-hidden rounded-lg" style={{ outline: n === i ? "2px solid var(--accent)" : "none" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={ph.thumbUrl ?? ph.url} alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }} />
+          <img src={ph.thumbUrl ?? ph.url} referrerPolicy="no-referrer" alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }} />
         </button>))}</div>}
     </section>
   );
