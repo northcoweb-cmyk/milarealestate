@@ -49,7 +49,7 @@ export async function emailAudienceHandler(ctx: Ctx, text: string): Promise<Hand
   const start = ev ? new Date(ev.start_at) : ctx.now, end = ev ? new Date(ev.end_at) : ctx.now;
   const em = await prepareAudienceEmail(ctx, prop, start, end, ev?.id ?? null, null, audience);
   const draftRow = await ctx.store.get("email_drafts", ctx.userId, em.draftId);
-  return reply(`I drafted an email to ${plural(audience.length, "contact")} about ${prop.address}. Nothing goes out until you approve it.`, [{ type: "draft_email", draftId: em.draftId, to: `${plural(audience.length, "contact")}`, subject: draftRow?.subject ?? "", body: draftRow?.body ?? "", status: "Draft", buttons: [{ label: "Review & send", style: "primary", href: "/tasks" }] }], "email_generation");
+  return reply(`I drafted an email to ${plural(audience.length, "contact")} about ${prop.address}. You send it from your own email app.`, [{ type: "draft_email", draftId: em.draftId, to: `${plural(audience.length, "contact")}`, subject: draftRow?.subject ?? "", body: draftRow?.body ?? "", status: "Draft", buttons: [{ label: "Open in email app", style: "primary", href: "/tasks" }] }], "email_generation");
 }
 
 export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerOut> {

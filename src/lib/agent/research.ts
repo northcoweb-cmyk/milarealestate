@@ -14,7 +14,7 @@ const TTL = 12 * 3_600_000;
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 export async function marketResearch(ctx: Ctx, location: string, question: string): Promise<{ block: Block; cached: boolean } | { error: string; connect?: boolean }> {
-  if (!aiAvailable()) return { error: "Live market research needs Mila's research connection, which isn't set up on this server yet. I won't guess at current numbers.", connect: true };
+  if (!aiAvailable()) return { error: "I can't pull live market numbers right now, and I won't guess at them.", connect: true };
   const key = `${CACHE_PREFIX}market:${norm(location)}:${norm(question).slice(0, 80)}`;
   const mems = await ctx.store.list("memories", ctx.userId);
   const hit = mems.find((m) => m.key === key);

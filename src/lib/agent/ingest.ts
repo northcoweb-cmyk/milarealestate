@@ -190,7 +190,7 @@ const ATTENDEE_SCHEMA = {
 };
 
 export async function extractAttendeesWithAI(ctx: Ctx, file: { mime: string; data: Buffer }): Promise<{ candidates: Candidate[] } | { error: string }> {
-  if (!aiAvailable()) return { error: "Reading photos and scanned PDFs needs Mila's vision connection, which isn't set up on this server yet. You can upload a CSV or spreadsheet, or paste the names and details into the chat." };
+  if (!aiAvailable()) return { error: "I can't read photos or scanned PDFs right now. You can upload a CSV or spreadsheet, or paste the names and details into the chat." };
   const isPdf = file.mime === "application/pdf";
   try {
     const r = await getProvider().complete({

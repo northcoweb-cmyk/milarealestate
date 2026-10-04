@@ -106,7 +106,7 @@ export async function newListingsHandler(ctx: Ctx, text: string): Promise<Handle
   try { cards = await newListings({ city: city ?? undefined, state: state ?? undefined, zip: zip ?? undefined, beds, minPrice: money.min ?? undefined, maxPrice: money.max ?? undefined, propertyType: type, days, limit: 7 }); }
   catch (e) {
     const code = e instanceof RentcastError ? e.code : "network";
-    return reply(code === "limit" ? "I've hit the listing-data limit for now. Try again a little later." : code === "auth" ? "The listing-data connection isn't working (the key was rejected). The owner needs to check it." : "I couldn't reach the listing data just now. Try again in a minute.", [], "smalltalk");
+    return reply(code === "limit" ? "I've hit the listing-data limit for now. Try again a little later." : code === "auth" ? "Listing search isn't working right now. Try again a little later." : "I couldn't reach the listing data just now. Try again in a minute.", [], "smalltalk");
   }
   await trackApi({ userId: ctx.userId, provider: "rentcast", endpoint: "listings/sale", success: true, units: 1, estCostUsd: Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074 });
   const where = loc || zip || "your area";

@@ -61,8 +61,8 @@ function TasksInner() {
             </section>
           )}
           {blocked.length > 0 && (kind === "all" || kind === "approval") && (
-            <section className="mb-8"><p className="kicker mb-3">Approved — waiting on a connection</p>
-              <div className="space-y-3">{blocked.map((a) => <div key={a.id} className="glass p-4" style={{ borderRadius: 24 }}><p className="font-semibold">{a.title}</p><p className="muted text-[14.5px]">{a.error}</p><div className="mt-3 flex gap-2.5">{a.blocked_integration === "google" && <Link href="/settings/connections" className="btn btn-primary btn-sm">Connect Google</Link>}<button className="btn btn-sm" onClick={() => setReview(a.id)}>View</button></div></div>)}</div>
+            <section className="mb-8"><p className="kicker mb-3">Needs one more step</p>
+              <div className="space-y-3">{blocked.map((a) => <div key={a.id} className="glass p-4" style={{ borderRadius: 24 }}><p className="font-semibold">{a.title}</p><p className="muted text-[14.5px]">{a.error}</p><div className="mt-3 flex gap-2.5">{a.blocked_integration === "google" && <Link href="/settings/connections" className="btn btn-primary btn-sm">Set up</Link>}<button className="btn btn-sm" onClick={() => setReview(a.id)}>View</button></div></div>)}</div>
             </section>
           )}
           {PRI.map((p) => {

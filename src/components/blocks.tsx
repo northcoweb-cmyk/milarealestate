@@ -6,7 +6,9 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { AlertTriangle, Check, ChevronDown, Circle, Clock, MapPin, X, Info, CheckCircle2 } from "lucide-react";
 import type { ActionButton, Block } from "@/lib/types";
-import { Avatar } from "./ui";
+import { Avatar, jfetch } from "./ui";
+import { useApp } from "./app-context";
+import { type Compose, gmailUrl, isTooLongForLink, mailtoUrl } from "@/lib/mailto";
 import { LiquidGlassCard } from "./ui/liquid-weather-glass";
 import clsx from "clsx";
 
@@ -168,6 +170,22 @@ export function BlockView(p: Props) {
 
 function EmailCard({ b, onAction, onApprove, onNavigate, busy }: { b: Extract<Block, { type: "draft_email" }> } & Omit<Props, "block">) {
   const [open, setOpen] = useState(false);
+  const [working, setWorking] = useState(false);
+  const { profile, toast } = useApp();
+  // The "send" button hands the finished message to the person's own email app (they press send there).
+  const approvalId = b.buttons?.find((x) => x.approvalId)?.approvalId;
+  const others = (b.buttons ?? []).filter((x) => !x.approvalId);
+  async function openMail(via: "app" | "gmail") {
+    if (!approvalId) return;
+    setWorking(true);
+    try {
+      const m = await jfetch<Compose>(`/api/approvals/${approvalId}/compose`, { method: "POST", json: { draftId: b.draftId, subject: b.subject, body: b.body } });
+      const c: Compose = { to: m.to, bcc: m.bcc, subject: m.subject, body: m.body };
+      if (isTooLongForLink(c)) { try { await navigator.clipboard.writeText(c.body); toast("The message is long, so I copied it. Paste it into the email if it looks cut off.", "info"); } catch { /* ignore */ } }
+      if (via === "gmail") window.open(gmailUrl(c, profile.email), "_blank", "noopener"); else window.location.href = mailtoUrl(c);
+    } catch (e) { toast(e instanceof Error ? e.message : "Couldn't open your email.", "error"); } finally { setWorking(false); }
+  }
+  const gmail = /@(gmail|googlemail)\.com$/i.test(profile.email);
   return (
     <div className="glass-strong p-5">
       <p className="kicker mb-2">Email · {b.status}</p>
@@ -177,7 +195,8 @@ function EmailCard({ b, onAction, onApprove, onNavigate, busy }: { b: Extract<Bl
         {!open && <div className="absolute inset-x-0 bottom-0 h-10" style={{ background: "linear-gradient(transparent, var(--glass-strong))" }} />}
       </div>
       <button className="btn btn-quiet btn-sm mt-1 !px-2" onClick={() => setOpen(!open)}>{open ? "Show less" : "Read full draft"}<ChevronDown size={16} className={clsx("transition", open && "rotate-180")} /></button>
-      <Buttons buttons={b.buttons} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />
+      <Buttons buttons={others} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />
+      {approvalId && <div className="mt-2"><button className="btn btn-primary btn-sm" disabled={working || busy} onClick={() => openMail("app")}>{working ? "Opening…" : "Open in email app"}</button>{gmail && <button type="button" className="btn btn-quiet btn-sm ml-1" disabled={working} onClick={() => openMail("gmail")}>Use Gmail</button>}</div>}
     </div>
   );
 }

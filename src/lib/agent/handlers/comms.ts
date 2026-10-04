@@ -100,10 +100,10 @@ export async function draftEmailHandler(ctx: Ctx, text: string): Promise<Handler
   const body = ai?.body ?? `Hi ${firstName(c.name)},\n\n${topic && topic !== text ? `I wanted to follow up about ${topic.replace(/[.!?]+$/, "")}.` : "I wanted to follow up."} Let me know a good time to talk.\n\n${signature(ctx.profile)}`;
   const d = ((await TOOLS.draft_email.run(ctx, { contact_id: c.id, subject, body })) as any).data.draft as EmailDraft;
   const out = await invoke(ctx, "send_email", { draftId: d.id });
-  const blocks: Block[] = [{ type: "draft_email", draftId: d.id, to: `${c.name}${c.email ? ` <${c.email}>` : ""}`, subject, body, status: "Draft", buttons: out.status === "needs_approval" ? [{ label: "Edit", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Approve & send", style: "primary", approvalId: out.approval.id }] : undefined }];
+  const blocks: Block[] = [{ type: "draft_email", draftId: d.id, to: `${c.name}${c.email ? ` <${c.email}>` : ""}`, subject, body, status: "Draft", buttons: out.status === "needs_approval" ? [{ label: "Edit", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Open in email app", style: "primary", approvalId: out.approval.id }] : undefined }];
   if (out.status === "needs_approval") await ctx.store.update("email_drafts", ctx.userId, d.id, { status: "pending_approval" });
   if (!c.email) blocks.push({ type: "notice", tone: "warn", title: `${c.name} has no email address`, body: "Add one in their profile before sending.", buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] });
-  return reply(ai ? `Here's a draft for ${firstName(c.name)}.` : `Here's a simple draft for ${firstName(c.name)}. With Mila's writing connection enabled I can make these richer.`, blocks, "email_generation");
+  return reply(ai ? `Here's a draft for ${firstName(c.name)}.` : `Here's a simple draft for ${firstName(c.name)}.`, blocks, "email_generation");
 }
 
 export { fmtDay, fmtRange };

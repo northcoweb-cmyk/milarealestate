@@ -340,7 +340,7 @@ export const TOOLS: Record<string, ToolDef> = {
     name: "search_email", status: "Searching your email",
     run: async (ctx, a) => {
       const g = await getGoogle(ctx.userId);
-      if (!g?.hasScope("gmail")) return fail("not_connected", "Your Gmail isn't connected yet.", "google");
+      if (!g?.hasScope("gmail")) return fail("not_connected", "I can't send email from here. Open it in your email app instead.", "google");
       try { return ok({ messages: await gmail.search(ctx.userId, a.query, a.max ?? 8) }); }
       catch (e) { return googleFail(e); }
     },
@@ -422,7 +422,7 @@ async function sendDrafts(ctx: Ctx, draftIds: string[]): Promise<ToolResult> {
   if (!drafts.length) return fail("not_found", "I couldn't find those drafts.");
   if (!google?.hasScope("gmail")) {
     for (const d of drafts) await ctx.store.update("email_drafts", ctx.userId, d.id, { status: "approved_unsent" });
-    return fail("not_connected", "Your Gmail isn't connected yet, so nothing was sent.", "google");
+    return fail("not_connected", "Nothing was sent. Open the email in your email app to send it.", "google");
   }
   let sent = 0, failed = 0, lastError = "";
   for (const d of drafts) {

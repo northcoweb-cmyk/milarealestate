@@ -13,7 +13,7 @@ import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { PlaceInput, type PickedPlace } from "@/components/place-input";
 
-const TITLES: Record<string, string> = { profile: "Profile", business: "Business", connections: "Connections", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
+const TITLES: Record<string, string> = { profile: "Profile", business: "Business", connections: "Calendar & contacts", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
 
 export default function SettingsPage() { return <Suspense><Inner /></Suspense>; }
 
@@ -145,19 +145,20 @@ interface Integration { id: string; name: string; description: string; status: s
 function Connections() {
   const { data, loading, reload } = useApi<{ items: Integration[]; googleConfigured: boolean; googleAccount: string | null }>("/api/integrations");
   const params = useSearchParams(); const { toast } = useApp(); const [busy, setBusy] = useState(false);
-  useEffect(() => { const e = params.get("error"), c = params.get("connected"); if (c) toast("Google connected.", "success"); if (e) toast({ denied: "Google access wasn't granted.", state: "That sign-in expired. Try again.", exchange: "Google didn't accept the connection. Try again.", not_configured: "Google isn't set up on this server." }[e] ?? "Couldn't connect.", "error"); }, [params, toast]);
+  useEffect(() => { const e = params.get("error"), c = params.get("connected"); if (c) toast("Connected.", "success"); if (e) toast({ denied: "Access wasn't granted.", state: "That sign-in expired. Try again.", exchange: "That didn't work. Try again.", not_configured: "This isn't available right now." }[e] ?? "Couldn't connect.", "error"); }, [params, toast]);
   const connected = data?.items.some((i) => i.status === "connected" && i.id.startsWith("google"));
   const label = (s: string) => ({ connected: ["Connected", "ok"], not_configured: ["Needs setup", "warn"], disconnected: ["Not connected", "neutral"], error: ["Needs attention", "danger"], coming_soon: ["Coming soon", "neutral"] }[s] as [string, any]);
   if (loading) return <Skeleton className="h-96" />;
   return (
     <div className="space-y-3">
-      {data!.items.map((i) => { const [t, tone] = label(i.status); return (
+      <p className="muted px-1 pb-1 text-[14.5px]">Keep your calendar in step with Mila and bring in people you already know.</p>
+      {data!.items.filter((i) => ["google_calendar", "google_contacts", "google_sheets"].includes(i.id) && i.status !== "not_configured").map((i) => { const [t, tone] = label(i.status); return (
         <div key={i.id} className="glass flex items-center gap-4 p-4 sm:p-5" style={{ borderRadius: 24 }}>
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{i.name}</p><Pill tone={tone}>{t}</Pill></div><p className="muted text-[14px]">{i.description}</p>{i.detail && <p className="faint text-[13px]">{i.detail}</p>}</div>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{({ google_calendar: "Calendar sync", google_contacts: "Contacts", google_sheets: "Spreadsheets" } as Record<string, string>)[i.id] ?? i.name}</p><Pill tone={tone}>{t}</Pill></div><p className="muted text-[14px]">{i.description}</p></div>
           {i.id.startsWith("google") && i.status !== "not_configured" && (i.status === "connected" ? null : <a className="btn btn-primary btn-sm" href={`/api/integrations/google/start?services=${i.services?.join(",")}`}>{i.status === "error" ? "Reconnect" : "Connect"}</a>)}
         </div>); })}
-      {connected && <button className="btn btn-sm mt-2" disabled={busy} onClick={async () => { setBusy(true); await jfetch("/api/integrations/google/disconnect", { method: "POST" }); await reload(); setBusy(false); toast("Google disconnected.", "success"); }}>Disconnect Google</button>}
-      <p className="faint px-2 pt-2 text-[13px]">Mila never exposes your keys or tokens to the browser. Connections can be removed at any time.</p>
+      {connected && <button className="btn btn-sm mt-2" disabled={busy} onClick={async () => { setBusy(true); await jfetch("/api/integrations/google/disconnect", { method: "POST" }); await reload(); setBusy(false); toast("Disconnected.", "success"); }}>Disconnect</button>}
+      <p className="faint px-2 pt-2 text-[13px]">You can disconnect any time.</p>
     </div>
   );
 }
@@ -233,11 +234,10 @@ function Credits() {
   return (
     <>
       <Card>
-        <div className="mb-1 flex items-baseline justify-between"><p className="kicker">Mila credits</p>{data.status === "dev" && <Pill tone="warn">Development billing</Pill>}</div>
+        <div className="mb-1 flex items-baseline justify-between"><p className="kicker">Mila credits</p></div>
         <p className="display text-[48px] leading-none">{data.balance.toLocaleString()} <span className="faint text-[22px]">/ {data.allowance.toLocaleString()}</span></p>
         <div className="mt-4 h-2.5 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
         <div className="mt-4 grid grid-cols-2 gap-4 text-[14.5px]"><div><p className="faint">Used this period</p><p className="font-semibold">{data.spentThisPeriod.toLocaleString()}</p></div><div><p className="faint">Resets</p><p className="font-semibold">{new Date(data.resetsAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })}</p></div></div>
-        {!data.billingConfigured && <p className="faint mt-4 text-[13px]">Billing isn't connected on this server, so everything is running on development credits. Usage is still recorded exactly as it would be in production.</p>}
       </Card>
       <Card title="Add credits" sub="Credits never disappear unexpectedly. Extra credits roll over as long as you're subscribed.">
         <div className="grid gap-3 sm:grid-cols-3">{data.packs.map((p) => <button key={p.credits} className="glass p-4 text-left transition hover:bg-white/50" style={{ borderRadius: 22 }} onClick={() => buy({ kind: "pack", credits: p.credits })}><p className="display text-[28px]">+{p.credits.toLocaleString()}</p><p className="muted text-[14px]">{data.billingConfigured ? `$${p.price_usd}` : "Add test credits"}</p></button>)}</div>
@@ -300,7 +300,7 @@ function Security() {
   return (
     <>
       <Card title="Account protection" sub="How Mila keeps your business safe.">
-        <ul className="muted space-y-2 text-[14.5px]"><li>• Every record is tied to your account; other users can never read it.</li><li>• Connection tokens are encrypted on the server and never sent to your browser.</li><li>• Consequential actions wait for your approval unless you say otherwise.</li><li>• Deleting data always asks first.</li></ul>
+        <ul className="muted space-y-2 text-[14.5px]"><li>• Every record is tied to your account; other users can never read it.</li><li>• Your connected accounts are stored securely and never shown in the app.</li><li>• Consequential actions wait for your approval unless you say otherwise.</li><li>• Deleting data always asks first.</li></ul>
       </Card>
       <Card><button className="btn" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); router.replace("/welcome"); router.refresh(); }}>Sign out</button></Card>
     </>

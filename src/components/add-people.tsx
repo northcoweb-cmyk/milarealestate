@@ -34,7 +34,7 @@ export function AddPeople({ open, onClose, onDone }: { open: boolean; onClose: (
     setBusy(true);
     try { const r = await jfetch<Result>("/api/contacts/import", { method: "POST", json: body }); setRes(r); setMode("result"); onDone(); }
     catch (e: any) {
-      if (e?.data?.code === "not_connected" || e?.data?.code === "reauth") { toast("Connect Google first in More → Connections.", "error"); router.push("/settings/connections"); }
+      if (e?.data?.code === "not_connected" || e?.data?.code === "reauth") { toast("Connect your contacts first in More → Calendar & contacts.", "error"); router.push("/settings/connections"); }
       else toast(e instanceof Error ? e.message : "Import failed.", "error");
     } finally { setBusy(false); }
   }
@@ -60,8 +60,8 @@ export function AddPeople({ open, onClose, onDone }: { open: boolean; onClose: (
       {mode === "menu" && <div className="space-y-3">
         <Opt busy={busy} icon={ListPlus} title="Import contacts" sub="Paste a list or CSV — names, emails, phones" onClick={() => setMode("paste")} />
         <Opt busy={busy} icon={FileUp} title="Upload a file" sub="CSV, spreadsheet, PDF or a photo of a sign-in sheet" onClick={() => file.current?.click()} />
-        <Opt busy={busy} icon={Link2} title="Connect Google" sub={capabilities.google ? "Import from Google Contacts" : "Google isn't set up on this server yet"} onClick={() => post({ source: "google_contacts" })} disabled={!capabilities.google} />
-        <Opt busy={busy} icon={SheetIcon} title="From a Google Sheet" sub={capabilities.google ? "Paste a spreadsheet link" : "Requires Google connection"} onClick={() => setMode("sheet")} disabled={!capabilities.google} />
+        <Opt busy={busy} icon={Link2} title="Import my contacts" sub={capabilities.google ? "Bring in people you already know" : "Not available right now"} onClick={() => post({ source: "google_contacts" })} disabled={!capabilities.google} />
+        <Opt busy={busy} icon={SheetIcon} title="From a spreadsheet" sub={capabilities.google ? "Paste a spreadsheet link" : "Not available right now"} onClick={() => setMode("sheet")} disabled={!capabilities.google} />
         <Opt busy={busy} icon={UserPlus} title="Add manually" sub="One person at a time" onClick={() => setMode("manual")} />
         <p className="faint px-1 text-[13px]">Apple Contacts import is coming soon. For now, export from Contacts as a vCard/CSV and upload it here.</p>
       </div>}

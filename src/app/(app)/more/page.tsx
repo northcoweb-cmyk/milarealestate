@@ -47,7 +47,7 @@ export default function MorePage() {
       <Group title="Settings">
         <Row href="/settings/profile" icon={User} title="Profile" />
         <Row href="/settings/business" icon={Building2} title="Business" />
-        <Row href="/settings/connections" icon={Plug} title="Connections" sub="Google, and what's coming" />
+        <Row href="/settings/connections" icon={Plug} title="Calendar & contacts" sub="Keep your calendar in sync" />
         <Row href="/settings/mila" icon={SlidersHorizontal} title="Mila" sub="Autonomy: what Mila can do on her own" />
         <Row href="/settings/notifications" icon={Bell} title="Notifications" />
         <Row href="/settings/credits" icon={CreditCard} title="Credits & billing" />

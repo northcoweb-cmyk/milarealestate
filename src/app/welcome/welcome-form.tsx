@@ -24,7 +24,7 @@ export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"
     try { await jfetch("/api/auth/demo", { method: "POST" }); router.replace("/"); router.refresh(); }
     catch (e) { setError(e instanceof Error ? e.message : "Demo isn't available."); setBusy(false); }
   }
-  if (!localAllowed) return <div className="glass p-6 text-center"><p className="font-semibold">Sign-in isn't configured on this server.</p><p className="muted mt-1 text-[14.5px]">The owner needs to connect Supabase authentication. See the README.</p></div>;
+  if (!localAllowed) return <div className="glass p-6 text-center"><p className="font-semibold">Sign-in isn't available right now.</p><p className="muted mt-1 text-[14.5px]">Please try again in a little while.</p></div>;
   return (
     <form onSubmit={submit} className="glass-strong space-y-4 p-6" style={{ borderRadius: 32 }}>
       <h1 className="h2 text-center">{signIn ? "Welcome back" : "Create your account"}</h1>

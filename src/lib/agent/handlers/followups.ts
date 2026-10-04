@@ -127,7 +127,7 @@ export async function batchFollowUpHandler(ctx: Ctx, text: string): Promise<Hand
   if (drafts.length) {
     const out = await invoke(ctx, "send_email_batch", { draftIds: drafts.map((x) => x.d.id), title: `Open-house follow-ups${prop ? ` — ${prop.address}` : ""}` });
     for (const x of drafts) await ctx.store.update("email_drafts", ctx.userId, x.d.id, { status: out.status === "needs_approval" ? "pending_approval" : "draft" });
-    if (out.status === "needs_approval") blocks.push({ type: "notice", tone: "info", title: `${plural(drafts.length, "follow-up")} ready`, body: `Each is personalized from what they told you. Nothing is sent until you approve.${noEmail.length ? ` ${plural(noEmail.length, "person has", "people have")} no email: ${noEmail.map((c) => firstName(c.name)).join(", ")}.` : ""}`, buttons: [{ label: "Review", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Approve & send", style: "primary", approvalId: out.approval.id }] });
+    if (out.status === "needs_approval") blocks.push({ type: "notice", tone: "info", title: `${plural(drafts.length, "follow-up")} ready`, body: `Each is personalized from what they told you. You review each one, then send it from your own email app.${noEmail.length ? ` ${plural(noEmail.length, "person has", "people have")} no email: ${noEmail.map((c) => firstName(c.name)).join(", ")}.` : ""}`, buttons: [{ label: "Review", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Open in email app", style: "primary", href: `/tasks?approval=${out.approval.id}` }] });
   }
   return reply(`I drafted ${plural(drafts.length, "personalized follow-up")}.`, blocks, "email_generation");
 }
