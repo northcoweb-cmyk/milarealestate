@@ -54,7 +54,7 @@ export default function PropertiesPage() {
   return (
     <Page wide>
       <PageHeader title="Properties" sub="Everything you're working on, coming up, and have closed." right={<button className="btn btn-primary" onClick={() => mila.open()}><Plus size={18} />Add</button>} />
-      {admin && photoOf.reasons().length > 0 && <p className="mb-4 rounded-2xl p-3 text-[13.5px] leading-snug" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}><b>Owner note - listing photos aren&apos;t loading:</b> {photoOf.reasons().map((r) => REASON[r] ?? r).join(" · ")} <Link href="/admin" className="font-semibold underline">Open the Health tab</Link> and run “Listing photos check”. (Agents don&apos;t see this.)</p>}
+      {admin && photoOf.reasons().filter((r) => r !== "no_key").length > 0 && <p className="mb-4 rounded-2xl p-3 text-[13.5px] leading-snug" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}><b>Owner note - listing photos aren&apos;t loading:</b> {photoOf.reasons().filter((r) => r !== "no_key").map((r) => REASON[r] ?? r).join(" · ")} <Link href="/admin" className="font-semibold underline">Open the Health tab</Link> and run “Listing photos check”. (Agents don&apos;t see this.)</p>}
       {loading && !data ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-72" />)}</div> : !all.length ? (
         <Empty title="No properties yet" body="Tell Mila about a listing — “New listing at 12 Oak St, $650k, 3 bed 2 bath” — or ask her to prep any address, and it shows up here with its photo and numbers." action={<button className="btn btn-primary" onClick={() => mila.open()}>Tell Mila</button>} />
       ) : (
