@@ -14,9 +14,12 @@ async function call(path: string, params?: Record<string, string>): Promise<unkn
   const key = zillapiKey();
   if (!key) throw new ProviderError("auth", "Photo provider isn't configured.");
   const qs = params ? `?${new URLSearchParams(params)}` : "";
-  let res: Response;
-  try { res = await fetch(`${BASE()}${path}${qs}`, { headers: { authorization: `Bearer ${key}`, accept: "application/json" }, signal: AbortSignal.timeout(15_000) }); }
-  catch { throw new ProviderError("network", "Photo provider didn't respond."); }
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 2 && !res; attempt++) { // one retry: the provider is sometimes slow on a cold lookup
+    try { res = await fetch(`${BASE()}${path}${qs}`, { headers: { authorization: `Bearer ${key}`, accept: "application/json" }, signal: AbortSignal.timeout(25_000) }); }
+    catch { /* try again once */ }
+  }
+  if (!res) throw new ProviderError("network", "Photo provider didn't respond.");
   if (res.status === 401 || res.status === 403) throw new ProviderError("auth", "Photo provider rejected the key.");
   if (res.status === 402) throw new ProviderError("credits", "Photo provider is out of credits.");
   if (res.status === 429) throw new ProviderError("rate", "Photo provider rate limit.");
@@ -56,7 +59,14 @@ export const zillapi: PhotoProvider = {
     let zpid = q.providerPropertyId?.trim() || "";
     if (!zpid) {
       if (!q.city || !q.state) throw new ProviderError("not_found", "Need city and state to match a home exactly.");
-      const body: any = await call("/properties/by-address", { address: fullAddress(q) });
+      // A 404 costs no credits, so if the full address isn't found, try the common alternative spellings before giving up.
+      const tries = [fullAddress(q), [q.address, q.city, q.state].filter(Boolean).join(", "), q.zip ? `${q.address}, ${q.zip}` : ""].filter((v, i, arr) => v && arr.indexOf(v) === i);
+      let body: any = null;
+      for (const t of tries) {
+        try { body = await call("/properties/by-address", { address: t }); break; }
+        catch (e) { if (!(e instanceof ProviderError && e.code === "not_found")) throw e; }
+      }
+      if (!body) throw new ProviderError("not_found", "Not found.");
       requests.push({ endpoint: "properties/by-address", units: 3 });
       const d = body?.data, a = d?.address ?? {};
       zpid = String(d?.zpid ?? "");
