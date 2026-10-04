@@ -1,4 +1,5 @@
 import { MAX_SOCIAL_POSTS_PER_DAY } from "../config";
+import { cachedListingPhotoUrls } from "../media/service";
 import { aiAvailable } from "../ai/provider";
 import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../time";
 import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types";
@@ -17,7 +18,11 @@ const nowIso = () => new Date().toISOString();
 /** The agent's own property photos (same-origin URLs only, so they can be exported without tainting the canvas). */
 async function imageUrls(ctx: Ctx, propertyId: string | null): Promise<string[]> {
   if (!propertyId) return [];
-  return (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === propertyId && i.url.startsWith("/api/files/")).sort((a, b) => a.position - b.position).map((i) => i.url);
+  const own = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === propertyId && i.url.startsWith("/api/files/")).sort((a, b) => a.position - b.position).map((i) => i.url);
+  // the agent's own photos first, then the listing photos already found for this home
+  const prop = await ctx.store.get("properties", ctx.userId, propertyId);
+  const listing = prop?.city && prop.state ? await cachedListingPhotoUrls({ address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, propertyId: prop.id }) : [];
+  return [...own, ...listing.filter((u) => !own.includes(u))];
 }
 
 /** The agent's own photos across all their properties (for tips, market posts, etc.). */

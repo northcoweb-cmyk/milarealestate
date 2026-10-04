@@ -1,6 +1,7 @@
 import { getStore } from "../db/store";
 import type { ListingMediaCache } from "../types";
 import { NIL_USER } from "../server/errors";
+import { proxiedImage } from "./proxy";
 import { addressKey } from "./address";
 import { tierLimits, tierOf } from "./limits";
 import { activeProvider, providerName } from "./providers";
@@ -143,6 +144,12 @@ async function enrich(userId: string, q: MediaQuery, key: string, name: string):
     default: failedUntil.set(flight, now + 300_000);
   }
   return empty(q, "unavailable", `provider_${err!.code}`);
+}
+
+/** Listing photos already fetched for this home (cache only - never spends a provider call), as same-origin links ready for posts. */
+export async function cachedListingPhotoUrls(q: MediaQuery, max = 8): Promise<string[]> {
+  const m = await peekMedia(q).catch(() => null);
+  return (m?.photos ?? []).slice(0, max).map((p) => proxiedImage(p.url)).filter(Boolean);
 }
 
 export const resetMediaMemo = () => { mem.clear(); memCount.clear(); benchReason.clear(); inflight.clear(); benchedUntil.clear(); failedUntil.clear(); };

@@ -4,6 +4,7 @@ import { buildCtx } from "@/lib/agent/engine";
 import { aiAvailable } from "@/lib/ai/provider";
 import { ensureCredits, recordUsage } from "@/lib/credits";
 import { type Category, CATEGORIES, PLATFORMS } from "@/lib/content/templates";
+import { cachedListingPhotoUrls } from "@/lib/media/service";
 import { createPosts } from "@/lib/content/service";
 import type { SocialPlatform } from "@/lib/types";
 
@@ -14,6 +15,8 @@ export const GET = api(async ({ profile, url }) => {
   const uploads = docs.filter((d) => d.kind === "image" && (d.extracted as { media?: boolean } | null)?.media && !d.property_id).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 40).map((d) => `/api/files/${d.id}`);
   const photos: Record<string, string[]> = {};
   for (const i of imgs.sort((a, b) => a.position - b.position)) if (i.url.startsWith("/api/files/")) (photos[i.property_id] ??= []).push(i.url);
+  // listing photos already found for each home are offered in the editor too (cache only, no provider calls)
+  await Promise.all(props.slice(0, 40).filter((p) => p.city && p.state).map(async (p) => { const l = await cachedListingPhotoUrls({ address: p.address, city: p.city, state: p.state, zip: p.zip, propertyId: p.id }); if (l.length) photos[p.id] = [...(photos[p.id] ?? []), ...l.filter((u) => !(photos[p.id] ?? []).includes(u))]; }));
   const q = url.searchParams.get("q")?.toLowerCase().trim();
   const group = (s: string) => (s === "draft" || s === "pending_approval" || s === "failed" ? "drafts" : s === "approved_unpublished" ? "ready" : s === "scheduled" ? "scheduled" : s === "published" ? "posted" : "archived");
   const counts = { drafts: 0, ready: 0, scheduled: 0, posted: 0, archived: 0 };

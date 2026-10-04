@@ -158,3 +158,15 @@ test("duplicate to the story fits the story and keeps one signature", async () =
   assert.equal(copies[0].platform, "instagram_story");
   assert.ok(copies[0].caption.length <= platformLimit("instagram_story"));
 });
+
+test("listing photos already found for a home are used in its posts (as same-origin links), after the agent's own photos", async () => {
+  const home = await store.insert("properties", prof.id, { address: "77 Birch Court", city: "Rockville", state: "MD", zip: "20850", county: null, list_price: 700000, beds: 4, baths: 3, sqft: 2500, listing_url: null, verified: true, notes: null, is_demo: false } as never);
+  const { addressKey } = await import("../src/lib/media/address.ts");
+  const { NIL_USER } = await import("../src/lib/server/errors.ts");
+  process.env.PHOTO_PROVIDER = "zillapi";
+  const photos = ["https://photos.zillowstatic.com/fp/aaa-cc_ft_1536.jpg", "https://photos.zillowstatic.com/fp/bbb-cc_ft_1536.jpg"].map((url, i) => ({ url, width: 1536, height: null, caption: null, sortOrder: i }));
+  await store.insert("listing_media_cache", NIL_USER, { provider: "zillapi", normalized_address: addressKey({ address: home.address, city: home.city, state: home.state, zip: home.zip }), listing_id: null, property_id: home.id, provider_property_id: "Z1", photos_json: photos, photo_count: 2, status: "ok", fetched_at: new Date().toISOString(), expires_at: new Date(Date.now() + 86_400_000).toISOString() });
+  const r = await svc.createPosts(ctx, { category: "just_listed", platforms: ["instagram"], propertyId: home.id });
+  const used = (r as any).posts[0].slides.map((s: any) => s.image_url).filter(Boolean);
+  assert.ok(used.length >= 1 && used.every((u: string) => u.startsWith("/api/media/image?u=https%3A%2F%2Fphotos.zillowstatic.com%2F")), "post slides carry the listing photos");
+});

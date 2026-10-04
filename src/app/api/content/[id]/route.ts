@@ -1,3 +1,4 @@
+import { isListingImageHost } from "@/lib/media/proxy";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { buildCtx } from "@/lib/agent/engine";
@@ -17,6 +18,12 @@ export const GET = api<{ id: string }>(async ({ profile, params }) => {
   return { post };
 });
 
+/** "/api/media/image?u=<https url>" for a listing photo host we allow (see the image proxy). */
+function okProxied(v: string) {
+  if (v.length > 900 || !v.startsWith("/api/media/image?u=")) return false;
+  try { const t = new URL(decodeURIComponent(v.slice("/api/media/image?u=".length))); return t.protocol === "https:" && isListingImageHost(t.hostname); } catch { return false; }
+}
+
 export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
   const b = await readJson<Record<string, any>>(req);
   const ctx = await buildCtx(profile);
@@ -29,7 +36,7 @@ export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
   if ("hashtags" in b && Array.isArray(b.hashtags)) patch.hashtags = b.hashtags.map((h: unknown) => str(h, 40).replace(/\s+/g, "")).filter((h: string) => /^#?\w+$/.test(h)).map((h: string) => (h.startsWith("#") ? h : "#" + h)).slice(0, 30);
   if ("platform" in b) { if (!PLAT.includes(b.platform)) throw bad("Unknown platform."); patch.platform = b.platform as SocialPlatform; }
   if ("property_id" in b) patch.property_id = b.property_id || null;
-  if ("slides" in b && Array.isArray(b.slides)) patch.slides = b.slides.slice(0, 10).map((s: any): SocialSlide => ({ role: ["hero", "highlight", "cta"].includes(s.role) ? s.role : "highlight", headline: str(s.headline, 120), sub: s.sub ? str(s.sub, 160) : undefined, image_id: s.image_id || null, image_url: typeof s.image_url === "string" && /^\/api\/files\/[\w-]+$/.test(s.image_url) ? s.image_url : null, theme: PALETTES.some((p) => p.key === s.theme) ? s.theme : undefined, layout: LAYOUTS.some((l) => l.key === s.layout) ? s.layout : undefined })).filter((s: SocialSlide) => s.headline.trim());
+  if ("slides" in b && Array.isArray(b.slides)) patch.slides = b.slides.slice(0, 10).map((s: any): SocialSlide => ({ role: ["hero", "highlight", "cta"].includes(s.role) ? s.role : "highlight", headline: str(s.headline, 120), sub: s.sub ? str(s.sub, 160) : undefined, image_id: s.image_id || null, image_url: typeof s.image_url === "string" && (/^\/api\/files\/[\w-]+$/.test(s.image_url) || okProxied(s.image_url)) ? s.image_url : null, theme: PALETTES.some((p) => p.key === s.theme) ? s.theme : undefined, layout: LAYOUTS.some((l) => l.key === s.layout) ? s.layout : undefined })).filter((s: SocialSlide) => s.headline.trim());
   if (Object.keys(patch).length) post = (await ctx.store.update("social_posts", profile.id, post.id, { ...patch, stale: false, stale_reason: null }))!;
 
   const over = () => post!.caption.length > platformLimit(post!.platform);
