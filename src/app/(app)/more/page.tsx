@@ -64,7 +64,7 @@ export default function MorePage() {
       {profile.is_demo && <button className="btn btn-quiet mb-3 w-full" onClick={() => setClearing(true)}>Remove sample data</button>}
       <Confirm open={clearing} danger title="Remove all sample data?" body="Deletes the fictional contacts, properties, appointments and tasks that came with the demo, plus anything attached to them. Your own records stay." confirmLabel="Remove sample data" onClose={() => setClearing(false)}
         onConfirm={async () => { setClearing(false); try { const r = await jfetch<{ removed: number }>("/api/me/remove-sample-data", { method: "POST" }); toast(r.removed ? "Sample data removed." : "There was no sample data to remove.", "success"); router.refresh(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't remove it.", "error"); } }} />
-      <button className="btn w-full" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); router.replace("/welcome"); router.refresh(); }}><LogOut size={18} />Sign out</button>
+      <button className="btn w-full" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); window.location.replace("/welcome"); }}><LogOut size={18} />Sign out</button>
       {profile.is_demo && <p className="faint mt-4 text-center text-[12.5px]">You're using fictional demo data.</p>}
       </div>
     </Page>

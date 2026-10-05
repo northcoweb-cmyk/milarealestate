@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { jfetch } from "@/components/ui";
 
 export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"; localAllowed: boolean }) {
-  const router = useRouter();
   const [signIn, setSignIn] = useState(false);
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [info, setInfo] = useState<string | null>(null);
@@ -15,13 +13,14 @@ export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"
     try {
       const r = await jfetch<{ onboarded?: boolean; confirm?: boolean; message?: string }>(signIn ? "/api/auth/login" : "/api/auth/signup", { method: "POST", json: { name, email, password } });
       if (r.confirm) { setInfo(r.message ?? "Check your email."); return; }
-      router.replace(signIn || r.onboarded ? "/" : "/onboarding"); router.refresh();
+      // full page load: the client router cache may still hold the signed-out redirect to /welcome
+      window.location.replace(signIn || r.onboarded ? "/" : "/onboarding"); return;
     } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); }
     finally { setBusy(false); }
   }
   async function demo() {
     setBusy(true); setError(null);
-    try { await jfetch("/api/auth/demo", { method: "POST" }); router.replace("/"); router.refresh(); }
+    try { await jfetch("/api/auth/demo", { method: "POST" }); window.location.replace("/"); }
     catch (e) { setError(e instanceof Error ? e.message : "Demo isn't available."); setBusy(false); }
   }
   if (!localAllowed) return <div className="glass p-6 text-center"><p className="font-semibold">Sign-in isn't available right now.</p><p className="muted mt-1 text-[14.5px]">Please try again in a little while.</p></div>;

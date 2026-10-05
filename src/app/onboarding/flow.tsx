@@ -51,7 +51,7 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
       if (!coords && locVerified && picked?.timezone) tz = picked.timezone;
       await jfetch("/api/me", { method: "PATCH", json: { ...f, brokerage: f.brokerage || null, timezone: tz, ...(coords ?? fromPlace), onboarded: true } });
       if (sample && allowSample) await jfetch("/api/me/sample-data", { method: "POST" });
-      router.replace("/"); router.refresh();
+      window.location.replace("/");
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn't finish setup."); setBusy(false); }
   }
 

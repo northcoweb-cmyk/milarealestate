@@ -289,7 +289,7 @@ function Privacy() {
       <Sheet open={del} onClose={() => { setDel(false); setTxt(""); }} title="Delete everything?">
         <p className="muted mb-4">This permanently deletes your contacts, calendar, tasks, memories, documents and connections. It can't be undone. Type <b>DELETE</b> to confirm.</p>
         <input className="field mb-4" autoFocus placeholder="Type DELETE" value={txt} onChange={(e) => setTxt(e.target.value)} aria-label="Type DELETE to confirm" />
-        <div className="flex gap-3"><button className="btn flex-1" onClick={() => setDel(false)}>Cancel</button><button className="btn btn-danger flex-1" disabled={busy || txt !== "DELETE"} onClick={async () => { setBusy(true); try { await jfetch("/api/privacy/delete", { method: "POST", json: { confirm: txt } }); router.replace("/welcome"); router.refresh(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't delete.", "error"); setBusy(false); } }}>{busy ? "Deleting…" : "Delete permanently"}</button></div>
+        <div className="flex gap-3"><button className="btn flex-1" onClick={() => setDel(false)}>Cancel</button><button className="btn btn-danger flex-1" disabled={busy || txt !== "DELETE"} onClick={async () => { setBusy(true); try { await jfetch("/api/privacy/delete", { method: "POST", json: { confirm: txt } }); window.location.replace("/welcome"); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't delete.", "error"); setBusy(false); } }}>{busy ? "Deleting…" : "Delete permanently"}</button></div>
       </Sheet>
     </>
   );
@@ -302,7 +302,7 @@ function Security() {
       <Card title="Account protection" sub="How Mila keeps your business safe.">
         <ul className="muted space-y-2 text-[14.5px]"><li>• Every record is tied to your account; other users can never read it.</li><li>• Your connected accounts are stored securely and never shown in the app.</li><li>• Consequential actions wait for your approval unless you say otherwise.</li><li>• Deleting data always asks first.</li></ul>
       </Card>
-      <Card><button className="btn" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); router.replace("/welcome"); router.refresh(); }}>Sign out</button></Card>
+      <Card><button className="btn" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); window.location.replace("/welcome"); }}>Sign out</button></Card>
     </>
   );
 }
