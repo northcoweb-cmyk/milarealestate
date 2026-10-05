@@ -8,6 +8,7 @@ import { buildListingBrief, dayLabel, LISTING_DATE_KEY } from "../readiness";
 import { createPosts } from "../../content/service";
 import { addListingHandler, listingChecklist } from "./listing";
 import { askBack } from "./ask";
+import { forgettingTodayHandler } from "./briefs";
 import { type HandlerOut, reply } from "./types";
 
 const ymd = (d: { y: number; m: number; d: number }) => `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
@@ -70,6 +71,15 @@ export async function listingReadyHandler(ctx: Ctx, text: string): Promise<Handl
 
 /** "What am I missing?" - the open items for a listing, in plain sentences, each with a button that does it. */
 export async function whatMissingHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  // "What am I forgetting today?" is about the whole day; "what am I missing?" / "…for 1231 Main" is about a listing in progress
+  const t = text.toLowerCase();
+  const aboutListing = Boolean(parseAddress(text)) || /\b(listing|house|property|home|place)\b/.test(t);
+  if (!aboutListing) {
+    const mems = await ctx.store.list("memories", ctx.userId);
+    const today = new Date(ctx.now).toISOString().slice(0, 10);
+    const activeListing = Boolean(ctx.state.last_property_id) || mems.some((m) => m.scope === "property" && m.key === LISTING_DATE_KEY && m.value >= today);
+    if (/\b(today|tonight|tomorrow|this week|this morning|forgetting|forget)\b/.test(t) || !activeListing) return forgettingTodayHandler(ctx);
+  }
   const prop = await resolveProperty(ctx, text);
   if (!prop) return askBack(ctx, "what_missing", text, "address", "Which listing? Give me the street address.");
   ctx.state.last_property_id = prop.id;

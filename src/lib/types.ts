@@ -450,7 +450,7 @@ export type Block =
   | { type: "draft_email"; draftId: ID; to: string; subject: string; body: string; status: string; buttons?: ActionButton[] }
   | { type: "draft_social"; postId: ID; platform: string; caption: string; slides: SocialSlide[]; status: string; buttons?: ActionButton[] }
   | { type: "listings"; title: string; subtitle?: string; cards: ListingCardData[]; buttons?: ActionButton[] }
-  | { type: "listing_brief"; title: string; subtitle?: string; done: number; total: number; sections: BriefSection[]; buttons?: ActionButton[] }
+  | { type: "listing_brief"; kicker?: string; title: string; subtitle?: string; done: number; total: number; sections: BriefSection[]; buttons?: ActionButton[] }
   | { type: "market"; title: string; location: string; asOf: string; dataPeriod: string; bullets: string[]; sources: { title: string; url: string }[] }
   | { type: "event"; eventId: ID; title: string; when: string; where?: string; status?: string };
 

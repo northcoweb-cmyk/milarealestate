@@ -80,11 +80,11 @@ export function classifyNotes(notes: string | null | undefined): LeadClass {
   return "general";
 }
 
-export function followUpEmail(ctx: Ctx, c: Contact, prop: Property | null, notes: string | null) {
+export function followUpEmail(ctx: Ctx, c: Contact, prop: Property | null, notes: string | null, visit: "open_house" | "showing" = "open_house") {
   const cls = classifyNotes(notes);
-  const where = prop ? `the open house at ${prop.address}` : "the open house";
+  const where = visit === "showing" ? (prop ? `the showing at ${prop.address}` : "the showing") : prop ? `the open house at ${prop.address}` : "the open house";
   const first = firstName(c.name);
-  const open = `Hi ${first},\n\nThank you for stopping by ${where}. It was great to meet you.`;
+  const open = visit === "showing" ? `Hi ${first},\n\nThank you for taking the time to see ${prop ? prop.address : "the home"}. I enjoyed showing it to you.` : `Hi ${first},\n\nThank you for stopping by ${where}. It was great to meet you.`;
   const sign = `\n\n${signature(ctx.profile)}`;
   const bodies: Record<LeadClass, string> = {
     financing: `${open}\n\nYou mentioned you had questions about financing. I'm happy to share what I've seen work for other buyers and connect you with a trusted lender who can walk you through pre-approval and what to expect on rates and down payment. Would a quick call this week work?${sign}`,
@@ -95,7 +95,7 @@ export function followUpEmail(ctx: Ctx, c: Contact, prop: Property | null, notes
     hot: `${open}\n\nIt sounded like you're ready to move. I'd love to set up private showings and talk through next steps — what days work best for you this week?${sign}`,
     general: `${open}\n\nIf you'd like to see more homes like it, or have any questions about the property or the area, just reply here and I'll be glad to help.${sign}`,
   };
-  const subject = prop ? `Great meeting you at ${prop.address}` : "Great meeting you";
+  const subject = visit === "showing" ? (prop ? `Thoughts on ${prop.address}?` : "Thoughts on the home?") : prop ? `Great meeting you at ${prop.address}` : "Great meeting you";
   return { subject, body: bodies[cls], cls };
 }
 

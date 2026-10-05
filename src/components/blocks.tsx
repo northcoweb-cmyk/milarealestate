@@ -176,10 +176,10 @@ function BriefCard({ b, onAction, onApprove, onNavigate, busy }: { b: Extract<Bl
   return (
     <div className="glass-strong p-5">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0"><p className="kicker mb-0.5">Listing brief</p><p className="truncate text-[18px] font-semibold leading-tight">{b.title}</p>{b.subtitle && <p className="muted truncate text-[14px]">{b.subtitle}</p>}</div>
-        <div className="shrink-0 text-right"><p className="display text-[26px] leading-none">{b.done}<span className="faint text-[16px]"> / {b.total}</span></p><p className="faint text-[12px]">ready</p></div>
+        <div className="min-w-0"><p className="kicker mb-0.5">{b.kicker ?? "Listing brief"}</p><p className="truncate text-[18px] font-semibold leading-tight">{b.title}</p>{b.subtitle && <p className="muted truncate text-[14px]">{b.subtitle}</p>}</div>
+        {b.total > 0 && <div className="shrink-0 text-right"><p className="display text-[26px] leading-none">{b.done}<span className="faint text-[16px]"> / {b.total}</span></p><p className="faint text-[12px]">ready</p></div>}
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
+      {b.total > 0 && <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>}
       <div className="mt-4 space-y-4">
         {b.sections.map((sec) => (
           <section key={sec.label} aria-label={sec.label}>
