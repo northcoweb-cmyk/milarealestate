@@ -1,6 +1,7 @@
 import type { Ctx } from "./agent/context";
 import { firstName, plural } from "./agent/context";
 import { computePriorities } from "./agent/prioritize";
+import { platformLabel } from "./content/service";
 import { approvalEmoji, eventEmoji, platformEmoji, taskEmoji } from "./emoji";
 import { DAY_MS, fmtDay, fmtTime, relativeDays, startOfDay } from "./time";
 
@@ -11,7 +12,7 @@ import { DAY_MS, fmtDay, fmtTime, relativeDays, startOfDay } from "./time";
  * plus "Coming up". Everything is derived from existing data (no extra AI calls, no new tables).
  */
 export interface FeedAction { label: string; href?: string; approveId?: string; ask?: string }
-export interface NeedsItem { id: string; emoji: string; title: string; why: string | null; primary: FeedAction; secondary?: FeedAction; tone: "urgent" | "normal" }
+export interface NeedsItem { id: string; emoji: string; label?: string; title: string; why: string | null; primary: FeedAction; secondary?: FeedAction; tone: "urgent" | "normal" }
 export interface DidItem { id: string; emoji: string; text: string; at: string; href?: string }
 export interface UpItem { id: string; emoji: string; time: string; day: string; title: string; place: string | null; href: string }
 
@@ -27,6 +28,8 @@ export interface Feed {
   next: UpItem[];
 }
 
+const APPROVAL_LABEL: Record<string, string> = { send_email: "Email", send_bulk_email: "Email", send_sms: "Text", publish_social: "Post", calendar_create: "Calendar", calendar_change: "Calendar", calendar_cancel: "Calendar", send_document: "Document", delete: "Delete" };
+const POST_LABEL: Record<string, string> = { just_listed: "Instagram announcement", open_house: "Open house post", price_improvement: "Price update post", just_sold: "Just sold post" };
 const ask = (q: string) => `/?ask=${encodeURIComponent(q)}`;
 
 export async function buildFeed(ctx: Ctx): Promise<Feed> {
@@ -42,17 +45,24 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   for (const a of approvals.filter((x) => x.status === "pending")) {
     const t = tasks.find((x) => x.approval_id === a.id);
     const soon = t?.priority === "urgent" ? 90 : t?.priority === "important" ? 70 : 55;
-    needs.push({ id: `ap-${a.id}`, emoji: approvalEmoji(a.action), title: a.title, why: a.summary, primary: { label: a.risk === "high" ? "Review" : "Approve", approveId: a.risk === "high" ? undefined : a.id, href: a.risk === "high" ? `/tasks?approval=${a.id}` : undefined }, secondary: { label: "Review", href: `/tasks?approval=${a.id}` }, tone: soon >= 90 ? "urgent" : "normal", score: soon });
+    needs.push({ id: `ap-${a.id}`, emoji: approvalEmoji(a.action), label: APPROVAL_LABEL[a.action] ?? "Approval", title: a.title, why: a.summary, primary: { label: a.risk === "high" ? "Review" : "Approve", approveId: a.risk === "high" ? undefined : a.id, href: a.risk === "high" ? `/tasks?approval=${a.id}` : undefined }, secondary: { label: "Review", href: `/tasks?approval=${a.id}` }, tone: soon >= 90 ? "urgent" : "normal", score: soon });
   }
   // 2. people who need a follow-up (prioritised by real data)
   for (const p of (await computePriorities(ctx)).filter((x) => x.source !== "event" && x.kind !== "approval")) {
     const c = p.contactId ? cById.get(p.contactId) : undefined;
     if (!c) continue;
-    needs.push({ id: `fu-${p.id}`, emoji: "💬", title: `Follow up with ${firstName(c.name)}`, why: [p.subtitle, p.reason].filter(Boolean).join(" · ") || null, primary: { label: "Draft message", href: ask(`Draft a follow-up email to ${c.name}`) }, secondary: { label: "Open", href: `/contacts/${c.id}` }, tone: p.priority === "urgent" ? "urgent" : "normal", score: 40 + Math.min(p.score, 50) });
+    needs.push({ id: `fu-${p.id}`, emoji: "💬", label: "Follow-up", title: `Follow up with ${firstName(c.name)}`, why: [p.subtitle, p.reason].filter(Boolean).join(" · ") || null, primary: { label: "Draft message", href: ask(`Draft a follow-up email to ${c.name}`) }, secondary: { label: "Open", href: `/contacts/${c.id}` }, tone: p.priority === "urgent" ? "urgent" : "normal", score: 30 + Math.min(p.score, 50) });
   }
   // 3. content waiting for review
   const reviewable = posts.filter((p) => p.status === "draft" || p.status === "pending_approval");
-  if (reviewable.length) needs.push({ id: "content-review", emoji: "📣", title: `${plural(reviewable.length, "post")} ready for your review`, why: "Mila wrote them — check, edit, then schedule.", primary: { label: "Review posts", href: "/content?tab=drafts" }, tone: "normal", score: 45 });
+  // each draft is its own line, named for what it is ("Instagram announcement · 1231 Main Street"), newest first
+  const propName = new Map(props.map((p) => [p.id, p.address]));
+  const sortedDrafts = [...reviewable].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  for (const [i, p] of sortedDrafts.slice(0, 3).entries()) {
+    const what = POST_LABEL[p.category ?? ""] ?? `${platformLabel(p.platform)} post`;
+    needs.push({ id: `post-${p.id}`, emoji: platformEmoji(p.platform), label: "Post", title: `${what}${p.property_id && propName.get(p.property_id) ? ` · ${propName.get(p.property_id)}` : ""}`, why: "Mila wrote it — check it, edit if you like, then it's yours to post.", primary: { label: "Review", href: "/content?tab=drafts" }, tone: "normal", score: 88 - i }); // a finished draft is a one-tap decision: it outranks "go draft something"
+  }
+  if (sortedDrafts.length > 3) needs.push({ id: "content-review", emoji: "📣", label: "Post", title: `${plural(sortedDrafts.length - 3, "more post")} ready for your review`, why: null, primary: { label: "Review posts", href: "/content?tab=drafts" }, tone: "normal", score: 40 });
   // 4. outdated messages after a schedule change
   const stale = drafts.filter((d) => d.stale && d.status !== "sent").length + posts.filter((p) => p.stale).length;
   if (stale) needs.push({ id: "stale", emoji: "⚠️", title: `${plural(stale, "message")} may be out of date`, why: "A time changed after they were written.", primary: { label: "Ask Mila to update", href: ask("Update my messages for the new time") }, tone: "normal", score: 60 });
@@ -63,8 +73,8 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   }
 
   needs.sort((a, b) => b.score - a.score);
-  const needsYou = needs.slice(0, 3).map(({ score, ...n }) => { void score; return n; });
-  const shownContacts = new Set(needs.slice(0, 3).map((n) => n.id.startsWith("fu-") ? n.title.replace("Follow up with ", "") : "").filter(Boolean));
+  const needsYou = needs.slice(0, 5).map(({ score, ...n }) => { void score; return n; });
+  const shownContacts = new Set(needs.slice(0, 5).map((n) => n.id.startsWith("fu-") ? n.title.replace("Follow up with ", "") : "").filter(Boolean));
 
   // ------------------------------------------------------------------ Mila did (last 36h, past tense)
   const since = now.getTime() - 36 * 3_600_000;
@@ -114,7 +124,7 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   if (plan.length === 0) addPlan({ id: "ask-day", emoji: "💡", title: "Ask Mila what to focus on", why: "Nothing urgent — a good day to build your pipeline.", action: { label: "Ask Mila", href: ask("Who should I follow up with today?") } });
 
   const n = needs.length;
-  const summary = n === 0 ? "You're all caught up. Mila has the rest handled." : n === 1 ? "1 thing needs you. Everything else is handled." : n <= 3 ? `${n} things need you. Everything else is handled.` : `Start with these 3 — ${n} things are waiting for you.`;
+  const summary = n === 0 ? "You're all caught up. Mila has the rest handled." : n === 1 ? "1 thing is ready for you. Everything else is handled." : n <= 5 ? `${n} things are ready for you. Everything else is handled.` : `Start with these 5 — ${n} things are ready for you.`;
   void fmtDay;
   return { summary, plan: plan.slice(0, 5), updatedAt: now.toISOString(), needsYou, needsTotal: n, did: did.slice(0, 4).map(({ ms, ...d }) => { void ms; return d; }), next };
 }

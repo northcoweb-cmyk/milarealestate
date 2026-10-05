@@ -8,6 +8,7 @@ import { describeFacts, enrichProperty } from "../property-lookup";
 import { TOOLS } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { locationGate } from "./location";
+import { saveMemory } from "../memory";
 
 const money = (n: number) => `$${n.toLocaleString("en-US")}`;
 
@@ -46,7 +47,7 @@ export async function addListingHandler(ctx: Ctx, text: string): Promise<Handler
   let seller: Contact | null = null;
   if (f.seller) {
     const r = (await TOOLS.create_contact.run(ctx, { name: /^[A-Z][a-z]+s$/.test(f.seller) ? `The ${f.seller}` : f.seller, type: "seller", status: "active", source: "Listing", notes: `Seller of ${street}` })) as any;
-    if (r.ok) seller = r.data.contact;
+    if (r.ok) { seller = r.data.contact; await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Seller", value: seller!.name, source: "user_stated" }); }
   }
 
   const where = [prop.city, prop.state].filter(Boolean).join(", ");

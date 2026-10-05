@@ -10,6 +10,7 @@ import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { logError } from "../server/errors";
+import { listingReadyHandler, whatMissingHandler } from "./handlers/readiness";
 import { newListingsHandler, prepPropertyHandler, saveListingCard } from "./handlers/marketdata";
 import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
@@ -200,6 +201,8 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     case "time_off": return timeOffHandler(ctx, text);
     case "add_listing": return addListingHandler(ctx, text);
     case "prep_property": return prepPropertyHandler(ctx, text);
+    case "listing_ready": return listingReadyHandler(ctx, text);
+    case "what_missing": return whatMissingHandler(ctx, text);
     case "new_listings": return newListingsHandler(ctx, text);
     case "transaction": return transactionHandler(ctx, text);
     case "closed_deal": return closedDealHandler(ctx, text);

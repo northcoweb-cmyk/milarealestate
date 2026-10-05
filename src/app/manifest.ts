@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Mila", short_name: "Mila",
-    description: "Your personal real-estate work agent.",
+    description: "Your real-estate work agent. She runs the tools you already use and remembers every listing.",
     start_url: "/", scope: "/", display: "standalone", orientation: "portrait",
     background_color: "#f0f0f1", theme_color: "#f0f0f1", categories: ["business", "productivity"],
     icons: [

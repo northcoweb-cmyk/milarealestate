@@ -9,7 +9,7 @@ const display = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: 
 
 export const metadata: Metadata = {
   title: { default: "Mila — your personal real-estate work agent", template: "%s · Mila" },
-  description: "Tell Mila what you need done. Mila figures out how to get it done.",
+  description: "Tell Mila what you want done. She runs your calendar, contacts, email and posts, remembers every listing, and asks before anything goes out.",
   applicationName: "Mila",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Mila", statusBarStyle: "black-translucent" },

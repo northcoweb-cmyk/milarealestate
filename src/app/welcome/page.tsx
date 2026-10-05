@@ -13,9 +13,9 @@ export default async function Welcome() {
       <PublicSky />
       <main className="mx-auto flex min-h-[100svh] w-full max-w-md flex-col justify-center px-5 py-10">
         <p className="display mb-2 text-center text-[56px]">Mila</p>
-        <p className="muted mb-9 text-center text-[19px]">Your personal real-estate work agent.</p>
+        <p className="muted mb-9 text-center text-[19px]">Your real-estate work agent. She runs the tools you already use.</p>
         <WelcomeForm mode={authMode()} localAllowed={localAuthAllowed()} />
-        <p className="faint mt-8 text-center text-[13px]">Tell Mila what you need done. Mila figures out how to get it done.</p>
+        <p className="faint mt-8 text-center text-[13px]">Tell Mila what you want done. She works out which of your tools to use — and asks before anything goes out.</p>
       </main>
     </>
   );

@@ -132,6 +132,8 @@ export function BlockView(p: Props) {
           <Buttons buttons={b.buttons} {...btns} />
         </div>
       );
+    case "listing_brief":
+      return <BriefCard b={b} {...btns} />;
     case "listings":
       return <ListingRail title={b.title} subtitle={b.subtitle} cards={b.cards} buttons={b.buttons} onAction={p.onAction} onNavigate={p.onNavigate} busy={p.busy} />;
     case "market":
@@ -166,6 +168,38 @@ export function BlockView(p: Props) {
         </div>
       );
   }
+}
+
+function BriefCard({ b, onAction, onApprove, onNavigate, busy }: { b: Extract<Block, { type: "listing_brief" }> } & Omit<Props, "block">) {
+  const pct = b.total ? Math.round((b.done / b.total) * 100) : 0;
+  const go = (x?: ActionButton) => x && (x.approvalId ? onApprove(x.approvalId) : x.action ? onAction(x.action) : x.href ? onNavigate(x.href) : undefined);
+  return (
+    <div className="glass-strong p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0"><p className="kicker mb-0.5">Listing brief</p><p className="truncate text-[18px] font-semibold leading-tight">{b.title}</p>{b.subtitle && <p className="muted truncate text-[14px]">{b.subtitle}</p>}</div>
+        <div className="shrink-0 text-right"><p className="display text-[26px] leading-none">{b.done}<span className="faint text-[16px]"> / {b.total}</span></p><p className="faint text-[12px]">ready</p></div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
+      <div className="mt-4 space-y-4">
+        {b.sections.map((sec) => (
+          <section key={sec.label} aria-label={sec.label}>
+            <p className="kicker mb-1.5">{sec.emoji} {sec.label}</p>
+            <ul className="space-y-1.5">
+              {sec.items.map((it, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <span className="mt-[3px]">{it.state === "done" ? STATE_ICON.done : it.state === "missing" ? STATE_ICON.needs_approval : STATE_ICON.pending}</span>
+                  <div className="min-w-0 flex-1 text-[14.5px] leading-snug"><span className={it.state === "info" ? "muted" : ""}>{it.text}</span>
+                    {it.button && <div className="mt-1.5"><button disabled={busy} className="btn btn-sm !min-h-[36px] !px-3.5 text-[13px]" onClick={() => go(it.button)}>{it.button.label}</button></div>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      <Buttons buttons={b.buttons} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />
+    </div>
+  );
 }
 
 function EmailCard({ b, onAction, onApprove, onNavigate, busy }: { b: Extract<Block, { type: "draft_email" }> } & Omit<Props, "block">) {

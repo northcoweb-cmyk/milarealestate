@@ -418,6 +418,10 @@ export interface ListingCardData {
   type: string | null; days_on_market: number | null; listed_date: string | null; mls: string | null; image: string | null; photo?: string | null; photoStatus?: "ok" | "unavailable" | "pending"; badge?: string; lines?: string[]; propertyId?: string;
 }
 
+/** One thing Mila knows (or has noticed is missing) about a listing. `gap` is the plain sentence used when she lists what's missing. */
+export interface BriefItem { text: string; state: "done" | "missing" | "info"; gap?: string; button?: ActionButton }
+export interface BriefSection { emoji: string; label: string; items: BriefItem[] }
+
 export interface ActionButton {
   label: string;
   style?: "primary" | "secondary" | "quiet";
@@ -446,6 +450,7 @@ export type Block =
   | { type: "draft_email"; draftId: ID; to: string; subject: string; body: string; status: string; buttons?: ActionButton[] }
   | { type: "draft_social"; postId: ID; platform: string; caption: string; slides: SocialSlide[]; status: string; buttons?: ActionButton[] }
   | { type: "listings"; title: string; subtitle?: string; cards: ListingCardData[]; buttons?: ActionButton[] }
+  | { type: "listing_brief"; title: string; subtitle?: string; done: number; total: number; sections: BriefSection[]; buttons?: ActionButton[] }
   | { type: "market"; title: string; location: string; asOf: string; dataPeriod: string; bullets: string[]; sources: { title: string; url: string }[] }
   | { type: "event"; eventId: ID; title: string; when: string; where?: string; status?: string };
 

@@ -26,7 +26,10 @@ export interface PropertyExtra {
   est_value: number | null; est_low: number | null; est_high: number | null; days_on_market: number | null; listed_date: string | null; list_status: string | null;
   hoa_fee: number | null; tax_year: number | null; tax_amount: number | null; garage_spaces: number | null; pool: boolean | null; stories: number | null;
   listing_agent: string | null; listing_office: string | null; mls: string | null; lat: number | null; lng: number | null; subdivision: string | null;
+  /** the closest comparable homes behind the value estimate (full lookups only) */
+  comps?: Comp[];
 }
+export interface Comp { address: string; price: number | null; beds: number | null; baths: number | null; sqft: number | null; distance_mi: number | null; status: string | null; days_old: number | null }
 export interface PropertySnapshot { found: boolean; address: string; city: string | null; state: string | null; zip: string | null; county: string | null; beds: number | null; baths: number | null; sqft: number | null; list_price: number | null; extra: PropertyExtra }
 export interface ListingCard { id: string; address: string; city: string | null; state: string | null; zip: string | null; price: number | null; beds: number | null; baths: number | null; sqft: number | null; type: string | null; days_on_market: number | null; listed_date: string | null; lat: number | null; lng: number | null; mls: string | null; agent: string | null; office: string | null }
 
@@ -94,6 +97,7 @@ export async function lookupAddress(street: string, place: { city?: string | nul
       pool: typeof (r.features?.pool ?? r.pool) === "boolean" ? (r.features?.pool ?? r.pool) : null, stories: pos(r.features?.floorCount ?? r.floorCount),
       listing_agent: s(agent), listing_office: s(l.listingOffice?.name), mls: [s(l.mlsName), s(l.mlsNumber)].filter(Boolean).join(" #") || null,
       lat: n(l.latitude) ?? n(r.latitude), lng: n(l.longitude) ?? n(r.longitude), subdivision: s(r.subdivision),
+      comps: (Array.isArray(avm.comparables) ? avm.comparables : []).slice(0, 5).map((c: Raw): Comp => ({ address: s(c.formattedAddress) ?? s(c.addressLine1) ?? "", price: pos(c.price), beds: n(c.bedrooms), baths: n(c.bathrooms), sqft: pos(c.squareFootage), distance_mi: n(c.distance), status: s(c.status), days_old: n(c.daysOld) })).filter((c: Comp) => c.address),
     };
     const any = Object.keys(r).length || Object.keys(l).length;
     return {

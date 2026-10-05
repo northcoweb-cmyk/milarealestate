@@ -16,12 +16,13 @@ import type { Feed } from "@/lib/feed";
 export interface HomeData { greeting: string; firstName: string; dateLine: string; feed: Feed | null; isDemo: boolean }
 
 const SUGGESTIONS = [
+  "I'm listing 123 Main Street next Thursday. Get me ready.",
   "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up.",
   "Who do I need to follow up with today?",
+  "What am I missing?",
   "I have a new buyer named Sarah looking for a 3 bedroom house around $650k in Montgomery County in the next 3 months.",
-  "What's happening in my market right now?",
 ];
-const SHORT = ["Set up an open house", "Who should I follow up with?", "Add a new buyer", "Market update"];
+const SHORT = ["Get me ready to list", "Set up an open house", "Who should I follow up with?", "What am I missing?", "Add a new buyer"];
 
 export function HomeClient({ data }: { data: HomeData }) {
   const { toast } = useApp();
@@ -109,7 +110,7 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
           <div className="flex items-start justify-between gap-3"><p className="text-[17px] font-semibold">New here? Three things to know</p><button className="btn btn-quiet btn-sm shrink-0 whitespace-nowrap !px-3" aria-label="Dismiss" onClick={onHelpSeen}>Got it</button></div>
           <ol className="mt-3 space-y-2.5 text-[15px] leading-snug">
             <li className="flex gap-3"><span aria-hidden>💬</span><span><b>Tell Mila what you need</b> in the box above — like “I have an open house Sunday at 1.”</span></li>
-            <li className="flex gap-3"><span aria-hidden>✋</span><span><b>Mila never sends or deletes without your OK.</b> Anything waiting shows up under “Needs you”.</span></li>
+            <li className="flex gap-3"><span aria-hidden>✋</span><span><b>Mila never sends or deletes without your OK.</b> Anything waiting shows up under “Ready for approval”.</span></li>
             <li className="flex gap-3"><span aria-hidden>✅</span><span><b>Check things off</b> in “Today’s plan” and see everything you’ve finished under Completed.</span></li>
           </ol>
         </section>
@@ -122,13 +123,14 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
 
       {f.needsYou.length > 0 && (
         <section aria-labelledby="needs-you">
-          <h2 id="needs-you" className="kicker mb-3">Needs you</h2>
+          <h2 id="needs-you" className="kicker mb-3">Ready for approval</h2>
           <ul className="space-y-3">
             {f.needsYou.map((n) => (
               <li key={n.id} className="glass p-4" style={{ borderRadius: 24 }}>
                 <div className="flex items-start gap-3.5">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[22px]" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }} aria-hidden>{n.emoji}</span>
                   <div className="min-w-0 flex-1">
+                    {n.label && <p className="faint mb-0.5 text-[11.5px] font-bold uppercase tracking-[.12em]">{n.label}</p>}
                     <p className="text-[16.5px] font-semibold leading-snug">{n.title}{n.tone === "urgent" && <span className="ml-2 align-middle text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--danger)" }}>Urgent</span>}</p>
                     {n.why && <p className="muted mt-0.5 text-[14px] leading-snug">{n.why}</p>}
                     <div className="mt-3 flex items-center gap-2"><Act a={n.primary} primary itemId={n.id} />{n.secondary && <Act a={n.secondary} itemId={n.id + "-s"} />}</div>
