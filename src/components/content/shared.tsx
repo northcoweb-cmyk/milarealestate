@@ -4,6 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useScrollLock } from "../use-scroll-lock";
+import { motion, useMotionValue, useTransform } from "motion/react";
+import { useSwipeDismiss } from "../use-swipe-dismiss";
 import type { SocialPost, SocialPlatform, SocialSlide } from "@/lib/types";
 import { FORMATS, formatFor } from "@/lib/content/design";
 import { previewUrl, type Brand } from "@/lib/content/render";
@@ -60,6 +62,10 @@ export function SlideViewer({ slides, start = 0, post, brand, onClose }: { slide
   const rail = useRef<HTMLDivElement>(null);
   const f = FORMATS[formatFor(post.platform)];
   useScrollLock(true);
+  const y = useMotionValue(0);
+  const fade = useTransform(y, [0, 300], [1, 0.35]);
+  const shell = useRef<HTMLDivElement>(null);
+  useSwipeDismiss(shell, y, true, onClose);
   const go = useCallback((n: number) => { const el = rail.current; if (!el) return; const t = Math.max(0, Math.min(slides.length - 1, n)); el.scrollTo({ left: t * el.clientWidth, behavior: "smooth" }); }, [slides.length]);
   useLayoutEffect(() => { const el = rail.current; if (el) el.scrollLeft = i * el.clientWidth; /* open on the tapped image */ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -69,7 +75,7 @@ export function SlideViewer({ slides, start = 0, post, brand, onClose }: { slide
   }, [i, go, onClose]);
   const size = `min(92vw, calc((100svh - 170px) * ${f.w / f.h}))`;
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex flex-col" style={{ background: "rgba(8,8,10,.94)" }} role="dialog" aria-modal="true" aria-label="Post images" onClick={onClose}>
+    <motion.div ref={shell} className="fixed inset-0 z-[120] flex flex-col" style={{ background: "rgba(8,8,10,.94)", y, opacity: fade }} role="dialog" aria-modal="true" aria-label="Post images" onClick={onClose}>
       <div className="flex items-center justify-between px-4 pb-2 pt-[max(env(safe-area-inset-top),14px)] text-white" onClick={(e) => e.stopPropagation()}>
         <span className="text-[15px] font-semibold">{i + 1} / {slides.length}</span>
         <button className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15" onClick={onClose} aria-label="Close"><X size={22} /></button>
@@ -86,7 +92,7 @@ export function SlideViewer({ slides, start = 0, post, brand, onClose }: { slide
         </>}
       </div>
       {slides.length > 1 && <div className="flex justify-center gap-2 pb-[max(env(safe-area-inset-bottom),18px)] pt-3" onClick={(e) => e.stopPropagation()}>{slides.map((_, n) => <button key={n} aria-label={`Image ${n + 1}`} onClick={() => go(n)} className="h-2.5 rounded-full transition-all" style={{ width: n === i ? 22 : 10, background: n === i ? "#fff" : "rgba(255,255,255,.4)" }} />)}</div>}
-    </div>,
+    </motion.div>,
     document.body,
   );
 }

@@ -3,9 +3,10 @@
 import { pinTo, useVisualViewport } from "./use-visual-viewport";
 import { clearApiCache } from "./use-api";
 import { useScrollLock } from "./use-scroll-lock";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useMotionValue } from "motion/react";
+import { useSwipeDismiss } from "./use-swipe-dismiss";
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import clsx from "clsx";
 
 const AV_TONES = ["#0b0b0c", "#232326", "#3b3b40", "#5a5a60", "#8a8a90", "#b8b8bd", "#e4e4e7", "#f7f7f8"];
@@ -58,6 +59,9 @@ export function Skeleton({ className }: { className?: string }) {
 export function Sheet({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title?: string; children: React.ReactNode; wide?: boolean }) {
   const vvBox = useVisualViewport(open);
   useScrollLock(open);
+  const y = useMotionValue(60);
+  const panel = useRef<HTMLDivElement>(null);
+  useSwipeDismiss(panel, y, open, onClose);
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -72,8 +76,9 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
           {/* safety net: if the phone ever reports a short screen, the sheet still reaches the bottom edge instead of floating above a blank strip */}
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-[160px] sm:hidden" style={{ background: "var(--surface)" }} />
           <motion.div
+            ref={panel}
             className={clsx("surface relative max-h-[min(92svh,100%)] w-full touch-pan-y overflow-y-auto overscroll-contain p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]", wide ? "sm:max-w-2xl" : "sm:max-w-lg", "rounded-b-none sm:rounded-b-[28px]")}
-            style={{ borderRadius: 32 }} initial={{ y: 60, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 60, opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 320 }}
+            style={{ borderRadius: 32, y }} initial={{ y: 60, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 60, opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 320 }}
           >
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="h2">{title}</h2>

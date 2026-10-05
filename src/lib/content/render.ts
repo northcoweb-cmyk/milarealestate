@@ -473,6 +473,22 @@ export async function shareOrDownload(files: File[], caption: string): Promise<"
   for (const f of files) downloadBlob(f, f.name);
   return "downloaded";
 }
+/**
+ * "Save images": on a phone this opens the share sheet with the images only (iPhone shows "Save N Images" -> straight into Photos; Android
+ * offers Gallery / Photos). A website can't write to the camera roll silently, so this is the closest one-tap route. On a computer each
+ * image is saved as its own picture file - never a ZIP.
+ */
+export async function saveImages(files: File[], caption?: string): Promise<"shared" | "downloaded" | "cancelled"> {
+  if (caption) { try { await navigator.clipboard?.writeText(caption); } catch { /* clipboard may be blocked */ } }
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  const touch = typeof window !== "undefined" && (window.matchMedia?.("(pointer: coarse)").matches ?? false);
+  if (files.length && touch && nav.canShare?.({ files })) {
+    try { await navigator.share({ files }); return "shared"; }
+    catch (e) { if ((e as Error).name === "AbortError") return "cancelled"; }
+  }
+  for (const [i, f] of files.entries()) { downloadBlob(f, f.name); if (i < files.length - 1) await new Promise((r) => setTimeout(r, 350)); }
+  return "downloaded";
+}
 export function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 8000);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Sparkles, Plus, Copy, Share2, Trash2, Download, ChevronDown, ImagePlus } from "lucide-react";
@@ -11,9 +11,8 @@ import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { SlideImage, SlideViewer, PLATFORM_META, PlatformBadge, STATUS_META, toLocalInput } from "@/components/content/shared";
-import { downloadBlob, renderPostFiles, shareOrDownload, type Brand } from "@/lib/content/render";
+import { renderPostFiles, saveImages, type Brand } from "@/lib/content/render";
 import { LAYOUTS, PALETTES, layoutOf, paletteOf } from "@/lib/content/design";
-import { fileEntry, makeZip } from "@/lib/content/zip";
 
 type Tab = "drafts" | "ready" | "scheduled" | "posted";
 interface Data {
@@ -24,14 +23,6 @@ interface Data {
 }
 const TABS: { key: Tab; label: string }[] = [{ key: "drafts", label: "Drafts" }, { key: "ready", label: "Ready" }, { key: "scheduled", label: "Planned" }, { key: "posted", label: "Posted" }];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 36) || "post";
-
-/** Downloads one post: a PNG for a single image, a ZIP (with the caption) for a carousel. */
-async function downloadPost(post: SocialPost, brand: Brand) {
-  const files = await renderPostFiles(post, brand);
-  if (files.length === 1) { downloadBlob(files[0], files[0].name); return; }
-  const entries = [...(await Promise.all(files.map((f) => fileEntry(f.name, f)))), { name: "caption.txt", data: new TextEncoder().encode(`${post.caption}\n\n${post.hashtags.join(" ")}`) }];
-  downloadBlob(makeZip(entries), `${post.platform}-${slug(post.category ?? "post")}.zip`);
-}
 
 function ContentInner() {
   const params = useSearchParams();
@@ -59,16 +50,16 @@ function ContentInner() {
   async function downloadAll() {
     if (!posts.length) return;
     try {
-      const entries = [];
+      const files: File[] = [];
       for (let i = 0; i < posts.length; i++) {
         setZipProgress(`Making images ${i + 1} of ${posts.length}…`);
-        const p = posts[i]; const folder = `${String(i + 1).padStart(2, "0")}-${p.platform}-${slug(p.category ?? "post")}`;
-        for (const f of await renderPostFiles(p, brand)) entries.push(await fileEntry(`${folder}/${f.name}`, f));
-        entries.push({ name: `${folder}/caption.txt`, data: new TextEncoder().encode(`${p.caption}\n\n${p.hashtags.join(" ")}`) });
+        const p = posts[i]; const tag = `${String(i + 1).padStart(2, "0")}-`;
+        for (const f of await renderPostFiles(p, brand)) files.push(new File([f], tag + f.name, { type: f.type }));
       }
-      downloadBlob(makeZip(entries), `mila-posts-${new Date().toISOString().slice(0, 10)}.zip`);
-      toast(`Downloaded ${posts.length} post${posts.length === 1 ? "" : "s"} with captions.`, "success");
-    } catch (e) { toast(e instanceof Error ? e.message : "Couldn't make the download.", "error"); } finally { setZipProgress(null); }
+      const r = await saveImages(files);
+      if (r === "shared") toast("Tap “Save” in the share sheet to add them to your Photos.", "success");
+      else if (r === "downloaded") toast(`Saved ${files.length} image${files.length === 1 ? "" : "s"}.`, "success");
+    } catch (e) { toast(e instanceof Error ? e.message : "Couldn't save the images.", "error"); } finally { setZipProgress(null); }
   }
 
   return (
@@ -94,7 +85,7 @@ function ContentInner() {
         <div className="glass mb-4 flex flex-wrap items-center justify-between gap-3 p-4" style={{ borderRadius: 22 }}>
           <p className="text-[14.5px] leading-snug">{tab === "drafts" ? `${posts.length} draft${posts.length === 1 ? "" : "s"} to review` : `${posts.length} post${posts.length === 1 ? "" : "s"}`}<span className="faint block text-[12.5px]">Tap a post, share it to your phone, then post it in the app.</span></p>
           <div className="flex gap-2">
-            <button className="btn btn-sm" disabled={!!zipProgress} onClick={downloadAll}><Download size={16} />{zipProgress ?? "Download all"}</button>
+            <button className="btn btn-sm" disabled={!!zipProgress} onClick={downloadAll}><Download size={16} />{zipProgress ?? "Save all images"}</button>
             {tab === "drafts" && posts.length > 1 && <button className="btn btn-primary btn-sm" disabled={busy} onClick={approveAll}>{busy ? "Working…" : "Approve all"}</button>}
           </div>
         </div>
@@ -141,7 +132,24 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const [pulling, setPulling] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const propInfo = data.properties.find((x) => x.id === post.property_id);
-  const dirty = caption !== post.caption || JSON.stringify(slides) !== JSON.stringify(post.slides);
+  // what is already saved on the server (starts as the post as opened); edits save themselves a moment after you stop, and on close
+  const [snap, setSnap] = useState({ caption: post.caption, slides: JSON.stringify(post.slides) });
+  const slidesJson = JSON.stringify(slides);
+  const dirty = caption !== snap.caption || slidesJson !== snap.slides;
+  const quietSave = useCallback(async () => {
+    if (!dirty || caption.length > limit || !caption.trim()) return;
+    await jfetch(`/api/content/${post.id}`, { method: "PATCH", json: { caption, slides } });
+    setSnap({ caption, slides: slidesJson });
+  }, [dirty, caption, slides, slidesJson, limit, post.id]);
+  useEffect(() => {
+    if (!dirty) return;
+    const t = setTimeout(() => { quietSave().then(onChanged).catch(() => undefined); }, 1200);
+    return () => clearTimeout(t);
+  }, [dirty, caption, slidesJson]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function closeEditor() {
+    try { await quietSave(); onChanged(); } catch { toast("Couldn't save your last edit.", "error"); }
+    onClose();
+  }
   const live: SocialPost = { ...post, caption, slides };
 
   const setTheme = (t: string) => setSlides((x) => x.map((s) => ({ ...s, theme: t })));
@@ -180,27 +188,27 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
     setBusy(action ?? "save");
     try {
       const body: Record<string, unknown> = { ...(action ? { action } : {}), ...extra };
-      if (caption !== post.caption) body.caption = caption;
-      if (JSON.stringify(slides) !== JSON.stringify(post.slides)) body.slides = slides;
+      if (caption !== snap.caption) body.caption = caption;
+      if (slidesJson !== snap.slides) body.slides = slides;
       await jfetch(`/api/content/${post.id}`, { method: "PATCH", json: body });
+      setSnap({ caption, slides: slidesJson });
       if (msg) toast(msg, "success");
       onChanged(); if (action !== "regenerate" && action !== null) onClose();
     } catch (e) { toast(e instanceof Error ? e.message : "That didn't work.", "error"); } finally { setBusy(null); }
   }
-  async function share() {
+  async function saveToPhone() {
     setBusy("share");
-    try { const files = await renderPostFiles(live, brand); const r = await shareOrDownload(files, caption); if (r === "downloaded") toast("Images saved. Caption copied.", "success"); }
-    catch (e) { toast(e instanceof Error ? e.message : "Couldn't make the images.", "error"); } finally { setBusy(null); }
-  }
-  async function download() {
-    setBusy("download");
-    try { await downloadPost(live, brand); toast("Downloaded.", "success"); }
-    catch (e) { toast(e instanceof Error ? e.message : "Couldn't make the images.", "error"); } finally { setBusy(null); }
+    try {
+      const files = await renderPostFiles(live, brand);
+      const r = await saveImages(files, caption);
+      if (r === "shared") toast("Tap “Save” in the share sheet to add them to your Photos. Caption copied.", "success");
+      else if (r === "downloaded") toast(`Saved ${files.length} image${files.length === 1 ? "" : "s"}. Caption copied.`, "success");
+    } catch (e) { toast(e instanceof Error ? e.message : "Couldn't make the images.", "error"); } finally { setBusy(null); }
   }
   const st = post.status;
   const pal = paletteOf(theme);
   return (
-    <Sheet open onClose={onClose} title={PLATFORM_META[post.platform].label + " post"} wide>
+    <Sheet open onClose={closeEditor} title={PLATFORM_META[post.platform].label + " post"} wide>
       {viewAt != null && <SlideViewer slides={slides} start={viewAt} post={post} brand={brand} onClose={() => setViewAt(null)} />}
       <div className="space-y-5">
         <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-1">
@@ -269,8 +277,7 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
         )}
 
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={share}><Share2 size={15} /> {busy === "share" ? "Making…" : "Share to phone"}</button>
-          <button className="btn btn-sm" disabled={!!busy} onClick={download}><Download size={15} /> {busy === "download" ? "Making…" : slides.length > 1 ? "Download images" : "Download image"}</button>
+          <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={saveToPhone}><Download size={15} /> {busy === "share" ? "Making…" : slides.length > 1 ? "Save images" : "Save image"}</button>
           <button className="btn btn-quiet btn-sm" onClick={() => { navigator.clipboard?.writeText(caption); toast("Caption copied.", "success"); }}><Copy size={15} /> Copy caption</button>
         </div>
         <div className="flex flex-wrap gap-2">
