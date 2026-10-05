@@ -9,6 +9,8 @@
  * services (with reduced understanding of free-form requests).
  */
 
+import { assertAiBudget, MAX_INPUT_CHARS, MAX_OUTPUT_TOKENS, noteAiSpend } from "./budget";
+
 export type Tier = "fast" | "standard" | "reasoning" | "vision" | "research";
 
 export interface ModelInfo {
@@ -183,13 +185,36 @@ class OpenAIProvider implements AIProvider {
   }
 }
 
+/**
+ * Every model call in the product goes through this wrapper: it trims oversized requests, refuses the call when the person's (or the
+ * product's) AI budget is spent, and meters the cost of what it did run. See ./budget.ts.
+ */
+class GuardedProvider implements AIProvider {
+  constructor(private inner: AIProvider) {}
+  get id() { return this.inner.id; }
+  available() { return this.inner.available(); }
+  modelFor(tier: Tier) { return this.inner.modelFor(tier); }
+  async complete(req: CompletionRequest): Promise<CompletionResult> {
+    // 1) size limits: output tokens, total input text, attachments
+    const maxIn = MAX_INPUT_CHARS();
+    let budgetLeft = maxIn;
+    const messages = [...req.messages].reverse().map((m) => { const c = m.content.slice(0, Math.max(0, budgetLeft)); budgetLeft -= c.length; return { ...m, content: c }; }).reverse().filter((m, i) => m.content || i === req.messages.length - 1);
+    const guarded: CompletionRequest = { ...req, messages, system: req.system.slice(0, maxIn), maxTokens: Math.min(req.maxTokens ?? 1024, MAX_OUTPUT_TOKENS()), images: req.images?.slice(0, 3), documents: req.documents?.slice(0, 2) };
+    // 2) spend limits (throws AiBudgetError; callers already fall back to the rule-based engine)
+    await assertAiBudget({ tier: req.tier, inputChars: guarded.system.length + messages.reduce((n, m) => n + m.content.length, 0), webSearch: req.webSearch });
+    const r = await this.inner.complete(guarded);
+    noteAiSpend(estimateCost(r.info, r.usage.inputTokens, r.usage.outputTokens) + (r.extraCostUsd ?? 0));
+    return r;
+  }
+}
+
 /** Provider choice: AI_PROVIDER=openai|anthropic forces one; otherwise whichever API key is present (Anthropic first). */
 let provider: AIProvider | null = null;
 export function getProvider(): AIProvider {
   if (provider) return provider;
   const pref = (process.env.AI_PROVIDER ?? "").toLowerCase();
   const a = new AnthropicProvider(), o = new OpenAIProvider();
-  provider = pref === "openai" ? o : pref === "anthropic" ? a : a.available() ? a : o.available() ? o : a;
+  provider = new GuardedProvider(pref === "openai" ? o : pref === "anthropic" ? a : a.available() ? a : o.available() ? o : a);
   return provider;
 }
 export function aiAvailable() { return getProvider().available(); }

@@ -105,6 +105,32 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
   const doneCount = f.plan.filter((p) => p.done).length;
   return (
     <div className="space-y-9">
+      {f.trial && (
+        <section className="glass p-5" style={{ borderRadius: 24 }} aria-label="Your free trial">
+          {f.trial.expired ? (
+            <>
+              <p className="text-[17px] font-semibold">Your 7-day trial has ended</p>
+              <p className="muted mt-1 text-[14.5px]">Everything you built is saved. Pick a plan and Mila picks up where you left off.</p>
+              <Link href="/settings/credits" className="btn btn-primary btn-sm mt-3">Choose a plan</Link>
+            </>
+          ) : (
+            <>
+              <div className="flex items-baseline justify-between gap-3"><p className="text-[17px] font-semibold">Your 7-day Mila trial</p><span className="faint text-[13px]">Day {f.trial.day} of 7 · {f.trial.daysLeft} {f.trial.daysLeft === 1 ? "day" : "days"} left</span></div>
+              <p className="muted mt-0.5 text-[14px]">Try these five things and you'll see what she does. {f.trial.done} of {f.trial.total} done.</p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }}><div className="h-full rounded-full" style={{ width: `${(f.trial.done / f.trial.total) * 100}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
+              <ul className="mt-3 space-y-1">
+                {f.trial.items.map((it) => (
+                  <li key={it.id}>
+                    {it.done
+                      ? <p className="flex items-center gap-2.5 py-1.5 text-[15px] muted"><CheckDot done onClick={() => undefined} label={it.label} />{it.label}</p>
+                      : <Link href={`/?ask=${encodeURIComponent(it.ask)}`} className="flex items-center gap-2.5 rounded-xl py-1.5 text-[15px] font-semibold"><span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border" style={{ borderColor: "var(--line)" }} aria-hidden /><span className="min-w-0 flex-1">{it.label}</span><ChevronRight size={16} className="faint" aria-hidden /></Link>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
       {!helpSeen && (
         <section className="glass p-5" style={{ borderRadius: 24 }} aria-label="How Mila works">
           <div className="flex items-start justify-between gap-3"><p className="text-[17px] font-semibold">New here? Three things to know</p><button className="btn btn-quiet btn-sm shrink-0 whitespace-nowrap !px-3" aria-label="Dismiss" onClick={onHelpSeen}>Got it</button></div>

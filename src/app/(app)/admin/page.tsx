@@ -131,6 +131,16 @@ function Overview({ d, go }: { d: AdminReport; go: (t: Tab) => void }) {
             <tbody className="divide-y" style={{ borderColor: "var(--line)" }}>{d.models.map((m) => <tr key={m.model}><td className="py-2">{m.model}</td><td className="py-2 text-right">{m.calls.toLocaleString()}</td><td className="py-2 text-right">{usd(m.costUsd)}</td></tr>)}</tbody></table>
         </section>
       )}
+      <section className="glass p-5">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><p className="h2">Trial activation</p><span className="faint text-[13px]">AI cost today ${d.trial.aiCostToday.toFixed(2)} of ${d.trial.aiBudgetToday.toFixed(0)} daily cap</span></div>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-7">
+          {([["Started", d.trial.funnel.started], ["Day 1 · first task", d.trial.funnel.d1], ["Day 2 · came back", d.trial.funnel.d2], ["Day 3 · on their own", d.trial.funnel.d3], ["Day 5 · wired in", d.trial.funnel.d5], ["Day 7 · still here", d.trial.funnel.d7], ["Paid", d.trial.funnel.paid]] as const).map(([l, n]) => <div key={l}><p className="display text-[28px] leading-none">{n}</p><p className="faint mt-1 text-[12px] leading-tight">{l}</p></div>)}
+        </div>
+        {d.trial.users.length > 0 && (
+          <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-[14px]"><thead className="faint text-[12px] uppercase tracking-wider"><tr><th className="pb-2 pr-3">Agent</th><th className="pr-3">Day</th><th className="pr-3">Actions</th><th className="pr-3">1</th><th className="pr-3">2</th><th className="pr-3">3</th><th className="pr-3">5</th><th className="pr-3">7</th><th>AI cost / cap</th></tr></thead>
+            <tbody className="divide-y" style={{ borderColor: "var(--line)" }}>{d.trial.users.slice(0, 40).map((u) => <tr key={u.email}><td className="py-2 pr-3"><span className="font-semibold">{u.name}</span> <span className="faint">{u.state}</span></td><td className="pr-3">{u.day}</td><td className="pr-3">{u.actions}</td>{[u.d1, u.d2, u.d3, u.d5, u.d7].map((v, i) => <td key={i} className="pr-3">{v ? "✓" : "–"}</td>)}<td>${u.aiCostUsd.toFixed(2)} / ${u.aiBudgetUsd}</td></tr>)}</tbody></table></div>
+        )}
+      </section>
     </div>
   );
 }

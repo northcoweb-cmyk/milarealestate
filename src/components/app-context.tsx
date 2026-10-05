@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Profile } from "@/lib/types";
 
-interface Me { profile: Profile; admin: boolean; credits: { balance: number; allowance: number; resetsAt: string }; capabilities: { ai: boolean; google: boolean } }
+interface Me { profile: Profile; admin: boolean; credits: { balance: number; allowance: number; resetsAt: string; trial?: { endsAt: string; daysLeft: number; day: number; expired: boolean } | null }; capabilities: { ai: boolean; google: boolean } }
 interface Ctx extends Me { refresh: () => Promise<void>; toast: (msg: string, tone?: "info" | "error" | "success") => void; setBalance: (n: number) => void }
 
 const AppCtx = createContext<Ctx | null>(null);

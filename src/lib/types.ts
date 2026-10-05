@@ -515,7 +515,7 @@ export interface CreditTransaction extends Row {
 
 export interface Subscription extends Row {
   plan_key: string;
-  status: "dev" | "active" | "past_due" | "canceled";
+  status: "dev" | "trial" | "active" | "past_due" | "canceled";
   credits_per_period: number;
   period_start: string;
   period_end: string;
@@ -540,6 +540,8 @@ export interface PlanConfig {
   price_usd: number;
   credits: number;
   blurb: string;
+  /** most this plan may cost us in AI per billing month (hard ceiling, independent of credits) */
+  ai_budget_usd?: number;
 }
 
 export interface CreditPackConfig {
@@ -552,6 +554,8 @@ export interface AppConfig {
   plans: PlanConfig[];
   packs: CreditPackConfig[];
   dev_credits: number; // credits granted to accounts when billing isn't configured
+  /** the free trial new signups start on (no card). Optional so configs saved before it existed keep working. */
+  trial?: { days: number; credits: number; ai_budget_usd: number };
 }
 
 export const TABLES = [

@@ -19,7 +19,7 @@ export const DEFAULT_TIER_LIMITS: Record<Tier, TierLimits> = {
 };
 
 /** Subscription plan_key (app_config.plans) -> tier. Unknown paid plans count as "starter" so nobody is silently locked out. */
-export const PLAN_TIER: Record<string, Tier> = { starter: "starter", basic: "starter", pro: "pro", pro_plus: "pro", team: "pro" };
+export const PLAN_TIER: Record<string, Tier> = { solo: "starter", starter: "starter", basic: "starter", pro: "pro", pro_plus: "pro", team: "pro" };
 
 export function tierLimits(tier: Tier): TierLimits {
   let over: Partial<Record<Tier, Partial<TierLimits>>> = {};

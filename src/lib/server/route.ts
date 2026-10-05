@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AuthError, getProfile } from "../auth";
 import { buildCtx } from "../agent/engine";
 import type { Profile } from "../types";
+import { runInAiScope } from "../ai/budget";
 import { errMessage, errStack, logError } from "./errors";
 
 type Params = Record<string, string>;
@@ -13,7 +14,8 @@ export function api<P extends Params = Params>(fn: (a: ApiArgs<P>) => Promise<un
     try {
       const profile = await getProfile();
       if (!profile) throw new AuthError();
-      const out = await fn({ req, profile, params: await ctx.params, url: new URL(req.url) });
+      const params = await ctx.params;
+      const out = await runInAiScope(profile.id, () => fn({ req, profile, params, url: new URL(req.url) })); // AI spend inside this request is metered to this person
       return out instanceof Response ? out : NextResponse.json(out ?? { ok: true });
     } catch (e) {
       if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });

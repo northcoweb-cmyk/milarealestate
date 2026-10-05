@@ -3,6 +3,7 @@ import { aiProviderName } from "./ai/provider";
 import { getStore, ephemeralStoreBlocked, schemaGaps, supabaseConfigured } from "./db/store";
 import { googleConfigured } from "./integrations/google";
 import type { ErrorLog } from "./types";
+import { allowanceFor, globalDailyBudgetUsd } from "./ai/budget";
 import { activeProvider, providerName } from "./media/providers";
 import { monthStartIso } from "./media/usage";
 import { rentcastConfigured, rentcastKeys } from "./listing-data/rentcast";
@@ -26,8 +27,12 @@ export interface AdminReport {
   apiUsage: { provider: string; calls: number; failed: number; units: number; costUsd: number }[];
   apiUsageByUser: { email: string; photoLookups: number; calls: number; costUsd: number }[];
   health: { store: string; persistent: boolean; blocked: boolean; schemaGaps: string[]; auth: string; ai: string | null; google: boolean; stripe: boolean; email: boolean; maps: boolean; propertyData: boolean; propertyKeys: number; photoProvider: string; photosConfigured: boolean; node: string; vercel: boolean; adminEmailsSet: boolean };
+  /** free-trial activation: did each person do the thing that predicts they'll pay, on the day it should happen */
+  trial: { funnel: { started: number; d1: number; d2: number; d3: number; d5: number; d7: number; paid: number }; users: TrialRow[]; aiCostToday: number; aiBudgetToday: number };
   attention: { severity: "high" | "medium" | "low"; title: string; detail: string; tab?: string }[];
 }
+
+export interface TrialRow { email: string; name: string; day: number; state: "trial" | "paid" | "ended"; turns: number; actions: number; d1: boolean; d2: boolean; d3: boolean; d5: boolean; d7: boolean; aiCostUsd: number; aiBudgetUsd: number }
 
 const sigOf = (e: ErrorLog) => `${e.source}:${e.message.replace(/[0-9a-f]{8}-[0-9a-f-]{27}|\d+/g, "#").slice(0, 100)}`;
 
@@ -57,6 +62,33 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
     };
   }).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const real = accounts.filter((a) => !a.test);
+
+  // ---- trial activation (day 1 first task, 2 came back, 3 used it unprompted, 5 connected more of the workflow, 7 still here)
+  const subs = await s.listAll("subscriptions");
+  const cfg = await s.getConfig();
+  const trialRows: TrialRow[] = [];
+  for (const p of profiles.filter((x) => !isTest(x.email, !!x.is_demo))) {
+    const sub = subs.find((x) => x.user_id === p.id);
+    if (!sub || !(sub.plan_key === "trial" || sub.status === "trial" || sub.status === "active")) continue;
+    const t0 = new Date(sub.status === "trial" ? sub.period_start : p.created_at).getTime();
+    const idx = (iso: string) => Math.floor((new Date(iso).getTime() - t0) / DAY);
+    const us = (uBy.get(p.id) ?? []).filter((u) => u.operation.startsWith("turn:"));
+    const real2 = us.filter((u) => !["turn:smalltalk", "turn:general"].includes(u.operation));
+    const userMsgs = (mBy.get(p.id) ?? []).filter((m) => m.role === "user");
+    const days = new Set([...userMsgs.map((m) => idx(m.created_at)), ...us.map((u) => idx(u.created_at))]);
+    const kinds = new Set(real2.map((u) => u.operation));
+    const connected = (iBy.get(p.id) ?? []).some((i) => i.status === "connected");
+    const aiCost = (uBy.get(p.id) ?? []).reduce((a, u) => a + (u.est_cost_usd || 0), 0);
+    trialRows.push({
+      email: p.email, name: p.full_name, day: Math.max(1, idx(now.toISOString()) + 1), state: sub.status === "active" ? "paid" : new Date(sub.period_end).getTime() < t ? "ended" : "trial",
+      turns: us.length, actions: kinds.size,
+      d1: real2.some((u) => idx(u.created_at) <= 0), d2: [...days].some((d) => d >= 1), d3: [...days].some((d) => d >= 2), d5: connected || kinds.size >= 4, d7: [...days].some((d) => d >= 5),
+      aiCostUsd: +aiCost.toFixed(3), aiBudgetUsd: allowanceFor(cfg, sub).monthlyUsd,
+    });
+  }
+  const dayStartIso = new Date(Math.floor(t / DAY) * DAY).toISOString();
+  const aiCostToday = +usage.filter((u) => u.created_at >= dayStartIso).reduce((a, u) => a + (u.est_cost_usd || 0), 0).toFixed(3);
+  const trial: AdminReport["trial"] = { users: trialRows.sort((a, b) => b.turns - a.turns), aiCostToday, aiBudgetToday: globalDailyBudgetUsd(), funnel: { started: trialRows.length, d1: trialRows.filter((r) => r.d1).length, d2: trialRows.filter((r) => r.d2).length, d3: trialRows.filter((r) => r.d3).length, d5: trialRows.filter((r) => r.d5).length, d7: trialRows.filter((r) => r.d7).length, paid: trialRows.filter((r) => r.state === "paid").length } };
 
   const series = (iso: (a: typeof real[number]) => string[], days: number) => Array.from({ length: days }, (_, i) => day(new Date(t - (days - 1 - i) * DAY).toISOString())).map((d) => ({ day: d, n: 0 }));
   const signups = series(() => [], 30); for (const a of real) { const x = signups.find((z) => z.day === day(a.created_at)); if (x) x.n++; }
@@ -115,6 +147,7 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
   const attention: AdminReport["attention"] = [];
   if (health.vercel && !health.persistent) attention.push({ severity: "high", title: "Data isn't being saved permanently", detail: "Supabase isn't configured on this deployment, so user data would be lost on the next deploy.", tab: "health" });
   if (health.schemaGaps.length) attention.push({ severity: "high", title: "Database is missing columns", detail: `Run the latest migrations in supabase/migrations. Missing: ${health.schemaGaps.slice(0, 6).join(", ")}. Until then, those values are not being saved.`, tab: "health" });
+  if (trial.aiBudgetToday > 0 && trial.aiCostToday >= trial.aiBudgetToday * 0.7) attention.push({ severity: "high", title: "AI spend is close to today's cap", detail: `$${trial.aiCostToday.toFixed(2)} of the $${trial.aiBudgetToday.toFixed(0)} daily limit. At the limit, smart answers pause for everyone until tomorrow (MILA_DAILY_AI_BUDGET_USD).`, tab: "overview" });
   if (!health.ai) attention.push({ severity: "high", title: "No AI key is connected", detail: "Mila is running on rules only — open questions get the generic fallback. Set OPENAI_API_KEY (or ANTHROPIC_API_KEY).", tab: "health" });
   if (!health.adminEmailsSet && health.vercel) attention.push({ severity: "medium", title: "ADMIN_EMAILS isn't set", detail: "Set ADMIN_EMAILS on Vercel so only your email can open this dashboard.", tab: "health" });
   for (const e of openErr.filter((x) => x.level === "error").slice(0, 5)) attention.push({ severity: e.count >= 5 || e.users >= 2 ? "high" : "medium", title: `${e.count}× ${e.source} error: ${e.message.slice(0, 70)}`, detail: `${e.users} user${e.users === 1 ? "" : "s"} · last ${e.lastSeen.slice(0, 16).replace("T", " ")} UTC${e.route ? ` · ${e.route}` : ""}`, tab: "errors" });
@@ -144,6 +177,6 @@ export async function buildAdminReport(now = new Date()): Promise<AdminReport> {
       aiCost30d: aiRows.reduce((a, u) => a + (u.est_cost_usd || 0), 0), aiCalls30d: aiRows.length,
       openErrors: openErr.length, errors24h: realLogs.filter((l) => l.level === "error" && l.created_at >= since(1)).length, unhandled7d: realLogs.filter((l) => l.source === "unhandled" && l.created_at >= since(7)).length,
     },
-    signups, dau, funnel, adoption, accounts, errors, unhandled, models, health, attention, apiUsage, apiUsageByUser,
+    signups, dau, funnel, adoption, accounts, errors, unhandled, models, health, attention, apiUsage, apiUsageByUser, trial,
   };
 }

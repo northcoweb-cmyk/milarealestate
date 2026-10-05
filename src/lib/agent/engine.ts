@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
-import { InsufficientCredits, creditCost, ensureCredits, getBalance, recordUsage } from "../credits";
+import { InsufficientCredits, TrialEnded, creditCost, ensureCredits, getBalance, recordUsage } from "../credits";
 import { aiAvailable } from "../ai/provider";
 import type { Block, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
 import { greetingFor } from "./debrief";
@@ -10,6 +10,7 @@ import { type Intent, detectIntent } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { logError } from "../server/errors";
+import { aiLimitedReason, runInAiScope } from "../ai/budget";
 import { listingReadyHandler, whatMissingHandler } from "./handlers/readiness";
 import { meetingPrepHandler, showingFollowupsHandler } from "./handlers/briefs";
 import { newListingsHandler, prepPropertyHandler, saveListingCard } from "./handlers/marketdata";
@@ -64,7 +65,11 @@ export async function buildCtx(profile: Profile, conversationId?: string | null,
 const isYes = (t: string) => /^(yes|yep|yeah|sure|do it|please do|update (?:it|them|everything)|go ahead|ok|okay)\b/i.test(t.trim());
 const isNo = (t: string) => /^(no|nope|leave (?:it|them)|keep (?:it|them)|don'?t|not now)\b/i.test(t.trim());
 
-export async function handleTurn(profile: Profile, input: TurnInput): Promise<TurnOutput> {
+export function handleTurn(profile: Profile, input: TurnInput): Promise<TurnOutput> {
+  return runInAiScope(profile.id, () => handleTurnInner(profile, input)); // AI spend during this turn is metered to this person
+}
+
+async function handleTurnInner(profile: Profile, input: TurnInput): Promise<TurnOutput> {
   const ctx = await buildCtx(profile, input.conversationId, input.onStep);
   const store = ctx.store;
   const text = (input.message ?? "").trim();
@@ -90,7 +95,9 @@ export async function handleTurn(profile: Profile, input: TurnInput): Promise<Tu
       if (text) await learnFromTurn(ctx, text);
     }
   } catch (e) {
-    if (e instanceof InsufficientCredits) {
+    if (e instanceof TrialEnded) {
+      out = reply("Your 7-day trial has ended. Pick a plan to keep going — everything you built is saved and waiting.", [{ type: "notice", tone: "info", title: "Trial ended", body: "Your listings, contacts, tasks and drafts are all still here. A plan turns Mila back on.", buttons: [{ label: "Choose a plan", style: "primary", href: "/settings/credits" }] }], "smalltalk");
+    } else if (e instanceof InsufficientCredits) {
       out = reply("You've used all your Mila credits for this period.", [{ type: "notice", tone: "warn", title: "Out of credits", body: "Add more credits to keep going. Nothing you already have is lost.", buttons: [{ label: "Add credits", style: "primary", href: "/settings/credits" }] }], "smalltalk");
     } else {
       console.error("[mila] turn failed", e);
@@ -98,6 +105,10 @@ export async function handleTurn(profile: Profile, input: TurnInput): Promise<Tu
       out = reply("Something went wrong on my side, and I didn't complete that. Nothing was changed that I can't tell you about — please try again.", [{ type: "notice", tone: "error", title: "That didn't work" }], "smalltalk");
     }
   }
+
+  // If the AI allowance stopped a smarter answer, say so once, plainly. Everything rule-based still ran.
+  const limited = aiLimitedReason();
+  if (limited && limited !== "too_big") out = { ...out, blocks: [...out.blocks, { type: "notice", tone: "info", title: limited === "disabled" || limited === "global_day" ? "Smart answers are paused for a moment" : "You've used this period's smart-answer allowance", body: limited === "disabled" || limited === "global_day" ? "Calendar, contacts, tasks and drafts still work. Try the open-ended questions again a little later." : "Calendar, contacts, tasks, listings and drafts all still work. Open-ended questions come back at your next renewal, or sooner on a bigger plan.", buttons: limited === "disabled" || limited === "global_day" ? undefined : [{ label: "See plans", style: "secondary", href: "/settings/credits" }] }] };
 
   // Charge once per turn, based on what actually happened.
   const key = out.creditKey ?? (intent === "smalltalk" ? "smalltalk" : "chat_simple");

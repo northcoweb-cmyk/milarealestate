@@ -18,7 +18,12 @@ export interface UpItem { id: string; emoji: string; time: string; day: string; 
 
 export interface PlanItem { id: string; emoji: string; done: boolean; title: string; why: string; action: FeedAction }
 
+export interface SetupItem { id: string; label: string; done: boolean; ask: string }
+export interface TrialInfo { day: number; daysLeft: number; expired: boolean; done: number; total: number; items: SetupItem[] }
+
 export interface Feed {
+  /** only during the free trial: where they are in it, and the five things that make Mila stick */
+  trial: TrialInfo | null;
   summary: string;
   plan: PlanItem[];
   updatedAt: string;
@@ -126,7 +131,24 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   const n = needs.length;
   const summary = n === 0 ? "You're all caught up. Mila has the rest handled." : n === 1 ? "1 thing is ready for you. Everything else is handled." : n <= 5 ? `${n} things are ready for you. Everything else is handled.` : `Start with these 5 — ${n} things are ready for you.`;
   void fmtDay;
-  return { summary, plan: plan.slice(0, 5), updatedAt: now.toISOString(), needsYou, needsTotal: n, did: did.slice(0, 4).map(({ ms, ...d }) => { void ms; return d; }), next };
+
+  // ---- free trial: day count + the five actions that turn "cool app" into "I rely on this"
+  const sub = (await store.list("subscriptions", userId))[0];
+  let trial: TrialInfo | null = null;
+  if (sub?.status === "trial") {
+    const usage = await store.list("usage", userId);
+    const did = (...ops: string[]) => usage.some((u) => ops.includes(u.operation));
+    const items: SetupItem[] = [
+      { id: "listing", label: "Add an upcoming listing", done: props.some((p) => !p.is_demo), ask: "I'm listing 123 Main Street next Thursday. Get me ready." },
+      { id: "meeting", label: "Prep for a meeting", done: did("turn:meeting_prep"), ask: "Prep me for my next meeting" },
+      { id: "openhouse", label: "Create an open house", done: events.some((e) => e.kind === "open_house") || did("turn:open_house"), ask: "I have an open house Sunday at 1 PM. Set everything up." },
+      { id: "followup", label: "Draft a follow-up", done: drafts.length > 0 || did("turn:batch_followups", "turn:showing_followups", "turn:draft_email"), ask: "Who should I follow up with today?" },
+      { id: "social", label: "Generate social content", done: posts.length > 0, ask: "Create an Instagram post for my newest listing" },
+    ];
+    const t = new Date(sub.period_end).getTime();
+    trial = { day: Math.min(7, Math.max(1, Math.floor((now.getTime() - new Date(sub.period_start).getTime()) / DAY_MS) + 1)), daysLeft: Math.max(0, Math.ceil((t - now.getTime()) / DAY_MS)), expired: t < now.getTime(), done: items.filter((i) => i.done).length, total: items.length, items };
+  }
+  return { trial, summary, plan: plan.slice(0, 5), updatedAt: now.toISOString(), needsYou, needsTotal: n, did: did.slice(0, 4).map(({ ms, ...d }) => { void ms; return d; }), next };
 }
 
 // ---------------------------------------------------------------------- completed timeline
