@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { ArrowUp, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -41,9 +41,13 @@ export function TryMila() {
   const [shown, setShown] = useState(0);
   const [approved, setApproved] = useState<Record<string, boolean>>({});
   const run = useRef(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => { const el = wrap.current; if (!el || typeof IntersectionObserver === "undefined") { setSeen(true); return; } const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } }, { threshold: 0.25 }); io.observe(el); return () => io.disconnect(); }, []);
   const s = SCENARIOS[idx];
 
   useEffect(() => {
+    if (!seen) return;
     const id = ++run.current; const alive = () => run.current === id;
     (async () => {
       setTyped(""); setPhase("typing"); setShown(0); setApproved({});
@@ -52,11 +56,11 @@ export function TryMila() {
       for (let n = 1; n <= s.cards.length; n++) { await sleep(280); if (!alive()) return; setShown(n); }
     })();
     return () => { run.current++; };
-  }, [idx, s]);
+  }, [idx, s, seen]);
 
   const allDone = phase === "done" && shown === s.cards.length && s.cards.every((c, n) => approved[`${s.key}-${n}`]);
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-[220px_1fr]">
+    <div ref={wrap} className="mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-[220px_1fr]">
       <div className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible" role="tablist" aria-label="Try Mila">
         {SCENARIOS.map((x, n) => (
           <button key={x.key} role="tab" aria-selected={n === idx} onClick={() => setIdx(n)} className={cn("min-h-[48px] shrink-0 rounded-2xl px-4 py-3 text-left text-[15px] font-semibold transition", n === idx ? "bg-white text-zinc-900 shadow-lg" : "glass-dark text-white/85 hover:bg-white/10")}>{x.tab}</button>
@@ -66,27 +70,27 @@ export function TryMila() {
       <div className="glass-dark relative min-h-[430px] overflow-hidden rounded-[2rem] p-4 sm:p-6" aria-live="polite">
         <div className="mb-4 flex justify-end"><div className="max-w-[88%] rounded-3xl rounded-br-lg bg-white px-4 py-3 text-[15.5px] leading-snug text-zinc-900">{typed}{phase === "typing" && <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-zinc-900" />}</div></div>
         <AnimatePresence>
-          {phase === "thinking" && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-1 text-[14px] text-white/60">Mila is working…</motion.p>}
+          {phase === "thinking" && <m.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-1 text-[14px] text-white/60">Mila is working…</m.p>}
           {phase === "done" && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+            <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
               <p className="px-1 text-[16px] leading-snug text-white">{s.reply}</p>
               {s.brief && (
                 <div className="rounded-2xl bg-white p-4 text-zinc-900">
                   <div className="flex items-baseline justify-between"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-zinc-500">{s.brief.title}</p><p className="display text-3xl">{s.brief.done}<span className="text-xl text-zinc-400">/{s.brief.total}</span></p></div>
-                  <div className="my-2 h-1.5 overflow-hidden rounded-full bg-zinc-200"><motion.div initial={{ width: 0 }} animate={{ width: `${(s.brief.done / s.brief.total) * 100}%` }} transition={{ duration: 0.8 }} className="h-full rounded-full bg-zinc-900" /></div>
+                  <div className="my-2 h-1.5 overflow-hidden rounded-full bg-zinc-200"><m.div initial={{ width: 0 }} animate={{ width: `${(s.brief.done / s.brief.total) * 100}%` }} transition={{ duration: 0.8 }} className="h-full rounded-full bg-zinc-900" /></div>
                   <ul className="space-y-1 text-[14px] text-zinc-700">{s.brief.rows.map((r) => <li key={r}>• {r}</li>)}</ul>
                 </div>
               )}
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {s.cards.slice(0, shown).map((c, n) => { const k = `${s.key}-${n}`; const ok = !!approved[k]; return (
-                  <motion.div key={k} initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.35 }} className="flex items-start gap-3 rounded-2xl bg-white p-3.5 text-zinc-900">
+                  <m.div key={k} initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.35 }} className="flex items-start gap-3 rounded-2xl bg-white p-3.5 text-zinc-900">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xl" aria-hidden>{c.emoji}</span>
                     <div className="min-w-0 flex-1"><p className="text-[10.5px] font-bold uppercase tracking-[.16em] text-zinc-500">{c.label}</p><p className="text-[15px] font-semibold leading-tight">{c.title}</p><p className="mt-0.5 text-[13px] leading-snug text-zinc-600">{c.detail}</p>
                       <button onClick={() => setApproved((a) => ({ ...a, [k]: !a[k] }))} aria-pressed={ok} className={cn("mt-2 inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold transition", ok ? "bg-emerald-500 text-white" : "bg-zinc-900 text-white hover:bg-zinc-700")}>{ok ? <><Check size={15} />Done</> : c.action}</button></div>
-                  </motion.div>); })}
+                  </m.div>); })}
               </div>
-              {allDone && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-1 pt-1 text-[15px] font-semibold text-emerald-300">All approved. That&apos;s the whole job, in one sentence.</motion.p>}
-            </motion.div>
+              {allDone && <m.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-1 pt-1 text-[15px] font-semibold text-emerald-300">All approved. That&apos;s the whole job, in one sentence.</m.p>}
+            </m.div>
           )}
         </AnimatePresence>
         <div className="pointer-events-none absolute inset-x-4 bottom-4 flex items-center justify-between rounded-full bg-white/10 px-4 py-2.5 text-[14px] text-white/50 sm:inset-x-6 sm:bottom-5"><span>Ask Mila anything…</span><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/25 text-white"><ArrowUp size={16} /></span></div>

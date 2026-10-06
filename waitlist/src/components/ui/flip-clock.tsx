@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 
 const Digit = ({ value }: { value: number }) => (
   <div className="relative flex h-14 w-9 items-center justify-center overflow-hidden rounded-lg bg-zinc-900/90 font-mono text-3xl font-bold text-white shadow-lg ring-1 ring-white/10 sm:h-16 sm:w-11 sm:text-4xl">
     <AnimatePresence mode="popLayout">
-      <motion.span key={value} initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ duration: 0.3 }} className="absolute inset-0 flex items-center justify-center">{value}</motion.span>
+      <m.span key={value} initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ duration: 0.3 }} className="absolute inset-0 flex items-center justify-center">{value}</m.span>
     </AnimatePresence>
     <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-black/60" aria-hidden />
   </div>

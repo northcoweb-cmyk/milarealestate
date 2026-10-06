@@ -39,7 +39,7 @@ export default function Page() {
       <SiteNav />
       <section id="top" className="sky grain relative isolate overflow-hidden px-5 pb-24 pt-6 text-white sm:pb-32">
         <Clouds />
-        <div className="pointer-events-none absolute left-1/2 top-24 -z-0 h-[520px] w-[820px] max-w-[140vw] -translate-x-1/2 rounded-full bg-white/25 blur-[110px]" aria-hidden />
+        <div className="pointer-events-none absolute left-1/2 top-24 -z-0 h-[520px] w-[820px] max-w-[140vw] -translate-x-1/2 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(255,255,255,.32), rgba(255,255,255,0))" }} aria-hidden />
         <div className="h-14" aria-hidden />
         <div className="pointer-events-none absolute left-1/2 top-[76px] -z-0 h-[300px] w-[min(920px,130vw)] -translate-x-1/2" aria-hidden>
           <div className="absolute inset-x-0 bottom-0 h-[640px] rounded-t-full border-t-2 border-dotted border-white/50" style={{ transformOrigin: "50% 100%" }} />
@@ -72,7 +72,7 @@ export default function Page() {
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map(({ icon: Icon, title, body }, i) => (
               <Reveal key={title} delay={(i % 3) * 0.08} className="h-full"><article className="group relative h-full overflow-hidden rounded-3xl border border-border bg-white p-7 transition duration-500 hover:-translate-y-1.5 hover:border-iris/50 hover:shadow-[0_30px_70px_-28px_rgba(110,80,230,.45)]">
-                <span className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br from-sky/40 via-iris/30 to-peach/40 opacity-0 blur-2xl transition duration-500 group-hover:opacity-100" aria-hidden />
+                <span className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full opacity-0 transition duration-500 group-hover:opacity-100" style={{ background: "radial-gradient(closest-side, rgba(166,140,255,.35), rgba(143,180,255,.12) 60%, transparent)" }} aria-hidden />
                 <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-zinc-900 transition group-hover:bg-zinc-900 group-hover:text-white"><Icon size={22} aria-hidden /></span>
                 <h3 className="text-[19px] font-semibold tracking-tight">{title}</h3>
                 <p className="mt-2 text-[15.5px] leading-relaxed text-muted-foreground">{body}</p>

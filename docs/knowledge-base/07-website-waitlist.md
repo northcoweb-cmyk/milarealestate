@@ -27,3 +27,6 @@ The grid resizes itself (1 to 8+ logos). Keep the "no endorsement" line under it
 
 ## Checking signups work
 Open `<waitlist-site>/api/health`. `{"database":true}` means signups save. `false` means `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are missing in that Vercel project (this is what makes the form say "Signups are paused").
+
+## Performance notes (Oct 6, 2026)
+Measured with a 4x CPU slowdown: scroll 60fps, no dropped frames. What made it lighter: clouds and grain are small pre-rendered images (no live blur or blend filters), animation library loads lazily (LazyMotion), the demo only starts typing when scrolled into view, logos/screens shrunk. Rule: keep effects to transform and opacity; avoid `blur()` filters, big `backdrop-filter`, and `mix-blend-mode` on large or moving areas.
