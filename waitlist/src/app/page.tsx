@@ -157,7 +157,7 @@ export default function Page() {
             <a href="mailto:milarealestateapp@yahoo.com" className="hover:text-white">Contact</a>
           </nav>
         </div>
-        <p className="mx-auto mt-8 max-w-6xl text-center text-[12.5px] text-white/45 sm:text-left">© 2026 Mila. Screens show fictional demo data.</p>
+        <p className="mx-auto mt-8 max-w-6xl text-center text-[12.5px] text-white/45 sm:text-left">© 2026 Mila. Screens show fictional demo data. · By <a href="https://northco.us" target="_blank" rel="noopener" className="underline decoration-white/30 underline-offset-2 hover:text-white">NorthCo</a></p>
       </footer>
     </main>
   );
