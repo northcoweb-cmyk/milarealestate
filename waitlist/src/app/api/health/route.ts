@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const db = dbConfigured();
   const d = db ? await diagnose() : null;
-  return NextResponse.json({ ok: db && !!d?.table, database: db, table: d?.table ?? false, tableError: d?.tableError ?? null, launchColumns: d?.launchColumns ?? false, email: mailConfigured() }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ok: db && !!d?.table, database: db, table: d?.table ?? false, tableError: d?.tableError ?? null, launchColumns: d?.launchColumns ?? false, email: mailConfigured(), ask: !!process.env.OPENAI_API_KEY && process.env.ASK_DISABLED !== "1" }, { headers: { "cache-control": "no-store" } });
 }

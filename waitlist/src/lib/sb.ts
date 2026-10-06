@@ -34,3 +34,12 @@ export async function diagnose() {
   const launch = basic.ok ? await probe("invite_token,invited_at,email_sent_at,claimed_at") : null;
   return { table: basic.ok, tableError: basic.ok ? null : { status: basic.status, code: basic.code }, launchColumns: launch?.ok ?? false };
 }
+
+/** Shared daily counter for the Ask Mila box (needs migration 0007). Returns null when it isn't set up, and the caller falls back to a stricter in-memory cap. */
+export async function bumpSiteChat(day: string): Promise<number | null> {
+  if (!dbConfigured()) return null;
+  const r = await fetch(`${base()}/rest/v1/rpc/bump_site_chat`, { method: "POST", headers: headers(), body: JSON.stringify({ p_day: day }), signal: AbortSignal.timeout(5000), cache: "no-store" });
+  if (!r.ok) return null;
+  const n = await r.json();
+  return typeof n === "number" ? n : null;
+}

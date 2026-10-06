@@ -11,3 +11,4 @@
 - Waitlist page: owner is building it. Signups go to the `waitlist` table (migration 0005).
 - Test users: owner and partner using the app; then 5 to 10 prototype testers; soft launch before Oct 20.
 - Admin: a separate "Mila OS" dashboard project (admin-os/) deployed as its own Vercel project.
+- Launch is 10:00 AM Eastern on Oct 20 (not 9).

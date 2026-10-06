@@ -14,14 +14,14 @@
   --font-display: var(--font-display), "New York", Georgia, serif;
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
 .lenis.lenis-stopped { overflow: hidden; }
-body { margin: 0; background: var(--paper); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+body { margin: 0; background: var(--paper); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; overflow-x: clip; }
 ::selection { background: rgba(166,140,255,.35); }
-:focus-visible { outline: 2px solid var(--iris); outline-offset: 3px; border-radius: 8px; }
+@layer base { :focus-visible { outline: 2px solid var(--iris); outline-offset: 3px; } }
 
 .sky { background: linear-gradient(160deg, #8fb4ff 0%, #a68cff 55%, #ffc9a8 100%); }
 .grain::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .2; background-image: url("/grain.png"); background-size: 96px 96px; }
@@ -43,3 +43,6 @@ body { margin: 0; background: var(--paper); color: var(--foreground); font-famil
 .text-balance { text-wrap: balance; }
 .shine { background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%); background-size: 220% 100%; animation: shine 7s ease-in-out infinite; }
 @keyframes shine { 0%, 60% { background-position: 150% 0 } 100% { background-position: -50% 0 } }
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

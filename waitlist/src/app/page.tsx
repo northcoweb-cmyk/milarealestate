@@ -12,8 +12,9 @@ import { ScrollToJoin } from "@/components/scroll-to-join";
 import { HeroParallax } from "@/components/hero-parallax";
 import { TryMila } from "@/components/try-mila";
 import { Faq } from "@/components/faq";
+import { AskMila } from "@/components/ask-mila";
 
-const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-20T09:00:00-04:00";
+const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-20T10:00:00-04:00";
 
 const FEATURES = [
   { icon: HouseLine, title: "Get me ready to list", body: "Photos, a drafted description, and a clear list of what's still missing, built from just an address." },
@@ -35,21 +36,21 @@ const STEPS = [
 
 export default function Page() {
   return (
-    <main>
+    <main className="overflow-x-clip">
       {/* HERO */}
       <SiteNav />
       <section id="top" className="sky grain relative isolate overflow-hidden px-5 pb-24 pt-6 text-white sm:pb-32">
         <Clouds />
         <div className="pointer-events-none absolute left-1/2 top-24 -z-0 h-[520px] w-[820px] max-w-[140vw] -translate-x-1/2 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(255,255,255,.32), rgba(255,255,255,0))" }} aria-hidden />
         <div className="h-14" aria-hidden />
-        <div className="pointer-events-none absolute left-1/2 top-[76px] -z-0 h-[300px] w-[min(920px,130vw)] -translate-x-1/2" aria-hidden>
+        <div className="pointer-events-none absolute left-1/2 top-[76px] -z-0 hidden h-[300px] sm:block w-[min(920px,130vw)] -translate-x-1/2" aria-hidden>
           <div className="absolute inset-x-0 bottom-0 h-[640px] rounded-t-full border-t-2 border-dotted border-white/50" style={{ transformOrigin: "50% 100%" }} />
           <div className="absolute inset-0" style={{ transformOrigin: "50% 100%", animation: "orbit 14s ease-in-out infinite alternate" }}>
             <span className="absolute left-1/2 top-0 block h-5 w-5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_40px_10px_rgba(255,255,255,.75)]"><span className="absolute inset-0 translate-x-1 rounded-full bg-[#7c6cf0]" /></span>
           </div>
         </div>
         <HeroParallax className="relative z-10 mx-auto flex max-w-4xl flex-col items-center pt-14 text-center sm:pt-20">
-          <p className="glass mb-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-semibold text-zinc-900"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />Launching October 20 · 7-day free trial</p>
+          <p className="glass mb-6 inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold text-zinc-900 sm:text-[13.5px]"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden /><span className="sm:hidden">Launching Oct 20 · 7-day free trial</span><span className="hidden sm:inline">Launching October 20 · 7-day free trial</span></p>
           <h1 className="display text-balance text-[clamp(46px,9vw,92px)] [text-shadow:0_2px_30px_rgba(80,50,200,.35)]">Your AI operations manager for real estate.</h1>
           <p className="mt-6 max-w-2xl text-balance text-[clamp(17px,2.4vw,21px)] leading-relaxed text-white [text-shadow:0_1px_18px_rgba(80,50,200,.45)]">Tell Mila what you need. She preps your listings, writes your posts and emails, sets up open houses and follow-ups, and asks before anything goes out.</p>
           <div id="join" className="mt-10 w-full scroll-mt-10"><WaitlistForm id="hero" /></div>
@@ -58,10 +59,13 @@ export default function Page() {
       </section>
 
       {/* SCROLL SHOWCASE */}
-      <section className="relative bg-paper">
+      <section className="relative overflow-x-clip bg-paper">
         <ContainerScroll titleComponent={<><p className="text-[12.5px] font-semibold uppercase tracking-[.2em] text-muted-foreground">One sentence</p><h2 className="display mt-3 text-balance text-[clamp(40px,7vw,84px)] text-foreground">Your whole day, handled.</h2><p className="mx-auto mt-4 max-w-xl text-balance text-[17px] text-muted-foreground">Home shows what needs your OK, what Mila already did, and what's next.</p></>}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/screens/d-home.webp" alt="The Mila home screen on desktop with a request box and an approval queue" className="mx-auto h-full w-full rounded-2xl object-cover object-left-top" draggable={false} />
+          <picture>
+            <source media="(max-width: 767px)" srcSet="/screens/m-home.webp" />
+            <img src="/screens/d-home.webp" alt="The Mila home screen with a request box and an approval queue" className="mx-auto h-full w-full rounded-2xl object-cover object-top md:object-left-top" draggable={false} />
+          </picture>
         </ContainerScroll>
       </section>
 
@@ -134,6 +138,7 @@ export default function Page() {
       <section className="bg-paper px-5 py-24 sm:py-28">
         <h2 className="display mx-auto mb-10 max-w-3xl text-balance text-center text-[clamp(34px,5.5vw,56px)]">Questions, answered.</h2>
         <Faq />
+        <AskMila />
       </section>
 
       {/* FINAL CTA */}

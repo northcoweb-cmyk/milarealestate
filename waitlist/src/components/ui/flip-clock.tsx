@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { m, AnimatePresence } from "framer-motion";
 
 const Digit = ({ value }: { value: number }) => (
-  <div className="relative flex h-14 w-9 items-center justify-center overflow-hidden rounded-lg bg-zinc-900/90 font-mono text-3xl font-bold text-white shadow-lg ring-1 ring-white/10 sm:h-16 sm:w-11 sm:text-4xl">
+  <div className="relative flex h-11 w-[26px] items-center justify-center overflow-hidden rounded-md bg-zinc-900/90 font-mono text-[22px] font-bold text-white shadow-lg ring-1 ring-white/10 min-[380px]:h-14 min-[380px]:w-9 min-[380px]:rounded-lg min-[380px]:text-3xl sm:h-16 sm:w-11 sm:text-4xl">
     <AnimatePresence mode="popLayout">
       <m.span key={value} initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ duration: 0.3 }} className="absolute inset-0 flex items-center justify-center">{value}</m.span>
     </AnimatePresence>
@@ -32,10 +32,10 @@ export default function FlipClock({ to }: { to: string }) {
   return (
     <div className="flex flex-col items-center gap-3" role="timer" aria-label={launched ? "Mila has launched" : `${d} days ${h} hours ${m} minutes until launch`}>
       {launched ? <p className="display text-4xl text-white">We&apos;re live.</p> : (
-        <div className="flex items-start justify-center gap-2 sm:gap-4">
-          <Group label="Days" value={d} /><span className="pt-3 text-2xl font-bold text-white/60">:</span>
-          <Group label="Hours" value={h} /><span className="pt-3 text-2xl font-bold text-white/60">:</span>
-          <Group label="Min" value={m} /><span className="pt-3 text-2xl font-bold text-white/60">:</span>
+        <div className="flex items-start justify-center gap-1.5 min-[380px]:gap-2 sm:gap-4">
+          <Group label="Days" value={d} /><span className="pt-2 text-xl font-bold text-white/60 min-[380px]:pt-3 min-[380px]:text-2xl">:</span>
+          <Group label="Hours" value={h} /><span className="pt-2 text-xl font-bold text-white/60 min-[380px]:pt-3 min-[380px]:text-2xl">:</span>
+          <Group label="Min" value={m} /><span className="pt-2 text-xl font-bold text-white/60 min-[380px]:pt-3 min-[380px]:text-2xl">:</span>
           <Group label="Sec" value={s} />
         </div>
       )}

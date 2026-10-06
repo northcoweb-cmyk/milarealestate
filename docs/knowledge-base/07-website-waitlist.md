@@ -31,3 +31,18 @@ Open `<waitlist-site>/api/health`. `{"database":true}` means signups save. `fals
 ## Performance notes (Oct 6, 2026)
 Measured with a 4x CPU slowdown: scroll 60fps, no dropped frames. What made it lighter: clouds and grain are small pre-rendered images (no live blur or blend filters), animation library loads lazily (LazyMotion), the demo only starts typing when scrolled into view, logos/screens shrunk. Rule: keep effects to transform and opacity; avoid `blur()` filters, big `backdrop-filter`, and `mix-blend-mode` on large or moving areas.
 Smooth scrolling: `lenis` (`smooth-scroll.tsx`) eases mouse-wheel/trackpad scrolling; touch keeps native momentum. Hero text has a light scroll parallax. Logo gray/color uses two stacked images instead of a CSS filter (new logos need a gray copy in `public/logos/gray/`).
+
+## Ask Mila box (FAQ section)
+A public question box that answers ONLY about Mila.
+- **Where the facts live:** `waitlist/src/lib/mila-kb.ts` (also holds the system prompt). The assistant answers only from that text. When a feature, date or price changes, change it there and in the FAQ.
+- **Guardrails, in order:** same-site origin check; 3 to 200 character questions; obvious jailbreak phrases refused before any model call (free); 5 questions per 10 min and 25 per day per visitor; a daily ceiling on model calls (default 300, set `ASK_DAILY_LIMIT`; shared across servers once migration 0007 is run); 170-token answers; model told to reply `OFF_TOPIC` to anything not about Mila; answers stripped of links, markdown and stray emails; one question at a time (no chat memory, so it can't be talked around).
+- **Cost:** about $0.0002 per answer with gpt-4o-mini, so the default daily cap is roughly five cents a day at most.
+- **Env (waitlist project):** `OPENAI_API_KEY` (required), `ASK_DAILY_LIMIT` (optional), `ASK_MODEL` (optional), `ASK_DISABLED=1` (kill switch). `/api/health` shows `"ask": true` when it is on.
+- **Run once:** `supabase/migrations/0007_site_chat_usage.sql` (the shared daily counter). Without it, a stricter per-server counter is used.
+- **Not stored:** questions are not saved anywhere.
+
+## Mobile notes
+iPhone Safari ignores `overflow-x: hidden` on body, so the tilted 3D card made the page pan sideways. Fixed with `overflow-x: clip` on html, body and the sections with transformed content. Always check scrollWidth equals the viewport at 320, 360, 390 and 430px.
+
+## Launch time
+Countdown, emails and the assistant all use `NEXT_PUBLIC_LAUNCH_AT` (default Oct 20, 2026, 10:00 AM Eastern). If it is set in Vercel, update it there too.
