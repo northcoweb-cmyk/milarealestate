@@ -1,0 +1,46 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mila carousel</title><style>
+@font-face{font-family:MilaSerif;src:url(assets/serif.woff2);font-style:normal}
+@font-face{font-family:MilaSerif;src:url(assets/serif-italic.woff2);font-style:italic}
+@font-face{font-family:Inter;src:url(assets/inter.woff2);font-weight:100 900}
+*{box-sizing:border-box;margin:0}
+body{background:#222;font-family:Inter,sans-serif}
+.s{position:relative;width:1080px;height:1350px;overflow:hidden;color:#fff;background:linear-gradient(160deg,#8fb4ff 0%,#a68cff 55%,#ffc9a8 100%)}
+.s::after{content:"";position:absolute;inset:0;background:url(assets/grain.png);background-size:96px;opacity:.2;pointer-events:none}
+.cl{position:absolute;opacity:.9}
+.z{position:relative;z-index:2}
+.serif{font-family:MilaSerif;letter-spacing:-.02em;line-height:1}
+.logo{position:absolute;top:70px;left:80px;font-family:MilaSerif;font-size:64px;z-index:3}
+.pg{position:absolute;top:84px;right:80px;font-size:26px;font-weight:600;letter-spacing:.12em;opacity:.85;z-index:3}
+.pill{display:inline-flex;align-items:center;gap:14px;background:rgba(255,255,255,.7);color:#18181b;border-radius:999px;padding:18px 34px;font-size:30px;font-weight:600}
+.dot{width:16px;height:16px;border-radius:50%;background:#10b981}
+.phone{position:absolute;background:#18181b;border-radius:92px;padding:14px;box-shadow:0 60px 90px -30px rgba(40,20,120,.55),0 0 0 2px rgba(255,255,255,.25)}
+.phone img{display:block;width:100%;border-radius:78px}
+.chip{display:flex;align-items:center;gap:22px;background:#fff;color:#18181b;border-radius:34px;padding:26px 34px;font-size:36px;font-weight:600;box-shadow:0 24px 50px -22px rgba(60,30,160,.5)}
+.chip i{font-style:normal;width:62px;height:62px;border-radius:20px;background:linear-gradient(135deg,#dfe8ff,#eadfff 55%,#ffe3d1);display:flex;align-items:center;justify-content:center;font-size:32px}
+.btn{display:inline-block;background:#18181b;color:#fff;border-radius:999px;padding:40px 78px;font-size:46px;font-weight:700}
+</style></head><body><div class="s" id="d1">
+ <img class="cl" src="assets/c1.webp" style="width:1100px;left:-200px;top:1010px"><img class="cl" src="assets/c3.webp" style="width:800px;right:-300px;top:-60px;opacity:.7">
+ <div class="logo">Mila</div><div class="pg">1 / 3</div>
+ <div class="z serif" style="position:absolute;left:80px;right:70px;top:240px;font-size:138px;text-shadow:0 4px 50px rgba(80,50,200,.35)">Leads don’t go<br><span style="font-style:italic">cold on purpose.</span></div>
+ <div class="z" style="position:absolute;left:80px;top:760px;width:560px;font-size:40px;line-height:1.35;font-weight:500;text-shadow:0 2px 24px rgba(80,50,200,.55)">They go cold when you’re busy. Mila tells you who needs a message today.<div style="margin-top:34px;font-size:32px;font-weight:700;letter-spacing:.08em">SWIPE →</div></div>
+ <div class="phone" style="width:380px;right:70px;top:760px;transform:rotate(4deg)"><img src="assets/m-contacts.webp"></div>
+</div>
+<div class="s" id="d2">
+ <img class="cl" src="assets/c3.webp" style="width:1000px;right:-400px;top:-140px;opacity:.8"><img class="cl" src="assets/c1.webp" style="width:900px;right:-380px;top:700px;opacity:.6">
+ <div class="logo">Mila</div><div class="pg">2 / 3</div>
+ <div class="z serif" style="position:absolute;left:80px;right:80px;top:200px;font-size:112px;text-shadow:0 4px 40px rgba(80,50,200,.4)">Who to follow up<br><span style="font-style:italic">with today.</span></div>
+ <div class="z" style="position:absolute;right:80px;top:520px;width:470px;display:grid;gap:18px"><div class="chip" style="font-size:30px;padding:22px 26px;gap:18px;border-radius:30px"><i>👥</i>Buyers in clear stages</div><div class="chip" style="font-size:30px;padding:22px 26px;gap:18px;border-radius:30px"><i>💬</i>Follow-ups drafted for you</div><div class="chip" style="font-size:30px;padding:22px 26px;gap:18px;border-radius:30px"><i>🔔</i>Reminders so nothing slips</div><div class="chip" style="font-size:30px;padding:22px 26px;gap:18px;border-radius:30px"><i>✅</i>You approve every message</div></div>
+ <div class="z" style="position:absolute;right:80px;top:1180px;width:480px;font-size:40px;line-height:1.25;font-weight:600;text-shadow:0 2px 24px rgba(80,50,200,.6)">She drafts it. You tap send.</div>
+ <div class="phone" style="width:400px;left:70px;top:500px"><img src="assets/m-contacts.webp"></div>
+</div>
+<div class="s" id="d3">
+ <img class="cl" src="assets/c2.webp" style="width:1100px;left:-250px;top:760px;opacity:.85"><img class="cl" src="assets/c1.webp" style="width:800px;right:-300px;top:-80px;opacity:.7">
+ <div class="logo">Mila</div><div class="pg" style="text-shadow:0 2px 14px rgba(80,50,200,.6)">3 / 3</div>
+ <div class="z" style="position:absolute;left:0;right:0;top:215px;text-align:center">
+  <div class="pill"><span class="dot"></span>Launching Oct 20 · 10 AM ET</div>
+  <div class="serif" style="font-size:150px;margin-top:40px;text-shadow:0 4px 50px rgba(80,50,200,.35)">Never ghost<br><span style="font-style:italic">a lead again.</span></div>
+  <div style="font-size:38px;font-weight:500;margin-top:34px;line-height:1.35;text-shadow:0 2px 24px rgba(80,50,200,.55)">Join the waitlist. Get your personal link<br>on launch morning. 7-day free trial, no card.</div>
+  <div style="margin-top:44px"><div class="btn">Link in bio</div></div>
+ </div>
+ <div class="phone" style="width:430px;left:325px;top:1075px"><img src="assets/m-contacts.webp"></div>
+</div></body></html>
