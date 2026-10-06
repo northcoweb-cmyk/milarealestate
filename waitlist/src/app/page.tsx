@@ -9,6 +9,7 @@ import { Clouds } from "@/components/clouds";
 import { Reveal } from "@/components/reveal";
 import { SiteNav } from "@/components/site-nav";
 import { ScrollToJoin } from "@/components/scroll-to-join";
+import { HeroParallax } from "@/components/hero-parallax";
 import { TryMila } from "@/components/try-mila";
 import { Faq } from "@/components/faq";
 
@@ -47,13 +48,13 @@ export default function Page() {
             <span className="absolute left-1/2 top-0 block h-5 w-5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_40px_10px_rgba(255,255,255,.75)]"><span className="absolute inset-0 translate-x-1 rounded-full bg-[#7c6cf0]" /></span>
           </div>
         </div>
-        <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center pt-14 text-center sm:pt-20">
+        <HeroParallax className="relative z-10 mx-auto flex max-w-4xl flex-col items-center pt-14 text-center sm:pt-20">
           <p className="glass mb-6 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-semibold text-zinc-900"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />Launching October 20 · 7-day free trial</p>
           <h1 className="display text-balance text-[clamp(46px,9vw,92px)] [text-shadow:0_2px_30px_rgba(80,50,200,.35)]">Your AI operations manager for real estate.</h1>
           <p className="mt-6 max-w-2xl text-balance text-[clamp(17px,2.4vw,21px)] leading-relaxed text-white [text-shadow:0_1px_18px_rgba(80,50,200,.45)]">Tell Mila what you need. She preps your listings, writes your posts and emails, sets up open houses and follow-ups, and asks before anything goes out.</p>
           <div id="join" className="mt-10 w-full scroll-mt-10"><WaitlistForm id="hero" /></div>
           <div className="mt-14"><p className="mb-4 text-[12.5px] font-semibold uppercase tracking-[.2em] text-white/85">Doors open in</p><FlipClock to={LAUNCH_AT} /></div>
-        </div>
+        </HeroParallax>
       </section>
 
       {/* SCROLL SHOWCASE */}

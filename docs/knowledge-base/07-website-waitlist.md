@@ -30,3 +30,4 @@ Open `<waitlist-site>/api/health`. `{"database":true}` means signups save. `fals
 
 ## Performance notes (Oct 6, 2026)
 Measured with a 4x CPU slowdown: scroll 60fps, no dropped frames. What made it lighter: clouds and grain are small pre-rendered images (no live blur or blend filters), animation library loads lazily (LazyMotion), the demo only starts typing when scrolled into view, logos/screens shrunk. Rule: keep effects to transform and opacity; avoid `blur()` filters, big `backdrop-filter`, and `mix-blend-mode` on large or moving areas.
+Smooth scrolling: `lenis` (`smooth-scroll.tsx`) eases mouse-wheel/trackpad scrolling; touch keeps native momentum. Hero text has a light scroll parallax. Logo gray/color uses two stacked images instead of a CSS filter (new logos need a gray copy in `public/logos/gray/`).

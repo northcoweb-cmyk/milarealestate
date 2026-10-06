@@ -51,7 +51,7 @@ export function TryMila() {
     const id = ++run.current; const alive = () => run.current === id;
     (async () => {
       setTyped(""); setPhase("typing"); setShown(0); setApproved({});
-      for (let n = 1; n <= s.ask.length; n++) { if (!alive()) return; setTyped(s.ask.slice(0, n)); await sleep(16 + Math.random() * 18); }
+      for (let n = 2; n < s.ask.length + 2; n += 2) { if (!alive()) return; setTyped(s.ask.slice(0, n)); await sleep(30 + Math.random() * 20); }
       await sleep(250); if (!alive()) return; setPhase("thinking"); await sleep(750); if (!alive()) return; setPhase("done");
       for (let n = 1; n <= s.cards.length; n++) { await sleep(280); if (!alive()) return; setShown(n); }
     })();
