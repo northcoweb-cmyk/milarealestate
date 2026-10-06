@@ -14,13 +14,13 @@ export const ContainerScroll = ({ titleComponent, children }: { titleComponent: 
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const scaleDimensions = () => (isMobile ? [0.78, 1] : [1.05, 1]);
-  const rotate = useTransform(scrollYProgress, [0, 1], [20, 0]);
+  const scaleDimensions = () => (isMobile ? [0.9, 1] : [1.05, 1]);
+  const rotate = useTransform(scrollYProgress, [0, 1], [isMobile ? 8 : 20, 0]);
   const scale = useTransform(scrollYProgress, [0, 1], scaleDimensions());
   const translate = useTransform(scrollYProgress, [0, 1], [0, -100]);
 
   return (
-    <div className="relative flex h-[44rem] items-center justify-center p-2 md:h-[66rem] md:p-20" ref={containerRef}>
+    <div className="relative flex h-[62rem] items-center justify-center p-2 md:h-[66rem] md:p-20" ref={containerRef}>
       <div className="relative w-full py-6 md:py-40" style={{ perspective: "1000px" }}>
         <Header translate={translate} titleComponent={titleComponent} />
         <Card rotate={rotate} translate={translate} scale={scale}>{children}</Card>
@@ -36,7 +36,7 @@ export const Header = ({ translate, titleComponent }: { translate: MotionValue<n
 export const Card = ({ rotate, scale, children }: { rotate: MotionValue<number>; scale: MotionValue<number>; translate: MotionValue<number>; children: React.ReactNode }) => (
   <m.div
     style={{ rotateX: rotate, scale, boxShadow: "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026", willChange: "transform" }}
-    className="mx-auto mt-6 h-[28rem] w-full max-w-5xl rounded-[30px] border-4 border-[#6C6C6C] bg-[#222222] p-2 shadow-2xl md:-mt-12 md:h-[40rem] md:p-6"
+    className="mx-auto mt-6 aspect-[780/1688] w-full max-w-[17.5rem] rounded-[30px] border-4 border-[#6C6C6C] bg-[#222222] p-2 shadow-2xl md:-mt-12 md:aspect-auto md:h-[40rem] md:max-w-5xl md:p-6"
   >
     <div className="h-full w-full overflow-hidden rounded-2xl bg-gray-100 md:rounded-2xl md:p-4 dark:bg-zinc-900">{children}</div>
   </m.div>
