@@ -125,7 +125,7 @@ export default function Page() {
         <div className="mx-auto max-w-4xl">
           <h2 className="mb-8 text-balance text-center text-[clamp(22px,3.4vw,32px)] font-medium tracking-tight text-muted-foreground">Built for agents at <span className="font-semibold text-foreground">every brokerage</span>.</h2>
           <Reveal><LogoCloud /></Reveal>
-          <p className="mx-auto mt-6 max-w-xl text-center text-[12.5px] leading-relaxed text-muted-foreground">Mila is an independent product. Brokerage names are shown only to say who it is for. They belong to their owners, and no partnership or endorsement is implied.</p>
+          <p className="mx-auto mt-6 max-w-xl text-center text-[12.5px] leading-relaxed text-muted-foreground">Mila is an independent product. Brokerage logos are shown only to say who it is for. They are trademarks of their owners, and no partnership or endorsement is implied.</p>
         </div>
       </section>
 

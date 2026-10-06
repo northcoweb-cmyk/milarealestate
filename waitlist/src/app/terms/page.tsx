@@ -9,7 +9,7 @@ export default function Terms() {
       <h2>Free trial</h2>
       <p>New accounts are planned to start with a 7-day free trial and no card. Trial details and pricing will be shown clearly at launch.</p>
       <h2>Examples on this site</h2>
-      <p>Screens and examples on this site use fictional data to show how Mila works. Brokerage names are shown only to say who Mila is for and do not mean any partnership or endorsement.</p>
+      <p>Screens and examples on this site use fictional data to show how Mila works. Brokerage logos are shown only to say who Mila is for and do not mean any partnership or endorsement.</p>
       <h2>Contact</h2>
       <p>milarealestateapp@yahoo.com</p>
     </Legal>
