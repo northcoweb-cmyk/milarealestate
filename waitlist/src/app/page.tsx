@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, FileCheck2, Mail, Megaphone, Mic, NotebookPen, ClipboardList, SunMoon, Users } from "lucide-react";
+import { CalendarCheck, HouseLine, ImagesSquare, Key, Microphone, NotePencil, PaperPlaneTilt, SunHorizon, UsersThree } from "@phosphor-icons/react/dist/ssr";
 import { ContainerScroll } from "@/components/ui/container-scroll-animation";
 import PhoneMockupBasic from "@/components/ui/phone-mockups-1";
 import FlipClock from "@/components/ui/flip-clock";
@@ -16,15 +16,15 @@ import { Faq } from "@/components/faq";
 const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-20T09:00:00-04:00";
 
 const FEATURES = [
-  { icon: ClipboardList, title: "Get me ready to list", body: "Photos, a drafted description, and a clear list of what's still missing, built from just an address." },
-  { icon: Megaphone, title: "Posts that write themselves", body: "3-slide Instagram carousels with the full address, hashtags and your signature. Edit, then save straight to your photos." },
-  { icon: Mail, title: "Emails and texts, drafted", body: "Written in your voice and opened in your own mail or messages app. You tap send." },
-  { icon: CalendarDays, title: "Open houses and showings", body: "On your calendar with a photo card, directions, a sign-in sheet, and one tap to send the details to anyone." },
-  { icon: Users, title: "Follow-ups and pipeline", body: "Mila tells you who needs a message today and drafts it. Buyers sit in clear stages." },
-  { icon: NotebookPen, title: "Meeting prep", body: "Walk in knowing what they want, which homes fit, and what you talked about last time." },
-  { icon: FileCheck2, title: "Deal checklist to closing", body: "A countdown and a checklist for every deal, so nothing slips between contract and keys." },
-  { icon: Mic, title: "Log a call by voice", body: "Say what happened. Mila turns it into a clean note and the next step." },
-  { icon: SunMoon, title: "Looks like the sky outside", body: "Bright in the day, deep and starry at night. It feels like an app you want to open." },
+  { icon: HouseLine, title: "Get me ready to list", body: "Photos, a drafted description, and a clear list of what's still missing, built from just an address." },
+  { icon: ImagesSquare, title: "Posts that write themselves", body: "3-slide Instagram carousels with the full address, hashtags and your signature. Edit, then save straight to your photos." },
+  { icon: PaperPlaneTilt, title: "Emails and texts, drafted", body: "Written in your voice and opened in your own mail or messages app. You tap send." },
+  { icon: CalendarCheck, title: "Open houses and showings", body: "On your calendar with a photo card, directions, a sign-in sheet, and one tap to send the details to anyone." },
+  { icon: UsersThree, title: "Follow-ups and pipeline", body: "Mila tells you who needs a message today and drafts it. Buyers sit in clear stages." },
+  { icon: NotePencil, title: "Meeting prep", body: "Walk in knowing what they want, which homes fit, and what you talked about last time." },
+  { icon: Key, title: "Deal checklist to closing", body: "A countdown and a checklist for every deal, so nothing slips between contract and keys." },
+  { icon: Microphone, title: "Log a call by voice", body: "Say what happened. Mila turns it into a clean note and the next step." },
+  { icon: SunHorizon, title: "Looks like the sky outside", body: "Bright in the day, deep and starry at night. It feels like an app you want to open." },
 ];
 
 const STEPS = [
@@ -74,7 +74,7 @@ export default function Page() {
             {FEATURES.map(({ icon: Icon, title, body }, i) => (
               <Reveal key={title} delay={(i % 3) * 0.08} className="h-full"><article className="group relative h-full overflow-hidden rounded-3xl border border-border bg-white p-7 transition duration-500 hover:-translate-y-1.5 hover:border-iris/50 hover:shadow-[0_30px_70px_-28px_rgba(110,80,230,.45)]">
                 <span className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full opacity-0 transition duration-500 group-hover:opacity-100" style={{ background: "radial-gradient(closest-side, rgba(166,140,255,.35), rgba(143,180,255,.12) 60%, transparent)" }} aria-hidden />
-                <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-zinc-900 transition group-hover:bg-zinc-900 group-hover:text-white"><Icon size={22} aria-hidden /></span>
+                <span className="relative mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky/30 via-iris/20 to-peach/35 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,.7)] ring-1 ring-black/5 transition duration-500 group-hover:from-zinc-900 group-hover:via-zinc-800 group-hover:to-zinc-900 group-hover:text-white group-hover:shadow-[0_10px_24px_-8px_rgba(40,20,120,.55)]"><Icon size={30} weight="duotone" aria-hidden className="text-[#4a3bc0] transition-colors duration-500 group-hover:text-white" /></span>
                 <h3 className="text-[19px] font-semibold tracking-tight">{title}</h3>
                 <p className="mt-2 text-[15.5px] leading-relaxed text-muted-foreground">{body}</p>
               </article></Reveal>
