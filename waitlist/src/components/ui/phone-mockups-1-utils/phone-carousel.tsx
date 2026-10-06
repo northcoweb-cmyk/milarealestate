@@ -8,9 +8,9 @@ export interface ImageItem { src: string; alt: string; caption?: string }
 function Phone({ image, className, priority }: { image: ImageItem; className?: string; priority?: boolean }) {
   return (
     <div className={cn("relative w-[220px] shrink-0 rounded-[2.4rem] bg-zinc-900 p-[6px] shadow-[0_24px_50px_-18px_rgba(20,10,60,.5)] ring-1 ring-white/20 sm:w-[250px]", className)}>
-      <div className="relative aspect-[780/1688] w-full overflow-hidden rounded-[2rem] bg-white">
+      <div className="relative w-full overflow-hidden rounded-[2rem] bg-white">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={image.src} alt={image.alt} className="h-full w-full object-cover" draggable={false} loading={priority ? "eager" : "lazy"} />
+        <img src={image.src} alt={image.alt} width={780} height={1688} className="block h-auto w-full" draggable={false} loading={priority ? "eager" : "lazy"} />
         <div className="pointer-events-none absolute left-1/2 top-1.5 h-[14px] w-[48px] -translate-x-1/2 rounded-full bg-black" aria-hidden />
         <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-white/10 via-transparent to-transparent" aria-hidden />
       </div>

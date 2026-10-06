@@ -63,7 +63,7 @@ export default function Page() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <picture>
             <source media="(max-width: 767px)" srcSet="/screens/m-home.webp" />
-            <img src="/screens/d-home.webp" alt="The Mila home screen with a request box and an approval queue" className="mx-auto h-full w-full rounded-2xl object-cover object-top md:object-left-top" draggable={false} />
+            <img src="/screens/d-home.webp" alt="The Mila home screen with a request box and an approval queue" className="mx-auto block h-auto w-full object-cover object-top md:h-full md:rounded-2xl md:object-left-top" draggable={false} />
           </picture>
         </ContainerScroll>
       </section>
