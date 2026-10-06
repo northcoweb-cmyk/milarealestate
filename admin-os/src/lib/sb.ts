@@ -1,5 +1,5 @@
 // Read-only access to the Mila database over Supabase's REST API. Server-only: the service-role key never reaches the browser.
-const base = () => (process.env.SUPABASE_URL ?? "").trim().replace(/\/(rest|auth|storage)\/v1.*$/i, "").replace(/\/+$/, "");
+const base = () => (process.env.SUPABASE_URL ?? "").trim().replace(/\/(rest|auth|storage)(\/v1.*)?\/*$/i, "").replace(/\/+$/, "");
 const key = () => process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
 export const configured = () => !!base() && !!key();
