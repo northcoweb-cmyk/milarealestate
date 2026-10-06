@@ -19,3 +19,11 @@
 - Confirm the invite flow with a fresh email on production (account creation in Supabase auth could only be tested in local mode).
 - Move to a proper sending domain (Resend or similar) before emailing the full list; Yahoo SMTP has low daily limits and may land in spam.
 - Real testimonials or numbers only when they exist. Logos only with permission.
+
+## Adding a brokerage logo
+1. Put the logo (PNG or SVG, transparent background, trimmed) in `waitlist/public/logos/`.
+2. Add one line to the `LOGOS` list in `waitlist/src/components/ui/logo-cloud-2.tsx` with its name, file path, and height class.
+The grid resizes itself (1 to 8+ logos). Keep the "no endorsement" line under it.
+
+## Checking signups work
+Open `<waitlist-site>/api/health`. `{"database":true}` means signups save. `false` means `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are missing in that Vercel project (this is what makes the form say "Signups are paused").

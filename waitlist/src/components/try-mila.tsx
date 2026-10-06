@@ -8,9 +8,9 @@ interface Card { emoji: string; label: string; title: string; detail: string; ac
 interface Scenario { key: string; tab: string; ask: string; reply: string; cards: Card[]; brief?: { title: string; done: number; total: number; rows: string[] } }
 
 const SCENARIOS: Scenario[] = [
-  { key: "oh", tab: "Open house", ask: "Set me up for my open house at 18104 Coachmans Rd, Germantown, Sunday at 1.", reply: "Done. I lined it all up. Nothing goes out until you approve it.",
+  { key: "oh", tab: "Open house", ask: "Set me up for my open house at 4812 Bluebonnet Ln, Austin, Sunday at 1.", reply: "Done. I lined it all up. Nothing goes out until you approve it.",
     cards: [
-      { emoji: "📅", label: "Calendar", title: "Open house · Sun 1–4 PM", detail: "18104 Coachmans Rd, Germantown, MD", action: "Add" },
+      { emoji: "📅", label: "Calendar", title: "Open house · Sun 1–4 PM", detail: "4812 Bluebonnet Ln, Austin, TX", action: "Add" },
       { emoji: "📸", label: "Post", title: "3-slide Instagram carousel", detail: "Full address on the first photo, 5 hashtags", action: "Review" },
       { emoji: "✉️", label: "Email", title: "Invite to 14 past buyers", detail: "Opens in your mail app, ready to send", action: "Approve" },
       { emoji: "✅", label: "Checklist", title: "7 open house tasks", detail: "Signs, sign-in sheet, snacks, and more", action: "Start" },
@@ -21,7 +21,7 @@ const SCENARIOS: Scenario[] = [
       { emoji: "💬", label: "Follow-up", title: "Marcus: asked about financing", detail: "“Here are two lenders I trust. Want an intro?”", action: "Approve" },
       { emoji: "🌱", label: "New lead", title: "Dana: nobody has reached out", detail: "Short intro text, ready to send", action: "Approve" },
     ] },
-  { key: "lb", tab: "Listing brief", ask: "Get me ready to list 26110 Pacific Coast Hwy, Malibu.", reply: "Here's your brief. I started the checklist and drafted the announcement.",
+  { key: "lb", tab: "Listing brief", ask: "Get me ready to list 412 Cypress Creek Rd, Wimberley.", reply: "Here's your brief. I started the checklist and drafted the announcement.",
     cards: [{ emoji: "📸", label: "Post", title: "Instagram announcement drafted", detail: "Photo, price and full address included", action: "Review" }],
     brief: { title: "Listing brief", done: 2, total: 8, rows: ["Photos pulled from the address", "Description drafted", "Still missing: HOA details, disclosures, showing hours"] } },
   { key: "mp", tab: "Meeting prep", ask: "Prep me for my 3 PM with the Hales.", reply: "You're ready. Here's what matters before you walk in.",
