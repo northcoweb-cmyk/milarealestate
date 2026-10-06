@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Sparkle } from "@phosphor-icons/react";
+import { ArrowUp } from "@phosphor-icons/react";
 import { cn } from "@/lib/cn";
 
 type Msg = { id: number; q: string; a: string | null; error?: boolean; off?: boolean; shown: string };
@@ -35,19 +35,11 @@ export function AskMila() {
   }
 
   return (
-    <section aria-labelledby="ask-title" className="mx-auto mt-10 w-full max-w-3xl">
-      <div className="relative overflow-hidden rounded-[2rem] p-px" style={{ background: "linear-gradient(135deg, rgba(143,180,255,.9), rgba(166,140,255,.9) 55%, rgba(255,201,168,.9))" }}>
-        <div className="relative rounded-[calc(2rem-1px)] bg-white px-5 py-7 sm:px-8 sm:py-9">
-          <div className="flex items-center gap-3.5 sm:items-start">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky/35 via-iris/25 to-peach/40 text-[#4a3bc0] ring-1 ring-black/5"><Sparkle size={24} weight="duotone" aria-hidden /></span>
-            <div>
-              <h3 id="ask-title" className="display text-[28px] leading-[1.05] sm:text-[30px]">Still curious? Ask Mila.</h3>
-              <p className="mt-1.5 text-[14.5px] leading-snug text-muted-foreground sm:text-[15px]"><span className="sm:hidden">Only answers questions about Mila.</span><span className="hidden sm:inline">Ask anything about Mila. This box only answers questions about Mila.</span></p>
-            </div>
-          </div>
+    <div className="px-5 pb-6 pt-1">
+          <p className="text-[14.5px] leading-snug text-muted-foreground">Ask anything about Mila. This box only answers questions about Mila.</p>
 
           {msgs.length > 0 && (
-            <div className="mt-6 space-y-4" aria-live="polite">
+            <div className="mt-4 space-y-4" aria-live="polite">
               {msgs.map((m) => (
                 <div key={m.id} className="space-y-2.5">
                   <div className="flex justify-end"><p className="max-w-[88%] rounded-3xl rounded-br-lg bg-zinc-900 px-4 py-2.5 text-[15.5px] leading-snug text-white">{m.q}</p></div>
@@ -62,7 +54,7 @@ export function AskMila() {
             </div>
           )}
 
-          <form onSubmit={(e) => { e.preventDefault(); void ask(q); }} className="mt-6" noValidate>
+          <form onSubmit={(e) => { e.preventDefault(); void ask(q); }} className="mt-4" noValidate>
             <label htmlFor="ask-input" className="sr-only">Ask a question about Mila</label>
             <div className="flex items-center gap-2 rounded-full bg-secondary/70 p-1.5 pl-5 ring-1 ring-black/5 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-iris">
               <input id="ask-input" value={q} onChange={(e) => setQ(e.target.value.slice(0, MAX))} maxLength={MAX} placeholder="Ask about Mila…" autoComplete="off" enterKeyHint="send" className="min-h-[44px] min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-zinc-500" />
@@ -74,8 +66,6 @@ export function AskMila() {
           <div className="no-scrollbar -mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {IDEAS.map((s) => <button key={s} type="button" disabled={busy} onClick={() => void ask(s)} className="shrink-0 whitespace-nowrap rounded-full border border-border bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-foreground/80 transition hover:border-iris/60 hover:bg-secondary disabled:opacity-50">{s}</button>)}
           </div>
-        </div>
-      </div>
-    </section>
+    </div>
   );
 }

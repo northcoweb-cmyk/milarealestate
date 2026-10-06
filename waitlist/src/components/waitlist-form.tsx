@@ -40,7 +40,7 @@ export function WaitlistForm({ id, tone = "light", className }: { id: string; to
       <div className="absolute -left-[9999px]" aria-hidden><label htmlFor={`${id}-web`}>Website</label><input id={`${id}-web`} tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} /></div>
       <InteractiveHoverButton type="submit" disabled={state === "busy"} text={state === "busy" ? "Joining…" : "Join the waitlist"} className={cn("mt-3 h-[54px] w-full text-[16px]", "border-black/10 text-zinc-900")} />
       {error && <p role="alert" className={cn("mt-3 text-[14.5px]", dark ? "text-red-300" : "text-red-600")}>{error}</p>}
-      <p className={cn("mt-3 text-center text-[13px]", dark ? "text-white/70" : "text-white/90")}>7-day free trial at launch. No card. No spam.</p>
+      <p className={cn("mt-3 text-center text-[13px]", dark ? "text-white/70" : "font-medium text-[#2d2170]")}>7-day free trial at launch. No card. No spam.</p>
     </form>
   );
 }
