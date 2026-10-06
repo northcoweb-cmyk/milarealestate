@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { mailConfigured } from "@/lib/mail";
-import { dbConfigured } from "@/lib/sb";
+import { dbConfigured, diagnose } from "@/lib/sb";
 
 export const dynamic = "force-dynamic";
 /** Shows only whether things are set up, never any values. */
-export async function GET() { return NextResponse.json({ ok: dbConfigured(), database: dbConfigured(), email: mailConfigured() }, { headers: { "cache-control": "no-store" } }); }
+export async function GET() {
+  const db = dbConfigured();
+  const d = db ? await diagnose() : null;
+  return NextResponse.json({ ok: db && !!d?.table, database: db, table: d?.table ?? false, tableError: d?.tableError ?? null, launchColumns: d?.launchColumns ?? false, email: mailConfigured() }, { headers: { "cache-control": "no-store" } });
+}
