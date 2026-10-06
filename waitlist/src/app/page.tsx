@@ -157,7 +157,10 @@ export default function Page() {
             <a href="mailto:milarealestateapp@yahoo.com" className="hover:text-white">Contact</a>
           </nav>
         </div>
-        <p className="mx-auto mt-8 max-w-6xl text-center text-[12.5px] text-white/45 sm:text-left">© 2026 Mila. Screens show fictional demo data. · By <a href="https://northco.us" target="_blank" rel="noopener" className="underline decoration-white/30 underline-offset-2 hover:text-white">NorthCo</a></p>
+        <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center gap-2 text-[12.5px] text-white/55 sm:flex-row sm:justify-between">
+          <p>© 2026 Mila. Screens show fictional demo data.</p>
+          <a href="https://northco.us" target="_blank" rel="noopener" className="rounded-full border border-white/20 px-3 py-1.5 text-[13px] font-medium text-white/85 transition hover:border-white/50 hover:text-white">By NorthCo · northco.us</a>
+        </div>
       </footer>
     </main>
   );
