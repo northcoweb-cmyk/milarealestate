@@ -505,6 +505,19 @@ export interface ErrorLog extends Row {
   status: "open" | "resolved";
 }
 
+/** Pre-launch waitlist. user_id is always the nil UUID (these people don't have accounts yet); account_id is set when they claim one. */
+export interface WaitlistEntry extends Row {
+  email: string;
+  name: string | null;
+  source: string | null;
+  status: string;
+  invite_token: string | null;
+  invited_at: string | null;
+  email_sent_at: string | null;
+  claimed_at: string | null;
+  account_id: ID | null;
+}
+
 export interface CreditTransaction extends Row {
   kind: "grant" | "spend" | "purchase" | "reset" | "adjust";
   delta: number;
@@ -562,7 +575,7 @@ export const TABLES = [
   "profiles", "businesses", "contacts", "contact_notes", "contact_events", "properties", "property_images",
   "calendar_events", "tasks", "approvals", "documents", "document_templates", "workflows", "workflow_runs",
   "memories", "emails", "email_drafts", "social_posts", "reminders", "notifications", "integrations", "usage",
-  "credit_transactions", "subscriptions", "conversations", "messages", "error_logs", "listing_media_cache", "api_usage",
+  "credit_transactions", "subscriptions", "conversations", "messages", "error_logs", "listing_media_cache", "api_usage", "waitlist",
 ] as const;
 export type TableName = (typeof TABLES)[number];
 
@@ -596,4 +609,5 @@ export interface TableMap {
   error_logs: ErrorLog;
   listing_media_cache: ListingMediaCache;
   api_usage: ApiUsage;
+  waitlist: WaitlistEntry;
 }

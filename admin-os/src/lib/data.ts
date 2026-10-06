@@ -17,7 +17,7 @@ interface Msg { user_id: string; role: string; created_at: string }
 interface Use { user_id: string; operation: string; model: string; est_cost_usd: number; credits: number; created_at: string }
 interface Err { id: string; level: string; source: string; message: string; stack: string | null; route: string | null; user_email: string | null; status: string; created_at: string }
 interface ApiU { provider: string; endpoint: string; success: boolean; est_cost_usd: number; created_at: string }
-interface Wait { id: string; email: string; name: string | null; source: string | null; created_at: string; status?: string | null }
+interface Wait { id: string; email: string; name: string | null; source: string | null; created_at: string; status?: string | null; invited_at?: string | null; claimed_at?: string | null }
 
 const isTest = (email: string, demo: boolean) => demo || /@(test|example|demo)\.(dev|com|test)$/i.test(email) || /^qa\d+@/i.test(email);
 const lastDays = (n: number, now: number) => Array.from({ length: n }, (_, i) => dayKey(now - (n - 1 - i) * DAY));
@@ -34,7 +34,7 @@ export async function buildReport() {
     table<Use>("usage", { select: "user_id,operation,model,est_cost_usd,credits,created_at", filter: `created_at=gte.${since60}` }),
     table<Err>("error_logs", { select: "id,level,source,message,stack,route,user_email,status,created_at", filter: `created_at=gte.${since30}`, order: "created_at.desc", max: 5000 }),
     table<ApiU>("api_usage", { select: "provider,endpoint,success,est_cost_usd,created_at", filter: `created_at=gte.${since30}` }),
-    table<Wait>("waitlist", { select: "id,email,name,source,created_at,status", order: "created_at.desc" }),
+    (async () => (await table<Wait>("waitlist", { select: "id,email,name,source,created_at,status,invited_at,claimed_at", order: "created_at.desc" })) ?? (await table<Wait>("waitlist", { select: "id,email,name,source,created_at,status", order: "created_at.desc" })))(),
   ]);
   const missing = [["profiles", profiles], ["subscriptions", subs], ["messages", msgs], ["usage", usage], ["error_logs", errs], ["api_usage", apiU], ["waitlist", wait]].filter(([, v]) => v === null).map(([k]) => k as string);
   const P = profiles ?? [], S = subs ?? [], M = msgs ?? [], U = usage ?? [], E = errs ?? [], A = apiU ?? [], W = wait ?? [];
