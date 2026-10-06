@@ -12,4 +12,5 @@ The single place for decisions, ideas, to-dos and playbooks. Update it whenever 
 | 05-competition.md | How to beat competitors, and what we still need to verify |
 | 06-tech-notes.md | Env knobs, cost guards, agents, how to run and test |
 | 07-website-waitlist.md | Plan for the waitlist site |
+| 08-launch-plan-oct20.md | Day-by-day plan and go/no-go checklist for the Oct 20 release |
 | video-prompts/ | The full prompts used for each video |
