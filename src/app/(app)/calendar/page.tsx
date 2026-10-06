@@ -13,8 +13,6 @@ import { PlaceInput } from "@/components/place-input";
 import { eventEmoji } from "@/lib/emoji";
 import { addDays, fmtRange, fmtTime, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
 import { EventPhotoCard } from "@/components/event-card";
-import { ShowingsRail } from "@/components/ui/property-card";
-import type { ShowingCardData } from "@/lib/showings";
 
 interface Person { name: string; phone: string | null; email: string | null; type: string }
 interface Place { address: string; city: string | null; state: string | null; list_price: number | null; beds: number | null; baths: number | null; sqft: number | null; verified: boolean }
@@ -31,12 +29,10 @@ export default function CalendarPage() {
   const [syncing, setSyncing] = useState(false);
   const from = today.toISOString(), to = addDays(today, 60, tz).toISOString();
   const { data, loading, reload } = useApi<Data>(`/api/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-  const showings = useApi<{ showings: ShowingCardData[] }>("/api/showings?days=21");
   const days = useMemo(() => Array.from({ length: 21 }, (_, i) => addDays(today, i, tz)), [today, tz]);
   const key = (d: Date) => { const p = partsIn(d, tz); return `${p.y}-${p.m}-${p.d}`; };
   const byDay = useMemo(() => { const m = new Map<string, CalendarEvent[]>(); for (const e of data?.events ?? []) { const k = key(new Date(e.start_at)); m.set(k, [...(m.get(k) ?? []), e]); } return m; }, [data, tz]); // eslint-disable-line react-hooks/exhaustive-deps
   const dayEvents = byDay.get(key(days[sel])) ?? [];
-  const todaysShowings = (showings.data?.showings ?? []).filter((x) => key(new Date(x.when.startIso)) === key(days[sel]));
   const overlaps = (e: CalendarEvent) => dayEvents.some((o) => o.id !== e.id && new Date(o.start_at) < new Date(e.end_at) && new Date(e.start_at) < new Date(o.end_at));
 
   async function sync() {
@@ -49,7 +45,7 @@ export default function CalendarPage() {
   return (
     <Page wide>
       <PageHeader title="Calendar" sub={data?.google.connected ? `Google Calendar · ${data.google.account ?? "connected"}` : "Mila's calendar"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-8">
+      <div>
       <div className="min-w-0">
       <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-7 lg:overflow-visible lg:px-0 lg:pb-0" role="tablist" aria-label="Days">
         {days.map((d, i) => {
@@ -64,12 +60,11 @@ export default function CalendarPage() {
         })}
       </div>
       <h2 className="h2 mb-3">{dayLabel(days[sel], sel)}</h2>
-      <div className="lg:hidden">{todaysShowings.length ? <div className="mb-5"><ShowingsRail items={todaysShowings} /></div> : null}</div>
       {loading && !data ? <Skeleton className="h-40" /> : dayEvents.length ? (
         <ul className="space-y-3">
           {dayEvents.map((e) => (
             <li key={e.id}>{e.property_id || (e.location && /\d/.test(e.location)) ? (
-              <div><EventPhotoCard e={e} address={e.property_id ? [data?.places[e.property_id]?.address, data?.places[e.property_id]?.city, data?.places[e.property_id]?.state].filter(Boolean).join(", ") || e.location : e.location} onClick={() => setOpenEv(e)} />{overlaps(e) && <p className="mt-1.5 px-2 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}</div>
+              <div><EventPhotoCard e={e} address={e.property_id ? [data?.places[e.property_id]?.address, data?.places[e.property_id]?.city, data?.places[e.property_id]?.state].filter(Boolean).join(", ") || e.location : e.location} place={e.property_id ? data?.places[e.property_id] : null} person={e.contact_id ? data?.people[e.contact_id] : null} onMore={() => setOpenEv(e)} />{overlaps(e) && <p className="mt-1.5 px-2 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}</div>
             ) : <button onClick={() => setOpenEv(e)} className="glass flex w-full gap-4 p-4 text-left" style={{ borderRadius: 24 }}>
               <div className="w-[84px] shrink-0 whitespace-nowrap"><p className="font-semibold leading-tight">{fmtTime(e.start_at, tz)}</p><p className="faint mt-0.5 text-[12.5px]">{Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000)} min</p></div>
               <div className="min-w-0 flex-1 border-l-[3px] pl-4" style={{ borderColor: KIND_COLOR[e.kind] ?? KIND_COLOR.other }}>
@@ -89,7 +84,6 @@ export default function CalendarPage() {
         {data?.google.connected ? <button className="btn btn-sm" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />Sync now</button> : capabilities.google ? <a className="btn btn-primary btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : null}
       </div>
       </div>
-      <aside className="hidden lg:sticky lg:top-8 lg:block">{todaysShowings.length ? <ShowingsRail items={todaysShowings} className="lg:flex-col lg:overflow-visible" /> : null}</aside>
       </div>
       {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} />}
       <AddEvent open={adding} onClose={() => setAdding(false)} defaultDay={days[sel]} onDone={reload} />
