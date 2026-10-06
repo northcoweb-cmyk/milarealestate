@@ -14,7 +14,7 @@ import { DAY_MS, fmtDay, fmtTime, relativeDays, startOfDay } from "./time";
 export interface FeedAction { label: string; href?: string; approveId?: string; ask?: string }
 export interface NeedsItem { id: string; emoji: string; label?: string; title: string; why: string | null; primary: FeedAction; secondary?: FeedAction; tone: "urgent" | "normal" }
 export interface DidItem { id: string; emoji: string; text: string; at: string; href?: string }
-export interface UpItem { id: string; emoji: string; time: string; day: string; title: string; place: string | null; href: string }
+export interface UpItem { id: string; emoji: string; time: string; day: string; title: string; place: string | null; href: string; kind: string; startAt: string; endAt: string; propertyId: string | null; location: string | null }
 
 export interface PlanItem { id: string; emoji: string; done: boolean; title: string; why: string; action: FeedAction }
 
@@ -99,9 +99,9 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
 
   // ------------------------------------------------------------------ coming up
   const propById = new Map(props.map((p) => [p.id, p]));
-  const next = events.filter((e) => e.status === "confirmed" && new Date(e.end_at).getTime() > now.getTime() && new Date(e.start_at).getTime() < now.getTime() + 2 * DAY_MS)
-    .sort((a, b) => a.start_at.localeCompare(b.start_at)).slice(0, 3)
-    .map((e): UpItem => ({ id: e.id, emoji: eventEmoji(e.kind), time: fmtTime(e.start_at, tz), day: relativeDays(e.start_at, now, tz), title: e.title, place: e.property_id ? propById.get(e.property_id)?.address ?? e.location : e.location, href: "/calendar" }));
+  const next = events.filter((e) => e.status === "confirmed" && new Date(e.end_at).getTime() > now.getTime() && new Date(e.start_at).getTime() < now.getTime() + 7 * DAY_MS)
+    .sort((a, b) => a.start_at.localeCompare(b.start_at)).slice(0, 4)
+    .map((e): UpItem => ({ id: e.id, emoji: eventEmoji(e.kind), time: fmtTime(e.start_at, tz), day: relativeDays(e.start_at, now, tz), title: e.title, place: e.property_id ? propById.get(e.property_id)?.address ?? e.location : e.location, href: "/calendar", kind: e.kind, startAt: e.start_at, endAt: e.end_at, propertyId: e.property_id, location: e.property_id ? [propById.get(e.property_id)?.address, propById.get(e.property_id)?.city, propById.get(e.property_id)?.state].filter(Boolean).join(", ") || e.location : e.location }));
 
   // ------------------------------------------------------------------ today's plan (recommendations, ≤5)
   const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);

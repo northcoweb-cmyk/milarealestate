@@ -12,6 +12,7 @@ import { useApp } from "@/components/app-context";
 import { PlaceInput } from "@/components/place-input";
 import { eventEmoji } from "@/lib/emoji";
 import { addDays, fmtRange, fmtTime, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
+import { EventPhotoCard } from "@/components/event-card";
 import { ShowingsRail } from "@/components/ui/property-card";
 import type { ShowingCardData } from "@/lib/showings";
 
@@ -67,7 +68,9 @@ export default function CalendarPage() {
       {loading && !data ? <Skeleton className="h-40" /> : dayEvents.length ? (
         <ul className="space-y-3">
           {dayEvents.map((e) => (
-            <li key={e.id}><button onClick={() => setOpenEv(e)} className="glass flex w-full gap-4 p-4 text-left" style={{ borderRadius: 24 }}>
+            <li key={e.id}>{e.property_id || (e.location && /\d/.test(e.location)) ? (
+              <div><EventPhotoCard e={e} address={e.property_id ? [data?.places[e.property_id]?.address, data?.places[e.property_id]?.city, data?.places[e.property_id]?.state].filter(Boolean).join(", ") || e.location : e.location} onClick={() => setOpenEv(e)} />{overlaps(e) && <p className="mt-1.5 px-2 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}</div>
+            ) : <button onClick={() => setOpenEv(e)} className="glass flex w-full gap-4 p-4 text-left" style={{ borderRadius: 24 }}>
               <div className="w-[84px] shrink-0 whitespace-nowrap"><p className="font-semibold leading-tight">{fmtTime(e.start_at, tz)}</p><p className="faint mt-0.5 text-[12.5px]">{Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000)} min</p></div>
               <div className="min-w-0 flex-1 border-l-[3px] pl-4" style={{ borderColor: KIND_COLOR[e.kind] ?? KIND_COLOR.other }}>
                 <p className="font-semibold leading-snug"><span aria-hidden>{eventEmoji(e.kind)} </span>{e.title}</p>
@@ -76,7 +79,7 @@ export default function CalendarPage() {
                 {overlaps(e) && <p className="mt-1 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}
               </div>
               <ChevronRight size={18} className="mt-1 shrink-0 text-ink-faint" aria-hidden />
-            </button></li>
+            </button>}</li>
           ))}
         </ul>
       ) : <Empty title="Nothing scheduled" body="Add an event, or just tell Mila: “Schedule a showing Friday at 3.”" />}

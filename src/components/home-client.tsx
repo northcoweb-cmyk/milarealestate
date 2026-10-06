@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { peekApi, putApi } from "./use-api";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { motion } from "motion/react";
@@ -12,6 +13,7 @@ import { InstallBanner } from "./install";
 import { CheckDot, Skeleton, jfetch } from "./ui";
 import { useMila } from "./mila-chat";
 import type { Feed } from "@/lib/feed";
+import { EventPhotoCard } from "./event-card";
 
 export interface HomeData { greeting: string; firstName: string; dateLine: string; feed: Feed | null; isDemo: boolean }
 
@@ -61,6 +63,7 @@ const ago = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - ne
 
 /** Muse-style feed: what needs you, today's plan, what Mila did, what's next — nothing else. */
 function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData; refreshKey: number; helpSeen: boolean; onHelpSeen: () => void }) {
+  const router = useRouter();
   const { toast } = useApp();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [f, setF] = useState<Feed | null>(() => data.feed ?? peekApi<Feed>("/api/feed")); // last feed paints at once on return visits, then refreshes
@@ -204,13 +207,19 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
       {f.next.length > 0 && (
         <section aria-labelledby="coming-up">
           <div className="mb-3 flex items-baseline justify-between"><h2 id="coming-up" className="kicker">Coming up</h2><Link href="/calendar" className="text-[13.5px] font-semibold text-accent">Calendar</Link></div>
-          <ul className="glass divide-y overflow-hidden" style={{ borderColor: "var(--line)", borderRadius: 24 }}>
+          <ul className="space-y-3">
             {f.next.map((e) => (
-              <li key={e.id}><Link href={e.href} className="flex items-center gap-3.5 px-4 py-3.5">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[22px]" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }} aria-hidden>{e.emoji}</span>
-                <div className="min-w-0 flex-1"><p className="truncate text-[15.5px] font-semibold leading-tight">{e.title}</p><p className="faint truncate text-[13.5px]">{e.day} · {e.time}{e.place ? ` · ${e.place}` : ""}</p></div>
-                <ChevronRight size={18} className="shrink-0 text-ink-faint" aria-hidden />
-              </Link></li>
+              <li key={e.id}>
+                {e.propertyId || (e.location && /\d/.test(e.location)) ? (
+                  <EventPhotoCard e={{ id: e.id, kind: e.kind, title: e.title, start_at: e.startAt, end_at: e.endAt, property_id: e.propertyId, location: e.location }} address={e.place} onClick={() => router.push(e.href)} />
+                ) : (
+                  <Link href={e.href} className="glass flex items-center gap-3.5 px-4 py-3.5" style={{ borderRadius: 24 }}>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[22px]" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }} aria-hidden>{e.emoji}</span>
+                    <div className="min-w-0 flex-1"><p className="truncate text-[15.5px] font-semibold leading-tight">{e.title}</p><p className="faint truncate text-[13.5px]">{e.day} · {e.time}{e.place ? ` · ${e.place}` : ""}</p></div>
+                    <ChevronRight size={18} className="shrink-0 text-ink-faint" aria-hidden />
+                  </Link>
+                )}
+              </li>
             ))}
           </ul>
         </section>
