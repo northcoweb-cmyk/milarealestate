@@ -1,11 +1,10 @@
 "use client";
 import React, { useRef } from "react";
-import { useScroll, useSpring, useTransform, m, MotionValue } from "framer-motion";
+import { useScroll, useTransform, m, MotionValue } from "framer-motion";
 
 export const ContainerScroll = ({ titleComponent, children }: { titleComponent: string | React.ReactNode; children: React.ReactNode }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: raw } = useScroll({ target: containerRef, offset: ["start end", "center center"] });
-  const scrollYProgress = useSpring(raw, { stiffness: 120, damping: 28, mass: 0.4 });
+  const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start end", "center center"] });
   const [isMobile, setIsMobile] = React.useState(false);
 
   React.useEffect(() => {
@@ -37,8 +36,8 @@ export const Header = ({ translate, titleComponent }: { translate: MotionValue<n
 export const Card = ({ rotate, scale, children }: { rotate: MotionValue<number>; scale: MotionValue<number>; translate: MotionValue<number>; children: React.ReactNode }) => (
   <m.div
     style={{ rotateX: rotate, scale, boxShadow: "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026", willChange: "transform" }}
-    className="mx-auto mt-6 h-auto w-full max-w-[17.5rem] rounded-[30px] border-4 border-[#6C6C6C] bg-[#222222] p-2 shadow-2xl md:-mt-12 md:h-[40rem] md:max-w-5xl md:p-6"
+    className="mx-auto mt-6 h-[36.5rem] w-full max-w-[17.5rem] rounded-[30px] border-4 border-[#6C6C6C] bg-[#222222] p-2 shadow-2xl md:-mt-12 md:h-[40rem] md:max-w-5xl md:p-6"
   >
-    <div className="w-full overflow-hidden rounded-[22px] md:h-full md:rounded-2xl bg-gray-100 md:p-4 dark:bg-zinc-900">{children}</div>
+    <div className="h-full w-full overflow-hidden rounded-[22px] md:rounded-2xl bg-gray-100 md:p-4 dark:bg-zinc-900">{children}</div>
   </m.div>
 );
