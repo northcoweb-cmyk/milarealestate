@@ -3,7 +3,7 @@ import { supabaseUrl } from "@/lib/supabase-url";
 import { authMode, createProfile, localSignIn, setSupabaseSession } from "@/lib/auth";
 import { getStore } from "@/lib/db/store";
 import { clientIp, hit } from "@/lib/server/rate-limit";
-import { logError } from "@/lib/server/errors";
+import { logError, NIL_USER } from "@/lib/server/errors";
 import { inviteFor, markClaimed } from "@/lib/waitlist";
 
 /** Launch day: a waitlist member opens their emailed link, picks a password, and gets an account on the email they signed up with. */
@@ -13,6 +13,9 @@ export async function POST(req: Request) {
   const inv = await inviteFor(token);
   if (!inv.ok) return NextResponse.json({ error: inv.reason === "used" ? "This link was already used. Sign in with your email and password." : inv.reason === "expired" ? "This link has expired. Reply to your invite email and we'll send a new one." : "This link isn't valid. Check you opened the newest email from Mila." }, { status: 400 });
   const { entry } = inv;
+  // backstop for the seat cap: even a valid link can't push the number of accounts past the launch limit
+  const cap = Number(process.env.SEAT_CAP ?? 20);
+  if (Number.isFinite(cap)) { const joined = (await getStore().list("waitlist", NIL_USER)).filter((w) => w.claimed_at).length; if (joined >= cap) return NextResponse.json({ error: "We're letting people in a few at a time to keep Mila fast. You're still in line and we'll email you when your spot opens." }, { status: 403 }); }
   const name = (entry.name || entry.email.split("@")[0]).slice(0, 120);
   try {
     if (authMode() === "supabase") {

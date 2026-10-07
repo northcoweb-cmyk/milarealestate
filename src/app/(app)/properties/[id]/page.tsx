@@ -91,7 +91,7 @@ function PropertyDetail({ id }: { id: string }) {
               ["Taxes", x.tax_amount ? `${m(x.tax_amount)}/yr${x.tax_year ? ` (${x.tax_year})` : ""}` : ""], ["HOA", x.hoa_fee ? `${m(x.hoa_fee)}/mo` : ""], ["MLS", x.mls ?? ""], ["Listing agent", [x.listing_agent, x.listing_office].filter(Boolean).join(", ")],
             ] as [string, string][]).filter(([, v]) => v);
               return rows.length ? <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-[14px] sm:grid-cols-2">{rows.map(([k, v]) => <div key={k} className="flex justify-between gap-3 border-b py-1" style={{ borderColor: "var(--line)" }}><dt className="muted">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>)}</dl> : null; })()}
-            <p className="muted mt-2 text-[13.5px]">Filled in below. Edit anything that looks off.</p>
+            <p className="muted mt-2 text-[13.5px]">Not looking right? <a href="#edit" className="font-semibold text-accent underline">Let's change it.</a></p>
             {data.lookup.sources.some((x) => x.url) && <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13.5px]">{data.lookup.sources.filter((x) => x.url).map((x) => <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">{(() => { try { return new URL(x.url).hostname.replace(/^www\./, ""); } catch { return x.title; } })()}</a>)}</p>}
           </>
         ) : (
@@ -119,7 +119,7 @@ function PropertyDetail({ id }: { id: string }) {
       </section>
       </div>
       <div>
-      <form onSubmit={save} className="glass p-5 sm:p-6">
+      <form id="edit" onSubmit={save} className="glass scroll-mt-24 p-5 sm:p-6">
         <p className="kicker mb-1">Facts</p><p className="muted mb-4 text-[14px]">Mila only puts price, beds, baths and size in emails and posts after you confirm they're accurate.</p>
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3"><div><label className="lbl">City</label><input className="field" value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} /></div><div><label className="lbl">State</label><input className="field" maxLength={2} value={f.state} onChange={(e) => setF({ ...f, state: e.target.value.toUpperCase() })} /></div><div><label className="lbl">ZIP</label><input className="field" value={f.zip} onChange={(e) => setF({ ...f, zip: e.target.value })} /></div></div>
         <div className="mt-3 grid gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4"><div><label className="lbl">Price</label><input className="field" inputMode="numeric" value={f.list_price} onChange={(e) => setF({ ...f, list_price: e.target.value })} /></div><div><label className="lbl">Beds</label><input className="field" inputMode="decimal" value={f.beds} onChange={(e) => setF({ ...f, beds: e.target.value })} /></div><div><label className="lbl">Baths</label><input className="field" inputMode="decimal" value={f.baths} onChange={(e) => setF({ ...f, baths: e.target.value })} /></div><div><label className="lbl">Sq ft</label><input className="field" inputMode="numeric" value={f.sqft} onChange={(e) => setF({ ...f, sqft: e.target.value })} /></div></div>

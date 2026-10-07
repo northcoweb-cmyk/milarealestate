@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { counts, nextBatch, sendInvite, sendTest, smtpConfigured } from "@/lib/invites";
+import { counts, nextBatch, seatCap, sendInvite, sendTest, smtpConfigured } from "@/lib/invites";
 
 export const maxDuration = 60;
 const BATCH = 12; // small on purpose: one request must finish well inside the time limit
@@ -20,7 +20,10 @@ export async function POST(req: Request) {
     }
     if (b.action === "send") {
       if (b.confirm !== "SEND") return NextResponse.json({ error: 'Type SEND to confirm.' }, { status: 400 });
-      const batch = await nextBatch(BATCH);
+      const before = await counts();
+      const room = Math.max(0, seatCap() - (before?.invited ?? 0));
+      if (room === 0) return NextResponse.json({ error: `Seat cap reached (${seatCap()} people let in). Everyone else stays in the queue. Raise SEAT_CAP in this project's Vercel settings when you're ready for more.` }, { status: 400 });
+      const batch = await nextBatch(Math.min(BATCH, room));
       let sent = 0; const failed: string[] = [];
       for (const e of batch) { try { await sendInvite(e); sent++; } catch (err) { failed.push(`${e.email}: ${err instanceof Error ? err.message : "failed"}`); } }
       const c = await counts();

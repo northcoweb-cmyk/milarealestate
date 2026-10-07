@@ -71,7 +71,7 @@ export async function addListingHandler(ctx: Ctx, text: string): Promise<Handler
       { label: "New-listing checklist", style: "secondary", action: { type: "listing_checklist", propertyId: prop.id } },
       { label: "Open property", style: "quiet", href: `/properties/${prop.id}` },
     ],
-  }];
+  }, ...(looked || have ? [{ type: "notice", tone: "info", title: "Not looking right?", body: "Details found online can be off. Check them before they go in a post or email.", buttons: [{ label: "Let's change it", style: "secondary", href: `/properties/${prop.id}#edit` }] } as Block] : [])];
   return reply(lines.filter((l, i, a) => l || (i && a[i - 1])).join("\n"), blocks, "chat_simple");
 }
 

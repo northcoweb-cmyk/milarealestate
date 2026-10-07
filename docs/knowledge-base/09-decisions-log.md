@@ -24,3 +24,9 @@
 - Feedback button (migration 0008) built and waiting to ship once Vercel deploys are available again.
 - **Design direction (memory):** the app should use the purples and cool blues from the Mila website (sky gradient from soft blue through violet to peach, white cards, Instrument Serif headlines, Inter body) so people who join from the waitlist feel they are in the same product, not a new UI. The app currently uses a different, more neutral look; a visual pass to match the website is on the to-do list. Tokens to reuse live in `waitlist/src/app/globals.css` (sky, iris, peach, night, paper).
 
+
+## Oct 7 (evening)
+- Launch seats: 20 people for the first 1-2 weeks, then widen slowly. Controlled by `SEAT_CAP` (set it in BOTH the admin-os and main app projects; default 20). Admin "send invites" stops at the cap, and the claim page refuses past it. Everyone else stays in the queue.
+- Team plan is "Contact us": opens a pre-filled email to admin@milarealestate.app (team name, agents, CRM, MLS). Team logo, shared pipeline and invite links are not built yet.
+- Property details found online show "Not looking right? Let's change it." which jumps to the edit form.
+- Notifications: no push. Plan is an in-app inbox plus a daily summary card on Home, and email only for people who used the app recently.

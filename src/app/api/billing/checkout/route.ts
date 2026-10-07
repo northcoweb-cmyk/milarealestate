@@ -19,6 +19,7 @@ export const POST = api(async ({ profile, req }) => {
   if (b.kind === "plan") {
     const plan = cfg.plans.find((p) => p.key === b.plan_key);
     if (!plan) throw bad("Unknown plan.");
+    if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email admin@milarealestate.app.");
     name = plan.name; cents = Math.round(plan.price_usd * 100);
     f.set("mode", "subscription");
     f.set("line_items[0][price_data][recurring][interval]", "month");

@@ -15,6 +15,9 @@ async function rest(path: string, init: RequestInit = {}) {
   return r;
 }
 
+/** How many people may be let in at once. Raise it in Vercel (SEAT_CAP) as launch goes well. Everyone else waits in the queue. */
+export const seatCap = () => { const n = Number(process.env.SEAT_CAP ?? 20); return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 20; };
+
 export async function counts() {
   const r = await rest("waitlist?select=id,invite_token,invited_at,claimed_at&limit=20000");
   if (!r.ok) return null;
