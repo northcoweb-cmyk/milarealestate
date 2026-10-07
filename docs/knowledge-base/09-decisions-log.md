@@ -22,4 +22,5 @@
 - Vercel Hobby plan hit the 100 deployments/day limit. Each project now builds only when its own folder changes and only on main. Plan to move to Vercel Pro before launch.
 - Contact address: **admin@milarealestate.app** (Porkbun forwarding to the Yahoo inbox) for bugs and support. Emails are sent from hello@milarealestate.app with replies going to admin@ (MAIL_REPLY_TO). Public pages no longer show the Yahoo address.
 - Feedback button (migration 0008) built and waiting to ship once Vercel deploys are available again.
+- **Design direction (memory):** the app should use the purples and cool blues from the Mila website (sky gradient from soft blue through violet to peach, white cards, Instrument Serif headlines, Inter body) so people who join from the waitlist feel they are in the same product, not a new UI. The app currently uses a different, more neutral look; a visual pass to match the website is on the to-do list. Tokens to reuse live in `waitlist/src/app/globals.css` (sky, iris, peach, night, paper).
 

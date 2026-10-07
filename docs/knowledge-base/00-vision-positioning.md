@@ -23,3 +23,7 @@
 **Voice:** calm, specific, in charge of the busywork. Short sentences. Always a clear next step. No hype.
 
 **Roadmap idea from the investor:** Mila progressively learns how each agent operates (their style, timing, templates), so it gets better the longer it's used. This is the moat.
+
+## Brand and UI direction
+Use the website's purples and cool blues inside the app too (soft blue to violet to peach gradient, white cards, Instrument Serif for headlines, Inter for text). The goal is one continuous look from the waitlist site to the app, so nothing feels like a new product after signing up.
+
