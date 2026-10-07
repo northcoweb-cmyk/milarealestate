@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck, HouseLine, ImagesSquare, Key, Microphone, NotePencil, PaperPlaneTilt, SunHorizon, UsersThree } from "@phosphor-icons/react/dist/ssr";
+import { CalendarCheck, HouseLine, ImagesSquare, InstagramLogo, Key, Microphone, NotePencil, PaperPlaneTilt, SunHorizon, UsersThree, XLogo } from "@phosphor-icons/react/dist/ssr";
 import { ContainerScroll } from "@/components/ui/container-scroll-animation";
 import PhoneMockupBasic from "@/components/ui/phone-mockups-1";
 import FlipClock from "@/components/ui/flip-clock";
@@ -151,7 +151,11 @@ export default function Page() {
 
       <footer className="bg-night px-5 py-12 text-white/70">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-5 text-center sm:flex-row sm:text-left">
-          <div><p className="display text-3xl text-white">Mila</p><p className="text-[14px]">Your AI operations manager for real estate.</p></div>
+          <div><p className="display text-3xl text-white">Mila</p><p className="text-[14px]">Your AI operations manager for real estate.</p>
+            <div className="mt-4 flex items-center justify-center gap-3 sm:justify-start">
+              <a href="https://x.com/milarealestate_" target="_blank" rel="noopener" aria-label="Mila on X (@milarealestate_)" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:border-white/60 hover:bg-white/10 hover:text-white"><XLogo size={20} weight="fill" aria-hidden /></a>
+              <a href="https://instagram.com/milarealestateapp" target="_blank" rel="noopener" aria-label="Mila on Instagram (@milarealestateapp)" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:border-white/60 hover:bg-white/10 hover:text-white"><InstagramLogo size={22} weight="regular" aria-hidden /></a>
+            </div></div>
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[14px]" aria-label="Footer">
             <Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/terms" className="hover:text-white">Terms</Link>
             <a href="mailto:milarealestateapp@yahoo.com" className="hover:text-white">Contact</a>
