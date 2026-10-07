@@ -5,13 +5,13 @@ import { jfetch } from "@/components/ui";
 
 export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"; localAllowed: boolean }) {
   const [signIn, setSignIn] = useState(false);
-  const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
+  const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [info, setInfo] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError(null); setInfo(null);
     try {
-      const r = await jfetch<{ onboarded?: boolean; confirm?: boolean; message?: string }>(signIn ? "/api/auth/login" : "/api/auth/signup", { method: "POST", json: { name, email, password } });
+      const r = await jfetch<{ onboarded?: boolean; confirm?: boolean; message?: string }>(signIn ? "/api/auth/login" : "/api/auth/signup", { method: "POST", json: { name, email, password, code } });
       if (r.confirm) { setInfo(r.message ?? "Check your email."); return; }
       // full page load: the client router cache may still hold the signed-out redirect to /welcome
       window.location.replace(signIn || r.onboarded ? "/" : "/onboarding"); return;
@@ -30,6 +30,7 @@ export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"
       {!signIn && <div><label className="lbl" htmlFor="n">Your name</label><input id="n" className="field" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Sarah Carter" required /></div>}
       <div><label className="lbl" htmlFor="e">Email</label><input id="e" type="email" className="field" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@brokerage.com" required /></div>
       {mode === "supabase" && <div><label className="lbl" htmlFor="p">Password</label><input id="p" type="password" className="field" autoComplete={signIn ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required /></div>}
+      {!signIn && <div><label className="lbl" htmlFor="c">Access code</label><input id="c" className="field" inputMode="numeric" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.replace(/\s/g, "").slice(0, 32))} placeholder="Ask for an invite code" required /><p className="faint mt-1.5 text-[12.5px]">Mila is invite-only right now. Already have an account? Use “Sign in” below.</p></div>}
       {error && <p role="alert" className="text-[14.5px]" style={{ color: "var(--danger)" }}>{error}</p>}
       {info && <p className="text-[14.5px]" style={{ color: "var(--ok)" }}>{info}</p>}
       <button className="btn btn-primary w-full" disabled={busy}>{busy ? "One moment…" : signIn ? "Sign in" : "Get started"}</button>
