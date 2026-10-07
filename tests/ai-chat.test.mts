@@ -13,8 +13,10 @@ const realFetch = globalThis.fetch;
 globalThis.fetch = (async (url: any, init: any) => {
   if (!String(url).includes("api.openai.com")) return realFetch(url, init);
   const body = JSON.parse(init.body); calls.push(body);
-  const fn = body.tool_choice?.function?.name;
+  const responses = String(url).endsWith("/responses"); // GPT-6 models use the Responses API
+  const fn = body.tool_choice?.function?.name ?? body.tool_choice?.name;
   const args = fn === "route" ? { intent: "general" } : { reply: "Don't counter emotionally. Anchor to the comps, ask for their reasoning, and set a response deadline.", actions: [{ label: "Draft the counter email", prompt: "Draft a counter email for the Hendersons" }, { label: "", prompt: "x" }] };
+  if (responses) return new Response(JSON.stringify({ status: "completed", output: [{ type: "function_call", name: fn, arguments: JSON.stringify(args) }], usage: { input_tokens: 10, output_tokens: 10 } }), { headers: { "content-type": "application/json" } });
   return new Response(JSON.stringify({ choices: [{ message: { content: null, tool_calls: [{ function: { name: fn, arguments: JSON.stringify(args) } }] } }], usage: { prompt_tokens: 10, completion_tokens: 10 } }), { headers: { "content-type": "application/json" } });
 }) as typeof fetch;
 
@@ -34,8 +36,8 @@ test("open questions get an expert reply grounded in the agent's own business, w
   const choice = r.milaMessage.blocks.find((b: any) => b.type === "choice") as any;
   assert.equal(choice.buttons.length, 1, "blank suggestions are dropped");
   assert.equal(choice.buttons[0].action.text, "Draft a counter email for the Hendersons");
-  const chat = calls.find((c) => c.tool_choice?.function?.name === "reply");
-  const system = chat.messages[0].content as string;
+  const chat = calls.find((c) => (c.tool_choice?.function?.name ?? c.tool_choice?.name) === "reply");
+  const system = (chat.instructions ?? chat.messages[0].content) as string;
   assert.match(system, /8814 Brookside Drive/, "knows the agent's listings");
   assert.match(system, /THINK AHEAD/);
   assert.match(system, /Fair housing|FAIR HOUSING/);

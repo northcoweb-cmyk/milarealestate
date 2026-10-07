@@ -393,6 +393,8 @@ export interface ConversationState {
   last_contact_ids?: ID[];
   last_import_batch?: ID[]; // contact ids from most recent sign-in/import
   pending?: PendingQuestion | null;
+  /** the last client search brief, so "search for the specified criteria" a minute later still knows what that means */
+  last_search?: { text: string; at: number } | null;
   /** the last change Mila made on her own, so a typed "undo" knows what to reverse */
   last_action?: { type: "move"; event_id: ID; start_at: string; end_at: string } | { type: "create"; event_id: ID } | { type: "property"; property_id: ID; patch: Record<string, unknown> } | null;
 }

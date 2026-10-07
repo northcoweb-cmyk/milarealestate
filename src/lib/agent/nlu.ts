@@ -94,7 +94,7 @@ function parseTimeRaw(text: string): TimeSpec | null {
     const hasMer = mer1 || mer2;
     const afterRange = t.slice((range.index ?? 0) + range[0].length, (range.index ?? 0) + range[0].length + 12);
     const ctxWord = /\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b|\b(today|tomorrow|tonight)\b|\b(open house|showing|tour)\b/.test(t);
-    if ((hasMer || endRaw === "noon" || (ctxWord && !m1 && !m2 && +h1 >= 1 && +h1 <= 12 && +(h2 ?? 0) >= 1 && +(h2 ?? 0) <= 12) || /^(from|between)\b/.test(range[0]) || /\bat\s*$/.test(t.slice(Math.max(0, (range.index ?? 0) - 6), range.index))) && !/^\s*(bed|br|bath|bd)/.test(afterRange)) {
+    if ((hasMer || endRaw === "noon" || (ctxWord && !m1 && !m2 && +h1 >= 1 && +h1 <= 12 && +(h2 ?? 0) >= 1 && +(h2 ?? 0) <= 12) || /^(from|between)\b/.test(range[0]) || /\bat\s*$/.test(t.slice(Math.max(0, (range.index ?? 0) - 6), range.index))) && !/^\s*(?:bed|br\b|bath|bd\b|hours?|hrs?\b|minutes?|mins?\b|miles?|mi\b|days?|weeks?|months?|years?|yrs?\b|k\b|%|people|units?|stor(?:y|ies)|floors?|blocks?|stars?)/.test(afterRange)) {
       const endMer = mer2 ?? mer1;
       const start = to24(toNum(h1), m1 ? +m1 : 0, mer1 ?? (mer2 && toNum(h1) <= toNum(h2 ?? "0") ? mer2 : mer2));
       const end = endRaw === "noon" ? { h: 12, mi: 0 } : to24(toNum(h2), m2 ? +m2 : 0, endMer);

@@ -31,6 +31,8 @@ export interface CompletionRequest {
   images?: { mediaType: string; dataBase64: string }[];
   documents?: { mediaType: "application/pdf"; dataBase64: string }[];
   webSearch?: boolean;
+  /** How hard a reasoning model should think. Defaults by tier. Ignored by models that don't reason. */
+  effort?: "none" | "low" | "medium" | "high";
 }
 
 export interface CompletionResult {
@@ -125,11 +127,26 @@ class AnthropicProvider implements AIProvider {
 }
 
 // ---------------------------------------------------------------- OpenAI
+// GPT-6 family: Luna (fastest, cheapest), Sol 6.1 (balanced), Astra (smartest). Override any of them with the MILA_OPENAI_MODEL_* variables,
+// e.g. set all three to gpt-6-astra to use the smartest model for everything (costs far more).
 export function openaiModels(): Record<Tier, ModelInfo> {
-  const fast = { provider: "openai", model: process.env.MILA_OPENAI_MODEL_FAST || "gpt-4o-mini", inPerM: num(process.env.MILA_PRICE_FAST_IN, 0.15), outPerM: num(process.env.MILA_PRICE_FAST_OUT, 0.6) };
-  const standard = { provider: "openai", model: process.env.MILA_OPENAI_MODEL_STANDARD || "gpt-4o", inPerM: num(process.env.MILA_PRICE_STANDARD_IN, 2.5), outPerM: num(process.env.MILA_PRICE_STANDARD_OUT, 10) };
-  return { fast, standard, reasoning: standard, vision: standard, research: standard };
+  const m = (model: string, inD: number, outD: number, envIn: string, envOut: string): ModelInfo => ({ provider: "openai", model, inPerM: num(process.env[envIn], inD), outPerM: num(process.env[envOut], outD) });
+  const fastId = process.env.MILA_OPENAI_MODEL_FAST || "gpt-6-luna";
+  const stdId = process.env.MILA_OPENAI_MODEL_STANDARD || "gpt-6.1-sol";
+  const reasonId = process.env.MILA_OPENAI_MODEL_REASONING || "gpt-6-astra";
+  // per-model list prices (USD per 1M tokens), used only for the internal cost ledger and spend guards
+  const price = (id: string): [number, number] => (/astra/i.test(id) ? [10, 50] : /sol/i.test(id) ? [2, 10] : /luna/i.test(id) ? [0.1, 0.5] : /mini/i.test(id) ? [0.15, 0.6] : [2.5, 10]);
+  const [fi, fo] = price(fastId), [si, so] = price(stdId), [ri, ro] = price(reasonId);
+  const fast = m(fastId, fi, fo, "MILA_PRICE_FAST_IN", "MILA_PRICE_FAST_OUT");
+  const standard = m(stdId, si, so, "MILA_PRICE_STANDARD_IN", "MILA_PRICE_STANDARD_OUT");
+  const reasoning = m(reasonId, ri, ro, "MILA_PRICE_REASONING_IN", "MILA_PRICE_REASONING_OUT");
+  return { fast, standard, reasoning, vision: standard, research: standard };
 }
+
+/** If a GPT-6 model can't be used (not enabled on the key, wrong name), fall back to these so the product keeps working. */
+const LEGACY: Record<Tier, [string, number, number]> = { fast: ["gpt-4o-mini", 0.15, 0.6], standard: ["gpt-4o", 2.5, 10], reasoning: ["gpt-4o", 2.5, 10], vision: ["gpt-4o", 2.5, 10], research: ["gpt-4o", 2.5, 10] };
+const isGpt6 = (model: string) => /^gpt-6/i.test(model) || process.env.MILA_OPENAI_API === "responses";
+const DEFAULT_EFFORT: Record<Tier, "none" | "low" | "medium" | "high"> = { fast: "none", standard: "low", reasoning: "medium", vision: "low", research: "low" };
 
 class OpenAIProvider implements AIProvider {
   id = "openai";
@@ -138,9 +155,9 @@ class OpenAIProvider implements AIProvider {
   modelFor(tier: Tier) { return this.models[tier]; }
 
   private async post(path: string, body: unknown) {
-    const res = await fetch(`https://api.openai.com/v1/${path}`, {
+    const res = await fetch(`${(process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "")}/${path}`, {
       method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: JSON.stringify(body), signal: AbortSignal.timeout(90_000),
+      body: JSON.stringify(body), signal: AbortSignal.timeout(path === "responses" ? 120_000 : 90_000),
     });
     if (!res.ok) throw new Error(`AI provider error ${res.status}: ${(await res.text()).slice(0, 300)}`);
     return res.json() as Promise<any>;
@@ -148,6 +165,66 @@ class OpenAIProvider implements AIProvider {
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     const info = this.modelFor(req.tier);
+    if (!isGpt6(info.model)) return this.viaChat(req, info);
+    try {
+      return await this.viaResponses(req, info);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // only a model that can't be used (unknown, no access) triggers the fallback; real errors still surface
+      if (!/\b(404|403)\b|model_not_found|does not exist|do not have access|not have access|unsupported model|invalid model/i.test(msg) || process.env.MILA_OPENAI_FALLBACK === "0") throw e;
+      console.warn(`[ai] ${info.model} unavailable (${msg.slice(0, 160)}); using ${LEGACY[req.tier][0]}`);
+      const [id, i, o] = LEGACY[req.tier];
+      return this.viaChat(req, { provider: "openai", model: id, inPerM: i, outPerM: o });
+    }
+  }
+
+  /** GPT-6 models: the Responses API (required for tools), with a reasoning-effort setting. */
+  private async viaResponses(req: CompletionRequest, info: ModelInfo): Promise<CompletionResult> {
+    const effort = req.effort ?? DEFAULT_EFFORT[req.tier];
+    const input = req.messages.map((m, i) => {
+      const last = i === req.messages.length - 1;
+      if (last && m.role === "user" && (req.images?.length || req.documents?.length)) {
+        return { role: "user", content: [
+          { type: "input_text", text: m.content },
+          ...(req.images ?? []).map((im) => ({ type: "input_image", image_url: `data:${im.mediaType};base64,${im.dataBase64}` })),
+          ...(req.documents ?? []).map((dc) => ({ type: "input_file", filename: "document.pdf", file_data: `data:${dc.mediaType};base64,${dc.dataBase64}` })),
+        ] };
+      }
+      return { role: m.role, content: m.content };
+    });
+    const tools: any[] = [];
+    const body: Record<string, unknown> = { model: info.model, instructions: req.system, input, reasoning: { effort }, max_output_tokens: (req.maxTokens ?? 1500) + ({ none: 0, low: 600, medium: 2500, high: 5000 } as const)[effort] }; // thinking tokens count against the limit, so leave room for them
+    if (req.jsonSchema) {
+      tools.push({ type: "function", name: req.jsonSchema.name, description: req.jsonSchema.description, parameters: req.jsonSchema.schema, strict: false });
+      body.tool_choice = req.webSearch ? "auto" : { type: "function", name: req.jsonSchema.name };
+    }
+    if (req.webSearch) tools.push({ type: "web_search" });
+    if (tools.length) body.tools = tools;
+    let d: any;
+    try { d = await this.post("responses", body); }
+    catch (e) {
+      // older accounts name the search tool differently
+      if (req.webSearch && /web_search|tool/i.test(String(e))) { tools[tools.length - 1] = { type: "web_search_preview" }; d = await this.post("responses", { ...body, tools }); }
+      else throw e;
+    }
+    let text = ""; let json: unknown; const cites = new Map<string, string>();
+    for (const o of d.output ?? []) {
+      if (o.type === "message") for (const c of o.content ?? []) {
+        if (c.type === "output_text") { text += c.text ?? ""; for (const a of c.annotations ?? []) if (a.type === "url_citation" && a.url) cites.set(a.url, a.title ?? a.url); }
+      } else if (o.type === "function_call" && req.jsonSchema && o.name === req.jsonSchema.name) {
+        try { json = JSON.parse(o.arguments); } catch { /* leave undefined */ }
+      }
+    }
+    if (!text && json === undefined && d.status === "incomplete") throw new Error(`AI provider error: the answer was cut off (${d.incomplete_details?.reason ?? "incomplete"}); raise MILA_MAX_OUTPUT_TOKENS or lower the effort`);
+    return {
+      text, json, citations: [...cites].map(([url, title]) => ({ title, url })),
+      usage: { inputTokens: d.usage?.input_tokens ?? 0, outputTokens: d.usage?.output_tokens ?? 0 }, // output includes the model's thinking tokens
+      extraCostUsd: req.webSearch ? num(process.env.MILA_WEBSEARCH_FEE_USD, 0.03) : 0, info,
+    };
+  }
+
+  /** Older models (gpt-4o and friends): Chat Completions. */
+  private async viaChat(req: CompletionRequest, info: ModelInfo): Promise<CompletionResult> {
     // Live web search goes through the Responses API.
     if (req.webSearch) {
       const d = await this.post("responses", {
@@ -199,7 +276,7 @@ class GuardedProvider implements AIProvider {
     const maxIn = MAX_INPUT_CHARS();
     let budgetLeft = maxIn;
     const messages = [...req.messages].reverse().map((m) => { const c = m.content.slice(0, Math.max(0, budgetLeft)); budgetLeft -= c.length; return { ...m, content: c }; }).reverse().filter((m, i) => m.content || i === req.messages.length - 1);
-    const guarded: CompletionRequest = { ...req, messages, system: req.system.slice(0, maxIn), maxTokens: Math.min(req.maxTokens ?? 1024, MAX_OUTPUT_TOKENS()), images: req.images?.slice(0, 3), documents: req.documents?.slice(0, 2) };
+    const guarded: CompletionRequest = { ...req, messages, system: req.system.slice(0, maxIn), maxTokens: Math.min(req.maxTokens ?? 1024, req.tier === "reasoning" ? Math.max(MAX_OUTPUT_TOKENS(), 6000) : MAX_OUTPUT_TOKENS()), images: req.images?.slice(0, 3), documents: req.documents?.slice(0, 2) };
     // 2) spend limits (throws AiBudgetError; callers already fall back to the rule-based engine)
     await assertAiBudget({ tier: req.tier, inputChars: guarded.system.length + messages.reduce((n, m) => n + m.content.length, 0), webSearch: req.webSearch });
     const r = await this.inner.complete(guarded);

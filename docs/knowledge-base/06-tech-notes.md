@@ -13,3 +13,11 @@
 **Agents:** see .claude/agents/README.md. Run only the ones the change calls for.
 
 **Lessons:** never chain a type-check into a push; never expose keys in public endpoints; the client router cache can show a stale signed-out redirect, so use full page loads after auth changes.
+
+## AI models (OpenAI path), Oct 7, 2026
+- Tiers: fast = `gpt-6-luna` (routing, simple replies; $0.10 in / $0.50 out per 1M tokens), standard = `gpt-6.1-sol` (normal chat, drafts; $2 / $10), reasoning = `gpt-6-astra` (hard requests; $10 / $50). Research and vision use the standard model.
+- GPT-6 models are called through the Responses API with a `reasoning.effort` setting. If a GPT-6 model is not available on the account, the code falls back to gpt-4o-mini / gpt-4o and logs a warning (`MILA_OPENAI_FALLBACK=0` turns the fallback off).
+- Override with `MILA_OPENAI_MODEL_FAST`, `MILA_OPENAI_MODEL_STANDARD`, `MILA_OPENAI_MODEL_REASONING`. Setting all three to `gpt-6-astra` makes everything use the smartest model, at roughly 20 to 100 times the cost.
+- Astra is used for client search briefs (`client_search`) and long or strategic questions. Each Astra turn is a fraction of a dollar, and the existing per-user and global AI budgets still apply.
+- Client search briefs (several requirements for a client) route to a research handler (web search, requirements, trade-offs, a sourced shortlist, what is unverified). Follow-ups like "search for the specified criteria" continue that search.
+- Fixed: "4-5 hours" or "2-3 miles" was being read as a 4 to 5 PM time range and booking a showing.

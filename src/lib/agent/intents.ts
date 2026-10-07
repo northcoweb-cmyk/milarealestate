@@ -1,15 +1,28 @@
 import { parseDate, parseTime } from "./nlu";
 
 export type Intent =
-  | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
+  | "client_search" | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
   | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "email_audience" | "recall" | "save_memory"
   | "find_property" | "delete_data" | "listing_link" | "showing_sheet" | "agenda" | "update_listing" | "undo" | "smalltalk" | "general";
 
-export const INTENTS: Intent[] = ["prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
+export const INTENTS: Intent[] = ["client_search", "prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
 
 export interface Detected { intent: Intent; declared?: boolean }
 
 const STREET = /\b\d{1,6}\s+(?!(?:a\.?m|p\.?m)\b)[a-z0-9'.]+(?:\s+[a-z0-9'.]+){0,3}\s+(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|way|blvd|boulevard|pl|place|ter|terrace|cir|circle|pkwy|parkway|hwy|highway|trl|trail|loop)\b/;
+
+
+/** A multi-requirement search brief for clients: several criteria, something to find, and a kind of place. Exported for tests. */
+export function isClientSearch(raw: string): boolean {
+  const t = raw.toLowerCase();
+  if (STREET.test(t)) return false; // a specific address is a different job (prep, listing, open house)
+  const wants = /\b(find|search|look(?:ing)? (?:for|to)|looking to (?:get|rent|buy|lease|move)|recommend|suggest|best|shortlist|options|where should|which (?:city|cities|neighborhood|area|building|apartment)|want(?:s)? (?:a|an|to)|need(?:s)? (?:a|an))\b/.test(t);
+  const place = /\b(apartments?|rentals?|condos?|town ?homes?|town ?houses?|homes?|houses?|properties|neighborhoods?|cit(?:y|ies)|buildings?|lofts?|relocat\w+|move to|moving to)\b/.test(t);
+  const markers = (raw.match(/[•✓✔✅☑]|^\s*[-*]\s|\s\*\s|≤|≥|\bmust\b|\bbudget\b|\bunder \$|\bmax\b|\bwithin\b|\bwalkable\b|\bamenities\b|\bpet[- ]friendly\b|\bbalcony\b|\bparking\b|\bschools?\b/gim) ?? []).length;
+  const emoji = (raw.match(/\p{Extended_Pictographic}/gu) ?? []).length;
+  const clients = /\b(my )?(clients?|buyers?|renters?|customers?|they|couple|family)\b/.test(t);
+  return wants && place && raw.length >= 140 && (markers >= 3 || emoji >= 3 || (clients && markers >= 2));
+}
 
 /** Rule-based router: free, instant, handles the common real-estate requests. */
 export function detectIntent(raw: string, hasAttachments = false): Detected {
@@ -31,6 +44,10 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   // "what's on my calendar Friday", "do I have anything tomorrow", "am I free Friday at 3", "when is my next showing"
   if (/\b(calendar|schedule|agenda)\b/.test(t) && /\b(what|whats|what'?s|show|check|see|anything|tell|pull up|read|how'?s|how is|look)\b/.test(t) && !/\b(add|put|schedule (?:a|an)|book|set up|create|block)\b/.test(t.replace(/\b(my|the) schedule\b/, "")) && !/\b(post|email|flyer)\b/.test(t)) return { intent: "agenda" };
   if (/^(?:what|whats|what'?s)\s+(?:do i have|have i got|am i doing|is on|'?s on|on for|do i got)\b|^what'?s on\b|^do i have (?:anything|something|a thing|any)\b|^anything (?:on|for|booked)\b|^am i (?:free|busy|available|open)\b|^(?:are|is) (?:there )?(?:anything|something) (?:on|booked|scheduled)\b|^(?:when|what time) (?:is|are|'?s) my (?:next |first |last )?(?:showing|appointment|meeting|call|lunch|closing|inspection|open house|tour)/.test(t) && !/\b(plate|to do|follow)/.test(t)) return { intent: "agenda" };
+
+  // A client's search brief ("my clients want an apartment: legal weed, walkable at night, balcony, under $2,500...") is research for
+  // the agent to act on, not a calendar item. It needs several requirements, a place or property word, and no street address.
+  if (isClientSearch(raw)) return { intent: "client_search" };
   // an actual date or time somewhere in the message (slang included: tmrw, Sat, the 15th, 1030am, half past 2)
   const hasWhen = !!parseDate(raw, new Date(), "UTC") || !!parseTime(raw);
 

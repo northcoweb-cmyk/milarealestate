@@ -28,6 +28,7 @@ import { listingLinkHandler } from "./handlers/photos";
 import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
+import { clientSearchHandler } from "./handlers/search";
 import { importCandidates } from "./ingest";
 import { dropNegatedDate, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
 
@@ -170,6 +171,13 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     }
   }
 
+  // "Look for apartments with the specified criteria" a minute after a client brief means: do THAT search, not something about a saved contact.
+  const prior = ctx.state.last_search;
+  if (!forced && !pend && prior && Date.now() - prior.at < 6 * 3_600_000 && text.split(/\s+/).length <= 20 && !parseAddress(text)
+    && (/\b(specified|those|these|their|same|above|earlier|that)\b.{0,20}\b(criteria|requirements|needs|preferences|list|brief)\b/i.test(text) || /^(?:(?:ok|okay|yes|yeah|please|pls|go ahead|do it|now|great|cool|perfect)[,.!\s]+)*(?:search|look|find|dig|go|try)\b.{0,50}\b(again|more|deeper|apartments?|rentals?|properties|options|them|it|for them|those)\b/i.test(text))) {
+    return { out: await clientSearchHandler(ctx, `${prior.text}\n\nFollow-up from the agent: ${text}`), intent: "client_search" };
+  }
+
   const clauses = splitClauses(text);
   const outs: HandlerOut[] = [];
   let lastIntent: Intent = "general";
@@ -210,6 +218,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     if (known.length) { const u = await clientUpdateHandler(ctx, text, known); if (u) return u; }
   }
   switch (intent) {
+    case "client_search": return clientSearchHandler(ctx, text);
     case "time_off": return timeOffHandler(ctx, text);
     case "add_listing": return addListingHandler(ctx, text);
     case "prep_property": return prepPropertyHandler(ctx, text);
