@@ -12,7 +12,7 @@ const description = "Tell Mila what you need in plain English. She preps your li
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://milarealestate-waitlist.vercel.app"),
-  title: { default: title, template: "%s · Mila" }, description, applicationName: "Mila",
+  title: { default: "Mila | AI for Real Estate", template: "%s · Mila" }, description, applicationName: "Mila",
   openGraph: { title, description, type: "website", siteName: "Mila" },
   twitter: { card: "summary_large_image", title, description },
 };
