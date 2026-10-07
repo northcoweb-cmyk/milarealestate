@@ -47,3 +47,7 @@ body { margin: 0; background: var(--paper); color: var(--foreground); font-famil
 
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+@keyframes flip-drop { from { transform: translateY(-45%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.flip-digit { display: inline-block; animation: flip-drop .28s ease-out; }
+@media (prefers-reduced-motion: reduce) { .flip-digit { animation: none; } }
