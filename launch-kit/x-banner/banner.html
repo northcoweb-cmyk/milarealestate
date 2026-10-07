@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:MilaSerif;src:url(assets/serif.woff2);font-style:normal}
+@font-face{font-family:MilaSerif;src:url(assets/serif-italic.woff2);font-style:italic}
+@font-face{font-family:Inter;src:url(assets/inter.woff2);font-weight:100 900}
+*{box-sizing:border-box;margin:0}
+body{background:#222}
+.b{position:relative;width:1500px;height:500px;overflow:hidden;color:#fff;font-family:Inter,sans-serif;background:linear-gradient(110deg,#8fb4ff 0%,#a68cff 55%,#ffc9a8 115%)}
+.b::after{content:"";position:absolute;inset:0;background:url(assets/grain.png);background-size:96px;opacity:.2}
+.cl{position:absolute}
+.serif{font-family:MilaSerif;letter-spacing:-.02em;line-height:1}
+.pill{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.75);color:#18181b;border-radius:999px;padding:9px 20px;font-size:19px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:#10b981}
+.phone{position:absolute;background:#18181b;border-radius:44px;padding:8px;width:230px;box-shadow:0 30px 50px -20px rgba(40,20,120,.55),0 0 0 1px rgba(255,255,255,.25)}
+.phone img{display:block;width:100%;border-radius:36px}
+.z{position:absolute;z-index:2}
+</style></head><body>
+<div class="b" id="b">
+ <img class="cl" src="assets/c1.webp" style="width:900px;left:-260px;top:200px;opacity:.9">
+ <img class="cl" src="assets/c3.webp" style="width:700px;right:150px;top:-210px;opacity:.7">
+ <img class="cl" src="assets/c2.webp" style="width:800px;right:-340px;top:250px;opacity:.7">
+ <div class="z" style="left:450px;top:100px;width:620px">
+  <div class="pill"><span class="dot"></span>Launching Oct 20 · 10 AM ET</div>
+  <div class="serif" style="font-size:64px;margin-top:22px;text-shadow:0 3px 36px rgba(80,50,200,.4)">Your AI operations manager<br><span style="font-style:italic">for real estate.</span></div>
+  <div style="font-size:22px;font-weight:600;margin-top:22px;text-shadow:0 2px 18px rgba(80,50,200,.6)">Join the waitlist. 7-day free trial, no card.</div>
+ </div>
+ <div class="phone" style="right:150px;top:60px;transform:rotate(5deg);width:215px"><img src="assets/m-home.webp"></div>
+ <div class="phone" style="right:-50px;top:150px;transform:rotate(-4deg);width:200px"><img src="assets/m-calendar.webp"></div>
+</div></body></html>
