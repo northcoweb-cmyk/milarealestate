@@ -13,6 +13,7 @@ export const POST = api(async ({ profile, req }) => {
   f.set("cancel_url", `${base}/settings/credits?checkout=cancelled`);
   f.set("customer_email", profile.email);
   f.set("client_reference_id", profile.id);
+  f.set("allow_promotion_codes", "true"); // launch codes (e.g. half off the first month) are created in Stripe, nothing to ship
   f.set("metadata[user_id]", profile.id);
   let name: string, cents: number;
   if (b.kind === "plan") {

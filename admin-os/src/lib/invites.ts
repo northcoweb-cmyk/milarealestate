@@ -55,22 +55,32 @@ export async function sendInvite(e: Entry): Promise<void> {
 
 export async function sendTest(email: string) { await sendInvite(await ensureTestEntry(email)); }
 
+const SITE = "https://milarealestate.app";
+/** Shared Mila email shell: cloud hero, serif wordmark, soft purple/blue palette. Inline styles only (email clients ignore the rest). */
+function shell(body: string, footer: string) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head><body style="margin:0;background:#eeebfa;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#14122b">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eeebfa"><tr><td align="center" style="padding:28px 14px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:28px;overflow:hidden;box-shadow:0 18px 50px -20px rgba(80,50,180,.45)">
+<tr><td style="background:#a68cff;background-image:linear-gradient(160deg,#8fb4ff 0%,#a68cff 55%,#ffc9a8 100%)"><img src="${SITE}/email/hero.jpg" width="560" alt="Mila — your AI operations manager for real estate" style="display:block;width:100%;height:auto;border:0"></td></tr>
+<tr><td style="padding:32px 30px 8px">${body}</td></tr>
+<tr><td style="padding:8px 30px 30px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ff;border-radius:18px"><tr><td style="padding:16px 18px;font-size:13.5px;line-height:1.55;color:#4a4766"><b style="color:#14122b">What Mila does for you</b><br>Listings, posts, emails, follow-ups and open houses, drafted and organised. She always asks before anything goes out.</td></tr></table></td></tr>
+</table>
+<p style="max-width:520px;font-size:12px;line-height:1.5;color:#8a87a6;margin:18px 0 0;text-align:center">${footer}<br>Mila · <a href="${SITE}" style="color:#8a87a6">milarealestate.app</a></p>
+</td></tr></table></body></html>`;
+}
+const btn = (href: string, label: string) => `<p style="margin:26px 0;text-align:center"><a href="${href}" style="display:inline-block;background:#14122b;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:16px 34px;border-radius:999px">${label}</a></p>`;
+const step = (n: number, t: string) => `<tr><td width="34" valign="top" style="padding:0 0 12px"><div style="width:26px;height:26px;border-radius:13px;background:#a68cff;color:#fff;font-weight:700;font-size:13px;line-height:26px;text-align:center">${n}</div></td><td valign="top" style="padding:3px 0 12px;font-size:15px;line-height:1.5;color:#33305a">${t}</td></tr>`;
+
 export function inviteEmail(name: string | null, link: string) {
   const hi = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
   const subject = "Mila is open. Your link is inside.";
   const text = `${hi}\n\nMila is live, and your spot is ready.\n\nCreate your password and set up your profile here:\n${link}\n\nUse the same email address you signed up with. Your 7-day free trial starts when you finish. No card needed.\n\nThis link is personal to you. Just reply to this email if anything goes wrong.\n\nMila`;
-  const html = `<!doctype html><html><body style="margin:0;background:#f4f3fa;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0a0a0a">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:24px;overflow:hidden">
-<tr><td style="background:linear-gradient(160deg,#8fb4ff 0%,#a68cff 55%,#ffc9a8 100%);padding:40px 28px;text-align:center"><div style="font-family:Georgia,'Times New Roman',serif;font-size:56px;line-height:1;color:#fff;letter-spacing:-1px">Mila</div><div style="color:#fff;font-size:15px;margin-top:10px">Your AI operations manager for real estate.</div></td></tr>
-<tr><td style="padding:30px 28px">
-<p style="margin:0 0 14px;font-size:17px">${hi}</p>
-<p style="margin:0 0 20px;font-size:17px;line-height:1.5"><b>Mila is open, and your spot is ready.</b></p>
-<p style="margin:0 0 24px;text-align:center"><a href="${link}" style="display:inline-block;background:#0a0a0a;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:15px 30px;border-radius:999px">Create your password</a></p>
-<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#33323f">Use the same email address you joined with. Your <b>7-day free trial</b> starts when you finish setting up. No card needed.</p>
-<p style="margin:0 0 6px;font-size:13px;color:#6b6980">Button not working? Copy this link into your browser:</p>
-<p style="margin:0 0 16px;font-size:12px;color:#6b6980;word-break:break-all">${link}</p>
-<p style="margin:0;font-size:14px;color:#6b6980">This link is personal to you. Reply to this email if anything goes wrong.</p>
-</td></tr></table></td></tr></table></body></html>`;
+  const html = shell(`<p style="margin:0 0 6px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7b63e8;font-weight:700">Doors are open</p>
+<p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1.15;color:#14122b">${hi.replace(",", "")}, your spot is ready.</p>
+<p style="margin:0;font-size:16px;line-height:1.55;color:#33305a">Mila is live. Create your password and set up your profile to get started.</p>
+${btn(link, "Open Mila")}
+<p style="margin:0 0 12px;font-size:14.5px;line-height:1.55;color:#33305a">Use the same email you joined with. Your <b>7-day free trial</b> starts when you finish setup. No card needed.</p>
+<p style="margin:0 0 4px;font-size:12.5px;color:#6b6890">Button not working? Paste this into your browser:</p>
+<p style="margin:0 0 16px;font-size:12px;color:#6b6890;word-break:break-all">${link}</p>`, "This link is personal to you. Reply to this email if anything goes wrong.");
   return { subject, html, text };
 }

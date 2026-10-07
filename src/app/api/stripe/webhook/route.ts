@@ -52,6 +52,10 @@ export async function POST(req: Request) {
       await grantCredits(uid, Math.max(sub.credits_per_period - bal, 0), "reset", `Monthly reset (${event.id})`);
     }
   }
+  if (event.type === "invoice.payment_failed") {
+    const sub = (await store.list("subscriptions", uid))[0];
+    if (sub) await store.update("subscriptions", uid, sub.id, { status: "past_due" });
+  }
   if (event.type === "customer.subscription.deleted") {
     const sub = (await store.list("subscriptions", uid))[0];
     if (sub) await store.update("subscriptions", uid, sub.id, { status: "canceled" });
