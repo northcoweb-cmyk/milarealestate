@@ -33,12 +33,12 @@ const step = (n: number, t: string) => `<tr><td width="34" valign="top" style="p
 export function confirmationEmail(name: string | null) {
   const hi = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
   const day = launchDay();
-  const subject = "You're on the Mila waitlist";
-  const text = `${hi}\n\nYou're on the list for Mila, your AI operations manager for real estate.\n\nWhat happens next:\n- On ${day}, we'll email you a personal link.\n- Use the same email address to create your password and set up your profile.\n- Your 7-day free trial starts then. No card needed.\n\nMila drafts your listings, posts, emails, follow-ups and open houses, and always asks before anything goes out.\n\nJust reply to this email if you have questions.\n\nMila`;
-  const html = shell(`<p style="margin:0 0 6px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7b63e8;font-weight:700">You're on the list</p>
+  const subject = "You're in the queue for Mila";
+  const text = `${hi}\n\nYou're in the queue for Mila, your AI operations manager for real estate. We let people in a few at a time so everyone gets a fast start.\n\nWhat happens next:\n- We open on ${day}, starting with the first group.\n- When a spot opens for you, we email you a personal link.\n- Use the same email address to create your password and set up your profile.\n- Your 7-day free trial starts then. No card needed.\n\nMila drafts your listings, posts, emails, follow-ups and open houses, and always asks before anything goes out.\n\nJust reply to this email if you have questions.\n\nMila`;
+  const html = shell(`<p style="margin:0 0 6px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7b63e8;font-weight:700">You're in the queue</p>
 <p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1.15;color:#14122b">${hi.replace(",", "")}, welcome in.</p>
-<p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#33305a">Thanks for joining the Mila waitlist. Here's what happens next:</p>
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%">${step(1, `On <b>${day}</b> we email you a personal link.`)}${step(2, "Use this same email to create your password and set up your profile.")}${step(3, "Your <b>7-day free trial</b> starts then. No card needed.")}</table>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#33305a">You're in line for Mila. We're letting people in a few at a time so everyone gets a fast, well-supported start. Here's what happens next:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">${step(1, `We open on <b>${day}</b>, starting with the first group.`)}${step(2, "When a spot opens for you, we email you a personal link. You don't need to do anything until then.")}${step(3, "Use that same email to create your password and set up your profile.")}${step(4, "Your <b>7-day free trial</b> starts then. No card needed.")}</table>
 <p style="margin:6px 0 18px;font-size:14px;color:#6b6890">Questions? Just reply to this email.</p>`, "You're receiving this because you joined the Mila waitlist. Reply \"unsubscribe\" and we'll remove you.");
   return { subject, html, text };
 }

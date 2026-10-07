@@ -1,5 +1,6 @@
 "use client";
 
+import { ServiceLogo } from "@/components/brand-logos";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -144,20 +145,24 @@ function Business() {
 interface Integration { id: string; name: string; description: string; status: string; detail?: string; services?: string[] }
 function Connections() {
   const { data, loading, reload } = useApi<{ items: Integration[]; googleConfigured: boolean; googleAccount: string | null }>("/api/integrations");
-  const params = useSearchParams(); const { toast } = useApp(); const [busy, setBusy] = useState(false);
+  const params = useSearchParams(); const { toast } = useApp(); const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => { const e = params.get("error"), c = params.get("connected"); if (c) toast("Connected.", "success"); if (e) toast({ denied: "Access wasn't granted.", state: "That sign-in expired. Try again.", exchange: "That didn't work. Try again.", not_configured: "This isn't available right now." }[e] ?? "Couldn't connect.", "error"); }, [params, toast]);
-  const connected = data?.items.some((i) => i.status === "connected" && i.id.startsWith("google"));
-  const label = (s: string) => ({ connected: ["Connected", "ok"], not_configured: ["Needs setup", "warn"], disconnected: ["Not connected", "neutral"], error: ["Needs attention", "danger"], coming_soon: ["Coming soon", "neutral"] }[s] as [string, any]);
+  const label = (s: string) => ({ connected: ["Connected", "ok"], not_configured: ["Coming soon", "neutral"], disconnected: ["Not connected", "neutral"], error: ["Needs attention", "danger"], coming_soon: ["Coming soon", "neutral"] }[s] as [string, any]);
+  const SHOWN = ["google_gmail", "outlook", "google_calendar", "google_contacts", "google_sheets", "mls"];
+  const NAME: Record<string, string> = { google_gmail: "Gmail", outlook: "Outlook", google_calendar: "Google Calendar", google_contacts: "Google Contacts", google_sheets: "Google Sheets", mls: "MLS" };
+  const startHref = (i: Integration) => (i.id === "outlook" ? "/api/integrations/microsoft/start" : `/api/integrations/google/start?services=${i.services?.join(",") ?? "gmail"}`);
+  async function off(i: Integration) { setBusy(i.id); try { await jfetch(i.id === "outlook" ? "/api/integrations/microsoft/disconnect" : "/api/integrations/google/disconnect", { method: "POST" }); await reload(); toast("Disconnected.", "success"); } finally { setBusy(null); } }
   if (loading) return <Skeleton className="h-96" />;
   return (
     <div className="space-y-3">
-      <p className="muted px-1 pb-1 text-[14.5px]">Keep your calendar in step with Mila and bring in people you already know.</p>
-      {data!.items.filter((i) => ["google_calendar", "google_contacts", "google_sheets"].includes(i.id) && i.status !== "not_configured").map((i) => { const [t, tone] = label(i.status); return (
+      <p className="muted px-1 pb-1 text-[14.5px]">Connect in one tap. Mila drafts in your own inbox and calendar, and nothing is sent unless you tap send.</p>
+      {SHOWN.map((id) => data!.items.find((x) => x.id === id)).filter((i): i is Integration => !!i).map((i) => { const [t, tone] = label(i.status); const live = i.status === "disconnected" || i.status === "error"; return (
         <div key={i.id} className="glass flex items-center gap-4 p-4 sm:p-5" style={{ borderRadius: 24 }}>
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{({ google_calendar: "Calendar sync", google_contacts: "Contacts", google_sheets: "Spreadsheets" } as Record<string, string>)[i.id] ?? i.name}</p><Pill tone={tone}>{t}</Pill></div><p className="muted text-[14px]">{i.description}</p></div>
-          {i.id.startsWith("google") && i.status !== "not_configured" && (i.status === "connected" ? null : <a className="btn btn-primary btn-sm" href={`/api/integrations/google/start?services=${i.services?.join(",")}`}>{i.status === "error" ? "Reconnect" : "Connect"}</a>)}
+          <ServiceLogo id={i.id} />
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{NAME[i.id] ?? i.name}</p><Pill tone={tone}>{t}</Pill></div><p className="muted text-[14px]">{i.status === "connected" && i.detail ? i.detail : i.description}</p>{i.id === "mls" && <p className="faint mt-1 text-[13px]">{i.detail}</p>}</div>
+          {live && <a className="btn btn-primary btn-sm" href={startHref(i)}>{i.status === "error" ? "Reconnect" : "Connect"}</a>}
+          {i.status === "connected" && i.id !== "mls" && <button className="btn btn-sm" disabled={busy === i.id} onClick={() => off(i)}>Disconnect</button>}
         </div>); })}
-      {connected && <button className="btn btn-sm mt-2" disabled={busy} onClick={async () => { setBusy(true); await jfetch("/api/integrations/google/disconnect", { method: "POST" }); await reload(); setBusy(false); toast("Disconnected.", "success"); }}>Disconnect</button>}
       <p className="faint px-2 pt-2 text-[13px]">You can disconnect any time.</p>
     </div>
   );

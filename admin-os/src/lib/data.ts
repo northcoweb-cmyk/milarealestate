@@ -16,7 +16,7 @@ interface Sub { user_id: string; plan_key: string; status: string; period_start:
 interface Msg { user_id: string; role: string; created_at: string }
 interface Use { user_id: string; operation: string; model: string; est_cost_usd: number; credits: number; created_at: string }
 interface Err { id: string; level: string; source: string; message: string; stack: string | null; route: string | null; user_email: string | null; status: string; created_at: string }
-interface ApiU { provider: string; endpoint: string; success: boolean; est_cost_usd: number; created_at: string }
+interface ApiU { user_id?: string; provider: string; endpoint: string; success: boolean; est_cost_usd: number; created_at: string }
 interface Wait { id: string; email: string; name: string | null; source: string | null; created_at: string; status?: string | null; invited_at?: string | null; claimed_at?: string | null }
 
 const isTest = (email: string, demo: boolean) => demo || /@(test|example|demo)\.(dev|com|test)$/i.test(email) || /^qa\d+@/i.test(email);
@@ -33,7 +33,7 @@ export async function buildReport() {
     table<Msg>("messages", { select: "user_id,role,created_at", filter: `created_at=gte.${since60}` }),
     table<Use>("usage", { select: "user_id,operation,model,est_cost_usd,credits,created_at", filter: `created_at=gte.${since60}` }),
     table<Err>("error_logs", { select: "id,level,source,message,stack,route,user_email,status,created_at", filter: `created_at=gte.${since30}`, order: "created_at.desc", max: 5000 }),
-    table<ApiU>("api_usage", { select: "provider,endpoint,success,est_cost_usd,created_at", filter: `created_at=gte.${since30}` }),
+    table<ApiU>("api_usage", { select: "user_id,provider,endpoint,success,est_cost_usd,created_at", filter: `created_at=gte.${since30}` }),
     (async () => (await table<Wait>("waitlist", { select: "id,email,name,source,created_at,status,invited_at,claimed_at", order: "created_at.desc" })) ?? (await table<Wait>("waitlist", { select: "id,email,name,source,created_at,status", order: "created_at.desc" })))(),
   ]);
   const missing = [["profiles", profiles], ["subscriptions", subs], ["messages", msgs], ["usage", usage], ["error_logs", errs], ["api_usage", apiU], ["waitlist", wait]].filter(([, v]) => v === null).map(([k]) => k as string);
@@ -92,7 +92,15 @@ export async function buildReport() {
   const byModel = new Map<string, { calls: number; cost: number }>();
   for (const u of U) { const d = dayKey(u.created_at); costByDay.set(d, (costByDay.get(d) ?? 0) + Number(u.est_cost_usd || 0)); const m = byModel.get(u.model) ?? { calls: 0, cost: 0 }; m.calls++; m.cost += Number(u.est_cost_usd || 0); byModel.set(u.model, m); }
   const emailOf = new Map(P.map((p) => [p.id, p.email]));
-  const byUser = [...costOf.entries()].map(([id, cost]) => ({ email: emailOf.get(id) ?? id.slice(0, 8), cost, turns: turnsOf.get(id) ?? 0 })).sort((a, b) => b.cost - a.cost).slice(0, 20);
+  // per-user economics: AI cost + paid data lookups (RentCast etc.) against what they pay. Trials and testers show $0 revenue on purpose.
+  const PRICE: Record<string, number> = { solo: 29, pro: 49 };
+  const apiCostOf = new Map<string, number>();
+  for (const a of A) if (a.user_id) apiCostOf.set(a.user_id, (apiCostOf.get(a.user_id) ?? 0) + Number(a.est_cost_usd || 0));
+  const byUser = [...new Set([...costOf.keys(), ...apiCostOf.keys()])].map((id) => {
+    const s = subOf(id); const paid = !!s && s.status === "active" && !!s.stripe_subscription_id;
+    const cost = (costOf.get(id) ?? 0) + (apiCostOf.get(id) ?? 0), revenue = paid ? PRICE[s!.plan_key] ?? 0 : 0;
+    return { email: emailOf.get(id) ?? id.slice(0, 8), cost, ai: costOf.get(id) ?? 0, data: apiCostOf.get(id) ?? 0, turns: turnsOf.get(id) ?? 0, plan: s?.plan_key ?? "", paid, revenue, margin: revenue - cost };
+  }).sort((a, b) => b.cost - a.cost).slice(0, 25);
   const apiBy = new Map<string, { calls: number; failed: number; cost: number }>();
   for (const a of A) { const m = apiBy.get(a.provider) ?? { calls: 0, failed: 0, cost: 0 }; m.calls++; if (!a.success) m.failed++; m.cost += Number(a.est_cost_usd || 0); apiBy.set(a.provider, m); }
 
