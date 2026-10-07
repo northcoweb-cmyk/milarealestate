@@ -578,6 +578,8 @@ export interface AppConfig {
   credit_costs: Record<string, number>;
   plans: PlanConfig[];
   packs: CreditPackConfig[];
+  /** per-credit price for top-ups of any size (min 100). Optional so older saved configs keep working. */
+  credit_price_usd?: number;
   dev_credits: number; // credits granted to accounts when billing isn't configured
   /** the free trial new signups start on (no card). Optional so configs saved before it existed keep working. */
   trial?: { days: number; credits: number; ai_budget_usd: number };

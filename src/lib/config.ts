@@ -16,7 +16,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     document_analysis: 5,
     image_analysis: 3,
     image_generation: 10,
-    market_research: 10,
+    market_research: 20, // a research run can make several paid data calls, so it is priced to cover them
     property_lookup: 3,
     property_prep: 5,
     new_listings: 2,
@@ -33,10 +33,11 @@ export const DEFAULT_CONFIG: AppConfig = {
     { key: "team", name: "Mila Team", price_usd: 299, credits: 12000, ai_budget_usd: 85, blurb: "For teams and small brokerages: shared pipeline and far more room to work." },
   ],
   packs: [
-    { credits: 500, price_usd: 15 },
-    { credits: 1000, price_usd: 27 },
-    { credits: 2500, price_usd: 60 },
+    { credits: 200, price_usd: 10 },
+    { credits: 500, price_usd: 25 },
+    { credits: 1000, price_usd: 50 },
   ],
+  credit_price_usd: 0.05, // top-ups cost more per credit than any plan, so subscribing is always the better deal
   trial: { days: 7, credits: 400, ai_budget_usd: 3 }, // 7 days, no card: enough to rely on it, capped so a trial can never cost more than ~$3
   dev_credits: 600, // sized for a ~$2 AI test budget (about $0.003 of real cost per credit); the ledger records real usage either way
 };

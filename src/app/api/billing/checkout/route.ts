@@ -25,11 +25,12 @@ export const POST = api(async ({ profile, req }) => {
     f.set("metadata[kind]", "plan"); f.set("metadata[plan_key]", plan.key);
     f.set("subscription_data[metadata][user_id]", profile.id); f.set("subscription_data[metadata][plan_key]", plan.key);
   } else {
-    const pack = cfg.packs.find((p) => p.credits === b.credits);
-    if (!pack) throw bad("Unknown credit pack.");
-    name = `${pack.credits.toLocaleString()} Mila credits`; cents = Math.round(pack.price_usd * 100);
+    const n = Math.round(Number(b.credits));
+    if (!Number.isFinite(n) || n < 100 || n > 5000) throw bad("Choose between 100 and 5,000 credits.");
+    const preset = cfg.packs.find((p) => p.credits === n);
+    name = `${n.toLocaleString()} Mila credits`; cents = Math.round((preset ? preset.price_usd : n * (cfg.credit_price_usd ?? 0.05)) * 100);
     f.set("mode", "payment");
-    f.set("metadata[kind]", "pack"); f.set("metadata[credits]", String(pack.credits));
+    f.set("metadata[kind]", "pack"); f.set("metadata[credits]", String(n));
   }
   f.set("line_items[0][quantity]", "1");
   f.set("line_items[0][price_data][currency]", "usd");

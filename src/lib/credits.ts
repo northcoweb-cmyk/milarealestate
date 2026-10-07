@@ -121,7 +121,7 @@ export async function creditSummary(userId: string) {
   const balance = tx.reduce((n, t) => n + t.delta, 0);
   const history = [...usage].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 40);
   const trial = sub.status === "trial" ? { endsAt: sub.period_end, daysLeft: Math.max(0, Math.ceil((new Date(sub.period_end).getTime() - Date.now()) / 86_400_000)), day: Math.min(7, Math.max(1, Math.floor((Date.now() - new Date(sub.period_start).getTime()) / 86_400_000) + 1)), expired: new Date(sub.period_end).getTime() < Date.now() } : null;
-  return { balance, trial, allowance: sub.credits_per_period, spentThisPeriod, resetsAt: sub.period_end, status: sub.status, plan: cfg.plans.find((p) => p.key === sub.plan_key) ?? null, history, packs: cfg.packs, plans: cfg.plans };
+  return { balance, trial, allowance: sub.credits_per_period, spentThisPeriod, resetsAt: sub.period_end, status: sub.status, plan: cfg.plans.find((p) => p.key === sub.plan_key) ?? null, history, packs: cfg.packs, creditPrice: cfg.credit_price_usd ?? 0.05, plans: cfg.plans };
 }
 
 /** Owner-level margin report: credits, real AI cost, and revenue per user. */
