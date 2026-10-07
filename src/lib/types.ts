@@ -505,6 +505,16 @@ export interface ErrorLog extends Row {
   status: "open" | "resolved";
 }
 
+/** One-tap feedback on something Mila produced: it was useful, something was missing, or something was wrong. */
+export interface Feedback extends Row {
+  kind: "useful" | "missing" | "wrong";
+  target: string;          // what was rated, e.g. "chat"
+  target_id: string | null; // the message or item id
+  note: string | null;      // optional words from the person
+  snippet: string | null;   // the first part of what Mila said, so a reviewer knows what was rated
+  page: string | null;      // where in the app they were
+}
+
 /** Pre-launch waitlist. user_id is always the nil UUID (these people don't have accounts yet); account_id is set when they claim one. */
 export interface WaitlistEntry extends Row {
   email: string;
@@ -575,7 +585,7 @@ export const TABLES = [
   "profiles", "businesses", "contacts", "contact_notes", "contact_events", "properties", "property_images",
   "calendar_events", "tasks", "approvals", "documents", "document_templates", "workflows", "workflow_runs",
   "memories", "emails", "email_drafts", "social_posts", "reminders", "notifications", "integrations", "usage",
-  "credit_transactions", "subscriptions", "conversations", "messages", "error_logs", "listing_media_cache", "api_usage", "waitlist",
+  "credit_transactions", "subscriptions", "conversations", "messages", "error_logs", "listing_media_cache", "api_usage", "waitlist", "feedback",
 ] as const;
 export type TableName = (typeof TABLES)[number];
 
@@ -610,4 +620,5 @@ export interface TableMap {
   listing_media_cache: ListingMediaCache;
   api_usage: ApiUsage;
   waitlist: WaitlistEntry;
+  feedback: Feedback;
 }

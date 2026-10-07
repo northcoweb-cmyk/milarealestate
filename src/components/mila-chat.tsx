@@ -1,5 +1,6 @@
 "use client";
 
+import { FeedbackRow } from "@/components/feedback-row";
 import { keyboardUp, pinTo, useVisualViewport } from "./use-visual-viewport";
 import { useScrollLock } from "./use-scroll-lock";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -229,6 +230,7 @@ function MessageView({ m, last, onAction, onApprove, onNavigate, busy }: { m: Me
     <div className="rise space-y-3" {...(last ? { "data-last-mila": "" } : {})}>
       {m.content && <p className="whitespace-pre-line text-[17px] leading-snug">{m.content}</p>}
       {m.blocks.map((b: Block, i: number) => <BlockView key={i} block={b} onAction={onAction as never} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
+      {!busy && (m.content || m.blocks.length > 0) && <FeedbackRow target="chat" targetId={m.id} snippet={m.content?.slice(0, 400)} />}
     </div>
   );
 }
