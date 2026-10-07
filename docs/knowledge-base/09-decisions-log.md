@@ -12,3 +12,12 @@
 - Test users: owner and partner using the app; then 5 to 10 prototype testers; soft launch before Oct 20.
 - Admin: a separate "Mila OS" dashboard project (admin-os/) deployed as its own Vercel project.
 - Launch is 10:00 AM Eastern on Oct 20 (not 9).
+
+**Oct 7, 2026**
+- Domain bought: **milarealestate.app** (Porkbun, DNS there). Addresses: `milarealestate.app` and `www` = waitlist (later the public marketing site with pricing and how to sign up); `app.milarealestate.app` = the Mila app; `admin.milarealestate.app` = Mila OS.
+- The app is invite-only: creating an account needs the access code (SIGNUP_ACCESS_CODE, default 3725). Existing accounts sign in normally; waitlist members use their personal invite link. A wrong code locks only that visitor's IP for 30 minutes (no site-wide lockout, by choice). Turn off Supabase "Allow new users to sign up" before sharing the link publicly, or the code can be bypassed.
+- Browser tab titles: waitlist "Mila | AI for Real Estate"; app "Mila | Dashboard". Share cards live at `/og.jpg` in both.
+- Email: send through Resend on the domain (hello@milarealestate.app), forward inbound to the Yahoo inbox; Yahoo only for early testing.
+- **Google sign-in is wanted**, planned a few days after launch (after the first 7-day week). See the roadmap, item 8.
+- Vercel Hobby plan hit the 100 deployments/day limit. Each project now builds only when its own folder changes and only on main. Plan to move to Vercel Pro before launch.
+

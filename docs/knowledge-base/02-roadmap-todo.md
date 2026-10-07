@@ -11,6 +11,7 @@ Chat agent with approvals; listing brief; open house, showing, follow-up and mee
 5. Progressive learning of how each agent operates (style, timing, templates).
 6. Listing description writer; MLS and CRM integrations; Enterprise tier.
 7. The stashed "what's the sqft / home checklist" Mila feature (in git stash).
+8. **"Continue with Google" sign-in**, planned for a few days after launch (about Oct 27, after the first 7-day trial week). Design notes: new people must still enter the access code first so the invite lock holds; it must not collide with the waitlist invite flow (same email, password claim); set up the Google Cloud OAuth consent screen once and reuse it for Google Calendar/Gmail (P1 integration). Until then, email and password plus the access code.
 
 ## Housekeeping
 - Update the saved pricing config in the database to the new plans.
