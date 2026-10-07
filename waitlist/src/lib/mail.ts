@@ -7,7 +7,7 @@ export async function sendMail(to: string, subject: string, html: string, text: 
   if (!configured()) return false;
   const port = Number(process.env.SMTP_PORT || 465);
   const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }, connectionTimeout: 8000, socketTimeout: 10000 });
-  await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.SMTP_USER, to, subject, html, text });
+  await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.MAIL_REPLY_TO || (process.env.SMTP_USER?.includes("@") ? process.env.SMTP_USER : undefined), to, subject, html, text });
   return true;
 }
 

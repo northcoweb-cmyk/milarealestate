@@ -48,7 +48,7 @@ export async function sendInvite(e: Entry): Promise<void> {
   const m = inviteEmail(e.name, link);
   const port = Number(process.env.SMTP_PORT || 465);
   const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }, connectionTimeout: 8000, socketTimeout: 12000 });
-  await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.SMTP_USER, to: e.email, subject: m.subject, html: m.html, text: m.text });
+  await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.MAIL_REPLY_TO || (process.env.SMTP_USER?.includes("@") ? process.env.SMTP_USER : undefined), to: e.email, subject: m.subject, html: m.html, text: m.text });
   const done = await rest(`waitlist?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", body: JSON.stringify({ invited_at: new Date().toISOString() }) });
   if (!done.ok) throw new Error(`mark ${done.status}`);
 }
