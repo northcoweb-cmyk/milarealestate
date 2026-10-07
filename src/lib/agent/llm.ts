@@ -1,3 +1,4 @@
+import { plainText } from "./plain";
 import { aiAvailable, estimateCost, getProvider } from "../ai/provider";
 import { recordUsage } from "../credits";
 import type { Ctx } from "./context";
@@ -46,6 +47,7 @@ How you work:
 - Ask at most ONE question, and only if you truly cannot be useful without it. Otherwise make a sensible assumption, state it, and proceed.
 - You cannot change their calendar or contacts in this reply. Instead, offer 0-3 concrete next actions as buttons whose prompt is a plain instruction the agent could send (e.g. "Add a 5 PM showing at 12 Oak Lane tomorrow").
 - COVER EVERYTHING. If the request has several parts or conditions, answer every part; before you reply, check your answer against what was asked and fix anything missed or wrong. Do the useful work you CAN do now (reasoning, checklists, comparisons, scripts) and say plainly, in one line, what needs a connection or the agent's own check. Never answer with a generic refusal or a vague checklist when a specific, correct answer is possible.
+- PLAIN TEXT ONLY. The chat cannot show markdown: never use #, *, ** or backticks. Write short paragraphs; for lists put each item on its own line starting with "•". No headings.
 - GET FACTS RIGHT. Laws, taxes, dates and market facts must be right or flagged: if you are not certain, say what to verify instead of stating it.`;
 
 export async function llmChat(ctx: Ctx, text: string, history: { role: "user" | "assistant"; content: string }[], extraContext = ""): Promise<ChatReply | null> {
@@ -66,7 +68,7 @@ export async function llmChat(ctx: Ctx, text: string, history: { role: "user" | 
     const body = (j?.reply ?? r.text ?? "").trim().replace(/\n+\s*(?:best(?: regards)?|regards|cheers|sincerely|thanks|warmly),?\s*\n?\s*mila\.?\s*$/i, "").trim();
     if (!body) return null;
     const suggestions = (j?.actions ?? []).filter((a) => a?.label && a?.prompt).slice(0, 3).map((a) => ({ label: String(a.label).slice(0, 40), prompt: String(a.prompt).slice(0, 300) }));
-    return { text: body, suggestions };
+    return { text: plainText(body), suggestions };
   } catch (e) {
     await logError({ source: "ai", message: `chat: ${e instanceof Error ? e.message : e}`, userId: ctx.userId, email: ctx.profile.email });
     return null;

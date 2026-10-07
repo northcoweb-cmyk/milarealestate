@@ -1,3 +1,4 @@
+import { plainText } from "../plain";
 import { aiAvailable, estimateCost, getProvider } from "../../ai/provider";
 import { recordUsage } from "../../credits";
 import { fmtShortDate } from "../../time";
@@ -89,7 +90,7 @@ export async function clientSearchHandler(ctx: Ctx, textIn: string): Promise<Han
     try { j = JSON.parse(/\{[\s\S]*\}/.exec(r.text)?.[0] ?? "null") as Out | null; } catch { j = null; }
     if (!j?.bottom_line) {
       const plain = r.text.trim();
-      if (plain) return reply(plain.slice(0, 3000), [], "market_research");
+      if (plain) return reply(plainText(plain).slice(0, 3000), [], "market_research");
       return reply("I wasn't able to finish that research just now. Try again in a moment, or add the city you want me to focus on.", [], "smalltalk");
     }
     const blocks: Block[] = [];
@@ -117,7 +118,7 @@ export async function clientSearchHandler(ctx: Ctx, textIn: string): Promise<Han
     const next = (j.next ?? []).filter((n) => n?.label && n?.prompt).slice(0, 3);
     if (next.length) blocks.push({ type: "choice", title: "Want me to…", buttons: next.map((n, i) => ({ label: String(n.label).slice(0, 40), style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: String(n.prompt).slice(0, 300) } })) });
     const q = typeof j.question === "string" && j.question.trim() ? `\n\nOne thing that would sharpen this: ${j.question.trim()}` : "";
-    return reply(`${j.bottom_line.trim()}${q}`, blocks, "market_research");
+    return reply(plainText(`${j.bottom_line.trim()}${q}`), blocks, "market_research");
   } catch (e) {
     await logError({ source: "ai", message: `client_search: ${e instanceof Error ? e.message : e}`, userId: ctx.userId, email: ctx.profile.email });
     return reply("I couldn't finish that research right now, and I don't want to guess. Your request is saved, so just say \"search again\" in a minute.", [], "smalltalk");

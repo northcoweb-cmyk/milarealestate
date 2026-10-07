@@ -17,11 +17,13 @@ const sameDay = (iso: string, y: number, m: number, d: number, tz: string) => { 
 export async function meetingPrepHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const { store, userId, now, tz } = ctx;
   const who = /\bwith\s+([A-Za-z][A-Za-z'’-]+(?:\s+[A-Za-z][A-Za-z'’-]+)?)/i.exec(text)?.[1]?.replace(/\b(at|on|today|tomorrow|tonight|later)\b.*$/i, "").trim();
-  if (!who) return askBack(ctx, "meeting_prep", text, "name", "Who is the meeting with?");
+  const fam = /\b(?:for|with)\s+(?:the\s+)?([A-Za-z][A-Za-z'’-]+)\s+family\b/i.exec(text)?.[1];
+  const whoName = who ?? fam;
+  if (!whoName) return askBack(ctx, "meeting_prep", text, "name", "Who is the meeting with?");
   const [contacts, events] = await Promise.all([store.list("contacts", userId), store.list("calendar_events", userId)]);
-  const [first, last] = who.toLowerCase().split(/\s+/);
+  const [first, last] = whoName.toLowerCase().split(/\s+/);
   const cands = contacts.filter((c) => { const n = c.name.toLowerCase().split(/\s+/); return n[0] === first && (!last || n[n.length - 1] === last); });
-  if (!cands.length) return reply(`I don't have anyone named ${who} in your contacts yet. Add them and I'll prep you — or tell me about them (“${who} is a buyer looking for a 3 bed around $600k”).`, [], "smalltalk");
+  if (!cands.length) return reply(`I don't have anyone named ${whoName} in your contacts yet. Add them and I'll prep you — or tell me about them (“${whoName} is a buyer looking for a 3 bed around $600k”).`, [], "smalltalk");
 
   // the meeting: that person's event on the day (today unless said), closest to the time given
   const date = parseDate(text, now, tz) ?? (() => { const p = partsIn(now, tz); return { y: p.y, m: p.m, d: p.d }; })();

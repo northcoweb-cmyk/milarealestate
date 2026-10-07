@@ -33,6 +33,16 @@ const asks = /^(?:what|whats|what's|is|are|does|do|how|which|where|who|find|look
  * Research the agent wants done with outside data: rentals and rent levels, a building or neighbourhood (safety, walkability, schools, reviews,
  * cannabis rules, tours), comparing places for a move, pricing and comps, areas for a type of client. Exported for tests.
  */
+/** Fix the typos agents actually make on a phone, so the router sees "showing", not "showinge". */
+export function fixTypos(raw: string): string {
+  return raw
+    .replace(/\b(?:showinge|showign|shwoing|showng|showin)\b/gi, "showing")
+    .replace(/\bopen\s*hous\b/gi, "open house").replace(/\b(?:appoitment|apointment|appointmnt)\b/gi, "appointment")
+    .replace(/\b(?:meetting|meetng)\b/gi, "meeting").replace(/\b(?:tommorow|tomorow|tmmrw|tomorrrow)\b/gi, "tomorrow")
+    .replace(/\b(?:listng|lisitng)\b/gi, "listing").replace(/\ban\s+(showing|listing|open house|offer)\b/gi, (_, w) => `a ${w}`)
+    .replace(/\bwent to see (.{0,40}?)\b(tmr|tmrw|tomorrow)\b/gi, "want to see $1$2");
+}
+
 export function isResearchTask(raw: string): boolean {
   const t = raw.toLowerCase().trim();
   if (t.length < 12 || OWN_WORK.test(t)) return false;

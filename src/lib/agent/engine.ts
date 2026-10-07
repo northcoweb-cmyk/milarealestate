@@ -6,7 +6,7 @@ import type { Block, CalendarEvent, Conversation, DocumentRow, Message, Profile 
 import { greetingFor } from "./debrief";
 import { type Ctx, firstName, plural } from "./context";
 import { appendMila, persistState } from "./conversation";
-import { type Intent, detectIntent } from "./intents";
+import { type Intent, detectIntent, fixTypos } from "./intents";
 import { llmChat, llmClassify } from "./llm";
 import { clientUpdateHandler, learnFromTurn } from "./learn";
 import { logError } from "../server/errors";
@@ -125,7 +125,7 @@ async function recentHistory(ctx: Ctx) {
 }
 
 async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{ out: HandlerOut; intent: Intent }> {
-  let text = textIn;
+  let text = fixTypos(textIn);
   const pend = ctx.state.pending;
   let forced: Intent | null = null; // an answer to Mila's question continues THAT request, whatever the merged text looks like
   let answering: { intent: string; missing: string } | null = null;
@@ -182,6 +182,11 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   const outs: HandlerOut[] = [];
   let lastIntent: Intent = "general";
   for (const [ci, clause] of clauses.entries()) {
+    if (ci > 0 && /^(?:and |then |also |please )?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?ready|get (?:me )?prepared)\b.{0,30}\b(?:it|that|this|them|the showing)\b/i.test(clause.trim()) && ctx.state.last_event_id) {
+      const ev = await ctx.store.get("calendar_events", ctx.userId, ctx.state.last_event_id);
+      const place = ev?.location || (ev ? parseAddress(ev.title) : null);
+      if (place) { lastIntent = "prep_property"; outs.push(await dispatch(ctx, "prep_property", `prep ${place}`, true)); continue; }
+    }
     let d = ci === 0 && forced ? { intent: forced, declared: false } : detectIntent(clause);
     if (d.intent === "general") d = (await llmClassify(ctx, clause)) ?? d;
     lastIntent = d.intent;
