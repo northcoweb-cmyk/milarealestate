@@ -32,10 +32,9 @@ test("wrong guesses lock a visitor out, then the lock expires", () => {
   resetCodeLimits();
 });
 
-test("a flood of wrong guesses across many visitors locks everyone briefly", () => {
+test("a flood of wrong guesses from many visitors never locks out someone else", () => {
   resetCodeLimits(); const t = 2_000_000;
-  for (let i = 0; i < 80; i++) recordBadCode(`9.9.9.${i}`, t);
-  assert.equal(codeLocked("1.1.1.1", t), true);
-  assert.equal(codeLocked("1.1.1.1", t + 61 * 60_000), false);
+  for (let i = 0; i < 500; i++) recordBadCode(`9.9.${i >> 8}.${i & 255}`, t);
+  assert.equal(codeLocked("1.1.1.1", t), false);
   resetCodeLimits();
 });

@@ -25,24 +25,21 @@ export function codeMatches(given: unknown): boolean {
   return timingSafeEqual(digest(given.trim()), digest(need));
 }
 
-// A short numeric code can be brute-forced, so wrong guesses are capped per visitor and across the whole site.
+// A short numeric code can be brute-forced, so wrong guesses are capped per visitor (by IP). Only the person guessing gets locked out.
 type Bucket = { n: number; reset: number };
 const perIp = new Map<string, Bucket>();
-const everyone: Bucket = { n: 0, reset: 0 };
-const IP_MAX = 6, IP_WINDOW = 30 * 60_000, ALL_MAX = 80, ALL_WINDOW = 60 * 60_000;
+const IP_MAX = 6, IP_WINDOW = 30 * 60_000;
 
 const live = (b: Bucket | undefined, now: number) => (b && b.reset > now ? b : undefined);
 
 export function codeLocked(ip: string, now = Date.now()): boolean {
-  return (live(perIp.get(ip), now)?.n ?? 0) >= IP_MAX || (live(everyone, now)?.n ?? 0) >= ALL_MAX;
+  return (live(perIp.get(ip), now)?.n ?? 0) >= IP_MAX;
 }
 
 export function recordBadCode(ip: string, now = Date.now()) {
   if (perIp.size > 5000) for (const [k, v] of perIp) if (v.reset <= now) perIp.delete(k);
   const b = live(perIp.get(ip), now) ?? { n: 0, reset: now + IP_WINDOW };
   b.n++; perIp.set(ip, b);
-  if (everyone.reset <= now) { everyone.n = 0; everyone.reset = now + ALL_WINDOW; }
-  everyone.n++;
 }
 
-export const resetCodeLimits = () => { perIp.clear(); everyone.n = 0; everyone.reset = 0; };
+export const resetCodeLimits = () => perIp.clear();

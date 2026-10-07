@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const { email, name, password, code } = (await req.json().catch(() => ({}))) as { email?: string; name?: string; password?: string; code?: string };
   const ip = clientIp(req);
   if (requiredCode() !== null) {
-    if (codeLocked(ip)) return NextResponse.json({ error: "Too many wrong codes. Try again later, or join the waitlist for an invite." }, { status: 429 });
+    if (codeLocked(ip)) return NextResponse.json({ error: "Too many wrong codes from this connection. Try again in 30 minutes, or join the waitlist for an invite." }, { status: 429 });
     if (!codeMatches(code)) { recordBadCode(ip); return NextResponse.json({ error: "That access code isn't right. Mila is invite-only for now." }, { status: 403 }); }
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
