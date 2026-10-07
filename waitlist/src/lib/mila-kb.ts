@@ -2,7 +2,7 @@
  * Everything the website assistant is allowed to know. It answers ONLY from this text.
  * Keep it true: when a feature, date or price changes, change it here (and in the FAQ).
  */
-export const SUPPORT_EMAIL = "milarealestateapp@yahoo.com";
+export const SUPPORT_EMAIL = "admin@milarealestate.app";
 
 export const FACTS = `
 WHAT MILA IS

@@ -20,4 +20,6 @@
 - Email: send through Resend on the domain (hello@milarealestate.app), forward inbound to the Yahoo inbox; Yahoo only for early testing.
 - **Google sign-in is wanted**, planned a few days after launch (after the first 7-day week). See the roadmap, item 8.
 - Vercel Hobby plan hit the 100 deployments/day limit. Each project now builds only when its own folder changes and only on main. Plan to move to Vercel Pro before launch.
+- Contact address: **admin@milarealestate.app** (Porkbun forwarding to the Yahoo inbox) for bugs and support. Emails are sent from hello@milarealestate.app with replies going to admin@ (MAIL_REPLY_TO). Public pages no longer show the Yahoo address.
+- Feedback button (migration 0008) built and waiting to ship once Vercel deploys are available again.
 

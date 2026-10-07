@@ -12,9 +12,9 @@ export default function Privacy() {
       <h2>Who handles it</h2>
       <p>Your details are stored with our database and email providers, who process them for us only to run the waitlist.</p>
       <h2>Your choices</h2>
-      <p>Reply to any email from us, or write to milarealestateapp@yahoo.com, and we will remove you from the waitlist or delete your details.</p>
+      <p>Reply to any email from us, or write to admin@milarealestate.app, and we will remove you from the waitlist or delete your details.</p>
       <h2>Contact</h2>
-      <p>milarealestateapp@yahoo.com</p>
+      <p>admin@milarealestate.app</p>
     </Legal>
   );
 }

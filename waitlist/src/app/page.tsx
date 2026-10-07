@@ -158,7 +158,7 @@ export default function Page() {
             </div></div>
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[14px]" aria-label="Footer">
             <Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/terms" className="hover:text-white">Terms</Link>
-            <a href="mailto:milarealestateapp@yahoo.com" className="hover:text-white">Contact</a>
+            <a href="mailto:admin@milarealestate.app" className="hover:text-white">Contact</a>
           </nav>
         </div>
         <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center gap-2 text-[12.5px] text-white/55 sm:flex-row sm:justify-between">
