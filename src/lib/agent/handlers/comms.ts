@@ -85,8 +85,9 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
 }
 
 export async function draftEmailHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  text = text.replace(/^\s*(?:(?:yah|yeah|yep|yes|ok|okay|sure|and|then|go ahead)[,.!\s]+)+/i, "");
   const addrIn = parseAddress(text);
-  const names = capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " "));
+  const names = capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:tell|let|notify)\s+(?:her|him|them)\b(?:\s+know)?)/i, " ").replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " "));
   let c: Contact | null = null;
   for (const n of names) { const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any; if (r.ok && r.data.contacts.length === 1) { c = r.data.contacts[0]; break; } if (r.ok && r.data.contacts.length > 1) return reply(`Which ${n}?`, [{ type: "choice", title: `Which ${n}?`, buttons: r.data.contacts.slice(0, 5).map((x: Contact) => ({ label: `${x.name}${x.email ? ` · ${x.email}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: text.replace(n, x.name) } })) }]); }
   // someone was named but isn't a contact: say so, never quietly send the draft to whoever came up last
