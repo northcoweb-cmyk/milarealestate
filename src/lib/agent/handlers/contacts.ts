@@ -114,8 +114,38 @@ export async function debriefHandler(ctx: Ctx): Promise<HandlerOut> {
   return reply("Here's your day.", [{ type: "debrief", greeting: greetingFor(ctx.now, ctx.tz, ctx.profile.full_name).toUpperCase(), counts: d.counts, noticed: d.noticed, buttons: [{ label: "Open Home", style: "secondary", href: "/" }] }]);
 }
 
+/** Rank the agent's buyers and renters against one property: beds, budget, area, type. Pure scoring over saved data, no outside calls. */
+export async function matchBuyersHandler(ctx: Ctx, text: string): Promise<HandlerOut | null> {
+  const props = await ctx.store.list("properties", ctx.userId);
+  const t = text.toLowerCase();
+  const named = props.find((p) => t.includes(p.address.toLowerCase().replace(/\b(street|drive|road|lane|court|avenue|boulevard)\b/g, (m) => m).split(",")[0]));
+  const byStreet = props.find((p) => { const first = p.address.toLowerCase().split(/\s+/).slice(0, 2).join(" "); return first.length > 3 && t.includes(first); });
+  const prop = named ?? byStreet ?? (ctx.state.last_property_id ? props.find((p) => p.id === ctx.state.last_property_id) : undefined) ?? [...props].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (!prop) return reply("I don't have a listing saved yet to match against. Add one (for example “new listing 22 Elm Court Bethesda, 3 bed 2 bath, $650k”) and I'll find the buyers it fits.", [], "smalltalk");
+  const buyers = (await ctx.store.list("contacts", ctx.userId)).filter((c) => ["buyer", "renter", "rental", "investor", "lead"].includes(c.type) && c.status !== "inactive");
+  const city = (prop.city ?? "").toLowerCase();
+  const scored = buyers.map((c) => {
+    let score = 0; const why: string[] = [], miss: string[] = [];
+    const pref = c.preferences ?? {};
+    if (pref.beds_min != null && prop.beds != null) { if (prop.beds >= pref.beds_min) { score += 2; why.push(`${prop.beds} bd meets their ${pref.beds_min}+`); } else { score -= 3; miss.push(`wants ${pref.beds_min}+ bd`); } }
+    if (c.budget_max != null && prop.list_price != null) { if (prop.list_price <= c.budget_max) { score += 3; why.push(`within their ${money(c.budget_max)} budget`); } else if (prop.list_price <= c.budget_max * 1.08) { score += 1; why.push(`just over their ${money(c.budget_max)} budget`); } else { score -= 4; miss.push(`budget ${money(c.budget_max)}`); } }
+    if (c.budget_min != null && prop.list_price != null && prop.list_price < c.budget_min * 0.85) { score -= 1; miss.push("below their range"); }
+    const loc = (c.location ?? "").toLowerCase();
+    if (loc && city) { if (loc.includes(city) || city.includes(loc.split(",")[0].trim())) { score += 3; why.push(`wants ${prop.city}`); } else miss.push(`wants ${c.location}`); }
+    if (pref.baths_min != null && prop.baths != null && prop.baths < pref.baths_min) { score -= 1; miss.push(`wants ${pref.baths_min}+ ba`); }
+    return { c, score, why, miss };
+  }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
+  const addr = `${prop.address}${prop.city ? `, ${prop.city}` : ""}`;
+  if (!scored.length) return reply(`None of your saved buyers clearly fit ${addr}${prop.list_price ? ` at ${fullMoney(prop.list_price)}` : ""}. I match on bedrooms, budget and area, so adding those to a person's profile makes this sharper.`, [], "chat_simple");
+  return reply(`${plural(scored.length, "buyer")} fit ${addr}${prop.list_price ? ` (${fullMoney(prop.list_price)})` : ""}, best match first.`, [{
+    type: "contacts", title: "Best matches", contacts: scored.map(({ c, why, miss }) => ({ id: c.id, name: c.name, type: label(c.type), reason: [...why, ...miss.map((m) => `but ${m}`)].join("; ") || undefined, color: c.avatar_color })),
+    buttons: [{ label: "Draft a note to the top match", style: "primary", action: { type: "prompt", text: `Draft an email to ${scored[0].c.name} about ${prop.address}` } }, { label: "Email all of them", style: "secondary", action: { type: "prompt", text: `Draft an email to my buyers about ${prop.address}` } }],
+  }], "chat_simple");
+}
+
 export async function findContactsHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const t = text.toLowerCase();
+  if (/\bmatch\b.*\b(listing|home|property|house)\b|\bwho\b.*\b(?:would|might|should|could|wants?)\b.*\b(?:like|want|interested|send|show|fit)\b.*\b(?:listing|home|house|property|\d{1,6}\s+[a-z])/.test(t)) { const m = await matchBuyersHandler(ctx, text); if (m) return m; }
   const types: ContactType[] = [];
   if (/buyers?/.test(t)) types.push("buyer");
   if (/sellers?/.test(t)) types.push("seller");
@@ -201,6 +231,19 @@ export async function findPropertyForContactHandler(ctx: Ctx, text: string): Pro
   if (!c && state) c = await ctx.store.get("contacts", ctx.userId, state);
   if (!c) return reply("Who is it for?");
   const facts = await contactFacts(ctx, c);
+  // With a live listing feed connected, actually search it with this person's saved criteria.
+  const { rentcastConfigured } = await import("../../listing-data/rentcast");
+  if (rentcastConfigured()) {
+    const { extractPlace } = await import("../property-lookup");
+    const { newListingsHandler } = await import("./marketdata");
+    const home = extractPlace(ctx.profile.location ?? ctx.profile.primary_market ?? "");
+    const loc = c.location ? (extractPlace(c.location).state ? c.location : `${c.location}${home.state ? `, ${home.state}` : ""}`) : "";
+    if (!loc) return reply(`Which city or ZIP should I search for ${firstName(c.name)}? I'll save it to their profile.`, [], "smalltalk");
+    const pref = c.preferences ?? {};
+    const q = ["Show me the newest", pref.property_types?.[0] ?? "listings", `in ${loc}`, pref.beds_min ? `with ${pref.beds_min}+ bedrooms` : "", c.budget_max ? `under $${c.budget_max}` : "", "from the last 30 days"].filter(Boolean).join(" ");
+    const r = await newListingsHandler(ctx, q);
+    return { ...r, text: `Searching for ${firstName(c.name)} (${facts.join(" • ") || "no saved criteria yet"}). ${r.text}` };
+  }
   return reply(`Here's what I'll use for ${firstName(c.name)}: ${facts.join(" • ") || "no saved criteria yet"}.\n\nListing search needs an MLS or listing-data connection, which isn't set up yet — so I can't pull live listings. I don't want to guess at homes.`, [{
     type: "choice", title: `Next steps for ${firstName(c.name)}`,
     buttons: [

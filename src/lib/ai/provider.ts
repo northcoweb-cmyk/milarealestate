@@ -33,6 +33,10 @@ export interface CompletionRequest {
   webSearch?: boolean;
   /** How hard a reasoning model should think. Defaults by tier. Ignored by models that don't reason. */
   effort?: "none" | "low" | "medium" | "high";
+  /** Data tools the model may call (GPT-6 Responses API only). `runFunction` executes one and returns something JSON-serialisable. */
+  functions?: { name: string; description: string; parameters: Record<string, unknown> }[];
+  runFunction?: (name: string, args: any) => Promise<unknown>;
+  maxToolRounds?: number;
 }
 
 export interface CompletionResult {
@@ -193,11 +197,11 @@ class OpenAIProvider implements AIProvider {
       return { role: m.role, content: m.content };
     });
     const tools: any[] = [];
-    const body: Record<string, unknown> = { model: info.model, instructions: req.system, input, reasoning: { effort }, max_output_tokens: (req.maxTokens ?? 1500) + ({ none: 0, low: 600, medium: 2500, high: 5000 } as const)[effort] }; // thinking tokens count against the limit, so leave room for them
-    if (req.jsonSchema) {
-      tools.push({ type: "function", name: req.jsonSchema.name, description: req.jsonSchema.description, parameters: req.jsonSchema.schema, strict: false });
-      body.tool_choice = req.webSearch ? "auto" : { type: "function", name: req.jsonSchema.name };
-    }
+    const maxTokens = (req.maxTokens ?? 1500) + ({ none: 0, low: 600, medium: 2500, high: 5000 } as const)[effort]; // thinking tokens count against the limit, so leave room for them
+    const body: Record<string, unknown> = { model: info.model, instructions: req.system, input, reasoning: { effort }, max_output_tokens: maxTokens };
+    if (req.jsonSchema) tools.push({ type: "function", name: req.jsonSchema.name, description: req.jsonSchema.description, parameters: req.jsonSchema.schema, strict: false });
+    for (const f of req.functions ?? []) tools.push({ type: "function", name: f.name, description: f.description, parameters: f.parameters, strict: false });
+    if (req.jsonSchema) body.tool_choice = req.webSearch || req.functions?.length ? "auto" : { type: "function", name: req.jsonSchema.name };
     if (req.webSearch) tools.push({ type: "web_search" });
     if (tools.length) body.tools = tools;
     let d: any;
@@ -207,18 +211,40 @@ class OpenAIProvider implements AIProvider {
       if (req.webSearch && /web_search|tool/i.test(String(e))) { tools[tools.length - 1] = { type: "web_search_preview" }; d = await this.post("responses", { ...body, tools }); }
       else throw e;
     }
-    let text = ""; let json: unknown; const cites = new Map<string, string>();
-    for (const o of d.output ?? []) {
-      if (o.type === "message") for (const c of o.content ?? []) {
-        if (c.type === "output_text") { text += c.text ?? ""; for (const a of c.annotations ?? []) if (a.type === "url_citation" && a.url) cites.set(a.url, a.title ?? a.url); }
-      } else if (o.type === "function_call" && req.jsonSchema && o.name === req.jsonSchema.name) {
-        try { json = JSON.parse(o.arguments); } catch { /* leave undefined */ }
+    let text = ""; let json: unknown; const cites = new Map<string, string>(); let inTok = 0, outTok = 0;
+    const harvest = (resp: any) => {
+      inTok += resp.usage?.input_tokens ?? 0; outTok += resp.usage?.output_tokens ?? 0; // output includes the model's thinking tokens
+      text = ""; // the final answer is the last response's message
+      for (const o of resp.output ?? []) {
+        if (o.type === "message") for (const c of o.content ?? []) {
+          if (c.type === "output_text") { text += c.text ?? ""; for (const a of c.annotations ?? []) if (a.type === "url_citation" && a.url) cites.set(a.url, a.title ?? a.url); }
+        } else if (o.type === "function_call" && req.jsonSchema && o.name === req.jsonSchema.name) {
+          try { json = JSON.parse(o.arguments); } catch { /* leave undefined */ }
+        }
       }
+    };
+    harvest(d);
+    // Tool loop: run the data tools the model asked for, hand the results back, repeat (bounded).
+    const own = (resp: any) => (resp.output ?? []).filter((o: any) => o.type === "function_call" && (!req.jsonSchema || o.name !== req.jsonSchema.name));
+    const maxRounds = Math.min(req.maxToolRounds ?? 5, 8);
+    for (let round = 0; req.runFunction && own(d).length && d.id; round++) {
+      const pending = own(d);
+      const last = round >= maxRounds;
+      if (!last) await assertAiBudget({ tier: req.tier, inputChars: 4000, webSearch: req.webSearch }); // each extra round is paid for: re-check the allowance
+      const outputs = await Promise.all(pending.map(async (c: any) => {
+        let out: unknown;
+        if (last) out = { error: "Tool limit reached. Answer now with what you already have, and list what you could not check." };
+        else { try { out = await req.runFunction!(c.name, JSON.parse(c.arguments || "{}")); } catch (e) { out = { error: e instanceof Error ? e.message : String(e) }; } }
+        return { type: "function_call_output", call_id: c.call_id, output: JSON.stringify(out ?? null).slice(0, 14000) };
+      }));
+      d = await this.post("responses", { model: info.model, instructions: req.system, previous_response_id: d.id, input: outputs, reasoning: { effort }, max_output_tokens: maxTokens, tools, tool_choice: last ? "none" : "auto" });
+      harvest(d);
+      if (last) break;
     }
     if (!text && json === undefined && d.status === "incomplete") throw new Error(`AI provider error: the answer was cut off (${d.incomplete_details?.reason ?? "incomplete"}); raise MILA_MAX_OUTPUT_TOKENS or lower the effort`);
     return {
       text, json, citations: [...cites].map(([url, title]) => ({ title, url })),
-      usage: { inputTokens: d.usage?.input_tokens ?? 0, outputTokens: d.usage?.output_tokens ?? 0 }, // output includes the model's thinking tokens
+      usage: { inputTokens: inTok, outputTokens: outTok },
       extraCostUsd: req.webSearch ? num(process.env.MILA_WEBSEARCH_FEE_USD, 0.03) : 0, info,
     };
   }

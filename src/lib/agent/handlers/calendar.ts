@@ -77,7 +77,11 @@ function relativeShift(text: string): number | null {
 /** Where is it moving TO? "move my 9am showing to 4pm" must read 4pm, not the 9am it is leaving. */
 function destinationOf(text: string, ctx: Ctx): string {
   const parts = text.split(/\b(?:to|until|till|for|into)\b|→|->/i);
-  for (let i = parts.length - 1; i >= 1; i--) if (parseWhen(parts[i], ctx.now, ctx.tz).start || parseWhen(parts[i], ctx.now, ctx.tz).time) return parts[i];
+  for (let i = parts.length - 1; i >= 1; i--) {
+    const part = /^\s*\d{1,2}(?::\d{2})?\s*[.!?]?\s*$/.test(parts[i]) ? `at ${parts[i].trim().replace(/[.!?]$/, "")}` : parts[i]; // "move it to 4": a bare number after "to" is a clock time
+    const w = parseWhen(part, ctx.now, ctx.tz);
+    if (w.start || w.time) return part;
+  }
   return text;
 }
 

@@ -127,3 +127,47 @@ export async function newListings(q: NewListingsQuery): Promise<ListingCard[]> {
       mls: [s(r.mlsName), s(r.mlsNumber)].filter(Boolean).join(" #") || null, agent: s(r.listingAgent?.name), office: s(r.listingOffice?.name),
     }));
 }
+
+// ----------------------------------------------------------------------------- rentals, rent estimates, market stats
+export interface RentalCard { id: string; address: string; unit: string | null; city: string | null; state: string | null; zip: string | null; rent: number | null; beds: number | null; baths: number | null; sqft: number | null; type: string | null; days_on_market: number | null; listed_date: string | null; lat: number | null; lng: number | null; mls: string | null; agent: string | null; office: string | null; hoa: number | null; pets: string | null }
+export interface RentalQuery { city?: string; state?: string; zip?: string; address?: string; radiusMi?: number; beds?: number; baths?: number; minRent?: number; maxRent?: number; propertyType?: string; days?: number; limit?: number }
+
+/** Active long-term rentals (apartments, condos, houses), cheapest-fit first. Works for any US city or ZIP. */
+export async function rentalListings(q: RentalQuery): Promise<RentalCard[]> {
+  const limit = Math.min(Math.max(q.limit ?? 10, 1), 25), days = q.days ? Math.min(Math.max(q.days, 1), 90) : undefined;
+  const key = `rent:${[q.city, q.state, q.zip, q.address, q.radiusMi, q.beds, q.baths, q.minRent, q.maxRent, q.propertyType, days].join("|").toLowerCase()}`;
+  const rows = await cached(key, 2 * 3_600_000, () => rc<Raw[]>("/listings/rental/long-term", {
+    city: q.city, state: q.state, zipCode: q.zip, address: q.address, radius: q.address ? q.radiusMi ?? 2 : undefined, status: "Active",
+    bedrooms: q.beds != null ? String(q.beds) : undefined, bathrooms: q.baths != null ? `${q.baths}:*` : undefined, price: range(q.minRent, q.maxRent), propertyType: q.propertyType, daysOld: days ? `*:${days}` : undefined, limit: 50,
+  }));
+  return (Array.isArray(rows) ? rows : [])
+    .filter((r) => (s(r.addressLine1) || s(r.formattedAddress)) && pos(r.price))
+    .sort((a, b) => (pos(a.price) ?? 0) - (pos(b.price) ?? 0))
+    .slice(0, limit)
+    .map((r) => ({
+      id: String(r.id ?? r.formattedAddress), address: String(r.addressLine1 ?? r.formattedAddress), unit: s(r.addressLine2), city: s(r.city), state: s(r.state), zip: s(r.zipCode), rent: pos(r.price), beds: n(r.bedrooms), baths: n(r.bathrooms),
+      sqft: pos(r.squareFootage), type: s(r.propertyType), days_on_market: n(r.daysOnMarket), listed_date: s(r.listedDate), lat: n(r.latitude), lng: n(r.longitude),
+      mls: [s(r.mlsName), s(r.mlsNumber)].filter(Boolean).join(" #") || null, agent: s(r.listingAgent?.name), office: s(r.listingOffice?.name), hoa: pos(r.hoa?.fee), pets: s(r.petPolicy) ?? (typeof r.petsAllowed === "boolean" ? (r.petsAllowed ? "pets allowed" : "no pets") : null),
+    }));
+}
+
+export interface RentEstimate { found: boolean; rent: number | null; low: number | null; high: number | null; comps: { address: string; rent: number | null; beds: number | null; baths: number | null; sqft: number | null; distance_mi: number | null; days_old: number | null }[] }
+/** What a unit or home should rent for, with the comparable rentals behind the number. */
+export async function rentEstimate(address: string, opts: { beds?: number; baths?: number; sqft?: number; propertyType?: string } = {}): Promise<RentEstimate> {
+  const d = await cached(`rentavm:${address.toLowerCase()}|${opts.beds}|${opts.baths}|${opts.sqft}|${opts.propertyType}`, 6 * 3_600_000, () => rc<Raw>("/avm/rent/long-term", { address, bedrooms: opts.beds, bathrooms: opts.baths, squareFootage: opts.sqft, propertyType: opts.propertyType, compCount: 6 }).catch((e) => { if (e instanceof RentcastError && (e.code === "not_found" || e.code === "bad_request")) return {} as Raw; throw e; }));
+  const rent = pos(d.rent);
+  return { found: rent != null, rent, low: pos(d.rentRangeLow), high: pos(d.rentRangeHigh), comps: (Array.isArray(d.comparables) ? d.comparables : []).slice(0, 6).map((c: Raw) => ({ address: s(c.formattedAddress) ?? s(c.addressLine1) ?? "", rent: pos(c.price), beds: n(c.bedrooms), baths: n(c.bathrooms), sqft: pos(c.squareFootage), distance_mi: n(c.distance), days_old: n(c.daysOld) })) };
+}
+
+export interface MarketStats { found: boolean; zip: string; sale: { median_price: number | null; avg_price: number | null; median_ppsf: number | null; avg_days_on_market: number | null; active_listings: number | null; new_listings: number | null } | null; rent: { median_rent: number | null; avg_rent: number | null; avg_days_on_market: number | null; active_listings: number | null; by_bedrooms: { beds: number; median_rent: number | null }[] } | null }
+/** Sale and rental statistics for one ZIP code (median price/rent, days on market, supply), straight from the data feed. */
+export async function marketStats(zip: string): Promise<MarketStats> {
+  const d = await cached(`mkt:${zip}`, 12 * 3_600_000, () => rc<Raw>("/markets", { zipCode: zip, dataType: "All", historyRange: 3 }).catch((e) => { if (e instanceof RentcastError && (e.code === "not_found" || e.code === "bad_request")) return {} as Raw; throw e; }));
+  const sd: Raw = d.saleData ?? {}, rd: Raw = d.rentalData ?? {};
+  const has = Object.keys(sd).length || Object.keys(rd).length;
+  return {
+    found: Boolean(has), zip,
+    sale: Object.keys(sd).length ? { median_price: pos(sd.medianPrice), avg_price: pos(sd.averagePrice), median_ppsf: pos(sd.medianPricePerSquareFoot), avg_days_on_market: n(sd.averageDaysOnMarket), active_listings: n(sd.totalListings), new_listings: n(sd.newListings) } : null,
+    rent: Object.keys(rd).length ? { median_rent: pos(rd.medianRent), avg_rent: pos(rd.averageRent), avg_days_on_market: n(rd.averageDaysOnMarket), active_listings: n(rd.totalListings), by_bedrooms: (Array.isArray(rd.dataByBedrooms) ? rd.dataByBedrooms : []).map((b: Raw) => ({ beds: Number(b.bedrooms), median_rent: pos(b.medianRent) })).filter((b: { beds: number }) => Number.isFinite(b.beds)) } : null,
+  };
+}

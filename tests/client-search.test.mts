@@ -17,7 +17,7 @@ test("a multi-requirement client brief is a search job, not a calendar event", (
 });
 
 test("other requests are not swallowed by the search router", () => {
-  for (const t of ["Showing at 456 Oak Lane Sunday at 3 PM", "Find something for Aisha", "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up.", "Who do I need to follow up with today?", "I have a new buyer named Sarah looking for a 3 bedroom house around $650k in Montgomery County in the next 3 months.", "find apartments"]) {
+  for (const t of ["Showing at 456 Oak Lane Sunday at 3 PM", "Find something for Aisha", "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up.", "Who do I need to follow up with today?", "I have a new buyer named Sarah looking for a 3 bedroom house around $650k in Montgomery County in the next 3 months."]) {
     assert.notEqual(detectIntent(t).intent, "client_search", t);
   }
   assert.equal(isClientSearch("Show me 123 Main Street, 3 bed, balcony, parking, under $500k, walkable, schools, must have garage, find me comps for my clients looking to buy a home"), false); // has a street address
