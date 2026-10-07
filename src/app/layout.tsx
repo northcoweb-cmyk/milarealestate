@@ -7,8 +7,14 @@ import { SwRegister } from "@/components/sw-register";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const display = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: "--font-display", display: "swap" });
 
+const shareTitle = "Mila | Your AI operations manager for real estate";
+const shareDescription = "Tell Mila what you want done. She preps your listings, posts, emails and follow-ups, and asks before anything goes out.";
+
 export const metadata: Metadata = {
-  title: { default: "Mila — your personal real-estate work agent", template: "%s · Mila" },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://milarealestate.vercel.app"),
+  title: { default: "Mila | AI for Real Estate", template: "%s · Mila" },
+  openGraph: { title: shareTitle, description: shareDescription, type: "website", siteName: "Mila", images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "Mila, your AI operations manager for real estate" }] },
+  twitter: { card: "summary_large_image", title: shareTitle, description: shareDescription, images: ["/og.jpg"] },
   description: "Your AI operations manager for real estate. Tell Mila what you want done: she connects your listings, calendar, contacts, email and posts, remembers how you work, and asks before anything goes out.",
   applicationName: "Mila",
   manifest: "/manifest.webmanifest",
