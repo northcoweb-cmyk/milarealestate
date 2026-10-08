@@ -9,7 +9,9 @@ import { TOOLS, invoke } from "../tools";
 import { upcomingEvents } from "./calendar";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
+import { persistState } from "../conversation";
 import { resolveProperty } from "./listing";
+import { resolveAddress } from "../property-lookup";
 
 const COUNT_WORDS: Record<string, number> = { one: 1, a: 1, an: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
 /** "make me 3 posts", "three captions", "a post" → how many the agent asked for (1-6). */
@@ -59,6 +61,13 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   let ev: CalendarEvent | undefined = refersBack && !prop ? undefined : events.find((e) => e.kind === "open_house" && (prop ? e.property_id === prop.id : !addr || `${e.title} ${e.location}`.toLowerCase().includes(addr.toLowerCase())));
   if (!prop && ev?.property_id) prop = await ctx.store.get("properties", ctx.userId, ev.property_id);
   if (!prop) prop = await resolveProperty(ctx, text, true);
+  // an address she just gave that isn't saved yet: save it (city and state if said) and carry on, never ask for the address she already typed
+  if (!prop && addr) {
+    const r = await resolveAddress(ctx, text, addr, { answering: false }).catch(() => null);
+    const loc = r && r.status === "ok" ? r.place : null;
+    const made = (await TOOLS.create_property.run(ctx, { address: addr, city: loc?.city ?? null, state: loc?.state ?? null, zip: loc?.zip ?? null, county: null, list_price: null, beds: null, baths: null, sqft: null })) as any;
+    prop = (made?.data?.property as Property | undefined) ?? null;
+  }
   if (!prop) return reply("Which property is the post for? Give me an address and I'll build it.");
   ctx.state.last_property_id = prop.id;
   const images = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop!.id).sort((a, b) => a.position - b.position).map((i) => i.id);
@@ -81,6 +90,18 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     return reply(`Here are ${made.length} ${platform === "instagram_story" ? "Instagram stories" : "Instagram posts"} for ${prop.address}, each with a different angle. Nothing posts until you approve it.`, blocks, "social_generation");
   }
   let post: SocialPost;
+  const wantsOpenHouse = /open\s*house/i.test(text);
+  if (!ev && wantsOpenHouse) {
+    // an open house post with no date on the calendar yet: build it now, add the day and time once she gives them
+    const s = await openHouseSocial(ctx, prop, null, null, images);
+    post = ((await TOOLS.create_social_post.run(ctx, { platform, caption: s.caption, hashtags: s.hashtags, slides: s.slides, property_id: prop.id })) as any).data.post;
+    await attach(post);
+    ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text: `open house at ${prop.address}${prop.city ? `, ${prop.city}` : ""}${prop.state ? ` ${prop.state}` : ""}` }, missing: "date" }; // her next message ("Saturday 1 to 4") books it
+    await persistState(ctx);
+    blocks.push({ type: "notice", tone: "info", title: "Add the day and time", body: `Tell me when it is (like "Saturday 1 to 4") and I'll put the open house on your calendar and add the date to the post.` });
+    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Send me the listing link and I'll pull the photos. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
+    return reply(`Here's an Instagram carousel for the open house at ${prop.address}.`, blocks, "social_generation");
+  }
   if (ev && /open house|carousel/i.test(text) || (ev && !/just listed|price/i.test(text))) {
     const s = await openHouseSocial(ctx, prop, new Date(ev!.start_at), new Date(ev!.end_at), images);
     post = ((await TOOLS.create_social_post.run(ctx, { platform, caption: s.caption, hashtags: s.hashtags, slides: s.slides, property_id: prop.id, event_id: ev!.id })) as any).data.post;

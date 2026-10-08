@@ -56,12 +56,12 @@ export async function propertyPostData(ctx: Ctx, prop: Property, o: { sold?: boo
   return listingPostData(prop, { extra, soldPrice });
 }
 
-export async function openHouseSocial(ctx: Ctx, prop: Property, start: Date, end: Date, imageIds: string[]) {
+export async function openHouseSocial(ctx: Ctx, prop: Property, start: Date | null, end: Date | null, imageIds: string[]) {
   const d = await propertyPostData(ctx, prop);
   const built = buildPost({
     category: "open_house", platform: "instagram", variant: 0, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location || undefined,
     property: { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: d.stats, details: d.details, descriptors: d.descriptors, fullAddress: d.fullAddress, placeLine: d.placeLine },
-    when: { day: fmtDay(start, ctx.tz), range: fmtRange(start, end, ctx.tz) },
+    when: start && end ? { day: fmtDay(start, ctx.tz), range: fmtRange(start, end, ctx.tz) } : null,
   });
   const slides: SocialSlide[] = built.slides.map((sl, i) => ({ ...sl, image_id: imageIds[i] ?? imageIds[0] ?? null }));
   return { slides, caption: built.caption, hashtags: built.hashtags };
