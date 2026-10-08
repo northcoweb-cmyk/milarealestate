@@ -17,6 +17,20 @@ const WORKFLOW_BY_TYPE: Record<string, { key: string; kicker: string }> = {
 };
 
 export async function newContactHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  // "add michelle as a lead" when Michelle Turner is already saved: update her, never create a second, made-up person
+  const asType = /^\s*(?:please\s+)?add\s+([\p{L}'’-]+)\s+as\s+(?:a\s+|an\s+|my\s+)?(lead|buyer|seller|renter|tenant|investor|client|prospect)\b/iu.exec(text);
+  if (asType) {
+    const first = asType[1].toLowerCase();
+    const known = (await ctx.store.list("contacts", ctx.userId)).filter((c) => c.name.toLowerCase().split(/\s+/)[0] === first);
+    const fromLast = ctx.state.last_contact_ids?.length === 1 ? known.find((c) => c.id === ctx.state.last_contact_ids![0]) : undefined;
+    const hit = fromLast ?? (known.length === 1 ? known[0] : undefined);
+    if (hit) {
+      const type = (parseContactType(text) ?? hit.type) as ContactType;
+      if (type !== hit.type) await ctx.store.update("contacts", ctx.userId, hit.id, { type });
+      ctx.state.last_contact_ids = [hit.id];
+      return reply(type === hit.type ? `${hit.name} is already saved as a ${label(hit.type).toLowerCase()}. Want me to draft a follow-up?` : `Done. ${hit.name} is now a ${label(type).toLowerCase()}.`, [{ type: "choice", title: hit.name, buttons: [{ label: "Draft a follow-up", style: "primary", action: { type: "prompt", text: `Draft a follow-up email to ${hit.name}` } }, { label: "Open profile", style: "quiet", href: `/contacts/${hit.id}` }] }]);
+    }
+  }
   const name = parsePersonName(text);
   if (!name) {
     ctx.state.pending = { kind: "clarify", intent: "new_contact", slots: { text }, missing: "name" };

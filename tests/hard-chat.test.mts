@@ -52,3 +52,13 @@ test("'What did I just schedule?' answers with the last thing added", async () =
   await say(a, "Open house at 14 Chestnut Ln Bethesda MD 20814 this Sunday 1-3pm");
   assert.match(await say(a, "What did I just schedule?"), /14 Chestnut Lane, Sunday/);
 });
+
+test("'add michelle as a lead already comeon' updates Michelle Turner, it does not invent a person called 'Already Comeon'", async () => {
+  const a = await fresh();
+  await say(a, "I have a new buyer named Michelle Turner");
+  const out = await say(a, "add michelle as a lead already comeon");
+  assert.match(out, /Michelle Turner is now a lead/);
+  const people = await store.list("contacts", a.id);
+  assert.equal(people.length, 1);
+  assert.doesNotMatch(people.map((p: any) => p.name).join(), /already|comeon/i);
+});

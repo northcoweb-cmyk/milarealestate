@@ -54,3 +54,24 @@ Working notes. Batches are added as screenshots arrive; the summary comes when t
 - Their best structural ideas: an Inbox that unifies texts, calls, leads & email; a Pipeline (Customers, Leads, Deals) with a priority score and a suggested next step on every row; an Alerts tab.
 - Mila's matching surface: Contacts with pipeline stages and a priority list. Missing: a unified Inbox, and a "next step" shown on every contact row.
 - For us: validate names before saving (never save "i already told you" as a person), and always carry names forward in a conversation. We pass tests for the second one; add a test for the first.
+
+## Batch 5 (screens 21-22): inbox leads and Work
+21. **Inbox > Leads & email:** "Connect a source" and "Import leads (CSV)" buttons, filter chips (Needs reply, Leads, Estimates, Email, Questions, Help desk), "+ New ticket". The only item is the junk lead "i already told you...", marked "Needs reply".
+22. **Work ("Your work"):** one search over customers, jobs, estimates, invoices. The junk lead shows as a record with "No jobs, estimates or invoices yet. Create an estimate." Estimates and invoices are a trades concept, not real estate.
+
+## Summary: where Mila beats VERA, and where VERA beats Mila
+**Mila is ahead**
+- Built for agents (showings, open houses, listings, posts). VERA is generic small-business/trades software with real estate bolted on: "Estimates", "Invoices", "Companies", a Houston area code, a trades welcome message.
+- One sentence does the work. For the same Turner request, Mila added the showing to the calendar, drafted a text, and drafted a post. VERA asked clarifying questions, gave a generic checklist, did 1 of 5 things, and left the rest as "say go" or "open the builder".
+- Drafts use real facts (names, address, time). VERA's email was a generic cold-lead template.
+- Price $29/$49 vs $149/month. Trial: 7 days of real use vs 20 approved actions.
+- VERA bugs: junk names accepted ("poop" used throughout), raw `</invoke>` tags shown, a complaint saved as a lead name, re-asking names already given, "mocked" send.
+
+**VERA is ahead (what to learn)**
+- A business phone number with an AI receptionist and calls/voicemail/recordings, plus texting (needs carrier registration). Mila has none of this yet.
+- A unified Inbox (texts, calls, email, leads) and a Pipeline (Customers, Leads, Deals) with a priority score and next step per row.
+- A visible "actions left" counter, a "Get VERA working 1 of 9" checklist and a Simple/Advanced toggle.
+- Integrations screen with big-name logos (Meta Ads, Google Ads, Mailchimp, Stripe, Instagram, Google Analytics), but those are marketing tools, none are real-estate (no MLS, no calendar, no CRM). The "157 integrations" claim was not visible in this account.
+
+## Fixes made from this teardown (Oct 8)
+- Mila no longer turns filler words into names, and "add <first name> as a lead" updates the existing contact instead of making a new one.
