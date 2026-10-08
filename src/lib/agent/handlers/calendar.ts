@@ -1,3 +1,4 @@
+import { resolveAddress } from "../property-lookup";
 import { addDays, fmtDay, fmtDayTime, fmtRange, fmtShortDate, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost } from "../../types";
 import type { Ctx } from "../context";
@@ -263,7 +264,15 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
   const end = w.end ?? new Date(start.getTime() + durMin * 60_000);
   const addr = parseAddress(text);
-  const prop = propertyId === undefined && addr && ["showing", "open_house"].includes(kind) ? await resolveProperty(ctx, text, false) : null;
+  let prop = propertyId === undefined && addr && ["showing", "open_house", "inspection"].includes(kind) ? await resolveProperty(ctx, text, false) : null;
+  // a showing or inspection at an address means that home belongs in the Properties tab: save it (with the city and state if they were said)
+  if (!prop && propertyId === undefined && addr && ["showing", "inspection"].includes(kind)) {
+    const r = await resolveAddress(ctx, text, addr, { answering: false }).catch(() => null);
+    const loc = r && r.status === "ok" ? r.place : null;
+    const made = (await TOOLS.create_property.run(ctx, { address: addr, city: loc?.city ?? null, state: loc?.state ?? null, zip: loc?.zip ?? null, county: null, list_price: null, beds: null, baths: null, sqft: null })) as any;
+    prop = (made?.data?.property as Property | undefined) ?? null;
+  }
+  if (prop) ctx.state.last_property_id = prop.id;
   const nounTitle = noun && /^(inspection|walk-?through|consult|consultation|dinner|coffee|breakfast)$/i.test(noun) ? noun.charAt(0).toUpperCase() + noun.slice(1).toLowerCase() : null;
   // "call with Dana", "lunch with Mary-Kate O'Neil": keep who it's with, and link a saved contact
   const notName = /^(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|january|february|march|april|may|june|july|august|september|october|november|december|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|today|tomorrow|tonight|at|on|for|and|about|next|this|a|an|the)$/i;

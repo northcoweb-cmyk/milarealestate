@@ -76,3 +76,25 @@ test("rookie-mistake guards: junk is never a person, tool tags never reach the s
   const out = await say(a, "email Dana about the showing on Friday");
   assert.doesNotMatch(out, /\bsent\b(?! the)/i);
 });
+
+test("a showing at an address puts that home in the Properties tab, linked to the event", async () => {
+  const a = await fresh();
+  await say(a, "Showing at 1227 Main Street Gaithersburg MD tomorrow at 2pm with the Turners");
+  const props = await store.list("properties", a.id);
+  assert.equal(props.length, 1);
+  assert.equal(props[0].address, "1227 Main Street");
+  assert.equal(props[0].city, "Gaithersburg");
+  const ev = (await store.list("calendar_events", a.id))[0];
+  assert.equal(ev.property_id, props[0].id);
+});
+
+test("a showing at an address puts that home in the Properties tab, linked to the event", async () => {
+  const a = await fresh();
+  await say(a, "Showing at 1227 Main Street Gaithersburg MD tomorrow at 2pm with the Turners");
+  const props = await store.list("properties", a.id);
+  assert.equal(props.length, 1);
+  assert.equal(props[0].address, "1227 Main Street");
+  assert.equal(props[0].city, "Gaithersburg");
+  const ev = (await store.list("calendar_events", a.id))[0];
+  assert.equal(ev.property_id, props[0].id);
+});
