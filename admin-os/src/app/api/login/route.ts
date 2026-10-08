@@ -12,5 +12,5 @@ export async function POST(req: Request) {
   if (!ok) { hits.set(ip, { n: h && now - h.t < 10 * 60_000 ? h.n + 1 : 1, t: h && now - h.t < 10 * 60_000 ? h.t : now }); return NextResponse.redirect(new URL("/login?e=bad", req.url), 303); }
   hits.delete(ip);
   await startSession();
-  return NextResponse.redirect(new URL("/", req.url), 303);
+  return NextResponse.redirect(new URL("/who", req.url), 303);
 }

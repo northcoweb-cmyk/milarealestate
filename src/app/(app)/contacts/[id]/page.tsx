@@ -69,6 +69,7 @@ export default function ContactPage() {
         <ul className="mt-3 space-y-2">{data.notes.map((n) => <li key={n.id} className="rounded-2xl p-3 text-[14.5px]" style={{ background: "color-mix(in srgb, var(--ink) 5%, transparent)" }}>{n.body}<span className="faint ml-2 text-[12px]">{ago(n.created_at)}</span></li>)}</ul>
       </section>
 
+      <EmailsCard id={c.id} />
       <section className="glass mt-5 p-5">
         <p className="kicker mb-4">Timeline</p>
         {data.timeline.length ? <ol className="relative space-y-5 border-l-2 pl-6" style={{ borderColor: "color-mix(in srgb, var(--accent) 30%, transparent)" }}>
@@ -106,5 +107,19 @@ function EditSheet({ open, onClose, c, onSave }: { open: boolean; onClose: () =>
         <button className="btn btn-primary w-full" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
       </form>
     </Sheet>
+  );
+}
+
+interface Msg { subject: string; fromThem: boolean; at: string; snippet: string }
+function EmailsCard({ id }: { id: string }) {
+  const { data } = useApi<{ sent: Msg[]; live: Msg[]; source: string | null; note: string | null }>(`/api/contacts/${id}/emails`);
+  if (!data) return null;
+  const rows = data.live.length ? data.live : data.sent;
+  return (
+    <section className="glass mb-5 p-5 sm:p-6" style={{ borderRadius: 26 }}>
+      <p className="kicker mb-3">Emails{data.source ? ` · from your ${data.source === "gmail" ? "Gmail" : "Outlook"}` : ""}</p>
+      {rows.length ? <ul className="space-y-3">{rows.map((m, i) => <li key={i} className="text-[15px]"><p className="font-semibold">{m.fromThem ? "↩︎ They replied: " : "✉️ You sent: "}{m.subject}</p><p className="muted line-clamp-2 text-[14px]">{m.snippet}</p>{m.at && <p className="faint text-[12.5px]">{new Date(m.at).toString() === "Invalid Date" ? m.at : new Date(m.at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>}</li>)}</ul> : <p className="muted text-[14.5px]">No emails with them yet.</p>}
+      {data.note && <p className="faint mt-3 text-[13.5px]">{data.note}</p>}
+    </section>
   );
 }

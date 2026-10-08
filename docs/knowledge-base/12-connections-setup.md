@@ -38,3 +38,8 @@ No single connection works for everyone: each MLS grants data access through the
 - What gets saved: the note, the page, the flagged message, the last 8 chat messages and the device. Visible in Mila OS > Feedback (🐞 rows, with status and issue number).
 - Agent queue: set `GITHUB_BUG_TOKEN` (a fine-grained GitHub token, Issues: read and write on this repo only) in the main app project, and each report opens a GitHub issue labelled `bug` and `tester-report`. Ask me to "read the open bug issues" and I fix them. Without the token, reports are still saved in Mila OS.
 - Run `supabase/migrations/0009_bug_reports.sql` in the Supabase SQL editor first.
+
+## Mila OS: Ryan and Sarah profiles (Oct 8)
+- Run `supabase/migrations/0010_os_social.sql` in Supabase.
+- After signing in with the shared email and password, you pick **Ryan** or **Sarah**. Sarah can only open the Social page (post log for TikTok and X, realtors she talked to, shared notes). Everything else (users, spend, waitlist, invites, exports) sends her back to Social. The choice is signed so it can't be edited.
+- Sign out and back in to switch profiles.

@@ -152,7 +152,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
     return run({ action: a });
   };
   const onApprove = (id: string) => run({ action: { type: "approve", id } });
-  const onNavigate = (href: string) => { setOpen(false); router.push(href); };
+  const onNavigate = (href: string) => { setOpen(false); if (/^sms:/i.test(href)) { try { sessionStorage.setItem("mila_sms", String(Date.now())); } catch { /* private mode: no check-in, nothing breaks */ } window.location.href = href; return; } router.push(href); };
   async function newChat() {
     const r = await jfetch<{ conversationId: string }>("/api/messages", { method: "POST" });
     setConvId(r.conversationId); setMessages([]);

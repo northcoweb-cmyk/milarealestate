@@ -62,3 +62,17 @@ test("'add michelle as a lead already comeon' updates Michelle Turner, it does n
   assert.equal(people.length, 1);
   assert.doesNotMatch(people.map((p: any) => p.name).join(), /already|comeon/i);
 });
+
+import { plausibleName } from "../src/lib/agent/nlu.ts";
+import { plainText } from "../src/lib/agent/plain.ts";
+
+test("rookie-mistake guards: junk is never a person, tool tags never reach the screen, sends are honest", async () => {
+  for (const bad of ["i already told you...", "Already Comeon", "poop", "what's the lead's name", "", "a b c d e f"]) assert.equal(plausibleName(bad), false, bad);
+  for (const good of ["Michelle Turner", "Dana Whitfield", "Anne-Marie Dubois", "Sean O'Malley", "Dr. Patel".replace(".", "")]) assert.equal(plausibleName(good), true, good);
+  assert.doesNotMatch(plainText("Want me to draft it?</reply>\n</invoke>"), /<|>/);
+  // with no mailbox connected, approving an email must say nothing was sent
+  const a = await fresh();
+  await say(a, "I have a new buyer named Dana Whitfield, dana@example.com");
+  const out = await say(a, "email Dana about the showing on Friday");
+  assert.doesNotMatch(out, /\bsent\b(?! the)/i);
+});

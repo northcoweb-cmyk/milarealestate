@@ -1,3 +1,4 @@
+import { plausibleName } from "../nlu";
 import { addDays, fmtDayTime, partsIn, zonedToUtc } from "../../time";
 import type { Block, Contact, ContactType, DocumentTemplate, WorkflowRun } from "../../types";
 import { type Ctx, firstName, fullMoney, label, money, pickColor, plural } from "../context";
@@ -31,7 +32,8 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
       return reply(type === hit.type ? `${hit.name} is already saved as a ${label(hit.type).toLowerCase()}. Want me to draft a follow-up?` : `Done. ${hit.name} is now a ${label(type).toLowerCase()}.`, [{ type: "choice", title: hit.name, buttons: [{ label: "Draft a follow-up", style: "primary", action: { type: "prompt", text: `Draft a follow-up email to ${hit.name}` } }, { label: "Open profile", style: "quiet", href: `/contacts/${hit.id}` }] }]);
     }
   }
-  const name = parsePersonName(text);
+  const parsed = parsePersonName(text);
+  const name = plausibleName(parsed) ? parsed : null; // never save a complaint or filler as a person
   if (!name) {
     ctx.state.pending = { kind: "clarify", intent: "new_contact", slots: { text }, missing: "name" };
     await persistState(ctx);

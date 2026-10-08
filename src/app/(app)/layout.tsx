@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getProfile, isAdmin } from "@/lib/auth";
 import { isTester } from "@/lib/testers";
 import { BugFlag } from "@/components/bug-flag";
+import { TextSentCheck } from "@/components/text-sent-check";
 import { isNoDemo, purgeDemoData } from "@/lib/fresh-accounts";
 import { getStore } from "@/lib/db/store";
 import { creditSummary } from "@/lib/credits";
@@ -33,6 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sky initialNow={new Date().toISOString()} tz={profile.timezone} lat={profile.lat} lng={profile.lng} theme={profile.settings.appearance.theme} reduceMotion={profile.settings.appearance.reduce_motion} animated={profile.settings.appearance.animated_sky === true} />
       <ErrorReporter />
       <BugFlag />
+      <TextSentCheck />
       <LiquidGlassDefs />
       <MilaProvider><Shell approvals={approvals}>{children}</Shell></MilaProvider>
     </AppProvider>

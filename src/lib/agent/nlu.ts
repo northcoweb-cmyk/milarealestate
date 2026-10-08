@@ -462,3 +462,14 @@ export function stripWhenWords(text: string): string {
 export function dropNegatedDate(reply: string): string {
   return reply.replace(new RegExp(`\\b(?:and\\s+)?(?:not|instead of|rather than)\\s+(?:on\\s+)?(?:${DATE_ALT})\\b`, "gi"), " ").replace(/\s{2,}/g, " ").trim();
 }
+
+const NOT_A_NAME = /\b(already|told|tell|please|pls|comeon|come on|asap|whatever|hello|hey|thanks|thank|yes|yeah|nope|nothing|everything|something|anyone|everyone|test|asdf|poop|lol|wtf|damn|stupid|dumb|why|what|how|when|where|who)\b/i;
+/** A real person's name: 1-4 words, letters, no punctuation runs, no chat filler. Stops "i already told you..." or "Already Comeon" from becoming a contact. */
+export function plausibleName(name: string | null | undefined): boolean {
+  const n = (name ?? "").trim();
+  if (n.length < 2 || n.length > 60) return false;
+  if (/[.!?:;@#$%^&*()=+<>\[\]{}|\\/\d]|\.{2,}/.test(n)) return false;
+  const words = n.split(/\s+/);
+  if (words.length > 4) return false;
+  return !words.some((w) => NOT_A_NAME.test(w));
+}

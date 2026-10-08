@@ -2,6 +2,7 @@
 export function plainText(s: string): string {
   return s
     .replace(/\r/g, "")
+    .replace(/<\/?(?:reply|invoke|parameter|function_calls?|antml:[a-z_]+|thinking|answer|response|output)\b[^>]*>/gi, "") // tool-call tags must never reach the screen
     .replace(/^\s{0,3}#{1,6}\s*(.+?)\s*#*\s*$/gm, "$1")             // ### Heading -> Heading
     .replace(/\*\*(.+?)\*\*/gs, "$1").replace(/__(.+?)__/gs, "$1")   // bold
     .replace(/(^|[^\w*])\*(?!\s)([^*\n]+?)\*(?!\w)/g, "$1$2")          // *italic*

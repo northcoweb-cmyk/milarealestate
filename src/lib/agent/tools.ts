@@ -1,3 +1,4 @@
+import { outlook, outlookConnected } from "../integrations/microsoft";
 import { buildSignature, withSignature } from "../signature";
 import { capHashtags, MAX_HASHTAGS } from "../content/templates";
 import { randomUUID } from "node:crypto";
@@ -419,9 +420,11 @@ function googleFail(e: unknown): ToolResult<never> {
 
 async function sendDrafts(ctx: Ctx, draftIds: string[]): Promise<ToolResult> {
   const google = await getGoogle(ctx.userId);
+  const viaGmail = !!google?.hasScope("gmail");
+  const viaOutlook = !viaGmail && (await outlookConnected(ctx.userId)); // whichever mailbox the agent connected sends the email
   const drafts = (await Promise.all(draftIds.map((id) => ctx.store.get("email_drafts", ctx.userId, id)))).filter(Boolean) as EmailDraft[];
   if (!drafts.length) return fail("not_found", "I couldn't find those drafts.");
-  if (!google?.hasScope("gmail")) {
+  if (!viaGmail && !viaOutlook) {
     for (const d of drafts) await ctx.store.update("email_drafts", ctx.userId, d.id, { status: "approved_unsent" });
     return fail("not_connected", "Nothing was sent. Open the email in your email app to send it.", "google");
   }
@@ -436,9 +439,9 @@ async function sendDrafts(ctx: Ctx, draftIds: string[]): Promise<ToolResult> {
       seen.add(t.email.toLowerCase());
       const body = d.body.replaceAll("{{first_name}}", t.name ? firstName(t.name) : "there");
       try {
-        const r = await gmail.send(ctx.userId, [t.email], d.subject, body);
+        const r = viaGmail ? await gmail.send(ctx.userId, [t.email], d.subject, body) : await outlook.send(ctx.userId, [t.email], d.subject, body);
         sent++;
-        await ctx.store.insert("emails", ctx.userId, { contact_id: t.id, direction: "out", subject: d.subject, snippet: body.slice(0, 160), external_id: r.id, occurred_at: nowIso() });
+        await ctx.store.insert("emails", ctx.userId, { contact_id: t.id, direction: "out", subject: d.subject, snippet: body.slice(0, 160), external_id: r.id ?? null, occurred_at: nowIso() });
         if (t.id) {
           await ctx.store.update("contacts", ctx.userId, t.id, { last_contact_at: nowIso() });
           await logContactEvent(ctx, t.id, "email_sent", `Email sent: ${d.subject}`);

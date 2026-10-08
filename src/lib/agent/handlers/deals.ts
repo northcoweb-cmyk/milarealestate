@@ -202,6 +202,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   const href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
   if (c) await logContactEvent(ctx, c.id, "text", "Text drafted", msg);
   ctx.state.last_contact_ids = c ? [c.id] : ctx.state.last_contact_ids;
+  if (c) { ctx.state.pending_text = { contact_id: c.id, name: c.name, at: Date.now() }; await persistState(ctx); }
   return reply(`Here's the text to ${first}:\n\n“${msg}”\n\n${phone ? "Tap below and it opens in your Messages, ready to send." : `I don't have a number for ${first} yet — tap below to pick them in Messages.`} I don't send texts myself, so nothing goes out until you tap Send.`, [{
     type: "choice", title: `Text ${first}`,
     buttons: [{ label: `Open in Messages`, style: "primary", href }, ...(c ? [{ label: "Open profile", style: "quiet" as const, href: `/contacts/${c.id}` }] : [])],

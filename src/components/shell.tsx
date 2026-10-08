@@ -1,5 +1,6 @@
 "use client";
 
+import { LowCreditsBanner } from "@/components/low-credits-banner";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
@@ -65,7 +66,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
       </nav>
 
       {/* Never let the document get shorter than the screen while a page loads: on iPhone, Safari re-shows its toolbar when the page stops scrolling, which makes the tab bar jump. */}
-      <div className="overflow-x-clip lg:pl-[128px]" style={{ minHeight: "calc(100lvh + 2px)" }}><div key={path} className={"page-in page-in-" + dir}>{children}</div></div>
+      <div className="overflow-x-clip lg:pl-[128px]" style={{ minHeight: "calc(100lvh + 2px)" }}><div key={path} className={"page-in page-in-" + dir}><LowCreditsBanner />{children}</div></div>
 
       {/* mobile tab bar */}
       <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),12px)] lg:hidden" style={{ transform: "translate3d(0,0,0)", willChange: "transform", contain: "layout paint" }}>

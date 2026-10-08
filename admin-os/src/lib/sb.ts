@@ -23,3 +23,13 @@ export async function table<T = Row>(name: string, opts: { select: string; filte
   }
   return out;
 }
+
+/** Write one row, patch rows, or delete rows (service key, server only). Returns the rows touched, or null if it failed. */
+export async function write<T = Row>(name: string, method: "POST" | "PATCH" | "DELETE", opts: { body?: unknown; filter?: string }): Promise<T[] | null> {
+  if (!configured()) return null;
+  try {
+    const r = await fetch(`${base()}/rest/v1/${name}${opts.filter ? `?${opts.filter}` : ""}`, { method, headers: { apikey: key(), Authorization: `Bearer ${key()}`, "content-type": "application/json", Prefer: "return=representation" }, body: opts.body === undefined ? undefined : JSON.stringify(opts.body), cache: "no-store", signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return null;
+    return (await r.json().catch(() => [])) as T[];
+  } catch { return null; }
+}
