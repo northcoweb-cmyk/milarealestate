@@ -13,21 +13,22 @@ export function MobileGuards() {
     document.addEventListener("gesturechange", stop as EventListener, { passive: false });
     const pinch = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault(); };
     document.addEventListener("touchmove", pinch, { passive: false });
-    // iPhone can leave the page pushed up after the keyboard closes, showing an empty strip at the bottom: once no field is focused, clamp the scroll back inside the page
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const settle = () => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        const a = document.activeElement as HTMLElement | null;
-        if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
-        const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-        if (window.scrollY > max) window.scrollTo(0, max);
-        else if (window.scrollY > 0 && max === 0) window.scrollTo(0, 0);
-      }, 250);
+    // iPhone (above all the Home Screen app) can leave the page pushed up after the keyboard closes: an empty strip shows at the bottom and taps land in the wrong place,
+    // so the login fields look dead. Once no field is focused, put the page back where it belongs, a few times because iOS settles late.
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const reset = () => {
+      const a = document.activeElement as HTMLElement | null;
+      if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+      const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const y = Math.min(window.scrollY, max);
+      const off = window.visualViewport ? Math.abs(window.visualViewport.offsetTop) : 0;
+      if (window.scrollY > max || off > 0.5) { window.scrollTo(0, y + (max > y ? 1 : 0)); requestAnimationFrame(() => window.scrollTo(0, y)); }
     };
+    const settle = () => { timers.forEach(clearTimeout); timers.length = 0; for (const ms of [60, 250, 600, 1200]) timers.push(setTimeout(reset, ms)); };
     document.addEventListener("focusout", settle);
+    window.visualViewport?.addEventListener("resize", settle);
     try { (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("portrait")?.catch(() => {}); } catch { /* not supported / not allowed outside an installed app */ }
-    return () => { document.removeEventListener("gesturestart", stop as EventListener); document.removeEventListener("gesturechange", stop as EventListener); document.removeEventListener("touchmove", pinch); document.removeEventListener("focusout", settle); clearTimeout(t); };
+    return () => { document.removeEventListener("gesturestart", stop as EventListener); document.removeEventListener("gesturechange", stop as EventListener); document.removeEventListener("touchmove", pinch); document.removeEventListener("focusout", settle); window.visualViewport?.removeEventListener("resize", settle); timers.forEach(clearTimeout); };
   }, []);
   return null;
 }
