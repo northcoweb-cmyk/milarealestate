@@ -410,7 +410,7 @@ export function splitClauses(text: string): string[] {
     const sub = p.split(/\s+and\s+(?=(?:remind me|move|reschedule|schedule|cancel|delete|remove|draft|email|text|set up|add (?:it|this|that|an? )|create|make|find)\b)/i);
     // "lunch with Dana Saturday at noon and a meeting Monday at 3pm": a second booking with its own day/time is its own request
     for (const piece of sub) {
-      const again = piece.split(/\s+and\s+(?=(?:an?|another)\s+(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough|closing)\b)/i);
+      const again = piece.split(/\s+and\s+(?=(?:(?:an?|another)\s+)?(?:showing|meeting|call|appointment|inspection|tour|lunch|dinner|coffee|walkthrough|closing|open house)\b)/i);
       const merged: string[] = [];
       for (const [i, x] of again.entries()) {
         if (i > 0 && !(parseDate(x, new Date(), "UTC") || parseTime(x))) merged[merged.length - 1] += ` and ${x}`;

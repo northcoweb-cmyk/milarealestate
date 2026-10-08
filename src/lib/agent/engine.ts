@@ -18,7 +18,8 @@ import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHan
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
-import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, eventReminder } from "./handlers/calendar";
+import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, eventReminder, eventCard } from "./handlers/calendar";
+import { fmtDayTime } from "../time";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
@@ -181,6 +182,12 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   if (!forced && !pend && prior && Date.now() - prior.at < 6 * 3_600_000 && text.split(/\s+/).length <= 20 && !parseAddress(text)
     && (/\b(specified|those|these|their|same|above|earlier|that)\b.{0,20}\b(criteria|requirements|needs|preferences|list|brief)\b/i.test(text) || /^(?:(?:ok|okay|yes|yeah|please|pls|go ahead|do it|now|great|cool|perfect)[,.!\s]+)*(?:search|look|find|dig|go|try)\b.{0,50}\b(again|more|deeper|apartments?|rentals?|properties|options|them|it|for them|those)\b/i.test(text))) {
     return { out: await clientSearchHandler(ctx, `${prior.text}\n\nFollow-up from the agent: ${text}`), intent: "client_search" };
+  }
+
+  // "What did I just schedule?" answers from the last thing Mila put on the calendar
+  if (!forced && ctx.state.last_event_id && /^(?:what|which)\b.{0,20}\b(?:did|have) i\b.{0,12}\b(?:schedule|add|book|put|set)\w*\b/i.test(text)) {
+    const ev = await ctx.store.get("calendar_events", ctx.userId, ctx.state.last_event_id);
+    if (ev) return { out: reply(`The last thing I added: ${ev.title}, ${fmtDayTime(ev.start_at, ctx.tz)}.`, [eventCard(ctx, ev, "Scheduled")], "smalltalk"), intent: "smalltalk" };
   }
 
   const clauses = splitClauses(text);

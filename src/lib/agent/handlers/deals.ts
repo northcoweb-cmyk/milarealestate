@@ -184,12 +184,16 @@ export async function logInteractionHandler(ctx: Ctx, text: string): Promise<Han
 // ------------------------------------------------------------------ text message drafts (sent from the agent's own phone — one tap)
 
 export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const known = await mentionedContacts(ctx, text);
+  // "Text Dana I'm running late" / "text her that the showing moved": drop the verb first so it can't be mistaken for a name
+  const stripped = text.replace(/^\s*(?:(?:please|pls|can you|could you|hey mila|mila)[,\s]+)*(?:text|sms|message|msg|tell)\s+/i, "").trim();
+  const pron = /^(her|him|them)\b\s*/i.exec(stripped);
+  const lastId = ctx.state.last_contact_ids?.[0];
+  const known = pron && lastId ? [await ctx.store.get("contacts", ctx.userId, lastId)].filter((x): x is Contact => !!x) : await mentionedContacts(ctx, stripped);
   const c = known[0] ?? null;
-  const name = c?.name ?? capitalisedNames(text).find((n) => !/^(Text|Message|Tell|Send)$/i.test(n)) ?? "";
+  const name = c?.name ?? (pron ? "" : capitalisedNames(stripped).find((n) => !/^(Text|Message|Tell|Send)$/i.test(n)) ?? "");
   const first = name.split(/\s+/)[0];
   if (!first) return askBack(ctx, "draft_text", text, "name", "Who should I text?");
-  let body = text.replace(/^.*?\b(?:text|sms|message|msg|tell)\b\s+/i, "").replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+\\p{L}+)?\\s*`, "iu"), "").replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
+  let body = (pron ? stripped.slice(pron[0].length) : stripped.replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+(?!I\\b|I\'|a\\b)\\p{Lu}\\p{L}+)?\\s*`, "iu"), "")).replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
   if (!body) body = "just checking in — do you have a few minutes to talk?";
   body = body.replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);
   const me = ctx.profile.full_name.split(/\s+/)[0];
