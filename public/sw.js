@@ -36,7 +36,7 @@ self.addEventListener("push", (e) => {
   // Reserved for future server push; shows a notification if a payload arrives.
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch (_) {}
-  e.waitUntil(self.registration.showNotification(data.title || "Mila", { body: data.body || "", icon: "/pwa-icon/192", data: { url: data.url || "/" } }));
+  e.waitUntil(self.registration.showNotification(data.title || "Mila", { body: data.body || "", icon: "/icon-192.png", data: { url: data.url || "/" } }));
 });
 
 self.addEventListener("notificationclick", (e) => {

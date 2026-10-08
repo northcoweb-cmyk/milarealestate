@@ -36,7 +36,7 @@ export function AppProvider({ initial, children }: { initial: Me; children: Reac
         for (const d of due) {
           toast(`Reminder: ${d.title}`, "info");
           if ("Notification" in window && Notification.permission === "granted" && me.profile.settings.notifications.channels.browser) {
-            try { new Notification("Mila", { body: d.title, icon: "/pwa-icon/192" }); } catch { /* some mobile browsers require a service worker */ }
+            try { new Notification("Mila", { body: d.title, icon: "/icon-192.png" }); } catch { /* some mobile browsers require a service worker */ }
           }
         }
       } catch { /* offline */ }

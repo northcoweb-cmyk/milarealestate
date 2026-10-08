@@ -1,16 +1,9 @@
-import { ImageResponse } from "next/og";
+import { NextResponse } from "next/server";
 
-// PNG app icons generated at request time (cached): an "M" on a soft sky gradient.
+// Old icon URLs (cached by phones and the service worker) now point at the current static icons.
 export async function GET(req: Request, { params }: { params: Promise<{ size: string }> }) {
-  const size = Math.min(Math.max(parseInt((await params).size) || 192, 48), 1024);
+  const size = parseInt((await params).size) || 192;
   const maskable = new URL(req.url).searchParams.get("maskable") === "1";
-  const inner = maskable ? size * 0.5 : size * 0.62;
-  return new ImageResponse(
-    (
-      <div style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(160deg,#8fb4ff 0%,#a68cff 55%,#ffc9a8 100%)", borderRadius: maskable ? 0 : size * 0.225 }}>
-        <div style={{ fontSize: inner, fontWeight: 400, color: "white", fontFamily: "Georgia, serif", letterSpacing: -inner * 0.04, lineHeight: 1, marginTop: -inner * 0.06 }}>M</div>
-      </div>
-    ),
-    { width: size, height: size, headers: { "cache-control": "public, max-age=31536000, immutable" } },
-  );
+  const to = maskable ? "/icon-maskable-512.png" : size <= 180 ? "/apple-touch-icon.png" : size <= 192 ? "/icon-192.png" : "/icon-512.png";
+  return NextResponse.redirect(new URL(to, req.url), 308);
 }

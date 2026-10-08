@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   applicationName: "Mila",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Mila", statusBarStyle: "black-translucent" },
-  icons: { icon: [{ url: "/pwa-icon/192", sizes: "192x192", type: "image/png" }], apple: [{ url: "/pwa-icon/180", sizes: "180x180" }] },
+  icons: { icon: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }], apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
   formatDetection: { telephone: false },
 };
 
