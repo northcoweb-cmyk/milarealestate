@@ -1,0 +1,49 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:MilaSerif;src:url(assets/serif.woff2);font-style:normal}
+@font-face{font-family:MilaSerif;src:url(assets/serif-italic.woff2);font-style:italic}
+@font-face{font-family:Inter;src:url(assets/inter.woff2);font-weight:100 900}
+*{box-sizing:border-box;margin:0}
+body{background:#222;font-family:Inter,sans-serif}
+.pan{position:relative;width:4320px;height:1350px;overflow:hidden;color:#fff;background:linear-gradient(100deg,#8fb4ff 0%,#a68cff 50%,#ffc9a8 100%)}
+.pan::after{content:"";position:absolute;inset:0;background:url(assets/grain.png);background-size:96px;opacity:.2;pointer-events:none;z-index:9}
+.cl{position:absolute;opacity:.9}
+.a{position:absolute}
+.serif{font-family:MilaSerif;letter-spacing:-.02em;line-height:1;text-shadow:0 4px 60px rgba(80,50,200,.35)}
+.logo{position:absolute;top:70px;font-family:MilaSerif;font-size:64px;z-index:3}
+.pill{display:inline-flex;align-items:center;gap:14px;background:rgba(255,255,255,.75);color:#18181b;border-radius:999px;padding:18px 34px;font-size:30px;font-weight:600}
+.dot{width:16px;height:16px;border-radius:50%;background:#10b981}
+.phone{position:absolute;background:#18181b;border-radius:92px;padding:14px;box-shadow:0 60px 90px -30px rgba(40,20,120,.55),0 0 0 2px rgba(255,255,255,.25)}
+.phone img{display:block;width:100%;border-radius:78px}
+.btn{display:inline-block;background:#18181b;color:#fff;border-radius:999px;padding:40px 78px;font-size:46px;font-weight:700}
+.sw{font-size:34px;font-weight:700;letter-spacing:.1em}
+.chip{display:flex;align-items:center;gap:22px;background:#fff;color:#18181b;border-radius:34px;padding:24px 32px;font-size:34px;font-weight:600;box-shadow:0 24px 50px -22px rgba(60,30,160,.5)}
+.chip i{font-style:normal;width:60px;height:60px;border-radius:20px;background:linear-gradient(135deg,#dfe8ff,#eadfff 55%,#ffe3d1);display:flex;align-items:center;justify-content:center;font-size:30px}
+</style></head><body>
+<div class="pan" id="p">
+ <img class="cl" src="assets/c2.webp" style="width:1500px;left:-300px;top:-140px;opacity:.8"><img class="cl" src="assets/c1.webp" style="width:1500px;left:1000px;top:850px"><img class="cl" src="assets/c3.webp" style="width:1500px;left:2500px;top:-160px;opacity:.7"><img class="cl" src="assets/c2.webp" style="width:1400px;left:3200px;top:850px;opacity:.85">
+ <div class="logo" style="left:80px;text-shadow:0 2px 20px rgba(60,30,200,.7)">Mila</div>
+ <svg class="a" style="left:0;top:0" width="4320" height="1350"><path id="pth" d="M0 940 C 700 940, 900 640, 1700 700 S 2900 980, 3500 760 S 4100 700, 4320 700" fill="none" stroke="rgba(255,255,255,.75)" stroke-width="5" stroke-dasharray="4 20" stroke-linecap="round"/></svg>
+ <div class="a serif" style="left:80px;top:210px;font-size:150px;white-space:nowrap;width:1000px;white-space:normal;text-shadow:0 4px 40px rgba(60,30,200,.7)">Your AI ops manager is <span style="font-style:italic">on her way.</span></div>
+ <div id="days"></div>
+ <div class="a" style="left:3640px;top:420px;text-align:center;width:640px">
+  <div class="serif" style="font-size:150px;text-shadow:0 4px 40px rgba(60,30,200,.7)">Oct 20</div>
+  <div style="font-size:40px;font-weight:600;margin-top:22px;text-shadow:0 2px 24px rgba(60,30,200,.9)">Be first in the door.<br>Join the waitlist.</div>
+  <div style="margin-top:44px"><div class="btn">Link in bio</div></div>
+ </div>
+ <div class="phone" style="width:400px;left:1650px;top:80px;transform:rotate(-4deg)"><img src="assets/m-calendar.webp"></div>
+ <div class="phone" style="width:400px;left:3060px;top:640px;transform:rotate(3deg)"><img src="assets/m-content.webp"></div>
+ <div class="a" style="left:1000px;top:1040px;display:grid;gap:16px">
+  <div class="chip"><i>🏡</i>Listing prep from an address</div><div class="chip"><i>📸</i>Posts and captions written</div>
+ </div>
+ <div class="a" style="left:2200px;top:300px;display:grid;gap:16px;width:520px">
+  <div class="chip"><i>✉️</i>Emails and texts drafted</div><div class="chip"><i>📅</i>Open houses on your calendar</div>
+ </div>
+ <div class="a sw" style="left:80px;bottom:90px;text-shadow:0 2px 24px rgba(80,50,200,.55)">SWIPE →</div>
+</div>
+<script>
+const path=document.getElementById('pth'),L=path.getTotalLength(),box=document.getElementById('days');
+for(let i=0;i<=12;i++){const t=i/12,p=path.getPointAtLength(L*(0.04+t*0.60)),n=12-i;
+ const d=document.createElement('div');d.className='a';const big=i===12;const s=big?96:70;
+ d.style.cssText=`left:${p.x-s/2}px;top:${p.y-s/2}px;width:${s}px;height:${s}px;border-radius:50%;background:${big?'#18181b':'#fff'};color:${big?'#fff':'#5b3fd0'};display:flex;align-items:center;justify-content:center;font:600 ${big?44:34}px Inter;box-shadow:0 14px 34px -10px rgba(60,30,160,.5);z-index:4`;
+ d.textContent=big?'🚀':n;box.appendChild(d);}
+</script>

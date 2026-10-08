@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:MilaSerif;src:url(assets/serif.woff2);font-style:normal}
+@font-face{font-family:MilaSerif;src:url(assets/serif-italic.woff2);font-style:italic}
+@font-face{font-family:Inter;src:url(assets/inter.woff2);font-weight:100 900}
+*{box-sizing:border-box;margin:0}
+body{background:#222;font-family:Inter,sans-serif}
+.pan{position:relative;width:4320px;height:1350px;overflow:hidden;color:#fff;background:linear-gradient(100deg,#8fb4ff 0%,#a68cff 50%,#ffc9a8 100%)}
+.pan::after{content:"";position:absolute;inset:0;background:url(assets/grain.png);background-size:96px;opacity:.2;pointer-events:none;z-index:9}
+.cl{position:absolute;opacity:.9}
+.a{position:absolute}
+.serif{font-family:MilaSerif;letter-spacing:-.02em;line-height:1;text-shadow:0 4px 60px rgba(80,50,200,.35)}
+.logo{position:absolute;top:70px;font-family:MilaSerif;font-size:64px;z-index:3}
+.pill{display:inline-flex;align-items:center;gap:14px;background:rgba(255,255,255,.75);color:#18181b;border-radius:999px;padding:18px 34px;font-size:30px;font-weight:600}
+.dot{width:16px;height:16px;border-radius:50%;background:#10b981}
+.phone{position:absolute;background:#18181b;border-radius:92px;padding:14px;box-shadow:0 60px 90px -30px rgba(40,20,120,.55),0 0 0 2px rgba(255,255,255,.25)}
+.phone img{display:block;width:100%;border-radius:78px}
+.btn{display:inline-block;background:#18181b;color:#fff;border-radius:999px;padding:40px 78px;font-size:46px;font-weight:700}
+.sw{font-size:34px;font-weight:700;letter-spacing:.1em}
+.chip{display:flex;align-items:center;gap:22px;background:#fff;color:#18181b;border-radius:34px;padding:24px 32px;font-size:34px;font-weight:600;box-shadow:0 24px 50px -22px rgba(60,30,160,.5)}
+.chip i{font-style:normal;width:60px;height:60px;border-radius:20px;background:linear-gradient(135deg,#dfe8ff,#eadfff 55%,#ffe3d1);display:flex;align-items:center;justify-content:center;font-size:30px}
+</style></head><body>
+<div class="pan" id="p">
+ <img class="cl" src="assets/c1.webp" style="width:1500px;left:-200px;top:780px"><img class="cl" src="assets/c2.webp" style="width:1400px;left:1300px;top:-120px;opacity:.7"><img class="cl" src="assets/c3.webp" style="width:1600px;left:2100px;top:820px;opacity:.85"><img class="cl" src="assets/c1.webp" style="width:1300px;left:3300px;top:-100px;opacity:.7">
+ <div class="logo" style="left:80px">Mila</div>
+ <div class="a serif" style="left:60px;top:270px;font-size:760px;white-space:nowrap">12 <span style="font-style:italic">days</span></div>
+ <div class="a serif" style="left:80px;top:1010px;font-size:110px;white-space:nowrap">until your admin<br>gets <span style="font-style:italic">a lot lighter.</span></div>
+ <div class="a sw" style="left:80px;bottom:90px;text-shadow:0 2px 24px rgba(80,50,200,.55)">SWIPE →</div>
+ 
+ <div class="phone" style="width:430px;left:1980px;top:90px;transform:rotate(-3deg)"><img src="assets/m-chat.webp"></div>
+ <div class="phone" style="width:430px;left:2520px;top:330px;transform:rotate(3deg)"><img src="assets/m-home.webp"></div>
+ <div class="a" style="left:3240px;width:1080px;top:215px;text-align:center"><div class="pill"><span class="dot"></span>Launching Oct 20 · 10 AM ET</div>
+<div class="serif" style="font-size:150px;margin-top:40px">Be first<br><span style="font-style:italic">in the door.</span></div>
+<div style="font-size:38px;font-weight:500;margin-top:34px;line-height:1.35;text-shadow:0 2px 24px rgba(80,50,200,.7)">Join the waitlist. 7-day free trial, no card.</div>
+<div style="margin-top:50px"><div class="btn">Link in bio</div></div></div>
+</div>
