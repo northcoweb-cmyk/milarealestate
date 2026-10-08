@@ -419,7 +419,7 @@ export async function cancelEventHandler(ctx: Ctx, text: string): Promise<Handle
     if (!upcoming.length) return reply("You don't have any upcoming events to cancel.");
     const out = await invoke(ctx, "cancel_calendar_event", { ids: upcoming.map((e) => e.id) });
     if (out.status === "needs_approval") return reply(`That would cancel ${upcoming.length} upcoming ${upcoming.length === 1 ? "event" : "events"}, so I need your OK.`, [{ type: "notice", tone: "warn", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: `Confirm — cancel ${upcoming.length}`, style: "primary", approvalId: out.approval.id }, { label: "Never mind", style: "quiet", action: { type: "noop" } }] }]);
-    return reply(out.result.ok ? "Cancelled." : out.result.message);
+    return reply(out.result.ok ? "Canceled." : out.result.message);
   }
   const { event, candidates } = await resolveEvent(ctx, text);
   if (!event) return candidates.length ? reply("Which one should I cancel?", [{ type: "choice", title: "Which event?", buttons: candidates.slice(0, 5).map((e) => ({ label: `${e.title} · ${fmtDayTime(e.start_at, ctx.tz)}`, style: "secondary" as const, action: { type: "cancel_pick", eventId: e.id } })) }]) : reply("I don't see a matching event on your calendar.");
@@ -428,7 +428,7 @@ export async function cancelEventHandler(ctx: Ctx, text: string): Promise<Handle
 export async function cancelEvent(ctx: Ctx, event: CalendarEvent): Promise<HandlerOut> {
   const out = await invoke(ctx, "cancel_calendar_event", { id: event.id });
   if (out.status === "needs_approval") return reply("Cancelling always needs your confirmation.", [{ type: "notice", tone: "warn", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: "Confirm cancel", style: "primary", approvalId: out.approval.id }] }]);
-  return reply(out.result.ok ? "Cancelled." : out.result.message);
+  return reply(out.result.ok ? "Canceled." : out.result.message);
 }
 
 export type { Property, SocialPost };
