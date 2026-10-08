@@ -141,6 +141,11 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     // question moves on — the old question is dropped, never allowed to swallow what the agent actually said.
     const timeLike = !!(parseTime(text) || parseDate(text, ctx.now, ctx.tz));
     const miss = String(pend.missing ?? "");
+    // "They said 2" / "2" / "around 2:30" answering "what time?": pull the number out and read it as a time (2 means 2 PM)
+    const WORDNUM: Record<string, string> = { two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10", eleven: "11", twelve: "12" };
+    const numText = miss === "time" ? text.replace(/\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/gi, (w) => WORDNUM[w.toLowerCase()]) : text;
+    const numTime = miss === "time" && words <= 8 && !/\d\s*(?:[ap]\.?m|o.?clock)|\d:\d\d/i.test(text) ? /(?:^|[^\d:])(1[0-2]|[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?(?![\d:]|\s*(?:st|nd|rd|th|people|bed|bath|min|hour|hr|day|week))/i.exec(numText) : null;
+    if (numTime) text = `at ${numTime[1]}${numTime[2] ? ":" + numTime[2] : ""}${numTime[3] ?? (/\b(afternoon|evening|night)\b/i.test(text) ? "pm" : /\bmorning\b/i.test(text) ? "am" : "")}`;
     const looksLikeAnswer = d.intent === pend.intent
       || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" || miss === "details" ? words <= 8 || !!parseAddress(text) : timeLike)))
       || (words <= 4 && timeLike);
