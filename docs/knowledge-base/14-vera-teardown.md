@@ -41,3 +41,16 @@ Working notes. Batches are added as screenshots arrive; the summary comes when t
 - Their approval is "mocked" in this trial build: be careful about comparing "sends" claims.
 - Their trial cost model counts approved actions (20). Mila doesn't cap actions, only credits and AI budget. Worth considering a visible "credits left" chip on Mila's home (VERA shows "19 actions left" at all times).
 - Their phone setup is 6 steps. If Mila ever adds a number, make it one tap (pick area code, done) and hide carrier registration behind it.
+
+## Batch 4 (screens 16-20): follow-through, inbox, pipeline
+16. **"im confused what do I need to do?"** VERA lists what is built vs not: follow-up workflow built (waiting in approvals), text to the Turners "not yet created", email "not yet drafted, I need property details", Michelle "not yet added as a lead", Instagram post "not yet made, tell me which property". "Just say go on any of these." So after the user asked for 5 things, VERA admits 4 of 5 are undone, and the user had already given the details (address, number, family). Plain dash bullets again.
+17. **Inbox:** tabs Messages, Leads & email, Alerts, Calls, Recordings; filters Customers, Team, Unread, Needs reply, Automated; "No conversations here yet". Clean layout, but empty until a number is registered for texting.
+18. **After "go":** it prepared 1 item (the follow-up), shown as EXECUTED with a cut-off preview. Generic text ("Whether you're just starting to explore or you've already got a wishlist in mind"). Then "add michelle as a lead already comeon" gets "What's the lead's name?" even though Michelle was named in the same chat.
+19. **Pipeline > Leads:** the lead saved is named **"i already told you..."** (the user's frustrated reply was taken as the name), source "manual", contact "No contact info", next step "Send an intro email to open the...", priority 40. A plainly visible bug: it saved the user's complaint as a lead name.
+20. **The same chat:** the user typed "i already told you...", VERA answered "Your lead is built and opening now. Review it before anything is sent." with a card prefilled Name/Source and "Open the builder". So it builds a form to finish rather than just doing it.
+
+### What this tells us
+- VERA loses context inside one conversation (re-asks names the user already gave), saves junk as data without checking, and ends most flows with "Open the builder" so the user does the work.
+- Their best structural ideas: an Inbox that unifies texts, calls, leads & email; a Pipeline (Customers, Leads, Deals) with a priority score and a suggested next step on every row; an Alerts tab.
+- Mila's matching surface: Contacts with pipeline stages and a priority list. Missing: a unified Inbox, and a "next step" shown on every contact row.
+- For us: validate names before saving (never save "i already told you" as a person), and always carry names forward in a conversation. We pass tests for the second one; add a test for the first.
