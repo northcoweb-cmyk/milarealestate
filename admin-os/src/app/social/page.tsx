@@ -11,7 +11,8 @@ export default async function Social() {
   if (!(await isAuthed())) redirect("/login");
   const who = await getWho();
   if (!who) redirect("/who");
-  const items = await table<Item>("os_items", { select: "id,created_at,kind,day,platform,link,handle,note,by", order: "created_at.desc", max: 600 });
+  const items = (await table<Item>("os_items", { select: "id,created_at,kind,day,platform,link,handle,note,by,views,likes,comments,shares,stats_at", order: "created_at.desc", max: 600 }))
+    ?? (await table<Item>("os_items", { select: "id,created_at,kind,day,platform,link,handle,note,by", order: "created_at.desc", max: 600 })); // 0011 not run yet
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
   return (
     <Shell title="Social" lead="1 to 2 posts a day on TikTok and X, talk to other realtors, and keep notes here.">
