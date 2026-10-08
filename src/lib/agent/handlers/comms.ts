@@ -41,8 +41,22 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   const platform = /\bstor(y|ies)\b/i.test(text) ? "instagram_story" : "instagram"; // Instagram feed posts and stories are what Mila makes
   const addr = parseAddress(text);
   const events = await upcomingEvents(ctx);
-  let prop: Property | null = await resolveProperty(ctx, text, false);
-  let ev: CalendarEvent | undefined = events.find((e) => e.kind === "open_house" && (prop ? e.property_id === prop.id : !addr || `${e.title} ${e.location}`.toLowerCase().includes(addr.toLowerCase())));
+  // "make a post for it" means the property we were just talking about (the showing just added, the last listing), never some other open house
+  const refersBack = !addr && /\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home)\b/i.test(text);
+  let prop: Property | null = refersBack ? null : await resolveProperty(ctx, text, false);
+  if (refersBack) {
+    const lastEv = ctx.state.last_event_id ? await ctx.store.get("calendar_events", ctx.userId, ctx.state.last_event_id) : null;
+    if (lastEv?.property_id) prop = await ctx.store.get("properties", ctx.userId, lastEv.property_id);
+    if (!prop && lastEv) {
+      const street = parseAddress(`${lastEv.location ?? ""} ${lastEv.title}`);
+      if (street) {
+        const props = await ctx.store.list("properties", ctx.userId);
+        prop = props.find((x) => x.address.toLowerCase() === street.toLowerCase()) ?? (((await TOOLS.create_property.run(ctx, { address: street, city: null, state: null, zip: null, county: null, list_price: null, beds: null, baths: null, sqft: null })) as any).data?.property as Property | undefined) ?? null;
+      }
+    }
+    if (!prop && ctx.state.last_property_id) prop = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id);
+  }
+  let ev: CalendarEvent | undefined = refersBack && !prop ? undefined : events.find((e) => e.kind === "open_house" && (prop ? e.property_id === prop.id : !addr || `${e.title} ${e.location}`.toLowerCase().includes(addr.toLowerCase())));
   if (!prop && ev?.property_id) prop = await ctx.store.get("properties", ctx.userId, ev.property_id);
   if (!prop) prop = await resolveProperty(ctx, text, true);
   if (!prop) return reply("Which property is the post for? Give me an address and I'll build it.");
