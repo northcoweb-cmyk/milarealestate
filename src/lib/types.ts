@@ -509,7 +509,11 @@ export interface ErrorLog extends Row {
 
 /** One-tap feedback on something Mila produced: it was useful, something was missing, or something was wrong. */
 export interface Feedback extends Row {
-  kind: "useful" | "missing" | "wrong";
+  kind: "useful" | "missing" | "wrong" | "bug";
+  category?: string | null;       // bug reports: wrong_answer | looks_bad | broke | idea
+  context?: Record<string, unknown> | null; // bug reports: page, device, the last messages in the chat
+  status?: "open" | "fixing" | "fixed" | "wontfix";
+  github_issue?: number | null;
   target: string;          // what was rated, e.g. "chat"
   target_id: string | null; // the message or item id
   note: string | null;      // optional words from the person

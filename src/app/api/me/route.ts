@@ -1,3 +1,4 @@
+import { isTester } from "@/lib/testers";
 import { api, readJson, bad } from "@/lib/server/route";
 import { getStore } from "@/lib/db/store";
 import { creditSummary } from "@/lib/credits";
@@ -11,7 +12,7 @@ import type { Profile, ProfileSettings } from "@/lib/types";
 
 export const GET = api(async ({ profile }) => {
   const credits = await creditSummary(profile.id);
-  return { profile, admin: isAdmin(profile), credits: { balance: credits.balance, allowance: credits.allowance, resetsAt: credits.resetsAt, trial: credits.trial }, capabilities: { ai: aiAvailable(), google: googleConfigured() } };
+  return { profile, admin: isAdmin(profile), tester: isTester(profile.email), credits: { balance: credits.balance, allowance: credits.allowance, resetsAt: credits.resetsAt, trial: credits.trial }, capabilities: { ai: aiAvailable(), google: googleConfigured() } };
 });
 
 const clip = (v: unknown, n: number) => String(v ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, n);

@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import { jfetch } from "@/components/ui";
+import { useApp } from "@/components/app-context";
 
 type Kind = "useful" | "missing" | "wrong";
 const OPTIONS: { kind: Kind; label: string }[] = [{ kind: "useful", label: "Useful" }, { kind: "missing", label: "Missing something" }, { kind: "wrong", label: "Wrong" }];
 
 /** A quiet one-tap rating under something Mila produced. "Missing" and "wrong" ask for an optional note. */
 export function FeedbackRow({ target = "chat", targetId, snippet }: { target?: string; targetId?: string; snippet?: string }) {
+  const { tester } = useApp();
   const [picked, setPicked] = useState<Kind | null>(null);
   const [note, setNote] = useState(""); const [sent, setSent] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(false);
 
@@ -25,6 +27,7 @@ export function FeedbackRow({ target = "chat", targetId, snippet }: { target?: s
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="faint mr-1 text-[13px]">How was this?</span>
           {OPTIONS.map((o) => <button key={o.kind} type="button" disabled={busy} onClick={() => pick(o.kind)} className="chip !min-h-[30px] !px-3 text-[13px]">{o.label}</button>)}
+          {tester && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("mila:bug", { detail: { snippet, targetId } }))} className="chip !min-h-[30px] !px-3 text-[13px]">🐞 Flag a bug</button>}
         </div>
       ) : (
         <div className="space-y-2">

@@ -31,3 +31,10 @@ No single connection works for everyone: each MLS grants data access through the
 ## Emails
 - Daily summary: runs every day at 12:00 UTC (8am ET) through `/api/cron/daily-summary`. Needs `CRON_SECRET`, `RESEND_API_KEY` and `MAIL_FROM` set on the MAIN app project (today only the waitlist and admin projects have them). Sent only to people who used Mila in the last 7 days and left it on.
 - Queue email: sent when someone joins the waitlist (waitlist project).
+
+## Tester bug channel (Sarah and any other test agent)
+- Who: `sarahpark0506@gmail.com` is a tester by default. Add more with `TESTER_EMAILS` (comma separated) in the main app project.
+- What they see: a 🐞 Flag button on every screen and a "🐞 Flag a bug" chip under each Mila reply. They pick a category, say what's wrong, and send.
+- What gets saved: the note, the page, the flagged message, the last 8 chat messages and the device. Visible in Mila OS > Feedback (🐞 rows, with status and issue number).
+- Agent queue: set `GITHUB_BUG_TOKEN` (a fine-grained GitHub token, Issues: read and write on this repo only) in the main app project, and each report opens a GitHub issue labelled `bug` and `tester-report`. Ask me to "read the open bug issues" and I fix them. Without the token, reports are still saved in Mila OS.
+- Run `supabase/migrations/0009_bug_reports.sql` in the Supabase SQL editor first.
