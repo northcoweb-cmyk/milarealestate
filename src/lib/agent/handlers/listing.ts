@@ -1,3 +1,4 @@
+import { KIND_KEY, classifyProperty, kindFacts, kindLine, kindMissing } from "../../property-kind";
 import type { Block, Contact, Property } from "../../types";
 import type { Ctx } from "../context";
 import { persistState } from "../conversation";
@@ -28,13 +29,20 @@ export async function addListingHandler(ctx: Ctx, text: string): Promise<Handler
   if (!gate.ok) return gate.out;
   const { place, unverified, assumed } = gate.found;
   const f = extractListingFacts(text);
+  const said = classifyProperty({ address: street, agentText: text, beds: f.beds ?? null, baths: f.baths ?? null });
   ctx.steps.push("Saving your listing");
   const created = (await TOOLS.create_property.run(ctx, { address: street, city: place.city, state: place.state, zip: place.zip, county: place.county, list_price: f.list_price, beds: f.beds, baths: f.baths, sqft: f.sqft })) as any;
   let prop = created.data.property as Property;
   ctx.state.last_property_id = prop.id;
+  // the agent named the kind (commercial, duplex, condo, land…): remember it, and keep it where posts and cards can see it
+  if (said.basis === "agent" && said.group !== "unknown" && !(said.group === "residential" && said.label === "Single-family home")) {
+    await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: KIND_KEY, value: said.label, source: "user_stated" });
+    if (said.group !== "residential" && !prop.description) prop = (await ctx.store.update("properties", ctx.userId, prop.id, { description: said.label } as never)) ?? prop;
+  }
+  const kind = classifyProperty({ address: prop.address, beds: prop.beds, baths: prop.baths, sqft: prop.sqft, description: prop.description, agentText: text });
 
   // look up anything the agent didn't say (beds/baths/size/price) — silently, never as a question
-  const missing = prop.beds == null || prop.baths == null || prop.sqft == null || prop.list_price == null;
+  const missing = kindMissing(kind, prop).some((m) => /price|beds|baths|square feet/.test(m));
   let looked = "";
   if (missing && !unverified) {
     ctx.steps.push("Looking up the rest online");
@@ -51,12 +59,18 @@ export async function addListingHandler(ctx: Ctx, text: string): Promise<Handler
   }
 
   const where = [prop.city, prop.state].filter(Boolean).join(", ");
-  const have = [prop.beds != null ? `${prop.beds} bd` : null, prop.baths != null ? `${prop.baths} ba` : null, prop.sqft ? `${prop.sqft.toLocaleString("en-US")} sq ft` : null, prop.list_price ? money(prop.list_price) : null].filter(Boolean).join(" · ");
+  const kind2 = classifyProperty({ address: prop.address, beds: prop.beds, baths: prop.baths, sqft: prop.sqft, description: prop.description, agentText: text });
+  const have = kind2.group === "commercial" || kind2.group === "land" || kind2.group === "multifamily"
+    ? kindFacts(kind2, prop, money).join(" · ")
+    : [prop.beds != null ? `${prop.beds} bd` : null, prop.baths != null ? `${prop.baths} ba` : null, prop.sqft ? `${prop.sqft.toLocaleString("en-US")} sq ft` : null, prop.list_price ? money(prop.list_price) : null].filter(Boolean).join(" · ");
   const lines = [`Saved your listing: ${street}${where ? `, ${where}` : ""}${prop.zip ? ` ${prop.zip}` : ""}.`];
   if (have) lines.push(have + (hasAnyFact(f) && looked ? " (you gave me some, I found the rest online — please check them)" : looked ? " — found online, please check" : ""));
   if (seller) lines.push(`Sellers: ${seller.name} (saved as a contact).`);
-  const still = [prop.list_price == null ? "price" : null, prop.beds == null ? "beds" : null, prop.baths == null ? "baths" : null, prop.sqft == null ? "square feet" : null].filter(Boolean);
-  if (still.length) lines.push(`Still blank: ${still.join(", ")} — tell me whenever (e.g. “it's 3 bed 2 bath, $480k”) or add them on the property page.`);
+  const still = kindMissing(kind2, prop);
+  const eg = kind2.group === "commercial" ? "12,000 sq ft, zoned C-2, $2.4M" : kind2.group === "land" ? "12 acres, zoned residential, $350k" : kind2.group === "multifamily" ? "4 units, $620k, rents total $4,800" : "it's 3 bed 2 bath, $480k";
+  const note = kindLine(kind2);
+  if (note) lines.push(note);
+  if (still.length) lines.push(`Still blank: ${still.join(", ")} — tell me whenever (e.g. “${eg}”) or add them on the property page.`);
   if (assumed) lines.push(`I assumed it's in ${where} (your market) — if not, just tell me the city and state.`);
   if (unverified) lines.push("I couldn't find that address on the map, so double-check the spelling.");
   if (!f.seller && !seller) lines.push("");
@@ -133,6 +147,15 @@ export async function updateListingHandler(ctx: Ctx, text: string): Promise<Hand
   if (!prop) {
     if (addr) return reply(`I don't have ${addr} saved yet. Want me to add it as a new listing? Just say “new listing at ${addr}” with the city and price.`, [], "smalltalk");
     return askBack(ctx, "update_listing", text, "address", "Which listing is that for? Give me the address.");
+  }
+  // "that one is commercial": record the kind, and say what changes
+  const typed = classifyProperty({ agentText: text });
+  if (typed.group !== "unknown" && typed.basis === "agent" && !hasAnyFact(extractListingFacts(text)) && !/\$\s?\d/.test(text)) {
+    await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: KIND_KEY, value: typed.label, source: "user_stated" });
+    const upd = typed.group !== "residential" ? (await ctx.store.update("properties", ctx.userId, prop.id, { description: typed.label } as never)) ?? prop : prop;
+    ctx.state.last_property_id = prop.id;
+    const gaps = kindMissing(classifyProperty({ address: upd.address, beds: upd.beds, baths: upd.baths, sqft: upd.sqft, description: upd.description, agentText: text }), upd);
+    return reply(`Marked ${prop.address} as ${typed.label}. ${typed.note}${gaps.length ? ` Still blank: ${gaps.join(", ")}.` : ""}`, [], "smalltalk");
   }
   const f = extractListingFacts(text);
   // "reduced to 399", "change the price to 435,000", "now asking 1.2M": a price after to/now/at/for, with thousands implied for a bare 3 digits

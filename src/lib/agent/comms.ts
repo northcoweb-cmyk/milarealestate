@@ -1,3 +1,4 @@
+import { classifyProperty, kindFacts } from "../property-kind";
 import { getProvider, aiAvailable, estimateCost } from "../ai/provider";
 import { recordUsage } from "../credits";
 import { fmtDay, fmtRange, fmtShortDate } from "../time";
@@ -20,12 +21,7 @@ export function signature(p: Profile) {
 
 export function verifiedFacts(prop: Property | null | undefined): string[] {
   if (!prop?.verified) return [];
-  const f: string[] = [];
-  if (prop.beds) f.push(`${prop.beds} bed`);
-  if (prop.baths) f.push(`${prop.baths} bath`);
-  if (prop.sqft) f.push(`${prop.sqft.toLocaleString()} sq ft`);
-  if (prop.list_price) f.push(`Offered at ${fullMoney(prop.list_price)}`);
-  return f;
+  return kindFacts(classifyProperty({ address: prop.address, beds: prop.beds, baths: prop.baths, sqft: prop.sqft, description: prop.description }), prop, fullMoney); // a warehouse never says "0 bed"
 }
 
 export function openHouseEmail(ctx: Ctx, prop: Property, start: Date, end: Date) {

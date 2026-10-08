@@ -56,14 +56,14 @@ export function PropertyCard({ p, photo, onChanged }: { p: PropertyCardInfo; pho
           {p.days_on_market != null && p.stage === "active" && <span className="absolute bottom-3 right-3.5 text-[12px] font-semibold text-white/90 drop-shadow">{p.days_on_market}d on market</span>}
         </div>
         <div className="space-y-2 px-4 pt-3.5">
-          <div className="min-w-0"><p className="truncate text-[17px] font-semibold leading-tight">{p.address}</p><p className="muted truncate text-[14px]">{place || "Add the city & state"}</p></div>
+          <div className="min-w-0"><p className="truncate text-[17px] font-semibold leading-tight">{p.address}</p><p className="muted truncate text-[14px]">{place || "Add the city & state"}</p>{p.kind.group !== "unknown" && <p className="mt-1"><span className="inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold" title={p.kind.note} style={{ background: p.kind.group === "residential" ? "var(--line)" : "var(--accent)", color: p.kind.group === "residential" ? "var(--ink-soft)" : "var(--accent-ink)" }}>{p.kind.label}</span></p>}</div>
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px]">
-            {p.beds != null && <span className="inline-flex items-center gap-1.5"><BedDouble size={16} aria-hidden />{p.beds} bd</span>}
-            {p.baths != null && <span className="inline-flex items-center gap-1.5"><Bath size={16} aria-hidden />{p.baths} ba</span>}
+            {p.beds != null && p.kind.group !== "commercial" && p.kind.group !== "land" && <span className="inline-flex items-center gap-1.5"><BedDouble size={16} aria-hidden />{p.beds} bd</span>}
+            {p.baths != null && p.kind.group !== "commercial" && p.kind.group !== "land" && <span className="inline-flex items-center gap-1.5"><Bath size={16} aria-hidden />{p.baths} ba</span>}
             {p.sqft != null && <span className="inline-flex items-center gap-1.5"><Ruler size={16} aria-hidden />{p.sqft.toLocaleString("en-US")} sf</span>}
             {!p.has_data && <span className="muted">Details not filled in yet</span>}
           </p>
-          <p className="faint truncate text-[13px]">{[p.property_type, p.year_built && `Built ${p.year_built}`, p.verified ? "Confirmed" : p.has_data ? "Unconfirmed" : ""].filter(Boolean).join(" · ")}</p>
+          <p className="faint truncate text-[13px]">{[p.kind.group === "unknown" ? p.property_type : null, p.year_built && `Built ${p.year_built}`, p.verified ? "Confirmed" : p.has_data ? "Unconfirmed" : ""].filter(Boolean).join(" · ")}</p>
           <p className="hairline inline-flex w-full items-center gap-2 pt-2.5 text-[13.5px] font-semibold">{status}</p>
         </div>
       </Link>

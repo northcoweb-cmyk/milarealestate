@@ -1,3 +1,4 @@
+import { classifyProperty } from "../../property-kind";
 import { fmtDay, fmtRange } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, SocialSlide } from "../../types";
 import { type Ctx, firstName, fullMoney } from "../context";
@@ -25,16 +26,17 @@ function requestedCount(text: string): number {
 
 /** Different angles for the same listing. Only verified facts are ever stated; nothing is invented. */
 function postAngles(prop: Property, facts: string[], images: string[], ctx: Ctx): { name: string; caption: string; slides: SocialSlide[] }[] {
+  const icon = ((g) => (g === "commercial" ? "🏢" : g === "land" ? "🌳" : "🏡"))(classifyProperty({ address: prop.address, beds: prop.beds, baths: prop.baths, description: prop.description }).group);
   const where = prop.address + (prop.city ? `, ${prop.city}` : "");
   const line = facts.join(" • ");
   const hero = (sub: string): SocialSlide => ({ role: "hero", headline: prop.address, sub, image_id: images[0] ?? null });
   const cta: SocialSlide = { role: "cta", headline: "Let's talk", sub: ctx.profile.full_name, image_id: null };
   const hi = (headline: string, i = 1): SocialSlide => ({ role: "highlight", headline, image_id: images[i] ?? images[0] ?? null });
   return [
-    { name: "Just Listed", caption: ["Just Listed! 🏡", "", where, line, "", "Message me for details or a private showing."].join("\n"), slides: [hero("Just Listed"), hi(line || "See it in person"), cta] },
+    { name: "Just Listed", caption: [`Just Listed! ${icon}`, "", where, line, "", "Message me for details or a private showing."].join("\n"), slides: [hero("Just Listed"), hi(line || "See it in person"), cta] },
     { name: "Inside look", caption: [`Step inside ${prop.address}. 👀`, line ? `\n${line}` : "", "", "Swipe through, then tell me what you think."].join("\n"), slides: [hero("Take a look inside"), hi(line || "Come see it in person", 2), cta] },
     { name: "Private showing", caption: [`Want to see ${prop.address} in person?`, "", "Private showings are open — send me a message and we'll find a time that works for you. 🔑"].join("\n"), slides: [hero("Private showings"), cta] },
-    { name: "Offered at", caption: [prop.list_price && prop.verified ? `Offered at ${fullMoney(prop.list_price)} 🏡` : `Your next home could be ${prop.address} 🏡`, "", where, line && !prop.list_price ? line : facts.filter((f) => !/^Offered/.test(f)).join(" • "), "", "DM me for the full details."].filter((l, i, arr) => !(l === "" && arr[i - 1] === "")).join("\n"), slides: [hero(prop.list_price && prop.verified ? `Offered at ${fullMoney(prop.list_price)}` : "Now available"), hi(line || "Details on request", 2), cta] },
+    { name: "Offered at", caption: [prop.list_price && prop.verified ? `Offered at ${fullMoney(prop.list_price)} ${icon}` : `Your next home could be ${prop.address} ${icon}`, "", where, line && !prop.list_price ? line : facts.filter((f) => !/^Offered/.test(f)).join(" • "), "", "DM me for the full details."].filter((l, i, arr) => !(l === "" && arr[i - 1] === "")).join("\n"), slides: [hero(prop.list_price && prop.verified ? `Offered at ${fullMoney(prop.list_price)}` : "Now available"), hi(line || "Details on request", 2), cta] },
     { name: "Save it", caption: [`Save this one for later. 🔖`, "", where, "", "Know someone looking in the area? Send them my way."].join("\n"), slides: [hero("Save for later"), cta] },
     { name: "Ask me", caption: [`Questions about ${prop.address}?`, "", "I'm happy to walk you through it — message me anytime. 💬"].join("\n"), slides: [hero("Ask me anything"), cta] },
   ];
@@ -144,7 +146,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     const kind = /price/i.test(text) ? "Price Improvement" : "Just Listed";
     post = ((await TOOLS.create_social_post.run(ctx, {
       platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"],
-      caption: [`${kind}! 🏡`, "", prop.address + (prop.city ? `, ${prop.city}` : ""), facts.join(" • "), "", "Message me for details or a private showing."].filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n"),
+      caption: [`${kind}! ${classifyProperty({ address: prop.address, beds: prop.beds, baths: prop.baths, description: prop.description }).group === "commercial" ? "🏢" : "🏡"}`, "", prop.address + (prop.city ? `, ${prop.city}` : ""), facts.join(" • "), "", "Message me for details or a private showing."].filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n"),
       slides: [{ role: "hero", headline: prop.address, sub: kind, image_id: images[0] ?? null }, { role: "highlight", headline: facts.join(" • ") || "See it in person", image_id: images[1] ?? images[0] ?? null }, { role: "cta", headline: "Let's talk", sub: ctx.profile.full_name, image_id: null }],
     })) as any).data.post;
   }

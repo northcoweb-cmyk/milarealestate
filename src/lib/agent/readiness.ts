@@ -1,3 +1,4 @@
+import { kindFacts, kindForProperty, kindMissing } from "../property-kind";
 import type { BriefItem, BriefSection, Property } from "../types";
 import type { Ctx } from "./context";
 import { fullMoney, plural } from "./context";
@@ -39,12 +40,14 @@ export async function buildListingBrief(ctx: Ctx, prop: Property): Promise<Listi
   const lookup: LookupMemory | null = (() => { try { const raw = mems.find((m) => m.key === `cache:property_lookup:${prop.id}`)?.value; return raw ? (JSON.parse(raw) as LookupMemory) : null; } catch { return null; } })();
 
   // ---- the home
-  const facts = [prop.beds != null && `${prop.beds} bd`, prop.baths != null && `${prop.baths} ba`, prop.sqft && `${prop.sqft.toLocaleString("en-US")} sq ft`, prop.list_price && fullMoney(prop.list_price)].filter(Boolean).join(" · ");
+  const kind = kindForProperty(prop, mems);
+  const rest = kind.group === "commercial" || kind.group === "land" || kind.group === "multifamily";
+  const facts = (rest ? kindFacts(kind, prop, fullMoney) : [prop.beds != null && `${prop.beds} bd`, prop.baths != null && `${prop.baths} ba`, prop.sqft && `${prop.sqft.toLocaleString("en-US")} sq ft`, prop.list_price && fullMoney(prop.list_price)].filter(Boolean)).join(" · ");
   const place = [prop.city, [prop.state, prop.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const home: BriefItem[] = [{ text: `${street}${place ? `, ${place}` : ""}`, state: "info" }];
-  const haveAll = prop.list_price != null && prop.beds != null && prop.baths != null && prop.sqft != null;
-  home.push(haveAll ? { text: facts, state: "done" } : { text: facts || "No price, beds, baths or size yet", state: "missing", gap: "the price, beds, baths or size are incomplete", button: { label: "Add details", style: "secondary", href: `/properties/${prop.id}` } });
-  add("🏠", "The home", home);
+  const gaps = kindMissing(kind, prop);
+  home.push(!gaps.length ? { text: facts, state: "done" } : { text: facts || `No ${gaps.slice(0, 3).join(", ")} yet`, state: "missing", gap: `the ${gaps.join(", ")} ${gaps.length === 1 ? "is" : "are"} incomplete`, button: { label: "Add details", style: "secondary", href: `/properties/${prop.id}` } });
+  add("🏠", kind.group !== "unknown" && kind.group !== "residential" ? `The ${kind.label.toLowerCase()}` : kind.group === "residential" && kind.label !== "Single-family home" ? `The ${kind.label.toLowerCase()}` : "The home", home);
 
   // ---- seller + dates
   const sellerName = val(SELLER_KEY)?.toLowerCase();

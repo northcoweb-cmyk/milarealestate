@@ -1,3 +1,4 @@
+import { classifyProperty } from "../property-kind";
 import { trackApi } from "../media/usage";
 import { type PropertyExtra, lookupAddress, rentcastConfigured } from "../listing-data/rentcast";
 import { aiAvailable, estimateCost, getProvider } from "../ai/provider";
@@ -255,6 +256,7 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
     if (cur.baths == null && f.baths) fill.baths = f.baths;
     if (cur.sqft == null && f.sqft) fill.sqft = f.sqft;
     if (cur.list_price == null && f.list_price) fill.list_price = f.list_price;
+    if (!cur.description && f.type) { const k = classifyProperty({ typeHint: f.type }); if (k.group !== "unknown" && k.group !== "residential") fill.description = k.label; } // a warehouse or a lot is labeled from the public records
     const tokens = cur.address.toLowerCase().split(/\s+/).slice(0, 2);
     if (!cur.listing_url) { const s = lk.sources.find((x) => tokens.every((t) => x.url.toLowerCase().includes(t.replace(/[^a-z0-9]/g, "")) || x.title.toLowerCase().includes(t))); if (s) fill.listing_url = s.url; }
     memory = { at: ctx.now.toISOString(), found: true, facts: f, sources: lk.sources, ...(rc?.found ? { extra: rc.extra, full: Boolean(opts.full) } : {}) };
