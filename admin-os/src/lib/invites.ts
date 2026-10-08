@@ -52,7 +52,7 @@ export async function sendInvite(e: Entry): Promise<void> {
   const port = Number(process.env.SMTP_PORT || 465);
   const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }, connectionTimeout: 8000, socketTimeout: 12000 });
   await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.MAIL_REPLY_TO || (process.env.SMTP_USER?.includes("@") ? process.env.SMTP_USER : undefined), to: e.email, subject: m.subject, html: m.html, text: m.text });
-  const done = await rest(`waitlist?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", body: JSON.stringify({ invited_at: new Date().toISOString() }) });
+  const done = await rest(`waitlist?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", body: JSON.stringify({ invited_at: new Date().toISOString(), status: "invited" }) });
   if (!done.ok) throw new Error(`mark ${done.status}`);
 }
 
@@ -76,9 +76,9 @@ const step = (n: number, t: string) => `<tr><td width="34" valign="top" style="p
 
 export function inviteEmail(name: string | null, link: string) {
   const hi = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
-  const subject = "Mila is open. Your link is inside.";
+  const subject = "Access granted. Your Mila spot is ready.";
   const text = `${hi}\n\nMila is live, and your spot is ready.\n\nCreate your password and set up your profile here:\n${link}\n\nUse the same email address you signed up with. Your 7-day free trial starts when you finish. No card needed.\n\nThis link is personal to you. Just reply to this email if anything goes wrong.\n\nMila`;
-  const html = shell(`<p style="margin:0 0 6px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7b63e8;font-weight:700">Doors are open</p>
+  const html = shell(`<p style="margin:0 0 6px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7b63e8;font-weight:700">Access granted</p>
 <p style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1.15;color:#14122b">${hi.replace(",", "")}, your spot is ready.</p>
 <p style="margin:0;font-size:16px;line-height:1.55;color:#33305a">Mila is live. Create your password and set up your profile to get started.</p>
 ${btn(link, "Open Mila")}
@@ -86,4 +86,9 @@ ${btn(link, "Open Mila")}
 <p style="margin:0 0 4px;font-size:12.5px;color:#6b6890">Button not working? Paste this into your browser:</p>
 <p style="margin:0 0 16px;font-size:12px;color:#6b6890;word-break:break-all">${link}</p>`, "This link is personal to you. Reply to this email if anything goes wrong.");
   return { subject, html, text };
+}
+
+export async function entryById(id: string): Promise<Entry | null> {
+  const r = await rest(`waitlist?select=id,email,name,invite_token,invited_at,claimed_at&id=eq.${encodeURIComponent(id)}&limit=1`);
+  return r.ok ? (((await r.json()) as Entry[])[0] ?? null) : null;
 }

@@ -9,11 +9,18 @@ import { Clouds } from "@/components/clouds";
 import { Reveal } from "@/components/reveal";
 import { SiteNav } from "@/components/site-nav";
 import { ScrollToJoin } from "@/components/scroll-to-join";
+import { PlanJoin } from "@/components/plan-join";
 import { HeroParallax } from "@/components/hero-parallax";
 import { TryMila } from "@/components/try-mila";
 import { Faq } from "@/components/faq";
 
 const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-20T10:00:00-04:00";
+
+const PLANS = [
+  { name: "Standard", price: "$29", per: "/month", blurb: "For the solo agent who wants their day handled.", hot: false, cta: "join", points: ["Everything Mila does", "Mila's fast, accurate everyday model", "Standard monthly credits", "Calendar, follow-ups, posts and emails", "7-day free trial, cancel any time"] },
+  { name: "Premium", price: "$49", per: "/month", blurb: "For the producing agent who leans on Mila all day.", hot: true, cta: "join", points: ["Everything in Standard", "Mila's smartest model for the tough questions", "2x the monthly credits", "Deeper market and listing research", "7-day free trial, cancel any time"] },
+  { name: "Team", price: "Custom", per: "", blurb: "For teams and small brokerages.", hot: false, cta: "contact", points: ["Your team's logo and look", "Shared pipeline", "Invite links for every agent", "Set up around your CRM and MLS"] },
+];
 
 const FEATURES = [
   { icon: HouseLine, title: "Get me ready to list", body: "Photos, a drafted description, and a clear list of what's still missing, built from just an address." },
@@ -121,6 +128,32 @@ export default function Page() {
               </div></Reveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section id="pricing" className="relative isolate overflow-hidden bg-paper px-5 py-24 sm:py-32">
+        <div className="mx-auto max-w-5xl">
+          <Reveal><p className="text-center text-[12.5px] font-semibold uppercase tracking-[.2em] text-iris">Simple pricing</p>
+            <h2 className="display mx-auto mt-3 max-w-3xl text-balance text-center text-[clamp(36px,6vw,64px)]">Try Mila free for 7 days.</h2>
+            <p className="mx-auto mt-4 max-w-xl text-balance text-center text-[17px] text-muted-foreground">No card to start. Cancel any time. No contracts.</p></Reveal>
+          <div className="mt-12 grid items-stretch gap-4 md:grid-cols-3">
+            {PLANS.map((p, i) => (
+              <Reveal key={p.name} delay={i * 0.1}>
+                <div className={`relative flex h-full flex-col rounded-[28px] p-7 ${p.hot ? "text-white shadow-[0_30px_70px_-30px_rgba(110,80,230,.7)]" : "border border-border bg-white"}`} style={p.hot ? { background: "linear-gradient(160deg,#6f8dff 0%,#7b63e8 55%,#a68cff 100%)" } : undefined}>
+                  {p.hot && <span className="absolute right-5 top-5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider">Most popular</span>}
+                  <h3 className="text-[19px] font-semibold tracking-tight">{p.name}</h3>
+                  <p className="display mt-3 text-[56px] leading-none">{p.price}{p.per && <span className={`ml-1 text-[17px] font-normal ${p.hot ? "text-white/80" : "text-muted-foreground"}`}>{p.per}</span>}</p>
+                  <p className={`mt-2 text-[15px] ${p.hot ? "text-white/85" : "text-muted-foreground"}`}>{p.blurb}</p>
+                  <ul className="mt-6 flex-1 space-y-2.5 text-[15px]">
+                    {p.points.map((t) => <li key={t} className="flex gap-2.5"><span aria-hidden className={p.hot ? "text-white" : "text-iris"}>✦</span><span>{t}</span></li>)}
+                  </ul>
+                  {p.cta === "join" ? <PlanJoin className={`mt-7 block w-full rounded-full px-6 py-3.5 text-center text-[15.5px] font-semibold transition hover:opacity-90 ${p.hot ? "bg-white text-[#14122b]" : "bg-[#14122b] text-white"}`} /> : <a href="mailto:admin@milarealestate.app?subject=Mila%20Team%20plan" className="mt-7 block rounded-full border border-border px-6 py-3.5 text-center text-[15.5px] font-semibold transition hover:bg-secondary">Contact us</a>}
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <p className="mx-auto mt-6 max-w-xl text-center text-[13px] text-muted-foreground">Prices in USD.</p>
         </div>
       </section>
 

@@ -28,8 +28,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   // ai_budget_usd is the hard monthly ceiling on what a subscriber may cost us in AI (about a quarter of the price at most).
   plans: [
-    { key: "solo", name: "Mila Standard", price_usd: 29, credits: 700, ai_budget_usd: 8, blurb: "Your AI operations manager for a one-agent business." },
-    { key: "pro", name: "Mila Premium", price_usd: 49, credits: 1400, ai_budget_usd: 14, blurb: "Twice the credits for producing agents: deeper automation and more research." },
+    { key: "solo", name: "Mila Standard", price_usd: 29, credits: 700, ai_budget_usd: 8, blurb: "Mila's fast, accurate everyday model, for a one-agent business." },
+    { key: "pro", name: "Mila Premium", price_usd: 49, credits: 1400, ai_budget_usd: 14, blurb: "Mila's smartest model, twice the credits and deeper research, for producing agents." },
     { key: "team", name: "Mila Team", price_usd: 299, credits: 12000, ai_budget_usd: 85, blurb: "For teams and small brokerages: shared pipeline and far more room to work." },
   ],
   packs: [

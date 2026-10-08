@@ -38,7 +38,7 @@ Rules:
 The request (and any follow-up) is in the user message. Do not attach it to a client the agent did not name.
 
 When you are done, reply with ONLY one JSON object, no other text:
-{"bottom_line": string (2 to 4 sentences: the direct answer and the most important trade-off or caveat),
+{"bottom_line": string (2 to 4 sentences: the direct answer and the most important trade-off or caveat; start with one fitting emoji; plain text, no markdown),
  "requirements": [{"item": string, "kind": "hard"|"soft"}]  (only for a client brief, else []),
  "facts": [{"label": string, "value": string, "source": string}]  (the key numbers you pulled, each with where it came from),
  "conflicts": [string],

@@ -9,7 +9,7 @@
  * services (with reduced understanding of free-form requests).
  */
 
-import { assertAiBudget, MAX_INPUT_CHARS, MAX_OUTPUT_TOKENS, noteAiSpend } from "./budget";
+import { assertAiBudget, MAX_INPUT_CHARS, MAX_OUTPUT_TOKENS, noteAiSpend, tierForPlan } from "./budget";
 
 export type Tier = "fast" | "standard" | "reasoning" | "vision" | "research";
 
@@ -303,8 +303,11 @@ class GuardedProvider implements AIProvider {
     let budgetLeft = maxIn;
     const messages = [...req.messages].reverse().map((m) => { const c = m.content.slice(0, Math.max(0, budgetLeft)); budgetLeft -= c.length; return { ...m, content: c }; }).reverse().filter((m, i) => m.content || i === req.messages.length - 1);
     const guarded: CompletionRequest = { ...req, messages, system: req.system.slice(0, maxIn), maxTokens: Math.min(req.maxTokens ?? 1024, req.tier === "reasoning" ? Math.max(MAX_OUTPUT_TOKENS(), 6000) : MAX_OUTPUT_TOKENS()), images: req.images?.slice(0, 3), documents: req.documents?.slice(0, 2) };
+    // 1b) plan quality: Standard runs hard questions on the standard model (thinking harder), Premium gets the top model
+    const q = await tierForPlan(req.tier, req.effort);
+    if (q.tier !== req.tier) { guarded.tier = q.tier; guarded.effort = q.effort as CompletionRequest["effort"]; guarded.maxTokens = Math.min(req.maxTokens ?? 1024, MAX_OUTPUT_TOKENS()); }
     // 2) spend limits (throws AiBudgetError; callers already fall back to the rule-based engine)
-    await assertAiBudget({ tier: req.tier, inputChars: guarded.system.length + messages.reduce((n, m) => n + m.content.length, 0), webSearch: req.webSearch });
+    await assertAiBudget({ tier: guarded.tier, inputChars: guarded.system.length + messages.reduce((n, m) => n + m.content.length, 0), webSearch: req.webSearch });
     const r = await this.inner.complete(guarded);
     noteAiSpend(estimateCost(r.info, r.usage.inputTokens, r.usage.outputTokens) + (r.extraCostUsd ?? 0));
     return r;

@@ -17,7 +17,8 @@ export const RESEARCH_FUNCTIONS = [
   { name: "area_facts", description: "Facts about any US address, building, neighbourhood or city: coordinates, neighbourhood name, county, FEMA flood zone, census income and rent, Walk Score when connected. Use before judging a neighbourhood.", parameters: { type: "object", properties: { place: { type: "string", description: "address, building name with city, or neighbourhood and city" } }, required: ["place"] } },
 ] as const;
 
-const MAX_DATA_CALLS = 8; // per research run: bounds both the cost and the time
+const MAX_DATA_CALLS = 8; // per research run on Premium: bounds both the cost and the time
+const STANDARD_DATA_CALLS = 5; // Standard still gets a solid run, just a shallower one
 const costPerCall = () => Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074;
 const str = (v: unknown, n = 120) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 const nm = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -27,7 +28,7 @@ export function researchRunner(ctx: Ctx) {
   /** one paid data request: enforce the plan's monthly allowance, then record it */
   const paid = async <T>(endpoint: string, units: number, run: () => Promise<T>): Promise<T | { error: string }> => {
     if (!rentcastConfigured()) return { error: "Live property and rental data isn't connected on this server." };
-    if (++calls > MAX_DATA_CALLS) return { error: "Data request limit for this search reached. Work with what you have and say what you could not check." };
+    if (++calls > ((await tierOf(ctx.userId)) === "pro" ? MAX_DATA_CALLS : STANDARD_DATA_CALLS)) return { error: "Data request limit for this search reached. Work with what you have and say what you could not check." };
     const used = (await usageFor(ctx.userId)).listingApiRequests;
     if (used + units > tierLimits(await tierOf(ctx.userId)).listingSearches) return { error: "This account's monthly listing-data allowance is used up. Tell the agent, and rely on web search for the rest." };
     try {

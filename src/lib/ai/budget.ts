@@ -87,3 +87,23 @@ export function noteAiSpend(usd: number) {
 }
 
 export const resetAiBudgetMemo = () => { memo.clear(); pending.clear(); globalMemo = null; };
+
+/**
+ * Plan decides model quality, not just volume. Premium (and anyone on the free trial, so they can taste the best) gets the
+ * top reasoning model for hard questions. Standard stays on the strong standard model, thinking harder instead, so it is
+ * a little weaker on the hardest jobs but still very solid. Pure function so it can be tested.
+ */
+export function planQuality(sub: { plan_key?: string; status?: string } | undefined): "premium" | "standard" {
+  if (!sub) return "standard";
+  if (sub.status === "trial" || sub.status === "dev") return "premium";
+  if (sub.status === "active" && sub.plan_key !== "solo") return "premium"; // pro, team and any future higher plan
+  return "standard";
+}
+
+/** The tier (and effort) this request should really run on for the signed-in person. Outside a user scope nothing changes. */
+export async function tierForPlan(tier: "fast" | "standard" | "reasoning" | "vision" | "research", effort?: string): Promise<{ tier: typeof tier; effort?: string }> {
+  const scope = als.getStore();
+  if (!scope || tier !== "reasoning") return { tier, effort };
+  const sub = (await getStore().list("subscriptions", scope.userId))[0];
+  return planQuality(sub) === "premium" ? { tier, effort } : { tier: "standard", effort: "high" };
+}

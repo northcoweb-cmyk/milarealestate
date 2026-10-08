@@ -91,6 +91,8 @@ export async function buildReport() {
   const costByDay = new Map<string, number>();
   const byModel = new Map<string, { calls: number; cost: number }>();
   for (const u of U) { const d = dayKey(u.created_at); costByDay.set(d, (costByDay.get(d) ?? 0) + Number(u.est_cost_usd || 0)); const m = byModel.get(u.model) ?? { calls: 0, cost: 0 }; m.calls++; m.cost += Number(u.est_cost_usd || 0); byModel.set(u.model, m); }
+  const byOp = new Map<string, { calls: number; cost: number }>();
+  for (const u of U) { const k = u.operation.replace(/^turn:/, "").replace(/_/g, " "); const o = byOp.get(k) ?? { calls: 0, cost: 0 }; o.calls++; o.cost += Number(u.est_cost_usd || 0); byOp.set(k, o); }
   const emailOf = new Map(P.map((p) => [p.id, p.email]));
   // per-user economics: AI cost + paid data lookups (RentCast etc.) against what they pay. Trials and testers show $0 revenue on purpose.
   const PRICE: Record<string, number> = { solo: 29, pro: 49 };
@@ -130,7 +132,7 @@ export async function buildReport() {
     ],
     waitToAccount: { joined, of: W.length },
     users, funnel, errors, wait: W,
-    spend: { byModel: [...byModel.entries()].map(([model, v]) => ({ model, ...v })).sort((a, b) => b.cost - a.cost), byUser, api: [...apiBy.entries()].map(([provider, v]) => ({ provider, ...v })).sort((a, b) => b.cost - a.cost) },
+    spend: { byOp: [...byOp.entries()].map(([op, v]) => ({ op, ...v })).sort((a, b) => b.cost - a.cost).slice(0, 15), byModel: [...byModel.entries()].map(([model, v]) => ({ model, ...v })).sort((a, b) => b.cost - a.cost), byUser, api: [...apiBy.entries()].map(([provider, v]) => ({ provider, ...v })).sort((a, b) => b.cost - a.cost) },
     waitSources: Object.entries(W.reduce<Record<string, number>>((m, w) => { const k = w.source || "direct"; m[k] = (m[k] ?? 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]),
   };
 }

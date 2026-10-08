@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { confirmationEmail, sendMail } from "@/lib/mail";
-import { dbConfigured, findByEmail, insertEntry, markEmailed } from "@/lib/sb";
+import { countEntries, dbConfigured, findByEmail, insertEntry, markEmailed } from "@/lib/sb";
 
 const hits = new Map<string, number[]>();
 function limited(ip: string) {
@@ -24,11 +24,14 @@ export async function POST(req: Request) {
   try {
     const existing = await findByEmail(email);
     if (existing) return NextResponse.json({ ok: true, already: true });
-    const r = await insertEntry({ email, name, source: src });
+    // The first SEAT_CAP signups are the launch group. Anyone after that is queued and gets in when the owner opens more seats.
+    const cap = Number(process.env.SEAT_CAP ?? 20), before = await countEntries();
+    const queued = Number.isFinite(cap) && before !== null && before >= cap;
+    const r = await insertEntry({ email, name, source: src, status: queued ? "queued" : "waiting" });
     if (r.duplicate) return NextResponse.json({ ok: true, already: true });
     let emailed = false;
-    try { const m = confirmationEmail(name); emailed = await sendMail(email, m.subject, m.html, m.text); if (emailed && r.id) await markEmailed(r.id); } catch (e) { console.error("[join] email failed", e instanceof Error ? e.message : e); }
-    return NextResponse.json({ ok: true, emailed });
+    try { const m = confirmationEmail(name, queued); emailed = await sendMail(email, m.subject, m.html, m.text); if (emailed && r.id) await markEmailed(r.id); } catch (e) { console.error("[join] email failed", e instanceof Error ? e.message : e); }
+    return NextResponse.json({ ok: true, emailed, queued });
   } catch (e) {
     console.error("[join]", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });

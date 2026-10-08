@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { counts, nextBatch, seatCap, sendInvite, sendTest, smtpConfigured } from "@/lib/invites";
+import { counts, entryById, nextBatch, seatCap, sendInvite, sendTest, smtpConfigured } from "@/lib/invites";
 
 export const maxDuration = 60;
 const BATCH = 12; // small on purpose: one request must finish well inside the time limit
@@ -17,6 +17,14 @@ export async function POST(req: Request) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
       await sendTest(email);
       return NextResponse.json({ ok: true, message: `Test invite sent to ${email}.` });
+    }
+    if (b.action === "grant") {
+      // one person, on purpose: the owner decides, so this ignores the seat cap
+      const e = await entryById(String((b as { id?: string }).id ?? ""));
+      if (!e) return NextResponse.json({ error: "That person isn't on the list." }, { status: 404 });
+      if (e.claimed_at) return NextResponse.json({ error: "They already have an account." }, { status: 400 });
+      await sendInvite(e);
+      return NextResponse.json({ ok: true, message: `Access granted. Login link sent to ${e.email}.` });
     }
     if (b.action === "send") {
       if (b.confirm !== "SEND") return NextResponse.json({ error: 'Type SEND to confirm.' }, { status: 400 });

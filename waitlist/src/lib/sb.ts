@@ -10,8 +10,16 @@ export async function findByEmail(email: string) {
   if (!r.ok) throw new Error(`lookup ${r.status}`);
   return ((await r.json()) as { id: string }[])[0] ?? null;
 }
-export async function insertEntry(row: { email: string; name: string | null; source: string | null }) {
-  const r = await fetch(`${base()}/rest/v1/waitlist`, { method: "POST", headers: headers({ Prefer: "return=representation" }), body: JSON.stringify({ ...row, status: "waiting" }), signal: AbortSignal.timeout(10000) });
+/** People already on the list. Used to decide whether a new signup is inside the launch cap or goes to the queue. */
+export async function countEntries(): Promise<number | null> {
+  try {
+    const r = await fetch(`${base()}/rest/v1/waitlist?select=id`, { method: "HEAD", headers: headers({ Prefer: "count=exact" }), cache: "no-store", signal: AbortSignal.timeout(8000) });
+    const m = /\/(\d+)$/.exec(r.headers.get("content-range") ?? "");
+    return r.ok && m ? Number(m[1]) : null;
+  } catch { return null; }
+}
+export async function insertEntry(row: { email: string; name: string | null; source: string | null; status?: "waiting" | "queued" }) {
+  const r = await fetch(`${base()}/rest/v1/waitlist`, { method: "POST", headers: headers({ Prefer: "return=representation" }), body: JSON.stringify({ ...row, status: row.status ?? "waiting" }), signal: AbortSignal.timeout(10000) });
   if (r.status === 409) return { duplicate: true as const };
   if (!r.ok) throw new Error(`insert ${r.status}`);
   return { duplicate: false as const, id: ((await r.json()) as { id: string }[])[0]?.id };
