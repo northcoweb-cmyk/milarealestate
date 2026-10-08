@@ -18,10 +18,10 @@ async function openIssue(title: string, body: string): Promise<number | null> {
   } catch { return null; }
 }
 
-/** A test agent flags a problem. Testers only: it saves the report with what was on screen and in the chat, and opens an issue. */
+/** Anyone signed in can report a bug (Settings > Report a bug); test agents also get a flag on every screen. It saves the report with what was on screen and in the chat, and opens an issue. */
 export const POST = api(async ({ req, profile }) => {
-  if (!isTester(profile.email)) throw bad("Bug reports are only open to test accounts.");
-  rateLimit(`bug:${profile.id}`, 60, 60 * 60_000);
+  const tester = isTester(profile.email);
+  rateLimit(`bug:${profile.id}`, tester ? 60 : 10, 60 * 60_000); // anyone signed in can report; testers get a higher cap
   const b = await readJson<{ note?: unknown; category?: unknown; page?: unknown; snippet?: unknown; targetId?: unknown; device?: unknown }>(req);
   const note = clip(b.note, 2000);
   if (!note) throw bad("Tell us what's wrong in a few words.");

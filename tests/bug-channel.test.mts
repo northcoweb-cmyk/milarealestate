@@ -27,8 +27,8 @@ test("a bug report keeps its category, context and fix-queue status", async () =
   assert.deepEqual((back.context as any).transcript[0].text, "showing tmr at 2");
 });
 
-test("the bug route is tester-only and files an issue only when a token is set", () => {
+test("any signed-in user can report, with a lower rate cap, and an issue is filed only when a token is set", () => {
   const src = fs.readFileSync(path.join(process.cwd(), "src/app/api/bug/route.ts"), "utf8");
-  assert.match(src, /if \(!isTester\(profile\.email\)\) throw bad/);
+  assert.match(src, /tester \? 60 : 10/);
   assert.match(src, /if \(!token\) return null/);
 });

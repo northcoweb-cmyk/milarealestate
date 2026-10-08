@@ -47,13 +47,14 @@ export default function MorePage() {
       <Group title="Settings">
         <Row href="/settings/profile" icon={User} title="Profile" />
         <Row href="/settings/business" icon={Building2} title="Business" />
-        <Row href="/settings/connections" icon={Plug} title="Calendar & contacts" sub="Keep your calendar in sync" />
+        <Row href="/settings/connections" icon={Plug} title="Connections" sub="Gmail, Outlook and your calendar" />
         <Row href="/settings/mila" icon={SlidersHorizontal} title="Mila" sub="Autonomy: what Mila can do on her own" />
         <Row href="/settings/notifications" icon={Bell} title="Notifications" />
         <Row href="/settings/credits" icon={CreditCard} title="Credits & billing" />
         <Row href="/settings/appearance" icon={Palette} title="Appearance" />
         <Row href="/settings/privacy" icon={Shield} title="Privacy" />
         <Row href="/settings/security" icon={Lock} title="Security" />
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("mila:bug", { detail: {} }))} className="flex w-full items-center gap-4 px-4 py-3.5 text-left transition hover:bg-white/30 sm:px-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl text-[20px]" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)" }} aria-hidden>🐞</span><span className="min-w-0 flex-1"><span className="block font-semibold leading-tight">Report a bug</span><span className="faint block text-[13.5px]">Something wrong or confusing? Tell us.</span></span></button>
         {admin && <Row href="/admin" icon={Gauge} title="Owner dashboard" sub="Credit costs, pricing and margins" />}
       </Group>
 </div>

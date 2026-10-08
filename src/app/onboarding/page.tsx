@@ -1,3 +1,4 @@
+import { authMode } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth";
 import { googleConfigured } from "@/lib/integrations/google";
@@ -14,7 +15,7 @@ export default async function Onboarding() {
   return (
     <>
       <PublicSky />
-      <OnboardingFlow name={p.full_name} googleConfigured={googleConfigured()} allowSample={!isNoDemo(p.email)} />
+      <OnboardingFlow name={p.full_name} googleConfigured={googleConfigured()} allowSample={authMode() !== "supabase" && !isNoDemo(p.email)} />
     </>
   );
 }

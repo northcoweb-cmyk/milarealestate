@@ -11,6 +11,8 @@ const NUM_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
 };
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+/** Short forms people actually type: longer ones first so "thurs" is not read as "thu" + junk. */
+const WD_ABBR = ["tues", "thurs", "thur", "weds", ...WEEKDAYS.map((w) => w.slice(0, 3))].join("|");
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
 export const numWord = (s: string): number | null => {
@@ -138,14 +140,14 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
   };
 
   // "a week from Friday", "two weeks from today", "3 days after tomorrow"
-  const away = new RegExp(`\\b(a|an|one|two|three|four|\\d+)\\s+(week|day)s?\\s+(?:from|after)\\s+(today|tomorrow|(?:next\\s+)?(?:${WEEKDAYS.join("|")}|${WEEKDAYS.map((w) => w.slice(0, 3)).join("|")}))\\b`).exec(t);
+  const away = new RegExp(`\\b(a|an|one|two|three|four|\\d+)\\s+(week|day)s?\\s+(?:from|after)\\s+(today|tomorrow|(?:next\\s+)?(?:${WEEKDAYS.join("|")}|${WD_ABBR}))\\b`).exec(t);
   if (away) {
     const base = parseDate(away[3], now, tz);
     const n = (numWord(away[1]) ?? 1) * (away[2] === "week" ? 7 : 1);
     if (base) { const p = partsIn(addDays(zonedToUtc(base.y, base.m, base.d, 12, 0, tz), n, tz), tz); return { y: p.y, m: p.m, d: p.d, text: away[0], relative: true }; }
   }
   // "next week Tuesday" = Tuesday of next week
-  const nextWeek = new RegExp(`\\bnext\\s+week\\s+(?:on\\s+)?(${WEEKDAYS.join("|")}|${WEEKDAYS.map((w) => w.slice(0, 3)).join("|")})\\b`).exec(t);
+  const nextWeek = new RegExp(`\\bnext\\s+week\\s+(?:on\\s+)?(${WEEKDAYS.join("|")}|${WD_ABBR})\\b`).exec(t);
   if (nextWeek) { const d = parseDate(`next ${nextWeek[1]}`, now, tz); if (d) return { ...d, text: nextWeek[0] }; }
   if (/\bday after tomorrow\b/.test(t)) return mk(2, "day after tomorrow");
   if (/\btomorrow\b/.test(t)) return mk(1, "tomorrow");
@@ -159,7 +161,7 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
   // "the 25th" / "friday the 9th": next date whose day-of-month matches (and weekday, if given)
   const dom = /\bthe\s+(\d{1,2})(?:st|nd|rd|th)\b/.exec(t);
   if (dom && +dom[1] >= 1 && +dom[1] <= 31) {
-    const wdName = new RegExp(`\\b(${WEEKDAYS.join("|")}|${WEEKDAYS.map((w) => w.slice(0, 3)).join("|")})\\b`).exec(t);
+    const wdName = new RegExp(`\\b(${WEEKDAYS.join("|")}|${WD_ABBR})\\b`).exec(t);
     for (let i = 0; i < 400; i++) {
       const p = partsIn(addDays(startOfDay(now, tz), i, tz), tz);
       if (p.d === +dom[1] && (!wdName || WEEKDAYS[p.dow].startsWith(wdName[1].slice(0, 3)))) return { y: p.y, m: p.m, d: p.d, text: dom[0], relative: false };
@@ -182,7 +184,7 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
     if (!slash[3] && cand.getTime() < startOfDay(now, tz).getTime()) y += 1;
     return { y, m: +slash[1], d: +slash[2], text: slash[0], relative: false };
   }
-  const wd = new RegExp(`\\b(?:(this|next|coming|on)\\s+)?(${WEEKDAYS.join("|")}|${WEEKDAYS.map((w) => w.slice(0, 3)).join("|")})(?:day)?\\b(?!\\s*(?:street|st\\b|ave|road|rd\\b))`, "i").exec(t);
+  const wd = new RegExp(`\\b(?:(this|next|coming|on)\\s+)?(${WEEKDAYS.join("|")}|${WD_ABBR})(?:day)?\\b(?!\\s*(?:street|st\\b|ave|road|rd\\b))`, "i").exec(t);
   if (wd) {
     const idx = WEEKDAYS.findIndex((w) => w.startsWith(wd[2].slice(0, 3)));
     if (idx >= 0) {
@@ -333,6 +335,9 @@ const NAME_STOP = new Set(["Sunday","Monday","Tuesday","Wednesday","Thursday","F
 
 export function parsePersonName(text: string): string | null {
   const W = "\\p{Lu}[\\p{L}'’-]*";
+  // a couple: "Dave and Linda Kim" is one household, saved as "Dave & Linda Kim"
+  const couple = new RegExp(`\\b(${W})\\s+(?:and|&)\\s+(${W})\\s+(${W})\\b`, "u").exec(text);
+  if (couple && !NAME_STOP.has(couple[1]) && !/@/.test(couple[0])) return `${couple[1]} & ${couple[2]} ${couple[3]}`;
   const NM = `(${W}(?:\\s+${W}){0,2})`;
   const named = new RegExp(`\\b(?:named|called|name is|name's)\\s+${NM}`, "u").exec(text);
   if (named) return named[1];
@@ -463,12 +468,12 @@ export function dropNegatedDate(reply: string): string {
   return reply.replace(new RegExp(`\\b(?:and\\s+)?(?:not|instead of|rather than)\\s+(?:on\\s+)?(?:${DATE_ALT})\\b`, "gi"), " ").replace(/\s{2,}/g, " ").trim();
 }
 
-const NOT_A_NAME = /\b(already|told|tell|please|pls|comeon|come on|asap|whatever|hello|hey|thanks|thank|yes|yeah|nope|nothing|everything|something|anyone|everyone|test|asdf|poop|lol|wtf|damn|stupid|dumb|why|what|how|when|where|who)\b/i;
+const NOT_A_NAME = /\b(already|told|tell|please|pls|comeon|come on|asap|whatever|hello|hey|thanks|thank|yes|yeah|nope|nothing|everything|something|anyone|everyone|asdf|poop|lol|wtf|damn|stupid|dumb|why|what|how|when|where|who)\b/i;
 /** A real person's name: 1-4 words, letters, no punctuation runs, no chat filler. Stops "i already told you..." or "Already Comeon" from becoming a contact. */
 export function plausibleName(name: string | null | undefined): boolean {
   const n = (name ?? "").trim();
   if (n.length < 2 || n.length > 60) return false;
-  if (/[.!?:;@#$%^&*()=+<>\[\]{}|\\/\d]|\.{2,}/.test(n)) return false;
+  if (/[.!?:;@#$%^*()=+<>\[\]{}|\\/\d]|\.{2,}/.test(n)) return false;
   const words = n.split(/\s+/);
   if (words.length > 4) return false;
   return !words.some((w) => NOT_A_NAME.test(w));

@@ -69,7 +69,7 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
   if (x?.tax_amount) lines.push(`Property taxes about ${fullMoney(x.tax_amount)}${x.tax_year ? ` (${x.tax_year})` : ""}.`);
   const notes = prepNotes(prop, x);
   const found = Boolean(mem?.found);
-  const head = found ? `Here's what I pulled on ${prop.address}${prop.city ? `, ${prop.city}` : ""}:` : `I saved ${prop.address}, but I couldn't find its details${rentcastConfigured() ? " in the property data" : " — live property data isn't connected yet"}.`;
+  const head = found ? `Here's what I pulled on ${prop.address}${prop.city ? `, ${prop.city}` : ""}:` : `I saved ${prop.address}, but I couldn't find its details${rentcastConfigured() ? " in the property data" : ""}. Tell me the beds, baths and price and I'll fill it in.`;
   const body = [head, ...lines, ...(notes.length ? ["", "Worth knowing:", ...notes.map((n) => `• ${n}`)] : []), ...(found ? ["", "Double-check anything before you quote it to a client."] : [])].join("\n");
   const blocks: Block[] = [{ type: "listings", title: prop.address, subtitle: found ? undefined : "Details not found", cards: [card] }, {
     type: "choice", title: "Next",

@@ -45,7 +45,8 @@ export function fixTypos(raw: string): string {
 
 export function isResearchTask(raw: string): boolean {
   const t = raw.toLowerCase().trim();
-  if (t.length < 12 || OWN_WORK.test(t)) return false;
+  const rentSearch = /\b(find|search|look(?:ing)?|show|need)\b.{0,60}\b(apartments?|rentals?|places? to rent)\b|\b(apartments?|rentals?)\b.{0,60}\b(under|below|for \$|max|budget)\b/.test(t);
+  if (t.length < 12 || (OWN_WORK.test(t) && !rentSearch)) return false;
   const q = asks.test(t);
   const rent = /\b(apartments?|rentals?|for rent|to rent|renting|leas(?:e|ing)|rent (?:estimate|for|prices?|levels?)|rents? (?:are|is|going|in)|going for)\b/.test(t) && /\b(find|search|show|look|what|how much|best|under|compare|where|recommend|estimate|any|going for|\$)\b/.test(t);
   const area = q && /\b(safe|safety|crime|dangerous|walkable|walk score|walkability|schools?|school district|neighbou?rhoods?|noise|flood(?: zone| risk)?|reviews?|what do (?:residents|tenants|people|locals) say|reputation|amenit(?:y|ies)|3d tour|virtual tour|pet[- ]friendly|cannabis|weed|marijuana|commute|cost of living|up[- ]and[- ]coming|best (?:areas?|places?|neighbou?rhoods?|buildings?))\b/.test(t) && !/\b(listing description|say in|fair housing|steer|compliance|my listing|advertis)/.test(t);
@@ -60,6 +61,7 @@ export function isResearchTask(raw: string): boolean {
 export function detectIntent(raw: string, hasAttachments = false): Detected {
   const t = raw.toLowerCase().trim();
   if (!t && hasAttachments) return { intent: "signin_paste" };
+  if (/^(help|help me|what can you do|what do you do|what can i ask( you)?|how does this work|how do i use (this|you))[\s?!.]*$/.test(t)) return { intent: "smalltalk" };
   if (/^(hi|hello|hey|yo|good (morning|afternoon|evening)|thanks|thank you|thx|ok|okay|cool|great|got it)[\s!.,]*(mila)?[\s!.]*$/.test(t)) return { intent: "smalltalk" };
 
   const moveVerb = /\b(move|moved|moving|reschedule|rescheduled|push|pushed|change|changed|postpone|postponed|shift|shifted|switch|switched|bump|bumped|bumping|pushing)\b/;
@@ -78,7 +80,7 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   // "undo", "put it back", "go back to the original time"
   if (!isQuestion && t.split(/\s+/).length <= 8 && /^(?:(?:please|pls|plz|hey|ok|okay|actually|nvm|never ?mind|oops|wait|sorry)[,.!\s]+)*(?:undo(?:\s+(?:that|it|this|the (?:last|move|change)))?|revert(?:\s+(?:that|it))?|put it back|change it back|switch it back|move it back|go back(?: to (?:the )?(?:original|old|previous|earlier)(?: time| day)?)?|back to (?:the )?(?:original|old|previous)(?: time| day)?)[.!\s]*(?:please|pls)?[.!\s]*$/.test(t)) return { intent: "undo" };
   // two or more email addresses with a lead-in is a list of people to add
-  if ((raw.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) ?? []).length >= 2 && /:/.test(raw) && !/\b(draft|write|compose|send|follow.?up)\b/.test(t)) return { intent: "signin_paste" };
+  if ((raw.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) ?? []).length >= 2 && (/:/.test(raw) || /^\s*(?:please\s+)?(?:add|save|import)\b/i.test(raw)) && !/\b(draft|write|compose|send|follow.?up)\b/.test(t)) return { intent: "signin_paste" };
   // "what's on my calendar Friday", "do I have anything tomorrow", "am I free Friday at 3", "when is my next showing"
   if (/\b(calendar|schedule|agenda)\b/.test(t) && /\b(what|whats|what'?s|show|check|see|anything|tell|pull up|read|how'?s|how is|look)\b/.test(t) && !/\b(add|put|schedule (?:a|an)|book|set up|create|block)\b/.test(t.replace(/\b(my|the) schedule\b/, "")) && !/\b(post|email|flyer)\b/.test(t)) return { intent: "agenda" };
   if (/^(?:what|whats|what'?s)\s+(?:do i have|have i got|am i doing|is on|'?s on|on for|do i got)\b|^what'?s on\b|^do i have (?:anything|something|a thing|any)\b|^anything (?:on|for|booked)\b|^am i (?:free|busy|available|open)\b|^(?:are|is) (?:there )?(?:anything|something) (?:on|booked|scheduled)\b|^(?:when|what time) (?:is|are|'?s) my (?:next |first |last )?(?:showing|appointment|meeting|call|lunch|closing|inspection|open house|tour)/.test(t) && !/\b(plate|to do|follow)/.test(t)) return { intent: "agenda" };

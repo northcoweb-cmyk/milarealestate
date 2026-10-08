@@ -31,7 +31,7 @@ import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { clientSearchHandler } from "./handlers/search";
 import { importCandidates } from "./ingest";
-import { dropNegatedDate, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
+import { plausibleName, dropNegatedDate, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
 
 export type Action = { type: string; [k: string]: any };
 
@@ -169,6 +169,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
 
   // "Actually make that 4" / "no, Sunday" / "sorry 4pm" right after Mila put something on the calendar means: change THAT event.
   if (!forced && !pend && ctx.state.last_event_id && text.split(/\s+/).length <= 8) {
+    text = text.replace(/\s+(?:instead|though|please|pls)\s*[.!]*$/i, "");
     const m = /^(?:(?:actually|no|nope|wait|oops|sorry|hmm|ok(?:ay)?|um|i\s+meant|i\s+mean)[,.!\s]+)*(?:(?:can we |could we |let'?s |lets )?(?:make|do|change|move|push|switch|say)\s+(?:it|that|this)(?:\s+(?:to|at|for))?|it'?s|its|how about|what about|at|for|to)?\b\s*(.+?)[.!\s]*$/i.exec(text);
     const rest = m?.[1]?.trim();
     if (rest && /^(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?|noon|(?:today|tomorrow|tonight|mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)[a-z]*(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?)?)$/i.test(rest) && (parseTime(rest) || parseDate(rest, ctx.now, ctx.tz) || /^\d{1,2}$/.test(rest))) {
@@ -182,6 +183,28 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   if (!forced && !pend && prior && Date.now() - prior.at < 6 * 3_600_000 && text.split(/\s+/).length <= 20 && !parseAddress(text)
     && (/\b(specified|those|these|their|same|above|earlier|that)\b.{0,20}\b(criteria|requirements|needs|preferences|list|brief)\b/i.test(text) || /^(?:(?:ok|okay|yes|yeah|please|pls|go ahead|do it|now|great|cool|perfect)[,.!\s]+)*(?:search|look|find|dig|go|try)\b.{0,50}\b(again|more|deeper|apartments?|rentals?|properties|options|them|it|for them|those)\b/i.test(text))) {
     return { out: await clientSearchHandler(ctx, `${prior.text}\n\nFollow-up from the agent: ${text}`), intent: "client_search" };
+  }
+
+  // "help" / "what can you do": a real answer, not "I'm not sure how to do that"
+  if (!forced && !pend && /^(help|help me|what can you do|what do you do|what can i ask( you)?|how does this work|how do i use (this|you))[\s?!.]*$/i.test(text.trim())) {
+    return { out: reply("📌 Here's what I can do for you. Just type it like you'd text a coworker:", [{ type: "choice", title: "Try one", buttons: [
+      { label: "📅 Add a showing", style: "secondary", action: { type: "prompt", text: "Showing at 123 Main Street tomorrow at 2pm with the Smiths" } },
+      { label: "🏡 Set up an open house", style: "secondary", action: { type: "prompt", text: "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up." } },
+      { label: "👤 Add a new buyer", style: "secondary", action: { type: "prompt", text: "I have a new buyer named Sarah looking for a 3 bedroom house around $650k" } },
+      { label: "✅ Who to follow up with", style: "secondary", action: { type: "prompt", text: "Who do I need to follow up with today?" } },
+      { label: "📸 Make a post", style: "secondary", action: { type: "prompt", text: "Make me an Instagram post for my newest listing" } },
+    ] }], "smalltalk"), intent: "smalltalk" };
+  }
+
+  // "no her name is Dana Whitford" right after saving someone: fix THAT contact's name instead of starting something new
+  const rename = !forced && !pend && ctx.state.last_contact_ids?.length === 1 ? /^(?:no[,.\s]+|sorry[,.\s]+|oops[,.\s]+)?(?:her|his|their|the)?\s*name\s*(?:is|'s)\s+(?:actually\s+)?([\p{L}'’.-]+(?:\s+[\p{L}'’.-]+){0,2})\s*[.!]*$/iu.exec(text.trim()) : null;
+  if (rename && plausibleName(rename[1])) {
+    const c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids![0]);
+    if (c) {
+      const name = rename[1].replace(/(^|\s)(\p{L})/gu, (_m, sp: string, ch: string) => sp + ch.toUpperCase());
+      await ctx.store.update("contacts", ctx.userId, c.id, { name });
+      return { out: reply(`Fixed. ${c.name} is now ${name}.`, [], "smalltalk"), intent: "smalltalk" };
+    }
   }
 
   // "What did I just schedule?" answers from the last thing Mila put on the calendar

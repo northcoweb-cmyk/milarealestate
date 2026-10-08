@@ -28,17 +28,17 @@ export function skyAt(now: Date, tz: string, lat?: number | null, lng?: number |
   const st = sunTimes(zonedToUtc(p.y, p.m, p.d, 12, 0, tz), c.lat, c.lng);
   const amb = ambientAt(now, st);
   const r = st.sunrise.getTime(), s = st.sunset.getTime(), n = st.solarNoon.getTime();
-  const night = { top: "#000000", mid: "#08080a", bottom: "#141416" };
-  const stops: Stop[] = st.polar ? [{ at: 0, ...(st.polar === "day" ? { top: "#e4e4e6", mid: "#f1f1f2", bottom: "#fcfcfc" } : night) }] : [
+  const night = { top: "#070719", mid: "#12104a", bottom: "#2a2275" };
+  const stops: Stop[] = st.polar ? [{ at: 0, ...(st.polar === "day" ? { top: "#b9ccff", mid: "#d4c8ff", bottom: "#fff1e8" } : night) }] : [
     { at: r - 70 * MIN, ...night },
-    { at: r - 25 * MIN, top: "#16161a", mid: "#6b625f", bottom: "#d9a48f" },
-    { at: r + 15 * MIN, top: "#c9c9cc", mid: "#efd9cb", bottom: "#fbe7cf" },
-    { at: r + 150 * MIN, top: "#e1e1e3", mid: "#f0f0f1", bottom: "#fdf6ec" },
-    { at: n, top: "#dcdcdf", mid: "#eeeeef", bottom: "#fbfbfb" },
-    { at: s - 150 * MIN, top: "#e0e0e2", mid: "#f0f0f1", bottom: "#fcf4e8" },
-    { at: s - 40 * MIN, top: "#bdbdc2", mid: "#f0cdb4", bottom: "#fbd9ae" },
-    { at: s + 5 * MIN, top: "#5b5b60", mid: "#d1a090", bottom: "#eeb994" },
-    { at: s + 50 * MIN, top: "#1c1c20", mid: "#4a4543", bottom: "#8d6e63" },
+    { at: r - 25 * MIN, top: "#0d0c2a", mid: "#5a4a9c", bottom: "#e6a58f" },
+    { at: r + 15 * MIN, top: "#9fb4ff", mid: "#d9c3f2", bottom: "#ffe0c8" },
+    { at: r + 150 * MIN, top: "#9dbcff", mid: "#bfb2ff", bottom: "#ffe9dc" },
+    { at: n, top: "#8fb4ff", mid: "#b5a4ff", bottom: "#ffe3d3" },
+    { at: s - 150 * MIN, top: "#98b8ff", mid: "#bcaeff", bottom: "#ffe6d2" },
+    { at: s - 40 * MIN, top: "#8aa2f0", mid: "#d1a8e8", bottom: "#ffcfa8" },
+    { at: s + 5 * MIN, top: "#4c4a9a", mid: "#b078b8", bottom: "#f0a98c" },
+    { at: s + 50 * MIN, top: "#1a1750", mid: "#4a3d8f", bottom: "#8a5f9c" },
     { at: s + 100 * MIN, ...night },
   ];
   const t = now.getTime();

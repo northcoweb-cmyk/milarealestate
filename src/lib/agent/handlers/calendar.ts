@@ -309,6 +309,10 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
   await persistState(ctx);
   await logContactEvent(ctx, ev.contact_id, "calendar_added", `${ev.title} — ${fmtDayTime(ev.start_at, ctx.tz)}`);
   const ahead = await thinkAhead(ctx, ev);
+  // something the agent told Mila earlier ("I never show on Sundays") still counts: say so, don't block
+  const dayName = fmtDay(ev.start_at, ctx.tz).split(/[ ,]/)[0].toLowerCase();
+  const rule = (await ctx.store.list("memories", ctx.userId)).find((m) => new RegExp(`\\b(never|don't|do not|no)\\b.*\\b${dayName}s?\\b`, "i").test(`${m.key} ${m.value}`) && /\b(show|open house|work|meet|book)/i.test(`${m.key} ${m.value}`));
+  if (rule) ahead.note += `\n\n⚠️ Heads up: you told me “${rule.value.slice(0, 80)}”. It's booked, say the word if you want it moved.`;
   return reply(`Added: ${ev.title}, ${fmtDayTime(ev.start_at, ctx.tz)}.${ahead.note}`, [eventCard(ctx, ev, "Added"), ...ahead.blocks]);
 }
 
