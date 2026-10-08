@@ -170,7 +170,7 @@ export interface CalendarEvent extends Row {
   property_id: ID | null;
   contact_id: ID | null;
   status: "confirmed" | "cancelled";
-  source: "mila" | "manual" | "google";
+  source: "mila" | "manual" | "google" | "ics";
   external_id: string | null;
   synced_at: string | null; // set only when pushed to Google Calendar
   workflow_run_id: ID | null;
@@ -555,7 +555,7 @@ export interface Subscription extends Row {
 }
 
 export interface Integration extends Row {
-  provider: "google" | "outlook" | "twilio" | "meta" | "mls";
+  provider: "google" | "outlook" | "twilio" | "meta" | "mls" | "ics";
   status: "connected" | "error" | "revoked";
   account_label: string | null;
   scopes: string[];

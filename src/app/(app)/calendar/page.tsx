@@ -16,7 +16,7 @@ import { EventPhotoCard } from "@/components/event-card";
 
 interface Person { name: string; phone: string | null; email: string | null; type: string }
 interface Place { address: string; city: string | null; state: string | null; list_price: number | null; beds: number | null; baths: number | null; sqft: number | null; verified: boolean }
-interface Data { people: Record<string, Person>; places: Record<string, Place>; events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean } }
+interface Data { people: Record<string, Person>; places: Record<string, Place>; events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean }; link?: { connected: boolean; host?: string | null } }
 const KIND_COLOR: Record<string, string> = { open_house: "#111111", showing: "#444447", call: "#6e6e73", lunch: "#8e8e93", closing: "#111111", meeting: "#5a5a5e", other: "#a1a1a6" };
 
 export default function CalendarPage() {
@@ -79,10 +79,7 @@ export default function CalendarPage() {
         </ul>
       ) : <Empty title="Nothing scheduled" body="Add an event, or just tell Mila: “Schedule a showing Friday at 3.”" />}
 
-      <div className="glass mt-8 flex flex-wrap items-center gap-4 p-5" style={{ borderRadius: 24 }}>
-        <div className="min-w-0 flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">{data?.google.connected ? "Mila checks it for conflicts and adds events to it." : capabilities.google ? "Connect so Mila can check conflicts and add events." : "Not set up on this server yet."}</p></div>
-        {data?.google.connected ? <button className="btn btn-sm" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />Sync now</button> : capabilities.google ? <a className="btn btn-primary btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : null}
-      </div>
+      <CalendarSync data={data} googleReady={!!capabilities.google} syncing={syncing} sync={sync} reload={reload} />
       </div>
       </div>
       {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} />}
@@ -167,5 +164,43 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
         </div>
       </div>
     </Sheet>
+  );
+}
+
+/** One place to bring in an existing calendar: Google (connect), or Apple Calendar / Outlook / any calendar by its share link. */
+function CalendarSync({ data, googleReady, syncing, sync, reload }: { data: Data | null; googleReady: boolean; syncing: boolean; sync: () => void; reload: () => void }) {
+  const { toast } = useApp();
+  const [open, setOpen] = useState(false); const [url, setUrl] = useState(""); const [busy, setBusy] = useState(false);
+  const google = !!data?.google.connected, linked = !!data?.link?.connected;
+  async function save() {
+    setBusy(true);
+    try { const r = await jfetch<{ added: number; updated: number }>("/api/calendar/link", { method: "POST", json: { url } }); toast(`Connected. ${r.added} events brought in.`, "success"); setUrl(""); setOpen(false); reload(); }
+    catch (e: any) { toast(e?.message ?? "Couldn't connect that calendar.", "error"); } finally { setBusy(false); }
+  }
+  async function unlink() { setBusy(true); try { await jfetch("/api/calendar/link", { method: "DELETE" }); toast("Calendar disconnected.", "success"); reload(); } catch { toast("Couldn't disconnect.", "error"); } finally { setBusy(false); } }
+  return (
+    <div className="glass mt-8 space-y-4 p-5" style={{ borderRadius: 24 }}>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1"><p className="font-semibold">📅 Sync your calendar</p><p className="muted text-[14px]">Mila checks it so she never double-books a showing. {google || linked ? "Tap Sync to refresh." : "Bring in Google, Apple or Outlook."}</p></div>
+        {(google || linked) && <button className="btn btn-primary btn-sm" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />Sync now</button>}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--line)" }}>
+        <p className="min-w-0 flex-1 text-[15px]"><b>Google Calendar</b><span className="faint block text-[13.5px]">{google ? `Connected${data?.google.account ? ` as ${data.google.account}` : ""}. Mila also adds events to it.` : googleReady ? "One tap to connect." : "Coming soon."}</span></p>
+        {!google && googleReady && <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a>}
+      </div>
+      <div className="border-t pt-3" style={{ borderColor: "var(--line)" }}>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 text-[15px]"><b>Apple Calendar, Outlook or any calendar link</b><span className="faint block text-[13.5px]">{linked ? `Connected (${data?.link?.host}). Read-only: Mila never changes it.` : "Paste its share link. No password needed."}</span></p>
+          {linked ? <button className="btn btn-sm" onClick={unlink} disabled={busy}>Disconnect</button> : <button className="btn btn-sm" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "Add link"}</button>}
+        </div>
+        {open && !linked && (
+          <div className="mt-3 space-y-2">
+            <input className="field w-full" inputMode="url" placeholder="webcal://… or https://… calendar link" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Calendar link" />
+            <button className="btn btn-primary btn-sm" disabled={busy || !url.trim()} onClick={save}>{busy ? "Connecting…" : "Connect and sync"}</button>
+            <div className="faint space-y-1 text-[13px]"><p><b>Apple Calendar:</b> open Calendar, right-click (or touch and hold) the calendar, choose Share Calendar, turn on Public Calendar, copy the link.</p><p><b>Outlook:</b> Settings, Calendar, Shared calendars, Publish a calendar, copy the ICS link.</p><p><b>Google:</b> Settings, your calendar, Integrate calendar, copy the secret address in iCal format.</p></div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

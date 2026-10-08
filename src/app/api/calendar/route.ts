@@ -10,11 +10,12 @@ export const GET = api(async ({ profile, url }) => {
   const from = url.searchParams.get("from"), to = url.searchParams.get("to");
   const events = (await getStore().list("calendar_events", profile.id)).filter((e) => e.status === "confirmed" && (!from || e.end_at >= from) && (!to || e.start_at <= to)).sort((a, b) => a.start_at.localeCompare(b.start_at));
   const g = await getGoogle(profile.id);
+  const ics = (await getStore().list("integrations", profile.id)).find((i) => i.provider === "ics" && i.status === "connected");
   const [contacts, props] = await Promise.all([getStore().list("contacts", profile.id), getStore().list("properties", profile.id)]);
   const ids = new Set(events.flatMap((e) => [e.contact_id, e.property_id].filter(Boolean)));
   const people = Object.fromEntries(contacts.filter((c) => ids.has(c.id)).map((c) => [c.id, { name: c.name, phone: c.phone, email: c.email, type: c.type }]));
   const places = Object.fromEntries(props.filter((p) => ids.has(p.id)).map((p) => [p.id, { address: p.address, city: p.city, state: p.state, list_price: p.list_price, beds: p.beds, baths: p.baths, sqft: p.sqft, verified: p.verified }]));
-  return { people, places, events, google: g ? { connected: true, account: g.account_label, calendar: g.hasScope("calendar") } : { connected: false } };
+  return { people, places, events, link: ics ? { connected: true, host: ics.account_label } : { connected: false }, google: g ? { connected: true, account: g.account_label, calendar: g.hasScope("calendar") } : { connected: false } };
 });
 
 const KINDS: CalendarEventKind[] = ["showing", "open_house", "call", "meeting", "lunch", "closing", "other"];

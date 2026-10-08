@@ -148,10 +148,10 @@ function Connections() {
   const params = useSearchParams(); const { toast } = useApp(); const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => { const e = params.get("error"), c = params.get("connected"); if (c) toast("Connected.", "success"); if (e) toast({ denied: "Access wasn't granted.", state: "That sign-in expired. Try again.", exchange: "That didn't work. Try again.", not_configured: "This isn't available right now." }[e] ?? "Couldn't connect.", "error"); }, [params, toast]);
   const label = (s: string) => ({ connected: ["Connected", "ok"], not_configured: ["Coming soon", "neutral"], disconnected: ["Not connected", "neutral"], error: ["Needs attention", "danger"], coming_soon: ["Coming soon", "neutral"] }[s] as [string, any]);
-  const SHOWN = ["google_gmail", "outlook", "google_calendar", "google_contacts", "google_sheets", "mls"];
-  const NAME: Record<string, string> = { google_gmail: "Gmail", outlook: "Outlook", google_calendar: "Google Calendar", google_contacts: "Google Contacts", google_sheets: "Google Sheets", mls: "MLS" };
-  const startHref = (i: Integration) => (i.id === "outlook" ? "/api/integrations/microsoft/start" : `/api/integrations/google/start?services=${i.services?.join(",") ?? "gmail"}`);
-  async function off(i: Integration) { setBusy(i.id); try { await jfetch(i.id === "outlook" ? "/api/integrations/microsoft/disconnect" : "/api/integrations/google/disconnect", { method: "POST" }); await reload(); toast("Disconnected.", "success"); } finally { setBusy(null); } }
+  const SHOWN = ["google_gmail", "outlook", "google_calendar", "apple_calendar", "google_contacts", "google_sheets", "mls"];
+  const NAME: Record<string, string> = { google_gmail: "Gmail", outlook: "Outlook", google_calendar: "Google Calendar", apple_calendar: "Apple Calendar", google_contacts: "Google Contacts", google_sheets: "Google Sheets", mls: "MLS" };
+  const startHref = (i: Integration) => (i.id === "apple_calendar" ? "/calendar" : i.id === "outlook" ? "/api/integrations/microsoft/start" : `/api/integrations/google/start?services=${i.services?.join(",") ?? "gmail"}`);
+  async function off(i: Integration) { setBusy(i.id); try { if (i.id === "apple_calendar") await jfetch("/api/calendar/link", { method: "DELETE" }); else await jfetch(i.id === "outlook" ? "/api/integrations/microsoft/disconnect" : "/api/integrations/google/disconnect", { method: "POST" }); await reload(); toast("Disconnected.", "success"); } finally { setBusy(null); } }
   if (loading) return <Skeleton className="h-96" />;
   return (
     <div className="space-y-3">

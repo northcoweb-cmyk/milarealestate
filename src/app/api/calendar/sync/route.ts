@@ -1,11 +1,18 @@
 import { api, HttpError } from "@/lib/server/route";
 import { getStore } from "@/lib/db/store";
+import { icsRow, syncIcs } from "@/lib/integrations/ics";
 import { GoogleError, gcal, getGoogle } from "@/lib/integrations/google";
 
 // Pull the next 60 days from Google Calendar into Mila so conflict checks see everything.
 export const POST = api(async ({ profile }) => {
   const g = await getGoogle(profile.id);
-  if (!g?.hasScope("calendar")) return Response.json({ error: "Your Google Calendar isn't connected yet.", code: "not_connected" }, { status: 409 });
+  const ics = await icsRow(profile.id);
+  let fromLink = { added: 0, updated: 0, removed: 0 };
+  if (ics) { try { fromLink = await syncIcs(profile.id, profile.timezone); } catch (e) { if (!g?.hasScope("calendar")) return Response.json({ error: e instanceof Error ? e.message : "Couldn't read that calendar link.", code: "link" }, { status: 409 }); } }
+  if (!g?.hasScope("calendar")) {
+    if (ics) return { added: fromLink.added, updated: fromLink.updated };
+    return Response.json({ error: "No calendar is connected yet.", code: "not_connected" }, { status: 409 });
+  }
   const store = getStore();
   try {
     const now = new Date();
@@ -19,7 +26,7 @@ export const POST = api(async ({ profile }) => {
       if (cur) { await store.update("calendar_events", profile.id, cur.id, row); updated++; }
       else { await store.insert("calendar_events", profile.id, { ...row, kind: /showing/i.test(row.title) ? "showing" : /open house/i.test(row.title) ? "open_house" : "other", property_id: null, contact_id: null, source: "google", external_id: i.id, workflow_run_id: null, notes: null }); added++; }
     }
-    return { added, updated };
+    return { added: added + fromLink.added, updated: updated + fromLink.updated };
   } catch (e) {
     if (e instanceof GoogleError) return Response.json({ error: e.message, code: e.code }, { status: 409 });
     throw new HttpError(502, "Google Calendar didn't respond. Try again in a moment.");

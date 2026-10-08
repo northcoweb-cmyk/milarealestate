@@ -10,6 +10,8 @@ export function ServiceLogo({ id, size = 40 }: { id: string; size?: number }) {
         <svg width={s} height={s} viewBox="0 0 48 48" aria-hidden><rect x="14" y="9" width="30" height="30" rx="4" fill="#28A8EA"/><path d="M14 17l15 9 15-9" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinejoin="round"/><rect x="3" y="13" width="23" height="22" rx="4" fill="#0364B8"/><ellipse cx="14.5" cy="24" rx="5.2" ry="6.3" fill="none" stroke="#fff" strokeWidth="2.6"/></svg>);
       case "google_calendar": return (
         <svg width={s} height={s} viewBox="0 0 48 48" aria-hidden><rect x="6" y="6" width="36" height="36" rx="5" fill="#fff" stroke="#4285F4" strokeWidth="3"/><rect x="6" y="6" width="36" height="10" rx="4" fill="#4285F4"/><text x="24" y="35" textAnchor="middle" fontSize="17" fontWeight="700" fill="#4285F4" fontFamily="Arial,sans-serif">31</text></svg>);
+      case "apple_calendar": return (
+        <svg width={s} height={s} viewBox="0 0 48 48" aria-hidden><rect x="6" y="6" width="36" height="36" rx="8" fill="#fff" stroke="#d1d1d6" strokeWidth="2"/><rect x="6" y="6" width="36" height="12" rx="6" fill="#ff3b30"/><rect x="6" y="12" width="36" height="6" fill="#ff3b30"/><text x="24" y="37" textAnchor="middle" fontSize="18" fontWeight="600" fill="#1c1c1e" fontFamily="Arial,sans-serif">8</text></svg>);
       case "google_contacts": return (
         <svg width={s} height={s} viewBox="0 0 48 48" aria-hidden><rect x="5" y="5" width="38" height="38" rx="8" fill="#4285F4"/><circle cx="24" cy="19" r="6.5" fill="#fff"/><path d="M11.5 38c1.5-7 6-9.5 12.5-9.5S35 31 36.500 38z" fill="#fff"/></svg>);
       case "google_sheets": return (

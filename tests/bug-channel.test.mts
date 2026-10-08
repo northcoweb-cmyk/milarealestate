@@ -12,6 +12,7 @@ test("Sarah is a tester by default, others only when listed, matching is case-in
   assert.equal(isTester("sarahpark0506@gmail.com"), true);
   assert.equal(isTester("  SarahPark0506@Gmail.com "), true);
   assert.equal(isTester("rystillwell06@gmail.com"), true);
+  assert.equal(isTester("northcoweb@yahoo.com"), true);
   assert.equal(isTester("someone@else.com"), false);
   assert.equal(isTester(null), false);
   process.env.TESTER_EMAILS = "amy@x.com, Bo@Y.com";
