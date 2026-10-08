@@ -2,6 +2,7 @@ import { fmtDay, fmtRange } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, SocialSlide } from "../../types";
 import { type Ctx, firstName, fullMoney } from "../context";
 import { openHouseSocial, signature, verifiedFacts } from "../comms";
+import { createPosts } from "../../content/service";
 import { llmDraftEmail } from "../llm";
 import { contactFacts } from "../memory";
 import { capitalisedNames, parseAddress } from "../nlu";
@@ -42,6 +43,25 @@ function postAngles(prop: Property, facts: string[], images: string[], ctx: Ctx)
 export async function socialPostHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const platform = /\bstor(y|ies)\b/i.test(text) ? "instagram_story" : "instagram"; // Instagram feed posts and stories are what Mila makes
   const addr = parseAddress(text);
+  // not about a property at all: tips, advice, how-it-works, "congrats to the Nguyens". Never reuse whatever listing came up last.
+  if (!addr && !/\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home|open house)\b/i.test(text)) {
+    const tip = /\b(tips?|advice|first[- ]time|how (?:it )?works|myths?|explain|educat\w*|what to know|things to know|guide)\b/i.test(text);
+    const sold = /\b(sold|congrat\w*|closed|closing)\b/i.test(text);
+    if (tip && !sold) {
+      const category = /\b(sell(?:er|ers|ing)?|list(?:ing)? your|home ?owners?)\b/i.test(text) ? "seller_tip" : /\b(buy(?:er|ers|ing)?|first[- ]time|purchase)\b/i.test(text) ? "buyer_tip" : "education";
+      const made2 = await createPosts(ctx, { category, platforms: [platform], topic: text });
+      if (made2.ok) {
+        const blocks2: Block[] = [];
+        for (const post of made2.posts) {
+          const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
+          if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
+          blocks2.push({ type: "draft_social", postId: post.id, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
+        }
+        return reply(`Here's ${/^[aeiou]/i.test(platform) ? "an" : "a"} ${platform === "instagram_story" ? "Instagram story" : "Instagram carousel"} with ${category === "seller_tip" ? "seller" : category === "buyer_tip" ? "buyer" : "real estate"} tips. Nothing posts until you approve it.`, blocks2, "social_generation");
+      }
+    }
+    if (sold) return askBack(ctx, "social_post", text, "address", "Which home closed? Give me the address and I'll build the sold post.");
+  }
   const events = await upcomingEvents(ctx);
   // "make a post for it" means the property we were just talking about (the showing just added, the last listing), never some other open house
   const refersBack = !addr && /\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home)\b/i.test(text);
@@ -122,7 +142,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
 export async function draftEmailHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   text = text.replace(/^\s*(?:(?:yah|yeah|yep|yes|ok|okay|sure|and|then|go ahead)[,.!\s]+)+/i, "");
   const addrIn = parseAddress(text);
-  const names = capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:tell|let|notify)\s+(?:her|him|them)\b(?:\s+know)?)/i, " ").replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " "));
+  const names = capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:tell|let|notify)\s+(?:(?:her|him|them)\b(?:\s+know)?|(?=\p{Lu}))(?:\s+know)?)/iu, " ").replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " "));
   let c: Contact | null = null;
   for (const n of names) { const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any; if (r.ok && r.data.contacts.length === 1) { c = r.data.contacts[0]; break; } if (r.ok && r.data.contacts.length > 1) return reply(`Which ${n}?`, [{ type: "choice", title: `Which ${n}?`, buttons: r.data.contacts.slice(0, 5).map((x: Contact) => ({ label: `${x.name}${x.email ? ` · ${x.email}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: text.replace(n, x.name) } })) }]); }
   // someone was named but isn't a contact: say so, never quietly send the draft to whoever came up last

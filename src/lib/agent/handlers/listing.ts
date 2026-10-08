@@ -128,7 +128,7 @@ export async function showingSheetHandler(ctx: Ctx, text: string): Promise<Handl
 
 /** "Price drop on 12 Oak St, now $425k" / "12 Oak St actually has 4 bedrooms": the agent's word is the truth, so apply it and say exactly what changed. */
 export async function updateListingHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const prop = await resolveProperty(ctx, text, !parseAddress(text) && /\b(this|that|the|my|latest|last|new)\b.*\b(listing|house|home|property)\b|\bit\b/i.test(text));
+  const prop = await resolveProperty(ctx, text, !parseAddress(text) && /\b(this|that|the|my|latest|last|new)\b.*\b(listing|house|home|property|one)\b|\bit(?:'s|s)?\b/i.test(text));
   const addr = parseAddress(text);
   if (!prop) {
     if (addr) return reply(`I don't have ${addr} saved yet. Want me to add it as a new listing? Just say “new listing at ${addr}” with the city and price.`, [], "smalltalk");
