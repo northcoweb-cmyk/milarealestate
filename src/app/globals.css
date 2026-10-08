@@ -88,9 +88,7 @@
 
 /* Tailwind v4 borders default to currentColor (stark white at night); keep dividers subtle everywhere. */
 @layer base { *, ::before, ::after { border-color: var(--line); } }
-html { background-color: var(--sky-mid); background-image: linear-gradient(180deg, var(--sky-top), var(--sky-bottom)); /* if the page is ever pushed up by the keyboard, the strip that shows blends with the sky */ -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; touch-action: pan-x pan-y; } /* no double-tap or pinch zoom */
-body { -webkit-touch-callout: none; }
-input, textarea, select { touch-action: manipulation; }
+html { background-color: var(--sky-mid); background-image: linear-gradient(180deg, var(--sky-top), var(--sky-bottom)); /* if the page is ever pushed up by the keyboard, the strip that shows blends with the sky */ -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; touch-action: manipulation; } /* no double-tap zoom; taps and scrolling are untouched (the stricter pan-x pan-y rule stopped iPhone Home Screen apps from focusing text fields) */
 
 /* Phones stay upright: a landscape phone (short, touch screen) gets a polite 'turn it back' cover. Tablets and desktops are tall enough to be unaffected. */
 .rotate-lock { display: none; }
