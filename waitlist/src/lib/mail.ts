@@ -22,7 +22,7 @@ function shell(body: string, footer: string) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:28px;overflow:hidden;box-shadow:0 18px 50px -20px rgba(80,50,180,.45)">
 <tr><td style="background:#a68cff;background-image:linear-gradient(160deg,#8fb4ff 0%,#a68cff 55%,#ffc9a8 100%)"><img src="${SITE}/email/hero.jpg" width="560" alt="Mila — your AI operations manager for real estate" style="display:block;width:100%;height:auto;border:0"></td></tr>
 <tr><td style="padding:32px 30px 8px">${body}</td></tr>
-<tr><td style="padding:8px 30px 30px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ff;border-radius:18px"><tr><td style="padding:16px 18px;font-size:13.5px;line-height:1.55;color:#4a4766"><b style="color:#14122b">What Mila does for you</b><br>Listings, posts, emails, follow-ups and open houses, drafted and organised. She always asks before anything goes out.</td></tr></table></td></tr>
+<tr><td style="padding:8px 30px 30px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ff;border-radius:18px"><tr><td style="padding:16px 18px;font-size:13.5px;line-height:1.55;color:#4a4766"><b style="color:#14122b">What Mila does for you</b><br>Listings, posts, emails, follow-ups and open houses, drafted and organized. She always asks before anything goes out.</td></tr></table></td></tr>
 </table>
 <p style="max-width:520px;font-size:12px;line-height:1.5;color:#8a87a6;margin:18px 0 0;text-align:center">${footer}<br>Mila · <a href="${SITE}" style="color:#8a87a6">milarealestate.app</a></p>
 </td></tr></table></body></html>`;
