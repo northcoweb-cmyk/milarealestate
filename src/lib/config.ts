@@ -16,7 +16,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     document_analysis: 5,
     image_analysis: 3,
     image_generation: 10,
-    market_research: 20, // a research run can make several paid data calls, so it is priced to cover them
+    market_research: 25, // a research run can make several paid data calls, so it is priced to cover them
     property_lookup: 3,
     property_prep: 5,
     new_listings: 2,

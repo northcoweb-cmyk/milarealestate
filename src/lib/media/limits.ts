@@ -14,8 +14,8 @@ export interface TierLimits {
 
 export const DEFAULT_TIER_LIMITS: Record<Tier, TierLimits> = {
   free: { listingSearches: 10, photoEnrichments: 10, savedListings: 10, aiMessages: 50 },
-  starter: { listingSearches: 60, photoEnrichments: 60, savedListings: 50, aiMessages: 500 },
-  pro: { listingSearches: 300, photoEnrichments: 300, savedListings: 500, aiMessages: 3000 },
+  starter: { listingSearches: 40, photoEnrichments: 40, savedListings: 50, aiMessages: 500 },
+  pro: { listingSearches: 100, photoEnrichments: 100, savedListings: 500, aiMessages: 3000 },
 };
 
 /** Subscription plan_key (app_config.plans) -> tier. Unknown paid plans count as "starter" so nobody is silently locked out. */

@@ -18,3 +18,11 @@
 - Heavy agent day is roughly 45 credits (chats, drafts, posts, one lookup), so about 900 a month. Standard (700) fits a normal user and runs short for a heavy one, who tops up or upgrades. Premium (1,400) covers heavy use.
 - Worst-case gross margin if a user burns the whole AI budget: Standard about 72% ($29 - $8 - Stripe $1.14), Premium about 71%. Typical use costs far less.
 - Market research now costs 20 credits (was 10) because one run can make up to 8 paid RentCast calls (about $0.6 at worst). RentCast spend is tracked separately from the AI budget, so watch it.
+
+## Unit economics guard (Oct 8)
+Worst case = AI budget fully spent + every paid data limit used + Stripe fee. Must stay under 60% of the price (enforced by `tests/unit-economics.test.mts`).
+- Standard $29: AI $8 + 40 data lookups ($2.96) + 40 photo lookups + Stripe = about $14, so at least $15 left.
+- Premium $49: AI $14 + 100 data lookups ($7.40) + 100 photo lookups + Stripe = about $28, so at least $21 left.
+- A single deep research run can cost about $0.35 to $0.70 in data and AI, so it costs 25 credits. Monthly caps stop daily heavy use from running up a bill: when a cap is hit Mila says so and falls back to web search.
+- Limits can be tuned with the `MILA_TIER_LIMITS` env var without a deploy of code.
+- Plan quality: Premium (and trials) get the top reasoning model. Standard runs hard questions on the standard model with high effort, plus a shallower research run (5 data calls instead of 8).
