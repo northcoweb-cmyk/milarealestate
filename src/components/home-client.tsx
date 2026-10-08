@@ -40,7 +40,7 @@ export function HomeClient({ data }: { data: HomeData }) {
           <p className="kicker mb-4">{data.dateLine}</p>
           <h1 className="display text-[clamp(38px,9vw,64px)]">{data.greeting}</h1>
           <div className="mt-6 w-full max-w-2xl"><PromptInput onSubmit={(t, f) => ask(t, f)} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>
-          <div className="no-scrollbar -mx-4 mt-4 flex max-w-[100vw] gap-2 overflow-x-auto px-4 pb-1">
+          <div className="no-scrollbar -mx-4 mt-4 flex w-[calc(100%+2rem)] gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:w-full lg:flex-wrap lg:justify-center lg:overflow-visible lg:px-0">
             {SHORT.map((s, i) => <button key={s} className="chip" onClick={() => ask(SUGGESTIONS[i])}>{s}</button>)}
           </div>
           {hasHistory && <button className="chip mt-3" onClick={open}><Sparkles size={15} />Continue where we left off</button>}

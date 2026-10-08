@@ -73,6 +73,13 @@ export function SlideViewer({ slides, start = 0, post, brand, onClose }: { slide
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } else if (e.key === "ArrowRight") go(i + 1); else if (e.key === "ArrowLeft") go(i - 1); };
     window.addEventListener("keydown", key, true); return () => window.removeEventListener("keydown", key, true); // capture: Esc closes the viewer only, not the editor behind it
   }, [i, go, onClose]);
+  // a mouse wheel or trackpad swipe steps one image at a time (a plain wheel only scrolls up and down, so it never moved the carousel)
+  const wheelAt = useRef(0);
+  const onWheel = (e: React.WheelEvent) => {
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(d) < 8 || Date.now() - wheelAt.current < 450) return;
+    wheelAt.current = Date.now(); go(i + (d > 0 ? 1 : -1));
+  };
   const size = `min(92vw, calc((100svh - 170px) * ${f.w / f.h}))`;
   return createPortal(
     <motion.div ref={shell} className="fixed inset-0 z-[120] flex flex-col" style={{ background: "rgba(8,8,10,.94)", y, opacity: fade }} role="dialog" aria-modal="true" aria-label="Post images" onClick={onClose}>
@@ -80,13 +87,16 @@ export function SlideViewer({ slides, start = 0, post, brand, onClose }: { slide
         <span className="text-[15px] font-semibold">{i + 1} / {slides.length}</span>
         <button className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15" onClick={onClose} aria-label="Close"><X size={22} /></button>
       </div>
-      <div ref={rail} className="no-scrollbar relative flex flex-1 snap-x snap-mandatory overflow-x-auto" style={{ touchAction: "pan-x" }} onScroll={(e) => { const el = e.currentTarget; const n = Math.round(el.scrollLeft / Math.max(el.clientWidth, 1)); if (n !== i) setI(n); }}>
-        {slides.map((s, n) => (
-          <div key={n} className="flex h-full w-full shrink-0 snap-center items-center justify-center" onClick={onClose}>
-            <div onClick={(e) => e.stopPropagation()} style={{ width: size }}><SlideImage slide={s} index={n} total={slides.length} post={post} brand={brand} width={1080} rounded={18} className="w-full" /></div>
-          </div>
-        ))}
+      <div className="relative flex min-h-0 flex-1">
+        <div ref={rail} className="no-scrollbar flex flex-1 snap-x snap-mandatory overflow-x-auto" style={{ touchAction: "pan-x" }} onWheel={onWheel} onScroll={(e) => { const el = e.currentTarget; const n = Math.round(el.scrollLeft / Math.max(el.clientWidth, 1)); if (n !== i) setI(n); }}>
+          {slides.map((s, n) => (
+            <div key={n} className="flex h-full w-full shrink-0 snap-center items-center justify-center" onClick={onClose}>
+              <div onClick={(e) => e.stopPropagation()} style={{ width: size }}><SlideImage slide={s} index={n} total={slides.length} post={post} brand={brand} width={1080} rounded={18} className="w-full" /></div>
+            </div>
+          ))}
+        </div>
         {slides.length > 1 && <>
+          {/* the arrows sit OUTSIDE the scrolling rail so they stay put on every image (inside it they scrolled away after one step) */}
           <button className="absolute left-3 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white sm:flex disabled:opacity-30" disabled={i === 0} onClick={(e) => { e.stopPropagation(); go(i - 1); }} aria-label="Previous image"><ChevronLeft size={26} /></button>
           <button className="absolute right-3 top-1/2 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white sm:flex disabled:opacity-30" disabled={i === slides.length - 1} onClick={(e) => { e.stopPropagation(); go(i + 1); }} aria-label="Next image"><ChevronRight size={26} /></button>
         </>}

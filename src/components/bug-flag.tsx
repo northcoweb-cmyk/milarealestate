@@ -37,8 +37,8 @@ export function BugFlag() {
 
   return (
     <>
-      {tester && <button type="button" onClick={() => { setTarget(null); setOpen(true); }} aria-label="Flag a problem" className="fixed right-3 z-[60] flex h-11 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-semibold shadow-lg"
-        style={{ bottom: "calc(env(safe-area-inset-bottom) + 96px)", background: "#14122b", color: "#fff" }}><span aria-hidden>🐞</span>Flag</button>}
+      {tester && <button type="button" onClick={() => { setTarget(null); setOpen(true); }} aria-label="Flag a problem" className="fixed bottom-[calc(env(safe-area-inset-bottom)+96px)] right-3 z-[60] flex h-11 lg:bottom-5 lg:right-5 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-semibold shadow-lg"
+        style={{ background: "#14122b", color: "#fff" }}><span aria-hidden>🐞</span>Flag</button>}
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Flag a problem">
           <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close" onClick={() => setOpen(false)} />
