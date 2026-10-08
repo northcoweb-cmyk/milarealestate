@@ -62,12 +62,12 @@ test("sameHome never matches a neighbour or a different unit/ZIP", () => {
 });
 
 test("matching tolerates a provider that omits the ZIP/city, but never a different street, unit or state", () => {
-  const a = { address: "18104 Coachmans Road", city: "Gaithersburg", state: "MD", zip: "20874" };
-  assert.ok(sameHome(a, { address: "18104 Coachmans Rd", city: null, state: "MD", zip: null }), "street + state agree, provider gave no city/zip");
-  assert.ok(sameHome(a, { address: "18104 Coachmans Rd", city: "Germantown", state: "MD", zip: "20874" }), "same ZIP wins over the post-office city name");
-  assert.ok(!sameHome(a, { address: "18104 Coachmans Rd", city: "Germantown", state: "MD", zip: null }), "no ZIP and a different city: refuse");
-  assert.ok(!sameHome(a, { address: "18104 Coachmans Rd", city: null, state: "VA", zip: null }), "different state: refuse");
-  assert.ok(!sameHome(a, { address: "18104 Coachmans Rd #2", city: null, state: "MD", zip: null }), "a unit we didn't ask for: refuse");
+  const a = { address: "212 Linden Road", city: "Gaithersburg", state: "MD", zip: "20874" };
+  assert.ok(sameHome(a, { address: "212 Linden Rd", city: null, state: "MD", zip: null }), "street + state agree, provider gave no city/zip");
+  assert.ok(sameHome(a, { address: "212 Linden Rd", city: "Germantown", state: "MD", zip: "20874" }), "same ZIP wins over the post-office city name");
+  assert.ok(!sameHome(a, { address: "212 Linden Rd", city: "Germantown", state: "MD", zip: null }), "no ZIP and a different city: refuse");
+  assert.ok(!sameHome(a, { address: "212 Linden Rd", city: null, state: "VA", zip: null }), "different state: refuse");
+  assert.ok(!sameHome(a, { address: "212 Linden Rd #2", city: null, state: "MD", zip: null }), "a unit we didn't ask for: refuse");
 });
 
 test("the provider's home is read from any of its address shapes", async () => {

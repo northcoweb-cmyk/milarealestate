@@ -11,5 +11,5 @@ test("'post for it' follows the showing just added", async () => {
   assert.ok(post, res.milaMessage.content);
   assert.match(res.milaMessage.content, /1227 Main Street/);
   assert.match(post.caption, /1227 Main Street/);
-  assert.doesNotMatch(post.caption, /Coachmans|Open House/i);
+  assert.doesNotMatch(post.caption, /Open House/i);
 });

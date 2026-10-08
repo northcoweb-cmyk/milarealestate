@@ -22,7 +22,7 @@ STORYBOARD (cut every hit on a beat)
 1.4-8.0   THE MAZE. Escalating, fast, funny-stressful. Windows multiply and overlap in 3D: "Step 1: create an account", "Step 4 of 11", "Add a connector", "Allow access?", "Paste your API key", "Write your system prompt", "Connect your calendar", "Connect your email", "Error 401", a tangle of tabs, a progress bar stuck at 12%, a cursor chasing a spinning wheel. Camera shake builds with the song. The agent's face (or hands) shows rising overwhelm. Text on screen, max 4 words: "11 steps." / "Still not working." / "Day 3."
 8.0-9.0   Everything freezes. Silence for half a beat. Screen goes pure white.
 9.0-10.5  A single calm glass chat box. Blinking cursor. On-screen: "Or."
-10.5-13.0 Someone types, realistic typing, key sounds: "Set me up for Sunday's open house at 18104 Coachmans Rd, Germantown, and follow up with everyone from last week." Tap send.
+10.5-13.0 Someone types, realistic typing, key sounds: "Set me up for Sunday's open house at 212 Linden Rd, Germantown, and follow up with everyone from last week." Tap send.
 13.0-14.5 THE COLLAPSE (signature transition, must be perfect): the whole maze, still hanging in the background, folds inward and snaps into that one chat box on a downbeat with a soft glow. Thunk.
 14.5-19.0 Mila in action using my real app screenshots: the open house prepared, a 3-slide Instagram carousel fanning out, the email drafted, the follow-ups queued, a "Ready for approval" stack. About 1s per hit, cut on the beat, pushed through a phone. Rapid approval taps clear the stack. On-screen: "Already set up."
 19.0-20.5 Quick whip-pans through the Maryland house photos in glass cards.

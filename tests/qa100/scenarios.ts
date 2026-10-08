@@ -16,7 +16,7 @@ export const SCENARIOS: Scenario[] = [
     ["Look up 350 5th Ave Apt 32B New York NY 10118", "prep_property", ["record", "avm"]],
     ["Get me info on 88 Harbor Point Unit 1204 Stamford CT", "prep_property", ["record", "listing"]],
     ["Run the numbers on 2217 Live Oak Dr Dallas TX", "prep_property", ["record", "avm"]],
-    ["Research 18104 Coachmans Rd Germantown MD for me", "prep_property", ["record"]],
+    ["Research 212 Linden Rd Germantown MD for me", "prep_property", ["record"]],
     ["What is 725 Park Avenue Unit 4C Chicago IL worth?", ["prep_property", "general", "client_search"], ["avm"]],
     ["Pull the tax history and last sale on 9 Maple Ct, Raleigh NC 27601", "prep_property", ["record"]],
     ["Prep me on 1450 Brickell Bay Dr #2305 Miami FL", "prep_property", ["record", "avm"]],
