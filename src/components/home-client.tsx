@@ -9,7 +9,6 @@ import { ChevronRight, Sparkles } from "lucide-react";
 import { PromptInput } from "./ui/ai-chat-input";
 
 import { useApp } from "./app-context";
-import { InstallBanner } from "./install";
 import { CheckDot, Skeleton, jfetch } from "./ui";
 import { useMila } from "./mila-chat";
 import type { Feed } from "@/lib/feed";
@@ -44,7 +43,6 @@ export function HomeClient({ data }: { data: HomeData }) {
             {SHORT.map((s, i) => <button key={s} className="chip" onClick={() => ask(SUGGESTIONS[i])}>{s}</button>)}
           </div>
           {hasHistory && <button className="chip mt-3" onClick={open}><Sparkles size={15} />Continue where we left off</button>}
-          {helpSeen && <div className="mt-5 w-full max-w-xl"><InstallBanner /></div>}
         </div>
       </section>
 

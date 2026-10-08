@@ -60,7 +60,7 @@ export default function MorePage() {
 </div>
 
       <div className="mx-auto lg:max-w-xl">
-      {!install.standalone && <section id="install" className="glass mb-5 p-5"><p className="mb-1 flex items-center gap-2 font-semibold"><Smartphone size={18} />Add Mila to your Home Screen</p><p className="muted mb-3 text-[14px]">For the full experience — it opens like a real app.</p>{install.deferred ? <button className="btn btn-primary btn-sm" onClick={install.install}>Install</button> : <InstallSteps platform={install.platform} />}</section>}
+      {install.mobile && !install.standalone && <section id="install" className="glass mb-5 p-5"><p className="mb-1 flex items-center gap-2 font-semibold"><Smartphone size={18} />Add Mila to your Home Screen</p><p className="muted mb-3 text-[14px]">For the full experience — it opens like a real app.</p>{install.deferred ? <button className="btn btn-primary btn-sm" onClick={install.install}>Install</button> : <InstallSteps platform={install.platform} />}</section>}
 
       {profile.is_demo && <button className="btn btn-quiet mb-3 w-full" onClick={() => setClearing(true)}>Remove sample data</button>}
       <Confirm open={clearing} danger title="Remove all sample data?" body="Deletes the fictional contacts, properties, appointments and tasks that came with the demo, plus anything attached to them. Your own records stay." confirmLabel="Remove sample data" onClose={() => setClearing(false)}

@@ -9,15 +9,18 @@ export function useInstall() {
   const [deferred, setDeferred] = useState<BIP | null>(null);
   const [standalone, setStandalone] = useState(true);
   const [platform, setPlatform] = useState<"ios" | "android" | "desktop">("desktop");
+  const [mobile, setMobile] = useState(false);
   useEffect(() => {
     const ua = navigator.userAgent;
     setStandalone(window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
     setPlatform(/iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ? "ios" : /Android/.test(ua) ? "android" : "desktop");
+    // phones and tablets only: a laptop or desktop is never asked to add anything to a home screen
+    setMobile(/iPhone|iPod|iPad|Android/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
     const h = (e: Event) => { e.preventDefault(); setDeferred(e as BIP); };
     window.addEventListener("beforeinstallprompt", h);
     return () => window.removeEventListener("beforeinstallprompt", h);
   }, []);
-  return { deferred, standalone, platform, install: async () => { if (!deferred) return; await deferred.prompt(); setDeferred(null); } };
+  return { deferred, standalone, platform, mobile, install: async () => { if (!deferred) return; await deferred.prompt(); setDeferred(null); } };
 }
 
 export function InstallSteps({ platform }: { platform: "ios" | "android" | "desktop" }) {
@@ -34,29 +37,36 @@ export function markInstallSeen() {
 }
 
 /**
- * First-run only: shown the first time someone lands on Home (unless onboarding already showed the steps
- * or the app is already installed). After that it never reappears — More → "Add to Home Screen" is the permanent home for it.
+ * Shown once, as a popup, the first time someone is signed in on a phone or tablet in the browser (never on a laptop or desktop, never inside the installed app,
+ * and never before they have signed in: it lives in the signed-in app shell). After that it does not return; More → "Add to Home Screen" always has the steps.
  */
-export function InstallBanner() {
-  const { deferred, standalone, platform, install } = useInstall();
+export function InstallPopup() {
+  const { deferred, standalone, platform, mobile, install } = useInstall();
   const [show, setShow] = useState(false);
-  const [open, setOpen] = useState(false);
   useEffect(() => {
+    if (!mobile || standalone) return;
     let seen = false;
     try { seen = localStorage.getItem(SEEN_KEY) === "1"; } catch { /* treat as unseen */ }
-    if (!seen) { setShow(true); markInstallSeen(); } // counts as shown the moment it appears
-  }, []);
-  if (standalone || !show) return null;
+    if (seen) return;
+    const id = setTimeout(() => { setShow(true); markInstallSeen(); }, 1800); // counts as shown the moment it appears
+    return () => clearTimeout(id);
+  }, [mobile, standalone]);
+  if (!show || !mobile || standalone) return null;
   return (
-    <div className="glass rise relative mx-auto w-full max-w-xl px-5 py-4 text-left" style={{ borderRadius: 24 }}>
-      <button className="btn btn-quiet btn-sm absolute right-2 top-2 !px-2" onClick={() => setShow(false)} aria-label="Dismiss"><X size={16} /></button>
-      <p className="font-semibold">Add Mila to your Home Screen for the full experience.</p>
-      {open ? <div className="mt-2"><InstallSteps platform={platform} /></div> : (
-        <div className="mt-2 flex items-center gap-3">
-          {deferred ? <button className="btn btn-primary btn-sm" onClick={install}><Download size={16} />Install</button> : <button className="btn btn-sm" onClick={() => setOpen(true)}>Show me how</button>}
-          <span className="faint text-[12.5px]">You can find this later in More.</span>
+    <div className="fixed inset-0 z-[110] flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),16px)] sm:items-center" role="dialog" aria-modal="true" aria-label="Add Mila to your Home Screen">
+      <div className="absolute inset-0 bg-black/40" onClick={() => setShow(false)} />
+      <div className="rise relative w-full max-w-sm p-5 text-left shadow-2xl" style={{ borderRadius: 28, background: "var(--surface)", color: "var(--ink)" }}>
+        <button className="btn btn-quiet btn-sm absolute right-2 top-2 !px-2" onClick={() => setShow(false)} aria-label="Close"><X size={16} /></button>
+        <p className="display text-[34px] leading-none">Mila</p>
+        <p className="mt-3 font-semibold">Add Mila to your Home Screen</p>
+        <p className="muted mt-1 text-[14px]">She opens like an app, full screen, one tap from your home screen.</p>
+        <div className="mt-3"><InstallSteps platform={platform} /></div>
+        <div className="mt-4 flex gap-2">
+          {deferred && <button className="btn btn-primary flex-1" onClick={async () => { await install(); setShow(false); }}><Download size={16} />Install</button>}
+          <button className={"btn flex-1 " + (deferred ? "" : "btn-primary")} onClick={() => setShow(false)}>{deferred ? "Not now" : "Got it"}</button>
         </div>
-      )}
+        <p className="faint mt-3 text-center text-[12.5px]">You can find this later in More.</p>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { LowCreditsBanner } from "@/components/low-credits-banner";
+import { InstallPopup } from "@/components/install";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
@@ -46,6 +47,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
   }, [tapped]);
   return (
     <>
+      <InstallPopup />
       {/* desktop rail */}
       <nav aria-label="Primary" className="glass fixed bottom-5 left-5 top-5 z-40 hidden w-[92px] flex-col items-center py-6 lg:flex" style={{ borderRadius: 32 }}>
         <Link href="/" className="display mb-8 text-[30px]" aria-label="Mila home">M</Link>

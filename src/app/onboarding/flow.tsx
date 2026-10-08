@@ -105,7 +105,7 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
           {step === 5 && <div className="text-center">
             <div className="mb-5 flex justify-center"><Orb size={64} /></div>
             <h1 className="h1 mb-2">You're ready.</h1><p className="muted mb-5">What do you need to get done?</p>
-            {!install.standalone && <div className="glass mb-2 p-4 text-left" style={{ borderRadius: 22 }}><p className="mb-2 font-semibold">Add Mila to your Home Screen for the full experience.</p><InstallSteps platform={install.platform} /></div>}
+            {install.mobile && !install.standalone && <div className="glass mb-2 p-4 text-left" style={{ borderRadius: 22 }}><p className="mb-2 font-semibold">Add Mila to your Home Screen for the full experience.</p><InstallSteps platform={install.platform} /></div>}
           </div>}
           {error && <p role="alert" className="mt-4 text-[14.5px]" style={{ color: "var(--danger)" }}>{error}</p>}
           <div className="mt-7 flex gap-3">

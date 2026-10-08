@@ -8,9 +8,6 @@ import { useEffect } from "react";
  */
 export function MobileGuards() {
   useEffect(() => {
-    const stop = (e: Event) => e.preventDefault();
-    document.addEventListener("gesturestart", stop as EventListener, { passive: false });
-    document.addEventListener("gesturechange", stop as EventListener, { passive: false });
     // iPhone (above all the Home Screen app) can leave the page pushed up after the keyboard closes: an empty strip shows at the bottom and taps land in the wrong place,
     // so the login fields look dead. Once no field is focused, put the page back where it belongs, a few times because iOS settles late.
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -25,8 +22,7 @@ export function MobileGuards() {
     const settle = () => { timers.forEach(clearTimeout); timers.length = 0; for (const ms of [60, 250, 600, 1200]) timers.push(setTimeout(reset, ms)); };
     document.addEventListener("focusout", settle);
     window.visualViewport?.addEventListener("resize", settle);
-    try { (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("portrait")?.catch(() => {}); } catch { /* not supported / not allowed outside an installed app */ }
-    return () => { document.removeEventListener("gesturestart", stop as EventListener); document.removeEventListener("gesturechange", stop as EventListener); document.removeEventListener("focusout", settle); window.visualViewport?.removeEventListener("resize", settle); timers.forEach(clearTimeout); };
+    return () => { document.removeEventListener("focusout", settle); window.visualViewport?.removeEventListener("resize", settle); timers.forEach(clearTimeout); };
   }, []);
   return null;
 }
