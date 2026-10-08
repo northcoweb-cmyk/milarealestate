@@ -127,6 +127,14 @@ async function recentHistory(ctx: Ctx) {
 
 async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{ out: HandlerOut; intent: Intent }> {
   let text = fixTypos(textIn);
+  // "Good morning. What do I have today?" is the question, not small talk
+  const greet = /^\s*(?:good (?:morning|afternoon|evening)|morning|hey( there)?|hi( there)?|hello)\b[,.!:\s-]+(\S.{5,})$/is.exec(text);
+  if (greet && !ctx.state.pending) text = greet[3].charAt(0).toUpperCase() + greet[3].slice(1);
+  // "Prep me for that showing" / "what are the taxes on it": say which home, from the one we were just talking about
+  if (!ctx.state.pending && !parseAddress(text) && /\b(?:prep(?:are)? me|prep|brief me|research|look ?up|pull up|taxes|tax history|last sale|sale history|comps?|assessed|home value|what'?s it worth)\b/i.test(text) && /\b(?:it|that (?:showing|house|home|property|listing|one|place)|this (?:showing|house|home|property|listing|one|place))\b/i.test(text)) {
+    const lastProp = ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id) : null;
+    if (lastProp) text = `${text.replace(/[.?!]+\s*$/, "")} ${lastProp.address}${lastProp.city ? `, ${lastProp.city}` : ""}${lastProp.state ? ` ${lastProp.state}` : ""}`;
+  }
   const pend = ctx.state.pending;
   let forced: Intent | null = null; // an answer to Mila's question continues THAT request, whatever the merged text looks like
   let answering: { intent: string; missing: string } | null = null;

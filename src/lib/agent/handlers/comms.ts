@@ -66,7 +66,8 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   // "make a post for it" means the property we were just talking about (the showing just added, the last listing), never some other open house
   const refersBack = !addr && /\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home)\b/i.test(text);
   let prop: Property | null = refersBack ? null : await resolveProperty(ctx, text, false);
-  if (refersBack) {
+  if (refersBack && ctx.state.last_property_id) prop = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id);
+  if (refersBack && !prop) {
     const lastEv = ctx.state.last_event_id ? await ctx.store.get("calendar_events", ctx.userId, ctx.state.last_event_id) : null;
     if (lastEv?.property_id) prop = await ctx.store.get("properties", ctx.userId, lastEv.property_id);
     if (!prop && lastEv) {
@@ -91,6 +92,19 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   if (!prop) return reply("Which property is the post for? Give me an address and I'll build it.");
   ctx.state.last_property_id = prop.id;
   const images = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop!.id).sort((a, b) => a.position - b.position).map((i) => i.id);
+  // "congrats to the Nguyens" / "sold caption" for a home: a Just Sold post, not a listing announcement
+  if (/\b(sold|congrat\w*|just closed|closed on)\b/i.test(text) && !/open\s*house/i.test(text)) {
+    const soldPosts = await createPosts(ctx, { category: "just_sold", platforms: [platform], propertyId: prop.id, topic: text });
+    if (soldPosts.ok) {
+      const soldBlocks: Block[] = [];
+      for (const post of soldPosts.posts) {
+        const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
+        if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
+        soldBlocks.push({ type: "draft_social", postId: post.id, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
+      }
+      return reply(`Here's a Just Sold post for ${prop.address}. Nothing posts until you approve it.`, soldBlocks, "social_generation");
+    }
+  }
   const count = requestedCount(text);
   const blocks: Block[] = [];
   const made: SocialPost[] = [];
