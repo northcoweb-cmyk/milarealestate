@@ -52,7 +52,7 @@ test("every admin route checks isAdmin", () => {
 
 test("every API route (except the known public ones) uses the api() wrapper or authenticates itself", () => {
   const root = path.join(process.cwd(), "src/app/api");
-  const publicOk = new Set(["health", "auth/login", "auth/signup", "auth/claim", "auth/demo", "auth/logout", "errors", "stripe/webhook", "cron/reminders", "cron/daily-summary", "agent", "integrations/google/callback", "integrations/google/start", "integrations/microsoft/callback", "integrations/microsoft/start"]);
+  const publicOk = new Set(["health", "version", "auth/login", "auth/signup", "auth/claim", "auth/demo", "auth/logout", "errors", "stripe/webhook", "cron/reminders", "cron/daily-summary", "agent", "integrations/google/callback", "integrations/google/start", "integrations/microsoft/callback", "integrations/microsoft/start"]);
   for (const f of fs.readdirSync(root, { recursive: true }).map(String).filter((x) => x.endsWith("route.ts"))) {
     const name = f.replace(/[\\/]route\.ts$/, "").replace(/\\/g, "/");
     const src = fs.readFileSync(path.join(root, f), "utf8");
