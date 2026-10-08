@@ -229,9 +229,11 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
     if (!canSend) return;
     setSubmitting(true);
     try {
+      const hadFocus = document.activeElement === ta.current;
       const r = await onSubmit?.(value.trim(), attachments.map((a) => a.file));
       if (r === false) return;
       setValue("");
+      if (hadFocus) requestAnimationFrame(() => ta.current?.focus({ preventScroll: true })); // keep the keyboard up while she answers
       attachments.forEach((a) => { if (a.url) { URL.revokeObjectURL(a.url); urls.current.delete(a.url); } });
       setAttachments([]);
     } finally { setSubmitting(false); }
@@ -289,6 +291,9 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
             </button>}
             <button
               type="button" onClick={() => void submit()} disabled={!canSend} aria-label="Send"
+              // tapping Send must not pull focus out of the text box: on iPhone that closes the keyboard, and the chat sheet resizes and jumps mid-reply
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchEnd={(e) => { if (canSend && document.activeElement === ta.current) { e.preventDefault(); void submit(); } }}
               className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md outline-none transition duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:opacity-40 disabled:shadow-none"
               style={canSend ? { background: "linear-gradient(135deg, var(--accent), var(--accent-2))" } : undefined}
             >

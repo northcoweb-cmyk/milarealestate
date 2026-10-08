@@ -47,6 +47,8 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   const [turns, setTurns] = useState(0);
   const [runSheet, setRunSheet] = useState<{ runId: string; items: { id: string; title: string; summary: string | null; risk: string }[] } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
 
   useEffect(() => {
     fetch("/api/messages", { cache: "no-store" }).then((r) => r.json()).then((j) => { setMessages(j.messages ?? []); setConvId(j.conversationId ?? null); }).finally(() => setLoaded(true)).catch(() => setLoaded(true));
@@ -60,7 +62,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   // When the keyboard slides in or out the visible area changes: keep the newest message in view instead of leaving it behind the keyboard.
   useEffect(() => {
     if (!isOpen) return;
-    const id = setTimeout(() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }), 80);
+    const id = setTimeout(() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: busyRef.current ? "auto" : "smooth" }), 120);
     return () => clearTimeout(id);
   }, [vvBox?.height, isOpen]);
   useEffect(() => {
@@ -68,8 +70,12 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
     if (!isOpen || !el) return;
     const last = messages[messages.length - 1];
     const target = !busy && last?.role === "mila" ? el.querySelector<HTMLElement>("[data-last-mila]") : null; // read the newest reply from its start
-    if (target) el.scrollTo({ top: Math.max(0, target.offsetTop - el.offsetTop - 8), behavior: "smooth" });
-    else el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    // one scroll per change: while she's working jump (smooth scrolls piled up and made the sheet shudder), then glide to the start of her reply
+    const id = setTimeout(() => {
+      if (target) el.scrollTo({ top: Math.max(0, target.offsetTop - el.offsetTop - 8), behavior: "smooth" });
+      else el.scrollTo({ top: el.scrollHeight, behavior: busy ? "auto" : "smooth" });
+    }, 60);
+    return () => clearTimeout(id);
   }, [messages, steps, isOpen, busy]);
 
   const run = useCallback(async (payload: { message?: string; action?: unknown; attachmentIds?: string[] }, userText?: string, files?: Attachment[]) => {
@@ -92,7 +98,8 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
           if (ev.error) throw new Error(ev.error);
           if (ev.done) {
             setConvId(ev.done.conversationId); setBalance(ev.done.balance);
-            setMessages((m) => [...m.filter((x) => !x.id.startsWith("tmp-")), ...(ev.done.userMessage ? [ev.done.userMessage] : []), ev.done.milaMessage]);
+            // the typed bubble keeps its place (same React key) when the saved copy replaces it, so it doesn't flash or re-animate
+            setMessages((m) => { const tmp = m.find((x) => x.id.startsWith("tmp-")); return [...m.filter((x) => !x.id.startsWith("tmp-")), ...(ev.done.userMessage ? [{ ...ev.done.userMessage, ck: tmp?.id } as Message] : []), ev.done.milaMessage]; });
           }
         }
       }
@@ -186,7 +193,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
               </div>
               <div ref={scroller} className="no-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-4" aria-live="polite">
                 {messages.length === 0 && !busy && <EmptyChat onPick={(t) => run({ message: t }, t)} />}
-                {messages.map((m, i) => <MessageView key={m.id} last={i === messages.length - 1} m={m} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
+                {messages.map((m, i) => <MessageView key={(m as Message & { ck?: string }).ck ?? m.id} last={i === messages.length - 1} m={m} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
                 {busy && <Thinking steps={steps} />}
               </div>
               <div className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"><PromptInput onSubmit={(t, f) => ask(t, f)} disabled={busy} placeholder="Ask Mila anything…" onError={(m) => toast(m, "error")} /></div>
