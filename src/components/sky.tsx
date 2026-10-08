@@ -57,6 +57,8 @@ export function Sky({ initialNow, tz, lat, lng, theme = "auto", reduceMotion = f
         colorMid={sky.cloud.body} colorTop={sky.cloud.highlight} coverage={sky.cloud.coverage}
         speed={0.45} fps={24} renderScale={0.5} paused={still}
       />
+      {/* night: soft blue and purple cloud glow so the dark sky still feels like the website */}
+      {sky.tone === "night" && <div className="absolute inset-0" style={{ background: "radial-gradient(70% 45% at 15% 78%, rgba(143,180,255,.42), transparent 70%), radial-gradient(75% 50% at 88% 62%, rgba(166,140,255,.45), transparent 70%), radial-gradient(60% 40% at 50% 100%, rgba(122,104,235,.5), transparent 75%)" }} />}
       {/* horizon glow */}
       <div className="absolute inset-x-0 bottom-0 h-[55%]" style={{ opacity: 0.25 + warmGlow * 0.55, background: `radial-gradient(120% 80% at ${sky.sun.x}% 100%, ${sky.sun.color}cc, transparent 70%)` }} />
       {/* sun: wide glow + defined disc, colour follows altitude (orange at the horizon, near-white at noon) */}

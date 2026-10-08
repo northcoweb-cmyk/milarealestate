@@ -68,12 +68,12 @@
   --accent: #a68cff;
   --accent-2: #8fb4ff;
   --accent-ink: #0b0b1f;
-  --glass: rgba(24, 24, 26, 0.66);
-  --glass-strong: rgba(28, 28, 30, 0.86);
-  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass: rgba(30, 26, 86, 0.55);
+  --glass-strong: rgba(34, 30, 98, 0.82);
+  --glass-border: rgba(190, 180, 255, 0.22);
   --line: rgba(255, 255, 255, 0.1);
   --shadow: 0 12px 44px -14px rgba(0, 0, 0, 0.55), 0 2px 8px -2px rgba(0, 0, 0, 0.3);
-  --surface: #161618;
+  --surface: #1a1650;
   --ok: #4fd1a0;
   --warn: #f0b45a;
   --danger: #ff7b80;
