@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "./db/store";
 import { DEFAULT_CONFIG } from "./config";
+import { TESTER_TOPUP_CREDITS, isTesterId } from "./testers";
 import type { AppConfig, CreditTransaction, Subscription, UsageRow } from "./types";
 
 /**
@@ -37,6 +38,12 @@ export async function getBalance(userId: string): Promise<number> {
 
 export async function ensureCredits(userId: string, needed: number) {
   if (needed <= 0) return;
+  // test accounts never run dry: top them up when they get low, and the trial clock does not apply to them
+  if (await isTesterId(userId)) {
+    const bal0 = await getBalance(userId);
+    if (bal0 < Math.max(needed, 200)) await grantCredits(userId, TESTER_TOPUP_CREDITS, "grant", "Tester top-up");
+    return;
+  }
   // a finished trial with no plan: nothing paid runs (existing data stays visible)
   const sub = (await getStore().list("subscriptions", userId))[0];
   if (sub?.status === "trial" && new Date(sub.period_end).getTime() < Date.now()) throw new TrialEnded();

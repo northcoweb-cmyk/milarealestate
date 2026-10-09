@@ -1,4 +1,5 @@
 import { getStore } from "../db/store";
+import { isTesterId } from "../testers";
 
 /**
  * ONE place that decides how much each plan may use per calendar month. Change numbers here (or override with the
@@ -28,6 +29,7 @@ export function tierLimits(tier: Tier): TierLimits {
 }
 
 export async function tierOf(userId: string): Promise<Tier> {
+  if (await isTesterId(userId)) return "pro"; // test accounts try everything
   const sub = (await getStore().list("subscriptions", userId))[0];
   if (!sub) return "free";
   if (sub.status === "dev") return "pro"; // billing not configured: everyone is a tester

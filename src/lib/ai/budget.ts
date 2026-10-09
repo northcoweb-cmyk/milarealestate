@@ -70,7 +70,9 @@ export async function assertAiBudget(opts: { tier: string; inputChars: number; w
   if (!scope) return;
   const store = getStore();
   const [cfg, sub] = await Promise.all([store.getConfig(), store.list("subscriptions", scope.userId).then((l) => l[0])]);
-  const a = allowanceFor(cfg, sub);
+  let a = allowanceFor(cfg, sub);
+  const { isTesterId, TESTER_AI_MONTH_USD } = await import("../testers");
+  if (await isTesterId(scope.userId)) a = { ...a, monthlyUsd: Math.max(a.monthlyUsd, TESTER_AI_MONTH_USD()), dailyUsd: Math.max(a.dailyUsd, TESTER_AI_MONTH_USD() / 4), label: "test account" }; // testers get a roomy allowance (still capped)
   const spent = await spentBy(scope.userId, a.since);
   const extra = pending.get(scope.userId) ?? 0;
   // expensive paths (deep reasoning, live web research) need real headroom, not just "not yet over"
