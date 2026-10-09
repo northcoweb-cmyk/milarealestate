@@ -9,7 +9,7 @@ import type { AppConfig, PlanConfig } from "../types";
  * refused - Mila keeps doing everything her rule-based engine can (calendar, contacts, tasks, drafts) and tells the person once.
  */
 export class AiBudgetError extends Error {
-  constructor(public code: "disabled" | "user_month" | "user_day" | "global_day" | "too_big", message: string) { super(message); }
+  constructor(public code: "disabled" | "user_month" | "user_day" | "global_day" | "too_big" | "trial_pool", message: string) { super(message); }
 }
 
 interface Scope { userId: string; limited: string | null }
@@ -52,6 +52,22 @@ async function spentBy(userId: string, since: string) {
   memo.set(userId, fresh); pending.set(userId, 0);
   return fresh;
 }
+let poolMemo: { at: number; usd: number } | null = null;
+/** What every trial user (testers excluded) has cost us so far, together. Trials have no card behind them, so this total has a hard ceiling. */
+async function trialPoolSpent() {
+  if (poolMemo && Date.now() - poolMemo.at < 60_000) return poolMemo.usd;
+  const store = getStore();
+  const [subs, usage] = await Promise.all([store.listAll("subscriptions"), store.listAll("usage")]);
+  const trialUsers = new Set(subs.filter((x) => x.status === "trial").map((x) => x.user_id));
+  const { testerEmails } = await import("../testers");
+  const profiles = trialUsers.size ? await store.listAll("profiles") : [];
+  const skip = new Set(profiles.filter((p) => testerEmails().includes((p.email ?? "").toLowerCase())).map((p) => p.id));
+  const usd = usage.filter((r) => trialUsers.has(r.user_id) && !skip.has(r.user_id)).reduce((n, r) => n + (r.est_cost_usd || 0), 0);
+  poolMemo = { at: Date.now(), usd };
+  return usd;
+}
+export const trialPoolUsd = (cfg: AppConfig) => num(process.env.MILA_TRIAL_POOL_USD, cfg.trial?.pool_usd ?? DEFAULT_CONFIG.trial!.pool_usd ?? 20);
+
 async function globalToday() {
   if (globalMemo && Date.now() - globalMemo.at < 30_000) return globalMemo.usd;
   const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
@@ -77,6 +93,7 @@ export async function assertAiBudget(opts: { tier: string; inputChars: number; w
   const extra = pending.get(scope.userId) ?? 0;
   // expensive paths (deep reasoning, live web research) need real headroom, not just "not yet over"
   const need = opts.tier === "reasoning" || opts.webSearch ? 0.25 : 0;
+  if (sub?.status === "trial" && a.label !== "test account" && await trialPoolSpent() + [...pending.values()].reduce((x, y) => x + y, 0) >= trialPoolUsd(cfg)) refuse(new AiBudgetError("trial_pool", "The free trial allowance is fully used for now."));
   if (spent.month + extra + need >= a.monthlyUsd) refuse(new AiBudgetError("user_month", `AI allowance for this ${a.label} reached.`));
   if (spent.day + extra + need >= a.dailyUsd) refuse(new AiBudgetError("user_day", "Daily AI allowance reached."));
 }
@@ -88,7 +105,7 @@ export function noteAiSpend(usd: number) {
   if (globalMemo) globalMemo.usd += usd;
 }
 
-export const resetAiBudgetMemo = () => { memo.clear(); pending.clear(); globalMemo = null; };
+export const resetAiBudgetMemo = () => { memo.clear(); pending.clear(); globalMemo = null; poolMemo = null; };
 
 /**
  * Plan decides model quality, not just volume. Premium (and anyone on the free trial, so they can taste the best) gets the

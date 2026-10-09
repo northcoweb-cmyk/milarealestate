@@ -30,3 +30,10 @@
 - Team plan is "Contact us": opens a pre-filled email to admin@milarealestate.app (team name, agents, CRM, MLS). Team logo, shared pipeline and invite links are not built yet.
 - Property details found online show "Not looking right? Let's change it." which jumps to the edit form.
 - Notifications: no push. Plan is an in-app inbox plus a daily summary card on Home, and email only for people who used the app recently.
+
+## Oct 9: trial users are hard-capped at $20 total
+- Why: Ryan pays for every trial user, with no card on file. Wants all trial users under $20 total.
+- Decision: per trial user 100 credits, about $0.50 AI, 2 listing lookups, 3 photo lookups. Plus a pool: all trial users together stop at $20 of real cost.
+- When the pool is full: smart answers pause for trial users (rules-based work keeps going) and they are pointed to a plan.
+- Test accounts are excluded and never limited.
+- Where: `src/lib/config.ts` (trial), `src/lib/ai/budget.ts` (pool check), `src/lib/media/limits.ts` (free tier lookups). Details in `01-pricing-trial.md`.

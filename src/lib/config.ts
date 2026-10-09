@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     { credits: 1000, price_usd: 50 },
   ],
   credit_price_usd: 0.05, // top-ups cost more per credit than any plan, so subscribing is always the better deal
-  trial: { days: 7, credits: 400, ai_budget_usd: 3 }, // 7 days, no card: enough to rely on it, capped so a trial can never cost more than ~$3
+  trial: { days: 7, credits: 100, ai_budget_usd: 0.5, pool_usd: 20 }, // 7 days, no card. Hard limits: about $0.50 of AI per trial user, and ALL trial users together can never cost more than pool_usd ($20).
   dev_credits: 600, // sized for a ~$2 AI test budget (about $0.003 of real cost per credit); the ledger records real usage either way
 };
 

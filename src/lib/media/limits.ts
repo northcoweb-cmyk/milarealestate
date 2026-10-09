@@ -14,7 +14,7 @@ export interface TierLimits {
 }
 
 export const DEFAULT_TIER_LIMITS: Record<Tier, TierLimits> = {
-  free: { listingSearches: 10, photoEnrichments: 10, savedListings: 10, aiMessages: 50 },
+  free: { listingSearches: 2, photoEnrichments: 3, savedListings: 10, aiMessages: 50 }, // trial and unpaid: a taste of the paid data, a few cents each
   starter: { listingSearches: 40, photoEnrichments: 40, savedListings: 50, aiMessages: 500 },
   pro: { listingSearches: 100, photoEnrichments: 100, savedListings: 500, aiMessages: 3000 },
 };

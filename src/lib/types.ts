@@ -588,7 +588,7 @@ export interface AppConfig {
   credit_price_usd?: number;
   dev_credits: number; // credits granted to accounts when billing isn't configured
   /** the free trial new signups start on (no card). Optional so configs saved before it existed keep working. */
-  trial?: { days: number; credits: number; ai_budget_usd: number };
+  trial?: { days: number; credits: number; ai_budget_usd: number; pool_usd?: number };
 }
 
 export const TABLES = [

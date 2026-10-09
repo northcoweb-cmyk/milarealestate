@@ -17,3 +17,14 @@ test("a tester at zero credits is topped up; a customer at zero credits is stopp
   await assert.rejects(() => ensureCredits(customer.id, 5), (e) => e instanceof InsufficientCredits);
   void getStore;
 });
+
+test("all trial users together stop at the pool ceiling, and the per-trial limits are small", async () => {
+  const { DEFAULT_CONFIG } = await import("../src/lib/config.ts");
+  const { DEFAULT_TIER_LIMITS } = await import("../src/lib/media/limits.ts");
+  const t = DEFAULT_CONFIG.trial!;
+  assert.ok(t.pool_usd! <= 20, "trial pool is at most $20 in total");
+  assert.ok(t.ai_budget_usd <= 0.75, "one trial user is a few tens of cents of AI");
+  // 25 seats at the cap: AI + the paid lookups they may do, all together, stays near the pool
+  const lookups = DEFAULT_TIER_LIMITS.free.listingSearches * 0.074 + DEFAULT_TIER_LIMITS.free.photoEnrichments * 0.05;
+  assert.ok(25 * (t.ai_budget_usd + lookups) <= 40, `25 trial users worst case is ${(25 * (t.ai_budget_usd + lookups)).toFixed(2)}`);
+});

@@ -98,7 +98,7 @@ test("deep-reasoning and web-research calls need real headroom, not just 'not ye
   budget.resetAiBudgetMemo();
   const p = await user("deep@test.dev");
   await credits.ensureSubscription(p.id);
-  await spend(p.id, 0.8); budget.resetAiBudgetMemo(); // trial daily cap $1: $0.80 spent leaves $0.20
+  await spend(p.id, 0.4); budget.resetAiBudgetMemo(); // trial cap is $0.50: $0.40 spent leaves $0.10, under the $0.25 a deep call needs
   await budget.runInAiScope(p.id, async () => {
     await ask("fast"); // cheap path still fine
     await assert.rejects(() => ask("research", { webSearch: true }), (e: any) => e instanceof budget.AiBudgetError);
