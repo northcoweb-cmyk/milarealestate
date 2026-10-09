@@ -1,3 +1,4 @@
+import { warmText } from "../warm";
 import { addDays, fmtDay, fmtShortDate, fmtTime, partsIn, zonedToUtc } from "../../time";
 import type { Block, CalendarEvent, Contact, Property, Task } from "../../types";
 import type { Ctx } from "../context";
@@ -197,7 +198,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   if (!body) body = "just checking in — do you have a few minutes to talk?";
   body = body.replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);
   const me = ctx.profile.full_name.split(/\s+/)[0];
-  const msg = `Hi ${first}, ${/^I\b|^I'/.test(body) ? body : body[0].toLowerCase() + body.slice(1)}. – ${me}`.replace(/\.\.+/g, ".");
+  const msg = warmText(first, body, me);
   const phone = c?.phone?.replace(/[^\d+]/g, "") ?? "";
   const href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
   if (c) await logContactEvent(ctx, c.id, "text", "Text drafted", msg);

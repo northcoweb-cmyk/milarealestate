@@ -69,7 +69,7 @@ test("text drafts open in the agent's own Messages app; nothing is sent by Mila"
   const a = await fresh();
   await say(a, "I have a new buyer named Dana Whitfield, phone 301-555-0142, looking for a 3 bedroom around $600k");
   const r = await a.say("Text Dana that I'll send her options tonight");
-  assert.match(r.milaMessage.content, /“Hi Dana, I'll send you options tonight\. – Sarah”/);
+  assert.match(r.milaMessage.content, /“Hi Dana! I'll send you options tonight\. Let me know if you have any questions! – Sarah”/);
   const btn = blocks(r, "choice")[0].buttons[0];
   assert.match(btn.href, /^sms:3015550142\?&body=Hi%20Dana/);
 });

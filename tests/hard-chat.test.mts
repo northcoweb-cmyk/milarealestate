@@ -11,7 +11,7 @@ const say = async (a: any, m: string) => (await a.say(m)).milaMessage.content as
 test("'Text Dana I'm running late' texts Dana, not someone called 'Text'", async () => {
   const out = await say(await fresh(), "Text Dana I'm running 10 min late");
   assert.match(out, /text to Dana/);
-  assert.match(out, /Hi Dana, I'm running 10 min late/);
+  assert.match(out, /Hi Dana! Quick heads up, I'm running about 10 minutes behind/);
 });
 
 test("'Text her that…' goes to the client we were just talking about, not a street name in the message", async () => {
@@ -19,7 +19,7 @@ test("'Text her that…' goes to the client we were just talking about, not a st
   await say(a, "I have a new buyer Maria Gonzales, 301-555-0188, wants a 3 bed");
   const out = await say(a, "Text her that I have a showing Saturday at 11 at 9 Elm Court Rockville");
   assert.match(out, /text to Maria/);
-  assert.match(out, /Hi Maria, I have a showing Saturday at 11/);
+  assert.match(out, /Hi Maria! I have a showing Saturday at 11/);
 });
 
 test("telling someone a showing moved is a message, not a calendar change", async () => {

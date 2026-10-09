@@ -81,7 +81,7 @@ export async function llmDraftEmail(ctx: Ctx, instruction: string, recipient: st
   try {
     const r = await getProvider().complete({
       tier: "standard", maxTokens: 900,
-      system: `Write a short, warm, professional email from US real-estate agent ${ctx.profile.full_name}${ctx.profile.brokerage ? ` (${ctx.profile.brokerage})` : ""}. Use ONLY facts provided. Do not invent listing details, prices or promises. End with the agent's name. Known facts about the recipient: ${facts.join("; ") || "none"}.`,
+      system: `Write a short, warm, professional email from US real-estate agent ${ctx.profile.full_name}${ctx.profile.brokerage ? ` (${ctx.profile.brokerage})` : ""}. Write like a friendly person who knows this client, never like a template: a natural greeting, short sentences, one clear ask or next step that is easy to answer with a one-line reply, a warm close. No stiff phrases (\"I hope this email finds you well\", \"per our conversation\"), no bullet lists unless the facts truly are a list, and keep it under 120 words. Use ONLY facts provided. Do not invent listing details, prices or promises. End with the agent's name. Known facts about the recipient: ${facts.join("; ") || "none"}.`,
       messages: [{ role: "user", content: `Recipient: ${recipient ?? "unspecified"}\nInstruction: ${instruction}` }],
       jsonSchema: { name: "email", description: "The drafted email", schema: { type: "object", properties: { subject: { type: "string" }, body: { type: "string" } }, required: ["subject", "body"] } },
     });
