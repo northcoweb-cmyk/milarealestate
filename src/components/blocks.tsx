@@ -10,6 +10,7 @@ import { Avatar, jfetch } from "./ui";
 import { useApp } from "./app-context";
 import { type Compose, gmailUrl, isTooLongForLink, mailtoUrl } from "@/lib/mailto";
 import { LiquidGlassCard } from "./ui/liquid-weather-glass";
+import { SlideImage, SlideViewer } from "./content/shared";
 import clsx from "clsx";
 
 type OnAction = (a: NonNullable<ActionButton["action"]>) => void;
@@ -121,17 +122,23 @@ export function BlockView(p: Props) {
     }
     case "draft_email":
       return <EmailCard b={b} {...btns} />;
-    case "draft_social":
+    case "post_set":
       return (
-        <div className="glass-strong p-5">
-          <p className="kicker mb-3">{b.platform} · {b.status}</p>
-          <div className="no-scrollbar -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
-            {b.slides.map((s, i) => <SlidePreview key={i} slide={s} index={i} total={b.slides.length} />)}
+        <div>
+          <p className="kicker mb-2">{b.title} <span className="faint">· swipe to compare, tap one to open it</span></p>
+          <div className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2">
+            {b.options.map((o, i) => (
+              <div key={i} className="w-[88%] max-w-[420px] shrink-0 snap-center">
+                <p className="mb-1.5 flex items-center gap-2 text-[13px] font-semibold"><span className="rounded-full px-2.5 py-0.5" style={{ background: "var(--accent)", color: "var(--accent-ink)" }}>Option {i + 1}</span><span className="muted">{o.label}</span></p>
+                <BlockView {...p} block={o.post} />
+              </div>
+            ))}
           </div>
-          <p className="mt-4 whitespace-pre-line text-[14.5px]">{b.caption}</p>
-          <Buttons buttons={b.buttons} {...btns} />
+          <div className="mt-1 flex justify-center gap-1.5" aria-hidden>{b.options.map((_, i) => <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--line)" }} />)}</div>
         </div>
       );
+    case "draft_social":
+      return <DraftSocialCard b={b} {...btns} />;
     case "listing_brief":
       return <BriefCard b={b} {...btns} />;
     case "listings":
@@ -246,6 +253,31 @@ export function SlidePreview({ slide, index, total }: { slide: { headline: strin
       </div>
       {!slide.image_id && slide.role === "hero" && <p className="absolute left-4 top-4 rounded-full bg-black/25 px-2.5 py-1 text-[10px] font-semibold">Add photos to finish</p>}
       <p className="absolute right-3 top-3 text-[10px] font-semibold opacity-80">{index + 1}/{total}</p>
+    </div>
+  );
+}
+
+
+/** A finished post as it will really look: the same drawn images as the Content tab (right size for Instagram, a story or X), tap one to see it full screen. */
+function DraftSocialCard({ b, ...btns }: { b: Extract<Block, { type: "draft_social" }> } & Pick<Props, "onAction" | "onApprove" | "onNavigate" | "busy">) {
+  const { profile } = useApp();
+  const [viewAt, setViewAt] = useState<number | null>(null);
+  const pfp = profile.settings.brand?.pfp ?? null;
+  const brand = { name: profile.full_name, brokerage: profile.brokerage, pfp: pfp ? `/api/files/${pfp}` : null };
+  const post = { platform: b.platform as never, category: (b.category ?? null) as never };
+  const story = b.platform === "instagram_story" || b.platform === "tiktok";
+  return (
+    <div className="glass-strong p-4">
+      <div className="no-scrollbar -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
+        {b.slides.map((s, i) => (
+          <button key={i} type="button" onClick={() => setViewAt(i)} aria-label={`View image ${i + 1} larger`} className={clsx("shrink-0 snap-start", story ? "w-[44%] max-w-[190px]" : "w-[62%] max-w-[260px]")}>
+            <SlideImage slide={s} index={i} total={b.slides.length} post={post} brand={brand} width={540} rounded={18} className="w-full" />
+          </button>
+        ))}
+      </div>
+      <p className="mt-3 line-clamp-4 whitespace-pre-line text-[14.5px]">{b.caption}</p>
+      <Buttons buttons={[...(b.buttons ?? []), { label: "Edit & change style", style: "quiet", href: "/content" }]} {...btns} />
+      {viewAt != null && <SlideViewer slides={b.slides} start={viewAt} post={post} brand={brand} onClose={() => setViewAt(null)} />}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { fmtDay, fmtRange } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, SocialSlide } from "../../types";
 import { type Ctx, firstName, fullMoney } from "../context";
 import { openHouseSocial, signature, verifiedFacts } from "../comms";
-import { createPosts } from "../../content/service";
+import { createPosts, designSlides } from "../../content/service";
 import { llmDraftEmail } from "../llm";
 import { contactFacts } from "../memory";
 import { capitalisedNames, parseAddress } from "../nlu";
@@ -51,13 +51,15 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     const sold = /\b(sold|congrat\w*|closed|closing)\b/i.test(text);
     if (tip && !sold) {
       const category = /\b(sell(?:er|ers|ing)?|list(?:ing)? your|home ?owners?)\b/i.test(text) ? "seller_tip" : /\b(buy(?:er|ers|ing)?|first[- ]time|purchase)\b/i.test(text) ? "buyer_tip" : "education";
-      const made2 = await createPosts(ctx, { category, platforms: [platform], topic: text });
+      const tn = /\b(\d{1,2})\s+(?:quick |simple |easy |top |great )?tips?\b/i.exec(text);
+      const aud = /\btips?\s+(?:for|to help)\s+(.+?)[.?!]*$/i.exec(text)?.[1]?.trim() || (category === "seller_tip" ? "home sellers" : category === "buyer_tip" ? "home buyers" : "everyone");
+      const made2 = await createPosts(ctx, { category, platforms: [platform], topic: null, tips: tn ? { n: Math.min(8, Math.max(2, Number(tn[1]))), audience: aud } : null });
       if (made2.ok) {
         const blocks2: Block[] = [];
         for (const post of made2.posts) {
           const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
           if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
-          blocks2.push({ type: "draft_social", postId: post.id, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
+          blocks2.push({ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
         }
         return reply(`Here's ${/^[aeiou]/i.test(platform) ? "an" : "a"} ${platform === "instagram_story" ? "Instagram story" : "Instagram carousel"} with ${category === "seller_tip" ? "seller" : category === "buyer_tip" ? "buyer" : "real estate"} tips. Nothing posts until you approve it.`, blocks2, "social_generation");
       }
@@ -96,13 +98,13 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   const images = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop!.id).sort((a, b) => a.position - b.position).map((i) => i.id);
   // "congrats to the Nguyens" / "sold caption" for a home: a Just Sold post, not a listing announcement
   if (/\b(sold|congrat\w*|just closed|closed on)\b/i.test(text) && !/open\s*house/i.test(text)) {
-    const soldPosts = await createPosts(ctx, { category: "just_sold", platforms: [platform], propertyId: prop.id, topic: text });
+    const soldPosts = await createPosts(ctx, { category: "just_sold", platforms: [platform], propertyId: prop.id, topic: null });
     if (soldPosts.ok) {
       const soldBlocks: Block[] = [];
       for (const post of soldPosts.posts) {
         const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
         if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
-        soldBlocks.push({ type: "draft_social", postId: post.id, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
+        soldBlocks.push({ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
       }
       return reply(`Here's a Just Sold post for ${prop.address}. Nothing posts until you approve it.`, soldBlocks, "social_generation");
     }
@@ -113,24 +115,30 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   const attach = async (post: SocialPost) => {
     const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
     if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
-    blocks.push({ type: "draft_social", postId: post.id, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
+    blocks.push({ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
     made.push(post);
   };
   if (count > 1) {
     const facts = verifiedFacts(prop);
-    for (const angle of postAngles(prop, facts, images, ctx).slice(0, count)) {
-      const post = ((await TOOLS.create_social_post.run(ctx, { platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"], caption: angle.caption.replace(/\n{3,}/g, "\n\n"), slides: angle.slides })) as any).data.post as SocialPost;
-      await attach(post);
+    const options: { label: string; post: Extract<Block, { type: "draft_social" }> }[] = [];
+    // different angles AND different looks: each option gets its own design so they don't read as the same post three times
+    for (const [ai, angle] of postAngles(prop, facts, images, ctx).slice(0, count).entries()) {
+      const post = ((await TOOLS.create_social_post.run(ctx, { platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"], caption: angle.caption.replace(/\n{3,}/g, "\n\n"), slides: await designSlides(ctx, prop, angle.slides, "just_listed", ai * 2) })) as any).data.post as SocialPost;
+      const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
+      if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
+      options.push({ label: angle.name, post: { type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined } });
+      made.push(post);
     }
-    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in these?", body: "Send me the listing link and I'll pull the photos. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
-    return reply(`Here are ${made.length} ${platform === "instagram_story" ? "Instagram stories" : "Instagram posts"} for ${prop.address}, each with a different angle. Nothing posts until you approve it.`, blocks, "social_generation");
+    blocks.push({ type: "post_set", title: `${options.length} ${platform === "instagram_story" ? "story" : "post"} options`, options });
+    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add your photos", body: "I don't have photos for this home yet. Add yours and every option updates, or send me the listing link and I'll pull them. I never use stock images for a real property.", buttons: [{ label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] });
+    return reply(`Here are ${options.length} ${platform === "instagram_story" ? "stories" : "posts"} for ${prop.address}. Swipe to compare, then pick the one you like. Nothing posts until you approve it.`, blocks, "social_generation");
   }
   let post: SocialPost;
   const wantsOpenHouse = /open\s*house/i.test(text);
   if (!ev && wantsOpenHouse) {
     // an open house post with no date on the calendar yet: build it now, add the day and time once she gives them
     const s = await openHouseSocial(ctx, prop, null, null, images);
-    post = ((await TOOLS.create_social_post.run(ctx, { platform, caption: s.caption, hashtags: s.hashtags, slides: s.slides, property_id: prop.id })) as any).data.post;
+    post = ((await TOOLS.create_social_post.run(ctx, { platform, category: "open_house", caption: s.caption, hashtags: s.hashtags, slides: await designSlides(ctx, prop, s.slides, "open_house"), property_id: prop.id })) as any).data.post;
     await attach(post);
     ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text: `open house at ${prop.address}${prop.city ? `, ${prop.city}` : ""}${prop.state ? ` ${prop.state}` : ""}` }, missing: "date" }; // her next message ("Saturday 1 to 4") books it
     await persistState(ctx);
@@ -140,14 +148,14 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   if (ev && /open house|carousel/i.test(text) || (ev && !/just listed|price/i.test(text))) {
     const s = await openHouseSocial(ctx, prop, new Date(ev!.start_at), new Date(ev!.end_at), images);
-    post = ((await TOOLS.create_social_post.run(ctx, { platform, caption: s.caption, hashtags: s.hashtags, slides: s.slides, property_id: prop.id, event_id: ev!.id })) as any).data.post;
+    post = ((await TOOLS.create_social_post.run(ctx, { platform, category: "open_house", caption: s.caption, hashtags: s.hashtags, slides: await designSlides(ctx, prop, s.slides, "open_house"), property_id: prop.id, event_id: ev!.id })) as any).data.post;
   } else {
     const facts = verifiedFacts(prop);
     const kind = /price/i.test(text) ? "Price Improvement" : "Just Listed";
     post = ((await TOOLS.create_social_post.run(ctx, {
       platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"],
       caption: [`${kind}! ${classifyProperty({ address: prop.address, beds: prop.beds, baths: prop.baths, description: prop.description }).group === "commercial" ? "🏢" : "🏡"}`, "", prop.address + (prop.city ? `, ${prop.city}` : ""), facts.join(" • "), "", "Message me for details or a private showing."].filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n"),
-      slides: [{ role: "hero", headline: prop.address, sub: kind, image_id: images[0] ?? null }, { role: "highlight", headline: facts.join(" • ") || "See it in person", image_id: images[1] ?? images[0] ?? null }, { role: "cta", headline: "Let's talk", sub: ctx.profile.full_name, image_id: null }],
+      slides: await designSlides(ctx, prop, [{ role: "hero", headline: prop.address, sub: kind, image_id: images[0] ?? null }, { role: "highlight", headline: facts.join(" • ") || "See it in person", image_id: images[1] ?? images[0] ?? null }, { role: "cta", headline: "Let's talk", sub: ctx.profile.full_name, image_id: null }], kind === "Price Improvement" ? "price_improvement" : "just_listed"), category: kind === "Price Improvement" ? "price_improvement" : "just_listed",
     })) as any).data.post;
   }
   await attach(post);

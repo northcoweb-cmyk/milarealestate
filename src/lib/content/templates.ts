@@ -45,6 +45,8 @@ export interface BuildInput {
   property?: { address: string; city?: string | null; state?: string | null; zip?: string | null; facts: string[]; details?: string[]; descriptors?: string[]; fullAddress?: string; placeLine?: string } | null;
   when?: { day: string; range: string } | null; // for open houses
   topic?: string | null;
+  /** "5 tips for first-time buyers": how many tips, and for whom */
+  tips?: { n: number; audience: string } | null;
   /** Shown on the last image's button, e.g. "Call or text 301.509.7280". Defaults to the agent's name. */
   contact?: string | null;
 }
@@ -156,11 +158,23 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
       return {
         headline: "Just Sold! 🎉", lines: dataLines.length ? dataLines : [where].filter(Boolean),
         cta: pick(v, ["Congratulations to my wonderful clients! Thinking about your own move? Let's talk.", "So proud of this one. If you're thinking of selling, I'd love to help."]),
-        slides: [slide("hero", fullWhere || "Just sold", price ? `Just Sold • ${price}` : "Just Sold"), ...(facts.length >= 2 ? [slide("highlight", facts.join(" • "), prop?.placeLine || prop?.city || undefined)] : []), slide("highlight", "Congratulations!", "Another happy closing"), slide("cta", "Thinking of selling?", sig)],
+        // one bold SOLD image with the home behind it, and one thank-you: two slides, not a deck
+        slides: [slide("hero", "SOLD", [fullWhere || prop?.placeLine, price].filter(Boolean).join(" • ") || "Just sold"), slide("cta", "Congratulations!", `Thinking of selling? ${sig}`)],
       };
     case "buyer_tip": case "seller_tip": case "education": {
-      const t = pickTip(i.category === "buyer_tip" ? BUYER_TIPS : i.category === "seller_tip" ? SELLER_TIPS : EDU_TIPS, v);
+      const bank = i.category === "buyer_tip" ? BUYER_TIPS : i.category === "seller_tip" ? SELLER_TIPS : EDU_TIPS;
       const emoji = i.category === "seller_tip" ? "🏷️" : i.category === "buyer_tip" ? "🔑" : "💡";
+      if (i.tips && i.tips.n >= 2) {
+        // "5 tips for first-time buyers": a real numbered list, one image per tip, so nothing is promised and left out
+        const pool = [...bank.map((b) => b.hook), ...bank.flatMap((b) => b.points)].filter((x, k, a) => a.indexOf(x) === k);
+        const picked = Array.from({ length: Math.min(i.tips.n, pool.length) }, (_, k) => pool[(v * 2 + k) % pool.length]).filter((x, k, a) => a.indexOf(x) === k);
+        const title = `${picked.length} tips for ${i.tips.audience}`;
+        return {
+          headline: `${emoji} ${title}`, lines: picked.map((p, k) => `${k + 1}. ${p}`), cta: "Save this for later, and message me if you want help with any of it.",
+          slides: [slide("hero", title, "Swipe →"), ...picked.map((p, k) => slide("highlight", p, `Tip ${k + 1} of ${picked.length}`)), slide("cta", "Questions? Message me.", sig)],
+        };
+      }
+      const t = pickTip(bank, v);
       return {
         headline: `${emoji} ${t.hook}`, lines: t.points.map((p) => `• ${p}`), cta: t.cta,
         slides: [slide("hero", t.hook, i.category === "buyer_tip" ? "Buyer tip" : i.category === "seller_tip" ? "Seller tip" : "How it works"), ...t.points.slice(0, 2).map((p, n) => slide("highlight", p, `${n + 1} of ${t.points.length}`)), slide("cta", t.cta, sig)],
@@ -219,10 +233,10 @@ export const capSlides = (s: SocialSlide[]): SocialSlide[] => (s.length <= MAX_S
 export function buildPost(i: BuildInput): Built {
   const c = core(i);
   const topic = i.topic?.trim();
-  const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic && !i.tips ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const f = fitToPlatform(i.platform, body, baseTags(i));
   const carousel = PLATFORMS.find((p) => p.key === i.platform)?.carousel ?? true;
-  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capSlides(c.slides) : c.slides.slice(0, 1) };
+  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? (i.tips ? c.slides.slice(0, 10) : capSlides(c.slides)) : c.slides.slice(0, 1) };
 }
 
 export const variantCount = (cat: Category) => (cat === "buyer_tip" || cat === "seller_tip" ? 10 : cat === "education" ? 8 : cat === "local" ? 5 : 3);

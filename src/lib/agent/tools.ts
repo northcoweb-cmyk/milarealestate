@@ -362,8 +362,8 @@ export const TOOLS: Record<string, ToolDef> = {
       const p = await ctx.store.insert("social_posts", ctx.userId, {
         platform: a.platform ?? "instagram", caption: capHashtags(withSignature(String(a.caption ?? ""), buildSignature(ctx.profile))), hashtags: ((a.hashtags as string[] | undefined) ?? []).slice(0, MAX_HASHTAGS), slides: a.slides ?? [], status: "draft",
         property_id: a.property_id ?? null, event_id: a.event_id ?? null, workflow_run_id: a.workflow_run_id ?? null,
-        scheduled_for: a.scheduled_for ?? null, stale: false, stale_reason: null,
-      });
+        scheduled_for: a.scheduled_for ?? null, stale: false, stale_reason: null, ...(typeof a.category === "string" ? { category: a.category } : {}),
+      } as never);
       return ok({ post: p });
     },
   },

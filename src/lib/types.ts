@@ -452,7 +452,8 @@ export type Block =
   | { type: "priorities"; groups: { priority: TaskPriority; items: { id: ID; title: string; subtitle?: string; reason?: string; href?: string }[] }[]; buttons?: ActionButton[] }
   | { type: "debrief"; greeting: string; counts: { appointments: number; followups: number; approvals: number }; noticed: string[]; buttons?: ActionButton[] }
   | { type: "draft_email"; draftId: ID; to: string; subject: string; body: string; status: string; buttons?: ActionButton[] }
-  | { type: "draft_social"; postId: ID; platform: string; caption: string; slides: SocialSlide[]; status: string; buttons?: ActionButton[] }
+  | { type: "post_set"; title: string; options: { label: string; post: Extract<Block, { type: "draft_social" }> }[] }
+  | { type: "draft_social"; postId: ID; category?: string; platform: string; caption: string; slides: SocialSlide[]; status: string; buttons?: ActionButton[] }
   | { type: "listings"; title: string; subtitle?: string; cards: ListingCardData[]; buttons?: ActionButton[] }
   | { type: "listing_brief"; kicker?: string; title: string; subtitle?: string; done: number; total: number; sections: BriefSection[]; buttons?: ActionButton[] }
   | { type: "market"; title: string; location: string; asOf: string; dataPeriod: string; bullets: string[]; sources: { title: string; url: string }[] }
