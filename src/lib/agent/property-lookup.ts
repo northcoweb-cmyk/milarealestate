@@ -2,7 +2,7 @@ import { classifyProperty } from "../property-kind";
 import { trackApi } from "../media/usage";
 import { type PropertyExtra, lookupAddress, rentcastConfigured } from "../listing-data/rentcast";
 import { aiAvailable, estimateCost, getProvider } from "../ai/provider";
-import { recordUsage } from "../credits";
+import { creditCost, ensureCredits, recordUsage } from "../credits";
 import type { Property } from "../types";
 import type { Ctx } from "./context";
 import { CACHE_PREFIX } from "./memory";
@@ -18,7 +18,7 @@ import { addrKey, findAddress } from "./nlu";
 const STATES: Record<string, string> = { alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT", delaware: "DE", "district of columbia": "DC", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY" };
 const ABBR = new Set(Object.values(STATES));
 
-export interface Place { city?: string | null; state?: string | null; zip?: string | null; county?: string | null; lat?: number | null; lng?: number | null; formatted?: string | null }
+export interface Place { city?: string | null; state?: string | null; zip?: string | null; county?: string | null; lat?: number | null; lng?: number | null; formatted?: string | null; /** the name of a public or commercial place at this address (a capitol, a ballpark, a mall), when the map knows one */ landmark?: string | null }
 
 const STOP = new Set(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "pm", "am", "at", "on", "in", "the", "open", "house", "showing", "set", "up", "my", "a", "and", "for", "to", "it", "is", "its", "it's", "next", "this", "tomorrow", "today", "noon", "its"]);
 /** The run of capitalised words right before a state, minus dates/times ("…Sunday at 2 PM Frederick" → "Frederick"). */
@@ -95,12 +95,15 @@ export async function geocode(street: string, p: Place): Promise<Geo | "not_foun
     if (j.status === "ZERO_RESULTS") { sawZero = true; continue; }
     if (j.status !== "OK" || !j.results?.length) return null; // key not enabled, quota, etc. — don't block the user
     const g = j.results[0];
+    const poi = g.types?.some((t) => /^(point_of_interest|establishment|stadium|park|airport|school|university|hospital|museum|library|city_hall|courthouse|local_government_office|shopping_mall|church|place_of_worship|tourist_attraction|lodging|casino|zoo|amusement_park|campground)$/.test(t)) && !g.types?.some((t) => /^(street_address|premise|subpremise)$/.test(t));
+    const firstSeg = g.formatted_address.split(",")[0].trim();
+    const landmark = poi && firstSeg && !/^\d/.test(firstSeg) ? firstSeg : poi ? "a public or commercial place" : null;
     const c = (t: string) => g.address_components.find((x) => x.types.includes(t));
     const num = c("street_number")?.long_name, route = c("route")?.long_name;
     const city = c("locality")?.long_name ?? c("sublocality")?.long_name ?? c("postal_town")?.long_name ?? c("administrative_area_level_3")?.long_name ?? null;
     return {
       street: num && route ? `${num} ${route}` : street, city, state: c("administrative_area_level_1")?.short_name ?? null, zip: c("postal_code")?.long_name ?? null,
-      county: c("administrative_area_level_2")?.long_name?.replace(/ County$/i, "") ?? null, lat: g.geometry.location.lat, lng: g.geometry.location.lng, formatted: g.formatted_address,
+      county: c("administrative_area_level_2")?.long_name?.replace(/ County$/i, "") ?? null, lat: g.geometry.location.lat, lng: g.geometry.location.lng, formatted: g.formatted_address, landmark,
       exact: !!num && !g.partial_match && ["ROOFTOP", "RANGE_INTERPOLATED"].includes(g.geometry.location_type),
     };
   }
@@ -135,7 +138,7 @@ export async function resolveAddress(ctx: Ctx, text: string, street: string, opt
   }
   const g = await geocode(street, p);
   if (g === "not_found") return { status: "ok", street, place: p, unverified: true };
-  if (g) return { status: "ok", street, place: { city: g.city ?? p.city, state: g.state ?? p.state, zip: g.zip ?? p.zip, county: g.county, lat: g.lat, lng: g.lng, formatted: g.formatted } };
+  if (g) return { status: "ok", street, place: { city: g.city ?? p.city, state: g.state ?? p.state, zip: g.zip ?? p.zip, county: g.county, lat: g.lat, lng: g.lng, formatted: g.formatted, landmark: g.landmark ?? null } };
   return { status: "ok", street, place: p };
 }
 
@@ -236,6 +239,8 @@ export async function enrichProperty(ctx: Ctx, prop: Property, opts: { place?: P
   // 1) licensed property data when RentCast is connected: exact, structured, and cheap. 2) otherwise the web-search lookup.
   let rc: Awaited<ReturnType<typeof lookupAddress>> | null = null;
   if (rentcastConfigured()) {
+    // paid data is locked when credits run out: never spend on a lookup the account cannot pay for
+    await ensureCredits(ctx.userId, await creditCost(opts.full ? "property_prep" : "property_lookup"));
     try {
       rc = await lookupAddress(cur.address, place, { full: opts.full });
       // cost = requests made × the per-request price of your RentCast plan (default: Foundation, $74 / 1,000 requests)

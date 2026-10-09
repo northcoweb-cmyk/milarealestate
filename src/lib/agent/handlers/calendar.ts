@@ -1,4 +1,5 @@
 import { resolveAddress } from "../property-lookup";
+import { landmarkAsk } from "./location";
 import { addDays, fmtDay, fmtDayTime, fmtRange, fmtShortDate, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost } from "../../types";
 import type { Ctx } from "../context";
@@ -270,6 +271,8 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   if (!prop && propertyId === undefined && addr && ["showing", "inspection"].includes(kind)) {
     const r = await resolveAddress(ctx, text, addr, { answering: false }).catch(() => null);
     const loc = r && r.status === "ok" ? r.place : null;
+    const lm = landmarkAsk(text, addr, loc?.landmark ?? null); // a ballpark or a capitol is not someone's home: ask before booking it
+    if (lm) return lm;
     const made = (await TOOLS.create_property.run(ctx, { address: addr, city: loc?.city ?? null, state: loc?.state ?? null, zip: loc?.zip ?? null, county: null, list_price: null, beds: null, baths: null, sqft: null })) as any;
     prop = (made?.data?.property as Property | undefined) ?? null;
   }
