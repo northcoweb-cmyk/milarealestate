@@ -112,12 +112,12 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
 }
 
 export async function prioritiesHandler(ctx: Ctx): Promise<HandlerOut> {
-  const pr = await computePriorities(ctx);
-  if (!pr.length) return reply("You're all caught up. Nothing needs you right now.");
-  const caps = { urgent: 3, important: 4, upcoming: 3, low: 0 } as const;
+  const pr = (await computePriorities(ctx)).filter((x) => x.score >= 28 && /overdue|due today|waiting on you|follow-up due|no contact in|not yet contacted/i.test(x.reason)); // only what is really due this week, never a task that is merely scheduled for later
+  if (!pr.length) return reply("You're all caught up. Nothing needs a follow-up right now.");
+  const caps = { urgent: 3, important: 3, upcoming: 2, low: 0 } as const; // a short, real list for this week
   const groups = (["urgent", "important", "upcoming"] as const).map((p) => ({
     priority: p,
-    items: pr.filter((x) => x.priority === p && x.source !== "event").slice(0, caps[p]).map((x) => ({ id: x.id, title: x.title, subtitle: x.subtitle, reason: x.reason || undefined, href: x.contactId ? `/contacts/${x.contactId}` : x.taskId ? "/tasks" : undefined })),
+    items: pr.filter((x) => x.priority === p && x.source !== "event").slice(0, caps[p]).map((x) => ({ id: x.id, title: x.title, subtitle: x.subtitle, reason: x.reason || undefined, contactId: x.contactId ?? undefined, href: x.contactId ? `/contacts/${x.contactId}` : x.taskId ? "/tasks" : undefined })),
   })).filter((g) => g.items.length);
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   if (!total) return reply("Nothing needs follow-up right now.");

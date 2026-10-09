@@ -449,7 +449,7 @@ export type Block =
   | { type: "notice"; tone: "info" | "warn" | "error" | "success"; title: string; body?: string; buttons?: ActionButton[] }
   | { type: "choice"; title: string; body?: string; buttons: ActionButton[] }
   | { type: "contacts"; title: string; contacts: { id: ID; name: string; type: string; reason?: string; color: string }[]; buttons?: ActionButton[] }
-  | { type: "priorities"; groups: { priority: TaskPriority; items: { id: ID; title: string; subtitle?: string; reason?: string; href?: string }[] }[]; buttons?: ActionButton[] }
+  | { type: "priorities"; groups: { priority: TaskPriority; items: { id: ID; title: string; subtitle?: string; reason?: string; href?: string; contactId?: ID }[] }[]; buttons?: ActionButton[] }
   | { type: "debrief"; greeting: string; counts: { appointments: number; followups: number; approvals: number }; noticed: string[]; buttons?: ActionButton[] }
   | { type: "draft_email"; draftId: ID; to: string; subject: string; body: string; status: string; buttons?: ActionButton[] }
   | { type: "post_set"; title: string; options: { label: string; post: Extract<Block, { type: "draft_social" }> }[] }

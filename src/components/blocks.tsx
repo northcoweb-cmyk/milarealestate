@@ -110,8 +110,19 @@ export function BlockView(p: Props) {
               <p className="kicker mb-2 flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: dot[g.priority] }} />{label[g.priority]}</p>
               <ul className="space-y-1">
                 {g.items.map((it) => {
-                  const inner = <><p className="font-semibold leading-tight">{it.title}</p>{it.subtitle && <p className="muted text-[14px]">{it.subtitle}</p>}{it.reason && <p className="faint text-[12.5px]">{it.reason}</p>}</>;
-                  return <li key={it.id} className="rounded-2xl px-3 py-2.5 transition hover:bg-white/30">{it.href ? <Link href={it.href} className="block">{inner}</Link> : inner}</li>;
+                  return (
+                    <li key={it.id} className="rounded-2xl px-3 py-2.5">
+                      <p className="font-semibold leading-tight">{it.title}</p>
+                      {it.subtitle && <p className="muted text-[14px]">{it.subtitle}</p>}
+                      {it.reason && <p className="faint text-[12.5px]">{it.reason}</p>}
+                      {(it.contactId || it.href) && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {it.href && <button type="button" onClick={() => p.onNavigate(it.href!)} className="chip !min-h-[34px] !px-3 text-[13px] font-semibold">Open {it.contactId ? "contact" : "tasks"}</button>}
+                          {it.contactId && <button type="button" disabled={p.busy} className="chip !min-h-[34px] !px-3 text-[13px] font-semibold" onClick={() => p.onAction({ type: "prompt", text: `Draft a follow-up for ${it.title}` } as never)}>Draft follow-up</button>}
+                        </div>
+                      )}
+                    </li>
+                  );
                 })}
               </ul>
             </div>

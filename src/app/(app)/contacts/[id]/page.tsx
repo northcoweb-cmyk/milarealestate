@@ -43,6 +43,25 @@ export default function ContactPage() {
         </div>
       </div>
 
+      {(() => {
+        const todo = [c.next_action, ...data.tasks.map((t) => t.title)].filter((x, i, a): x is string => !!x && a.indexOf(x) === i);
+        const done = data.timeline.slice(0, 3);
+        const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        return (
+          <section className="glass mb-5 grid gap-5 p-5 sm:grid-cols-2" aria-label="Follow-up status">
+            <div>
+              <p className="kicker mb-2">Needs to happen</p>
+              {todo.length ? <ul className="space-y-1.5">{todo.map((t) => <li key={t} className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--accent)" }} /><span>{t}</span></li>)}</ul> : <p className="muted">Nothing needed right now.</p>}
+              <Link className="chip mt-3 !min-h-[34px] !px-3 text-[13px] font-semibold" href={`/?ask=${encodeURIComponent(`Draft a follow-up for ${c.name}`)}`}>Draft a follow-up</Link>
+            </div>
+            <div>
+              <p className="kicker mb-2">Already happened</p>
+              {done.length ? <ul className="space-y-1.5">{done.map((e) => <li key={e.id} className="flex gap-2.5"><span className="faint w-14 shrink-0 text-[13px] font-semibold">{day(e.occurred_at)}</span><span>{e.title}</span></li>)}</ul> : <p className="muted">Nothing yet.</p>}
+            </div>
+          </section>
+        );
+      })()}
+
       <div className="grid gap-5 md:grid-cols-2">
         <section className="glass p-5">
           <p className="kicker mb-3">Details</p>

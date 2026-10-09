@@ -2,7 +2,7 @@ import { resolveAddress } from "../property-lookup";
 import { addDays, fmtDay, fmtDayTime, fmtRange, fmtShortDate, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost } from "../../types";
 import type { Ctx } from "../context";
-import { label, plural } from "../context";
+import { firstName, label, plural } from "../context";
 import { persistState } from "../conversation";
 import { openHouseEmail, openHouseSocial, polish } from "../comms";
 import { capitalisedNames, parseAddress, parseDate, parseWhen, rollPastWeekday } from "../nlu";
@@ -428,8 +428,14 @@ export async function cancelEventHandler(ctx: Ctx, text: string): Promise<Handle
 }
 export async function cancelEvent(ctx: Ctx, event: CalendarEvent): Promise<HandlerOut> {
   const out = await invoke(ctx, "cancel_calendar_event", { id: event.id });
-  if (out.status === "needs_approval") return reply("Cancelling always needs your confirmation.", [{ type: "notice", tone: "warn", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: "Confirm cancel", style: "primary", approvalId: out.approval.id }] }]);
-  return reply(out.result.ok ? "Canceled." : out.result.message);
+  const who = event.contact_id ? await ctx.store.get("contacts", ctx.userId, event.contact_id) : null;
+  // after a cancel the next question is always "do they know?": offer the message, warm and ready
+  const reschedule: Block[] = who ? [{ type: "choice", title: `Let ${firstName(who.name)} know`, buttons: [
+    { label: `✉️ Email ${firstName(who.name)} to reschedule`, style: "secondary", action: { type: "prompt", text: `Email ${who.name} that I need to cancel ${event.title} on ${fmtDayTime(event.start_at, ctx.tz)} and ask what other time works for them` } },
+    ...(who.phone ? [{ label: `💬 Text ${firstName(who.name)} to reschedule`, style: "secondary" as const, action: { type: "prompt" as const, text: `Text ${who.name} that I need to cancel ${event.title} on ${fmtDayTime(event.start_at, ctx.tz)} and ask what other time works for them` } }] : []),
+  ] }] : [];
+  if (out.status === "needs_approval") return reply(`Ready to cancel ${event.title} (${fmtDayTime(event.start_at, ctx.tz)}). Tap confirm and it's off your calendar.`, [{ type: "notice", tone: "warn", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: "Confirm cancel", style: "primary", approvalId: out.approval.id }] }, ...reschedule]);
+  return reply(out.result.ok ? `Canceled ${event.title}.` : out.result.message, reschedule);
 }
 
 export type { Property, SocialPost };
