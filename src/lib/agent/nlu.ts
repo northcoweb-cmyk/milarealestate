@@ -406,7 +406,7 @@ export function splitClauses(text: string): string[] {
   const another = /^(.*?\b(showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)s?\b.*?)\s+and\s+(?:another|one more|a second)\s+(?:(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)\s+)?(.+)$/i.exec(text.trim());
   if (another) return [another[1].trim(), `${another[2]} ${another[3]}`.trim()];
   const parts = text
-    .split(/\s*(?:;|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b))\s*/i)
+    .split(/\s*(?:;|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b)|[.!]\s+(?=(?:what(?:'s| is)|what am i|anything)\b[^.?!]*\bmissing\b))\s*/i)
     .map((s) => s.trim())
     .filter(Boolean);
   // "… and remind me …", "… and move my …" start a new clause when followed by an action verb
