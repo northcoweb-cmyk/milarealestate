@@ -66,7 +66,7 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
 
           {d.drafts.length > 0 && cur && draft && (
             <div>
-              {d.drafts.length > 1 && <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto">{d.drafts.map((x, i) => <button key={x.id} className="chip shrink-0" style={i === idx ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setIdx(i)}>{recipientNames(x)[0] ?? "Draft"}</button>)}</div>}
+              {d.drafts.length > 1 && <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible">{d.drafts.map((x, i) => <button key={x.id} className="chip shrink-0" style={i === idx ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setIdx(i)}>{recipientNames(x)[0] ?? "Draft"}</button>)}</div>}
               <p className="faint mb-1 text-[13px] font-semibold">TO · {total > 1 && d.drafts.length === 1 ? `${total} recipients (each gets their own copy)` : recipientNames(draft).slice(0, 3).join(", ") + (recipientNames(draft).length > 3 ? ` +${recipientNames(draft).length - 3}` : "")}</p>
               {d.drafts.length === 1 && total > 1 && <p className="faint mb-2 text-[12.5px]">{recipientNames(draft).slice(0, 12).join(", ")}{total > 12 ? `, and ${total - 12} more` : ""}</p>}
               {draft.stale && <p className="mb-2 text-[13.5px]" style={{ color: "var(--warn)" }}>⚠ {draft.stale_reason}. Ask Mila to update it.</p>}

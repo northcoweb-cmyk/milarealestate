@@ -211,31 +211,31 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
     <Sheet open onClose={closeEditor} title={PLATFORM_META[post.platform].label + " post"} wide>
       {viewAt != null && <SlideViewer slides={slides} start={viewAt} post={post} brand={brand} onClose={() => setViewAt(null)} />}
       <div className="space-y-5">
-        <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-1">
+        <div className="no-scrollbar -mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-1 sm:[scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block">
           {slides.map((s, i) => <button type="button" key={i} aria-label={`View image ${i + 1} larger`} onClick={() => setViewAt(i)} className={"shrink-0 snap-center " + (post.platform === "x" || post.platform === "linkedin" ? "w-[88%]" : "w-[66%] sm:w-[48%]")}><SlideImage slide={s} index={i} total={slides.length} post={post} brand={brand} width={640} rounded={20} className="w-full" /></button>)}
         </div>
 
         <div>
           <p className="kicker mb-2">Design · {layoutOf(layout).label}</p>
-          <div className="no-scrollbar -mx-6 flex gap-2 overflow-x-auto px-6 pb-1">
+          <div className="no-scrollbar -mx-6 flex gap-2 overflow-x-auto px-6 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes").map((l) => <button key={l.key} onClick={() => setLayout(l.key)} aria-pressed={layout === l.key} className={"chip " + (layout === l.key ? "is-selected" : "")}>{l.label}</button>)}
           </div>
         </div>
 
         <div>
           <p className="kicker mb-2">Colors · {pal.label}</p>
-          <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1">
+          <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {PALETTES.map((p) => <button key={p.key} onClick={() => setTheme(p.key)} aria-label={`${p.label} style`} aria-pressed={theme === p.key} className="relative h-11 w-11 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${p.bg} 55%, ${p.accent} 55%)`, boxShadow: theme === p.key ? "0 0 0 3px var(--surface), 0 0 0 5px var(--ink)" : "inset 0 0 0 1px rgba(128,128,128,.4)" }} />)}
           </div>
         </div>
 
         <div>
           <p className="kicker mb-2">Photos</p>
-          <div className="no-scrollbar -mx-1 mb-3 flex gap-2 overflow-x-auto px-1 py-1" role="tablist" aria-label="Which image to put a photo on">
+          <div className="no-scrollbar -mx-1 mb-3 flex gap-2 overflow-x-auto px-1 py-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" role="tablist" aria-label="Which image to put a photo on">
             {slides.length > 1 && <button role="tab" aria-selected={target === "all"} className={"chip shrink-0 " + (target === "all" ? "is-selected" : "")} onClick={() => setTarget("all")}>All images</button>}
             {slides.map((s, i) => <button key={i} role="tab" aria-selected={target === i} className={"chip shrink-0 " + (target === i ? "is-selected" : "")} onClick={() => setTarget(i)}>Image {i + 1}{s.image_url ? " ✓" : ""}</button>)}
           </div>
-          <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1">
+          <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 py-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             <button onClick={() => fileRef.current?.click()} disabled={uploading} className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl text-[11.5px] font-semibold" style={{ boxShadow: "inset 0 0 0 1.5px var(--line-strong, var(--line))" }} aria-label="Add a photo from your phone or computer"><ImagePlus size={20} />{uploading ? "…" : "Add"}</button>
             <button onClick={() => setPhoto(null)} aria-pressed={shown === null} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-[12.5px] font-semibold" style={{ boxShadow: shown === null ? "0 0 0 2px var(--ink)" : "inset 0 0 0 1.5px var(--line)" }}>None</button>
             {library.map((u) => (

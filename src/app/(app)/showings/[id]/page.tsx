@@ -215,7 +215,7 @@ function MediaStrip({ ids, media, uploads, onOpen, onAdd }: { ids: string[]; med
   return (
     <div>
       {(ids.length > 0 || uploads.length > 0) && (
-        <div className="no-scrollbar -mx-1 mb-2.5 flex gap-2 overflow-x-auto px-1 py-1">
+        <div className="no-scrollbar -mx-1 mb-2.5 flex gap-2 overflow-x-auto px-1 py-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {ids.map((mid) => { const m = media[mid]; if (!m) return null; return (
             <button key={mid} onClick={() => onOpen(mid)} className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl" aria-label={m.mime.startsWith("video/") ? "Open video" : "Open photo"}>
               {m.mime.startsWith("video/")
