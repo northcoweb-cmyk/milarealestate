@@ -70,7 +70,9 @@ export function buildScenarios(): Scenario[] {
         const oh = (await events(a)).filter((e: any) => e.kind === "open_house");
         const T = text(res);
         if (s.start.getTime() < now.getTime()) {
-          if (oh.length) return `created an open house in the past (${oh[0].start_at}) for "${phr}"`;
+          // the same weekday, earlier today ("Thursday at 9" on Thursday afternoon) now means next week
+          if (oh.length && Math.abs(new Date(oh[0].start_at).getTime() - (s.start.getTime() + 7 * 86_400_000)) > 60_000) return `created an open house in the past (${oh[0].start_at}) for "${phr}"`;
+          if (oh.length) return;
           if (!/passed|already/i.test(T)) return `no 'time has passed' message for past slot: ${res.milaMessage.content.slice(0, 120)}`;
           return;
         }
@@ -104,7 +106,7 @@ export function buildScenarios(): Scenario[] {
       check: async (res, a) => {
         const s = slot(now, tz, day, t);
         const evs = (await events(a)).filter((e: any) => !a.seedIds.has(e.id) && new Date(e.start_at).getTime() === s.start.getTime());
-        if (s.start.getTime() < now.getTime()) { if (evs.length) return `scheduled in the past: ${evs[0].start_at}`; return; }
+        if (s.start.getTime() < now.getTime()) { if (evs.length && Math.abs(new Date(evs[0].start_at).getTime() - (s.start.getTime() + 7 * 86_400_000)) > 60_000) return `scheduled in the past: ${evs[0].start_at}`; return; }
         if (await overlapsExisting(a, s.start, kind === "showing" ? 45 : kind === "lunch" ? 60 : 30)) { if (!blocks(res, "choice").length) return `overlap not surfaced as a choice: ${res.milaMessage.content.slice(0, 100)}`; return; }
         if (evs.length !== 1) return `expected an event at ${s.start.toISOString()}, found ${evs.length}: ${res.milaMessage.content.slice(0, 120)}`;
       },
@@ -147,7 +149,7 @@ export function buildScenarios(): Scenario[] {
         const exp = partsIn(addDays(startOfDay(now, tz), off, tz), tz);
         const h = kind === "day" ? 9 : t[1], mi = kind === "day" ? 0 : t[2];
         const when = zonedToUtc(exp.y, exp.m, exp.d, h, mi, tz);
-        if (when.getTime() <= now.getTime()) { if (rems.length) return `reminder created in the past (${rems[0].remind_at})`; return; }
+        if (when.getTime() <= now.getTime()) { if (rems.length && Math.abs(new Date(rems[0].remind_at).getTime() - (when.getTime() + 7 * 86_400_000)) > 60_000) return `reminder created in the past (${rems[0].remind_at})`; return; }
         if (rems.length !== 1) return `expected 1 reminder, got ${rems.length}: ${res.milaMessage.content.slice(0, 100)}`;
         if (new Date(rems[0].remind_at).getTime() !== when.getTime()) return `reminder time wrong: wanted ${when.toISOString()} got ${rems[0].remind_at} for "${phr}"`;
         if (!/call|email/i.test(rems[0].title)) return `reminder lost its subject: "${rems[0].title}"`;
