@@ -135,6 +135,18 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     const lastProp = ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id) : null;
     if (lastProp) text = `${text.replace(/[.?!]+\s*$/, "")} ${lastProp.address}${lastProp.city ? `, ${lastProp.city}` : ""}${lastProp.state ? ` ${lastProp.state}` : ""}`;
   }
+  // "Give me a script for…" / "What do I say?": a script is words to say, never a message to send. Ask what kind first (phone, meeting, text, email), then answer.
+  if (!ctx.state.pending && /^(?:please |can you |could you |hey )?(?:give|write|draft|make|create|get|help)\s+me\s+(?:a |an |some |with )?(?:script|talking points|word ?track|pitch)\b|\bwhat (?:do|should|can) i say\b/i.test(text)) {
+    const medium = /\b(phone|call|voicemail|meeting|in[- ]person|face[- ]to[- ]face|text|sms|email|presentation)\b/i.test(text);
+    if (medium) return { out: await generalHandler(ctx, text), intent: "general" };
+    const base = text.replace(/[.?!\s]+$/, "");
+    return { out: reply("What kind of script do you need?", [{ type: "choice", title: "Pick one and I'll write it", buttons: [
+      { label: "📞 Phone call", style: "primary", action: { type: "prompt", text: `${base}. Write it as a phone call script.` } },
+      { label: "🤝 In-person meeting", style: "secondary", action: { type: "prompt", text: `${base}. Write it as an in-person meeting script.` } },
+      { label: "💬 Text message", style: "secondary", action: { type: "prompt", text: `${base}. Write it as a short text message script.` } },
+      { label: "✉️ Email", style: "secondary", action: { type: "prompt", text: `${base}. Write it as an email script.` } },
+    ] }], "smalltalk"), intent: "smalltalk" };
+  }
   const pend = ctx.state.pending;
   let forced: Intent | null = null; // an answer to Mila's question continues THAT request, whatever the merged text looks like
   let answering: { intent: string; missing: string } | null = null;

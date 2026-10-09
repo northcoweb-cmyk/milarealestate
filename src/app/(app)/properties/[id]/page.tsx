@@ -92,7 +92,6 @@ function PropertyDetail({ id }: { id: string }) {
             ] as [string, string][]).filter(([, v]) => v);
               return rows.length ? <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-[14px] sm:grid-cols-2">{rows.map(([k, v]) => <div key={k} className="flex justify-between gap-3 border-b py-1" style={{ borderColor: "var(--line)" }}><dt className="muted">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>)}</dl> : null; })()}
             <p className="muted mt-2 text-[13.5px]">Not looking right? <a href="#edit" className="font-semibold text-accent underline">Let's change it.</a></p>
-            {data.lookup.sources.some((x) => x.url) && <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13.5px]">{data.lookup.sources.filter((x) => x.url).map((x) => <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">{(() => { try { return new URL(x.url).hostname.replace(/^www\./, ""); } catch { return x.title; } })()}</a>)}</p>}
           </>
         ) : (
           <p className="muted text-[14px]">{!addrComplete ? "Add the city and state (or ZIP) and I'll find the home and fill in the details for you." : data.lookup ? "I couldn't find this exact home. Check the address below, or add the details yourself." : "I'll look the address up and fill in the details."}</p>

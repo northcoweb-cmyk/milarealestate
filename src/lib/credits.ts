@@ -41,7 +41,7 @@ export async function ensureCredits(userId: string, needed: number) {
   // test accounts never run dry: top them up when they get low, and the trial clock does not apply to them
   if (await isTesterId(userId)) {
     const bal0 = await getBalance(userId);
-    if (bal0 < Math.max(needed, 200)) await grantCredits(userId, TESTER_TOPUP_CREDITS, "grant", "Tester top-up");
+    if (bal0 < Math.max(needed, 200)) await grantCredits(userId, TESTER_TOPUP_CREDITS, "grant", "Credit top-up");
     return;
   }
   // a finished trial with no plan: nothing paid runs (existing data stays visible)

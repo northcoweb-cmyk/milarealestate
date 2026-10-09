@@ -143,7 +143,6 @@ export function BlockView(p: Props) {
           <h3 className="h2 mt-1">{b.title}</h3>
           <ul className="mt-4 space-y-2.5">{b.bullets.map((x, i) => <li key={i} className="flex gap-3 text-[15px]"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--accent)" }} />{x}</li>)}</ul>
           <p className="faint hairline mt-4 pt-3 text-[13px]"><b>Data period:</b> {b.dataPeriod}</p>
-          <p className="faint mt-1 text-[13px]"><b>Sources:</b> {b.sources.map((s, i) => <span key={s.url}>{i ? " · " : ""}<a className="underline" href={s.url} target="_blank" rel="noopener noreferrer">{s.title}</a></span>)}</p>
         </div>
       );
     case "event":

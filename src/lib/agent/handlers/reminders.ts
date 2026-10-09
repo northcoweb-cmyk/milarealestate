@@ -1,6 +1,6 @@
 import { addDays, fmtDayTime, partsIn, zonedToUtc } from "../../time";
 import type { Ctx } from "../context";
-import { stripPunct, stripWhenWords, parseWhen } from "../nlu";
+import { stripPunct, stripWhenWords, parseWhen, rollPastWeekday } from "../nlu";
 import { invoke } from "../tools";
 import { resolveEvent } from "./calendar";
 import { type HandlerOut, reply } from "./types";
@@ -59,6 +59,7 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   }
   const recurring = /\b(every|each|daily|weekly|monthly|annually|yearly|recurring|repeat(?:ing)?)\b/i.test(text);
   if (!when) return askBack(ctx, "reminder", text, "time", `When should I remind you?${recurring ? " (I can only set one-time reminders for now, not repeating ones.)" : ""}`);
+  if (when) when = rollPastWeekday(when, text, ctx.now, ctx.tz);
   if (when.getTime() <= ctx.now.getTime()) return askBack(ctx, "reminder", text, "time", "That time has already passed — what other time should I use?");
   if (!title) title = "Reminder";
   title = title.charAt(0).toUpperCase() + title.slice(1);

@@ -5,7 +5,7 @@ import type { Ctx } from "../context";
 import { label, plural } from "../context";
 import { persistState } from "../conversation";
 import { openHouseEmail, openHouseSocial, polish } from "../comms";
-import { capitalisedNames, parseAddress, parseDate, parseWhen } from "../nlu";
+import { capitalisedNames, parseAddress, parseDate, parseWhen, rollPastWeekday } from "../nlu";
 import { TOOLS, eventConflicts, freeSlots, invoke, logContactEvent } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
@@ -260,6 +260,7 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   } else if (!w.time) {
     return askBack(ctx, "create_event", text, "time", `What time on ${fmtDay(start, ctx.tz)}?`);
   }
+  start = rollPastWeekday(start, text, ctx.now, ctx.tz);
   if (start.getTime() < ctx.now.getTime() - 60_000) return askBack(ctx, "create_event", text, "time", `That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
   const end = w.end ?? new Date(start.getTime() + durMin * 60_000);

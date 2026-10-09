@@ -331,7 +331,7 @@ export function parsePhone(text: string): string | null {
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : null;
 }
 
-const NAME_STOP = new Set(["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","January","February","March","April","May","June","July","August","September","October","November","December","Mila","Open","House","Showing","Main","Street","I","I'm","And","The","She","He","They","Montgomery","County"]);
+const NAME_STOP = new Set(["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","January","February","March","April","May","June","July","August","September","October","November","December","Mila","Give","Write","Make","Draft","Create","Send","Show","Find","Pull","Get","Set","Help","Please","Can","Could","Would","Should","Open","House","Showing","Main","Street","I","I'm","And","The","She","He","They","Montgomery","County"]);
 
 export function parsePersonName(text: string): string | null {
   const W = "\\p{Lu}[\\p{L}'’-]*";
@@ -477,4 +477,17 @@ export function plausibleName(name: string | null | undefined): boolean {
   const words = n.split(/\s+/);
   if (words.length > 4) return false;
   return !words.some((w) => NOT_A_NAME.test(w));
+}
+
+/**
+ * "Thursday at 9am" said on Thursday afternoon means NEXT Thursday: when the time named has already passed today and the agent named a
+ * weekday (not "today" or "tonight"), roll it a week forward instead of telling her it already passed.
+ */
+export function rollPastWeekday(start: Date, text: string, now: Date, tz: string): Date {
+  if (start.getTime() >= now.getTime() - 60_000) return start;
+  if (/\b(today|tonight|this (?:morning|afternoon|evening)|earlier)\b/i.test(text)) return start;
+  if (!/\b(mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun)[a-z]*\b/i.test(text)) return start;
+  const a = partsIn(start, tz), b = partsIn(now, tz);
+  if (a.y !== b.y || a.m !== b.m || a.d !== b.d) return start; // it named an earlier day, not today: leave it to the "already passed" answer
+  return new Date(start.getTime() + 7 * 86_400_000);
 }

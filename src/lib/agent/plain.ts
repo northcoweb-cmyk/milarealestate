@@ -9,7 +9,13 @@ export function plainText(s: string): string {
     .replace(/`{1,3}([^`]+?)`{1,3}/gs, "$1")                           // code
     .replace(/^\s*[-*+]\s+/gm, "• ")                                    // bullets
     .replace(/^\s{2,}•/gm, "  •")
-    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, "$1 ($2)")           // [text](url)
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, "$1")                // [text](url) -> text: where an answer came from is never shown
+    .replace(/\s*\(\s*(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s()]*)?\s*\(?\s*https?:[^)]*\)+/gi, "")   // (site.com (https://...))
+    .replace(/\s*\((?:[a-z0-9-]+\.)+(?:com|org|net|gov|edu|io|co|us|app)(?:\/[^)\s]*)?\)/gi, "")   // (zillow.com)
+    .replace(/\s*\(?https?:\/\/[^\s)]+\)?/g, "")                                // bare links
+    .replace(/\s*\(\s*\)/g, "")
+    .replace(/^\s*(?:sources?|citations?|references?)\s*:.*$/gim, "")
+    .replace(/[ \t]+([.,;:!?])/g, "$1")
     .replace(/^\s*[-_*]{3,}\s*$/gm, "")                                // rules
     .replace(/\n{3,}/g, "\n\n")
     .trim();

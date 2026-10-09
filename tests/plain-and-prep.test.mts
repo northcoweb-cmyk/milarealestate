@@ -9,7 +9,7 @@ test("model markdown is flattened to clean plain text", () => {
   assert.doesNotMatch(out, /[#*`]|\*\*/);
   assert.match(out, /^Showing Preparation/);
   assert.match(out, /• Property Details:/);
-  assert.match(out, /the page \(https:\/\/x\.com\/a\)/);
+  assert.match(out, /See the page\./);
 });
 
 test("phone typos still route, and 'get me prepared' becomes its own request", () => {

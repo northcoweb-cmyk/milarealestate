@@ -4,7 +4,7 @@ import type { Ctx } from "../context";
 import { plural } from "../context";
 import { persistState } from "../conversation";
 import { openHouseEmail, openHouseSocial, polish } from "../comms";
-import { addrKey, parseAddress, parseWhen } from "../nlu";
+import { addrKey, parseAddress, parseWhen, rollPastWeekday } from "../nlu";
 import { TOOLS, eventConflicts, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { autoPhotos, explainPull, firstUrl } from "./photos";
@@ -88,8 +88,8 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
     await persistState(ctx);
     return reply(`What time does it start on ${fmtDay(w.start!, ctx.tz)}?`);
   }
-  const start = w.start!;
-  const end = w.end ?? new Date(start.getTime() + 2 * 3_600_000); // default 2h; stated in the summary so it's easy to correct
+  const start = rollPastWeekday(w.start!, text, ctx.now, ctx.tz);
+  const end = w.end && start.getTime() === w.start!.getTime() ? w.end : new Date(start.getTime() + (w.end && w.start ? w.end.getTime() - w.start.getTime() : 2 * 3_600_000)); // default 2h; stated in the summary so it's easy to correct
   if (start.getTime() < ctx.now.getTime()) return reply(`That time has already passed. Did you mean next ${fmtDay(start, ctx.tz)}?`);
 
   ctx.steps.push("Checking your calendar");
