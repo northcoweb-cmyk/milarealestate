@@ -28,7 +28,7 @@ export const CATEGORIES: CategoryDef[] = [
 /** What Mila makes posts for today: Instagram feed posts (1080×1350) and Instagram stories (1080×1920). */
 export const PLATFORMS: { key: SocialPlatform; label: string; limit: number; carousel: boolean }[] = [
   { key: "instagram", label: "Instagram post", limit: 2200, carousel: true },
-  { key: "instagram_story", label: "Instagram story", limit: 2200, carousel: true },
+  { key: "instagram_story", label: "Instagram story", limit: 2200, carousel: false },
 ];
 /** Older posts may still be on platforms we no longer create for; they keep working. */
 const LEGACY_LIMITS: Record<string, number> = { facebook: 5000, tiktok: 2200, linkedin: 3000, x: 280 };
@@ -47,6 +47,8 @@ export interface BuildInput {
   topic?: string | null;
   /** "5 tips for first-time buyers": how many tips, and for whom */
   tips?: { n: number; audience: string } | null;
+  /** the buyers the agent named on a sold post: "the Nguyens" */
+  client?: string | null;
   /** Shown on the last image's button, e.g. "Call or text 301.509.7280". Defaults to the agent's name. */
   contact?: string | null;
 }
@@ -154,13 +156,15 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
         cta: pick(v, ["Now's a great time to take another look. Message me!", "Questions about the update? I'm happy to help."]),
         slides: [slide("hero", fullWhere || "Price improvement", price ? `New price • ${price}` : "Price Improvement"), ...(tiles().length ? tiles() : [slide("highlight", "Take another look", prop?.city ?? undefined)]), slide("cta", "Let's talk", sig)],
       };
-    case "just_sold":
+    case "just_sold": {
+      const who = i.client?.trim();
       return {
         headline: "Just Sold! 🎉", lines: dataLines.length ? dataLines : [where].filter(Boolean),
-        cta: pick(v, ["Congratulations to my wonderful clients! Thinking about your own move? Let's talk.", "So proud of this one. If you're thinking of selling, I'd love to help."]),
-        // one bold SOLD image with the home behind it, and one thank-you: two slides, not a deck
-        slides: [slide("hero", "SOLD", [fullWhere || prop?.placeLine, price].filter(Boolean).join(" • ") || "Just sold"), slide("cta", "Congratulations!", `Thinking of selling? ${sig}`)],
+        cta: who ? `Congratulations to ${who}! So proud of this one. If you're thinking of selling, I'd love to help.` : pick(v, ["Congratulations to my wonderful clients! Thinking about your own move? Let's talk.", "So proud of this one. If you're thinking of selling, I'd love to help."]),
+        // with a name: the big SOLD image plus a thank-you to them. Without one: just the one image
+        slides: [slide("hero", "SOLD", [fullWhere || prop?.placeLine, price].filter(Boolean).join(" • ") || "Just sold"), ...(who ? [slide("cta", `Congratulations, ${who}!`, sig)] : [])],
       };
+    }
     case "buyer_tip": case "seller_tip": case "education": {
       const bank = i.category === "buyer_tip" ? BUYER_TIPS : i.category === "seller_tip" ? SELLER_TIPS : EDU_TIPS;
       const emoji = i.category === "seller_tip" ? "🏷️" : i.category === "buyer_tip" ? "🔑" : "💡";
@@ -171,7 +175,8 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
         const title = `${picked.length} tips for ${i.tips.audience}`;
         return {
           headline: `${emoji} ${title}`, lines: picked.map((p, k) => `${k + 1}. ${p}`), cta: "Save this for later, and message me if you want help with any of it.",
-          slides: [slide("hero", title, "Swipe →"), ...picked.map((p, k) => slide("highlight", p, `Tip ${k + 1} of ${picked.length}`)), slide("cta", "Questions? Message me.", sig)],
+          // a carousel is always three images: the cover, the whole list on one image, and who to call
+          slides: [slide("hero", title, "Swipe →"), slide("highlight", picked.map((p, k) => `${k + 1}. ${p}`).join("\n"), "The list"), slide("cta", "Questions? Message me.", sig)],
         };
       }
       const t = pickTip(bank, v);
@@ -236,7 +241,7 @@ export function buildPost(i: BuildInput): Built {
   const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic && !i.tips ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const f = fitToPlatform(i.platform, body, baseTags(i));
   const carousel = PLATFORMS.find((p) => p.key === i.platform)?.carousel ?? true;
-  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? (i.tips ? c.slides.slice(0, 10) : capSlides(c.slides)) : c.slides.slice(0, 1) };
+  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capSlides(c.slides) : c.slides.slice(0, 1) };
 }
 
 export const variantCount = (cat: Category) => (cat === "buyer_tip" || cat === "seller_tip" ? 10 : cat === "education" ? 8 : cat === "local" ? 5 : 3);

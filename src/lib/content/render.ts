@@ -5,7 +5,7 @@ import { FORMATS, formatFor, layoutOf, paletteOf, type Palette } from "./design"
  * Draws post images in the browser (canvas → PNG): editorial layouts, six palettes, real property photos when
  * the agent has them. No server, no image-generation cost, and what you preview is exactly what you export.
  */
-export interface Brand { name: string; brokerage?: string | null; pfp?: string | null }
+export interface Brand { name: string; brokerage?: string | null; pfp?: string | null; phone?: string | null; email?: string | null; credentials?: string | null; team?: string | null }
 export interface RenderOpts { index: number; total: number; platform: string; brand: Brand; category?: string | null; width?: number }
 
 type Ctx = CanvasRenderingContext2D;
@@ -239,27 +239,41 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   const footY = H - m;
   const mono = 58 * u;
   const pfpImg = o.brand.pfp ? await loadImage(o.brand.pfp) : null;
-  c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
-  if (pfpImg) { // the agent's profile photo, cropped to a circle
-    c.save(); c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.clip();
-    const sc = Math.max(mono / pfpImg.width, mono / pfpImg.height); const pw = pfpImg.width * sc, ph = pfpImg.height * sc;
-    c.drawImage(pfpImg, m + (mono - pw) / 2, footY - 22 * u - mono / 2 + (mono - ph) / 2, pw, ph); c.restore();
-  } else { c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(22 * u, 800); c.textAlign = "center"; c.fillText(ini, m + mono / 2, footY - 22 * u + 8 * u); c.textAlign = "left"; }
-  const bx = m + mono + 22 * u;
-  c.fillStyle = ink; c.font = sans(30 * u, 800); c.fillText(o.brand.name, bx, footY - 24 * u);
-  if (o.brand.brokerage) { c.fillStyle = soft; c.font = sans(24 * u, 500); c.fillText(o.brand.brokerage, bx, footY + 8 * u); }
+  const isCta = slide.role === "cta", isHero = slide.role === "hero", lone = o.total <= 1;
+  // Who is posting. A lone image carries the small footer; in a carousel the FIRST image has a tiny round photo in the corner, the LAST introduces the agent
+  // in the middle with all their details, and the images between are all about the home.
+  const roundPhoto = (cx: number, cy: number, r: number, ring: string) => {
+    c.save(); c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fillStyle = pal.accent; c.fill(); c.clip();
+    if (pfpImg) { const sc = Math.max((2 * r) / pfpImg.width, (2 * r) / pfpImg.height); const pw = pfpImg.width * sc, ph = pfpImg.height * sc; c.drawImage(pfpImg, cx - pw / 2, cy - ph / 2, pw, ph); }
+    else { c.fillStyle = pal.onAccent; c.font = sans(r * 0.8, 800); c.textAlign = "center"; c.fillText(ini, cx, cy + r * 0.28); c.textAlign = "left"; }
+    c.restore();
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.lineWidth = Math.max(3, r * 0.1); c.strokeStyle = ring; c.stroke();
+  };
+  if (isHero && !lone) roundPhoto(W - m - (o.total > 1 ? 150 : 30) * u, m + 16 * u, 30 * u, fullBleed || photo ? "#ffffff" : pal.ink);
+  if (lone && !isCta) {
+    c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
+    if (pfpImg) { // the agent's profile photo, cropped to a circle
+      c.save(); c.beginPath(); c.arc(m + mono / 2, footY - 22 * u, mono / 2, 0, Math.PI * 2); c.clip();
+      const sc = Math.max(mono / pfpImg.width, mono / pfpImg.height); const pw = pfpImg.width * sc, ph = pfpImg.height * sc;
+      c.drawImage(pfpImg, m + (mono - pw) / 2, footY - 22 * u - mono / 2 + (mono - ph) / 2, pw, ph); c.restore();
+    } else { c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(22 * u, 800); c.textAlign = "center"; c.fillText(ini, m + mono / 2, footY - 22 * u + 8 * u); c.textAlign = "left"; }
+    const bx = m + mono + 22 * u;
+    c.fillStyle = ink; c.font = sans(30 * u, 800); c.fillText(o.brand.name, bx, footY - 24 * u);
+    if (o.brand.brokerage) { c.fillStyle = soft; c.font = sans(24 * u, 500); c.fillText(o.brand.brokerage, bx, footY + 8 * u); }
+  }
   if (o.total > 1) for (let i = 0; i < o.total; i++) { const cx = W - m - (o.total - 1 - i) * 30 * u - 8 * u; c.beginPath(); c.arc(cx, footY - 22 * u, 8 * u, 0, Math.PI * 2); c.fillStyle = ink; c.globalAlpha = i === o.index ? 1 : 0.28; c.fill(); c.globalAlpha = 1; }
   // "swipe" cue on the first slide of a carousel
   const swipeCue = slide.role === "hero" && o.total > 1 && !landscape;
 
   const contentBottom = footY - 100 * u;
+  const btnH0 = 84 * u;
   const boxW = W - 2 * m;
   const mediaBox = (x: number, y: number, w: number, h: number, shape: Shape) => {
     if (photo && !fullBleed) {
       c.save(); shapePath(c, shape, x, y, w, h); c.clip();
       const s = Math.max(w / photo.width, h / photo.height); const pw = photo.width * s, ph = photo.height * s;
       c.drawImage(photo, x + (w - pw) / 2, y + (h - ph) / 2, pw, ph); c.restore();
-    } else illustrate(c, kind, x, y, w, h, art, ini, f.sans, shape, pfpImg);
+    } else illustrate(c, kind, x, y, w, h, art, ini, f.sans, shape, null);
   };
   const pill = (text: string, x: number, y: number, dark = false) => {
     c.font = sans(25 * u, 800); const tw = spacedWidth(c, text.toUpperCase(), 4 * u); const pw = tw + 52 * u, ph = 56 * u;
@@ -279,6 +293,48 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   };
   const arrow = (x: number, y: number, size: number, col: string) => { c.save(); c.strokeStyle = col; c.lineWidth = 6 * u; c.lineCap = "round"; c.lineJoin = "round"; c.beginPath(); c.moveTo(x, y); c.lineTo(x + size, y); c.moveTo(x + size - size * 0.35, y - size * 0.3); c.lineTo(x + size, y); c.lineTo(x + size - size * 0.35, y + size * 0.3); c.stroke(); c.restore(); };
   const swipe = (x: number, y: number, align: "left" | "right" = "left") => { c.font = sans(26 * u, 800); c.fillStyle = fullBleed ? "#fff" : pal.ink; const w = spacedWidth(c, "SWIPE", 4 * u); const sx = align === "left" ? x : x - w - 60 * u; spaced(c, "SWIPE", sx, y, 4 * u); arrow(sx + w + 16 * u, y - 9 * u, 38 * u, fullBleed ? "#fff" : pal.ink); };
+
+  // ================================================================ LAST IMAGE: who is hosting
+  if (isCta && !lone) {
+    const dark = fullBleed || !!photo; // a property photo sits behind, dimmed, so the home is still in every image
+    if (photo && !fullBleed) {
+      const sc = Math.max(W / photo.width, H / photo.height); const pw = photo.width * sc, ph = photo.height * sc;
+      c.drawImage(photo, (W - pw) / 2, (H - ph) / 2, pw, ph);
+      const shade = c.createLinearGradient(0, 0, 0, H); shade.addColorStop(0, "rgba(8,8,10,.62)"); shade.addColorStop(1, "rgba(8,8,10,.86)"); c.fillStyle = shade; c.fillRect(0, 0, W, H);
+    }
+    const tInk = dark ? "#ffffff" : pal.ink, tSoft = dark ? "rgba(255,255,255,.78)" : pal.soft;
+    const info = [o.brand.phone, o.brand.email, [o.brand.credentials, o.brand.team].filter(Boolean).join(" · ")].filter((x): x is string => !!x && !!x.trim());
+    if (landscape) {
+      const d = H * 0.5, cx = W * 0.25, cy = H / 2;
+      roundPhoto(cx, cy, d / 2, dark ? "#ffffff" : pal.accent);
+      let y = cy - d * 0.42; const x0 = W * 0.46, mw = W - x0 - m;
+      const { px, lines } = fit(c, HL, head, mw, 150 * u, 90 * u, 44 * u, lhOf, 2);
+      c.fillStyle = tInk; drawLines(lines, px, x0, y, lhOf); y += lines.length * px * lhOf + 34 * u;
+      c.fillStyle = tInk; c.font = sans(40 * u, 800); c.fillText(o.brand.name, x0, y, mw); y += 42 * u;
+      if (o.brand.brokerage) { c.fillStyle = tSoft; c.font = sans(28 * u, 500); c.fillText(o.brand.brokerage, x0, y, mw); y += 40 * u; }
+      c.fillStyle = tInk; c.font = sans(28 * u, 700); for (const l of info) { c.fillText(l, x0, y, mw); y += 38 * u; }
+      return cv;
+    }
+    const topY = m + 40 * u;
+    c.fillStyle = tInk;
+    const hd = fit(c, HL, head, boxW, 230 * u, 112 * u, 54 * u, lhOf, 2);
+    drawLines(hd.lines, hd.px, W / 2, topY, lhOf, "center");
+    const d = Math.min(W * 0.38, H * 0.24), cx = W / 2, cy = topY + hd.lines.length * hd.px * lhOf + 56 * u + d / 2;
+    c.save(); c.shadowColor = "rgba(0,0,0,.35)"; c.shadowBlur = 40 * u; c.shadowOffsetY = 14 * u; roundPhoto(cx, cy, d / 2, dark ? "#ffffff" : pal.accent); c.restore();
+    let y = cy + d / 2 + 74 * u;
+    c.textAlign = "center"; c.fillStyle = tInk; c.font = sans(54 * u, 800); c.fillText(o.brand.name, W / 2, y, boxW); y += 50 * u;
+    if (o.brand.brokerage) { c.fillStyle = tSoft; c.font = sans(32 * u, 500); c.fillText(o.brand.brokerage, W / 2, y, boxW); y += 54 * u; }
+    c.fillStyle = tInk; c.font = sans(32 * u, 700);
+    for (const l of info) { c.fillText(l, W / 2, y, boxW); y += 46 * u; }
+    c.textAlign = "left";
+    if (slide.sub) { // the one line that says what to do (a phone number, the day, "message me")
+      c.font = sans(32 * u, 800); const label = slide.sub.length > 44 ? slide.sub.slice(0, 43) + "…" : slide.sub; const tw = Math.min(c.measureText(label).width, boxW - 72 * u);
+      const pw = tw + 72 * u, py = contentBottom - btnH0, bxp = (W - pw) / 2;
+      rrect(c, bxp, py, pw, btnH0, btnH0 / 2); c.fillStyle = dark ? "#ffffff" : pal.accent; c.fill();
+      c.fillStyle = dark ? "#111" : pal.onAccent; c.fillText(label, bxp + 36 * u, py + btnH0 / 2 + 11 * u, boxW - 72 * u);
+    }
+    return cv;
+  }
 
   // ================================================================ HERO
   if (slide.role === "hero") {
@@ -395,6 +451,22 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
         c.fillStyle = lcol; c.globalAlpha = first ? 0.8 : 1; c.font = sans(26 * u, 800); spaced(c, st.label.toUpperCase(), x + 32 * u, y + ch * 0.58 + 52 * u, 4 * u); c.globalAlpha = 1;
       });
     } else {
+      if (slide.headline.includes("\n")) { // a numbered list on one image: every item its own row with a round number
+        const items = slide.headline.split("\n").map((x) => x.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean);
+        const top0 = m + (slide.sub ? 120 * u : 40 * u), avail = contentBottom - top0;
+        if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 700); c.textAlign = ax; c.fillText(slide.sub, tx, m + 56 * u); c.textAlign = "left"; }
+        let size = 84 * u, rows: string[][] = [];
+        for (; size >= 30 * u; size -= 3 * u) { c.font = sans(size, 700); rows = items.map((t) => wrap(c, t.replace(/'/g, "’"), boxW - size * 2.2)); const h = rows.reduce((a, r) => a + r.length * size * 1.18 + size * 0.7, 0); if (h <= avail) break; }
+        const used = rows.reduce((a, r) => a + r.length * size * 1.18 + size * 0.7, 0) - size * 0.7;
+        let y = top0 + Math.max(0, (avail - used) / 2 - (slide.sub ? 0 : 20 * u));
+        items.forEach((_, k) => {
+          const bd = size * 1.5; c.beginPath(); c.arc(m + bd / 2, y + size * 0.62, bd / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
+          c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(size * 0.9, 800); c.textAlign = "center"; c.fillText(String(k + 1), m + bd / 2, y + size * 0.62 + size * 0.32); c.textAlign = "left";
+          c.fillStyle = ink; c.font = sans(size, 700); rows[k].forEach((ln, li) => c.fillText(ln, m + bd + size * 0.5, y + size * 0.85 + li * size * 1.18));
+          y += rows[k].length * size * 1.18 + size * 0.7;
+        });
+        return cv;
+      }
       const n = slide.sub?.match(/^(\d+)\s+of\s+(\d+)/i);
       const badge = 150 * u; let top = m + 20 * u;
       if (n && !fullBleed) {

@@ -39,7 +39,8 @@ function ContentInner() {
   const [zipProgress, setZipProgress] = useState<string | null>(null);
   const posts = data?.posts ?? [];
   const pfpId = profile.settings.brand?.pfp ?? null;
-  const brand: Brand = useMemo(() => ({ name: profile.full_name, brokerage: profile.brokerage, pfp: pfpId ? `/api/files/${pfpId}` : null }), [profile.full_name, profile.brokerage, pfpId]);
+  const bi = profile.settings.brand;
+  const brand: Brand = useMemo(() => ({ name: profile.full_name, brokerage: profile.brokerage, pfp: pfpId ? `/api/files/${pfpId}` : null, phone: bi?.cell || bi?.office || null, email: bi?.email || null, credentials: [bi?.credentials, bi?.license ? `Lic# ${bi.license}` : ""].filter(Boolean).join(" ") || null, team: bi?.team || null }), [profile.full_name, profile.brokerage, pfpId, bi]);
   useEffect(() => { setOpen((o) => (o ? posts.find((p) => p.id === o.id) ?? null : o)); }, [posts]);
 
   async function approveAll() {
@@ -125,7 +126,7 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const over = caption.length > limit;
   const theme = slides[0]?.theme ?? "noir";
   const photos = post.property_id ? data.photos[post.property_id] ?? [] : Object.values(data.photos).flat();
-  const [target, setTarget] = useState<number | "all">(0);
+  const [target, setTarget] = useState<number | "all">(slides.length > 1 ? "all" : 0); // a chosen photo goes on every image unless she picks one image
   const [uploads, setUploads] = useState<string[]>(data.uploads ?? []);
   const [uploading, setUploading] = useState(false);
   const [link, setLink] = useState("");

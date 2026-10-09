@@ -32,9 +32,10 @@ export function openHouseEmail(ctx: Ctx, prop: Property, start: Date, end: Date)
     body: [
       "Hi {{first_name}},",
       "",
-      `I'm hosting an open house at ${prop.address}${prop.city ? `, ${prop.city}` : ""} this ${day}, ${date}, from ${range}.`,
-      facts.length ? `\n${facts.join(" • ")}\n` : "",
-      "Stop by to see the home in person — no appointment needed. If you can't make it but would like a private showing, just reply and I'll set one up.",
+      `I wanted you to be one of the first to know: I'm hosting an open house at ${prop.address}${prop.city ? `, ${prop.city}` : ""} this ${day}, ${date}, from ${range}.`,
+      "",
+      ...(facts.length ? ["Here's the quick rundown:", ...facts.map((f) => `• ${f}`), ""] : []),
+      "No appointment needed, just stop by whenever it suits you. If that window doesn't work, reply with a time that does and I'll set up a private showing.",
       "",
       "Hope to see you there,",
       signature(ctx.profile),

@@ -59,7 +59,8 @@ test("an open house post leads with the date and time and still carries all the 
   for (const post of r.posts) {
     assert.match(post.caption, /🗓 Sunday • /); assert.match(post.caption, /📍 12 Oak Lane, Rockville, MD 20850/); assert.match(post.caption, /💰 \$650,000/);
     assert.match(post.slides[0].sub, /^Open House • Sunday • /);
-    assert.ok(post.slides.some((s: any) => s.headline.startsWith("$650,000 • 4 bd")));
+    if (post.platform === "instagram_story") assert.equal(post.slides.length, 1, "a story is one image");
+    else assert.ok(post.slides.some((s: any) => s.headline.startsWith("$650,000 • 4 bd")));
   }
 });
 

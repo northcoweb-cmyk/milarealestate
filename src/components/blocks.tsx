@@ -274,7 +274,8 @@ function DraftSocialCard({ b, ...btns }: { b: Extract<Block, { type: "draft_soci
   const { profile } = useApp();
   const [viewAt, setViewAt] = useState<number | null>(null);
   const pfp = profile.settings.brand?.pfp ?? null;
-  const brand = { name: profile.full_name, brokerage: profile.brokerage, pfp: pfp ? `/api/files/${pfp}` : null };
+  const bi = profile.settings.brand;
+  const brand = { name: profile.full_name, brokerage: profile.brokerage, pfp: pfp ? `/api/files/${pfp}` : null, phone: bi?.cell || bi?.office || null, email: bi?.email || null, credentials: [bi?.credentials, bi?.license ? `Lic# ${bi.license}` : ""].filter(Boolean).join(" ") || null, team: bi?.team || null };
   const post = { platform: b.platform as never, category: (b.category ?? null) as never };
   const story = b.platform === "instagram_story" || b.platform === "tiktok";
   return (

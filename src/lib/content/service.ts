@@ -54,18 +54,18 @@ function withDesign(slides: SocialSlide[], urls: string[], category: string, see
 }
 
 /** Slides built in chat get the same designs as the Content tab: a rotating palette and layout, and the home's real photos (read from its listing link when none are saved yet). */
-export async function designSlides(ctx: Ctx, prop: Property, slides: SocialSlide[], category: string, bump = 0): Promise<SocialSlide[]> {
+export async function designSlides(ctx: Ctx, prop: Property, slides: SocialSlide[], category: string, bump = 0, platform?: string): Promise<SocialSlide[]> {
   await ensureListingPhotos(ctx, prop);
   let urls = await imageUrls(ctx, prop.id);
   if (!urls.length && prop.listing_url) { try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); urls = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ } }
   const seed = (await ctx.store.list("social_posts", ctx.userId)).length + bump;
-  return withDesign(slides, urls, category, seed);
+  return withDesign(platform === "instagram_story" ? slides.slice(0, 1) : slides, urls, category, seed); // a story is one image
 }
 
 /** The call-to-action line on the last image: a phone number when we have one. */
 export const contactLine = (p: Parameters<typeof brandOf>[0] & { full_name: string }) => (brandOf(p).cell ? `Call or text ${brandOf(p).cell}` : null);
 
-export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; tips?: { n: number; audience: string } | null; scheduledFor?: string | null; variantSeed?: number }
+export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; tips?: { n: number; audience: string } | null; client?: string | null; scheduledFor?: string | null; variantSeed?: number }
 export type CreateResult = { ok: true; posts: SocialPost[] } | { ok: false; error: string };
 
 async function nextVariant(ctx: Ctx, category: Category): Promise<number> {
@@ -105,7 +105,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
     const photos = ids; // a post that is not about a home never borrows another home\u2019s photos
     const built = buildPost({
       category: input.category, platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage,
-      market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic, tips: input.tips ?? null,
+      market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic, tips: input.tips ?? null, client: input.client ?? null,
       property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, fullAddress: data.fullAddress, placeLine: data.placeLine } : null, when, contact: contactLine(ctx.profile),
     });
     let caption = built.caption;

@@ -1,5 +1,6 @@
 import type { Store } from "./db/store";
 import type { Row } from "./types";
+import { isTester } from "./testers";
 
 /**
  * Accounts that must never show demo data. Listed here (plus anything in the MILA_NO_DEMO_EMAILS env var,
@@ -7,7 +8,7 @@ import type { Row } from "./types";
  */
 const BUILT_IN = ["sarahpark0506@gmail.com"];
 const list = () => [...BUILT_IN, ...(process.env.MILA_NO_DEMO_EMAILS ?? "").split(",")].map((e) => e.trim().toLowerCase()).filter(Boolean);
-export const isNoDemo = (email: string | null | undefined) => !!email && list().includes(email.trim().toLowerCase());
+export const isNoDemo = (email: string | null | undefined) => !!email && (list().includes(email.trim().toLowerCase()) || isTester(email));
 
 /**
  * Removes the fictional sample data (contacts with source "Demo data", properties flagged is_demo, and what hangs off them).

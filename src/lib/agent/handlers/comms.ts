@@ -35,10 +35,10 @@ function postAngles(prop: Property, facts: string[], images: string[], ctx: Ctx)
   return [
     { name: "Just Listed", caption: [`Just Listed! ${icon}`, "", where, line, "", "Message me for details or a private showing."].join("\n"), slides: [hero("Just Listed"), hi(line || "See it in person"), cta] },
     { name: "Inside look", caption: [`Step inside ${prop.address}. 👀`, line ? `\n${line}` : "", "", "Swipe through, then tell me what you think."].join("\n"), slides: [hero("Take a look inside"), hi(line || "Come see it in person", 2), cta] },
-    { name: "Private showing", caption: [`Want to see ${prop.address} in person?`, "", "Private showings are open — send me a message and we'll find a time that works for you. 🔑"].join("\n"), slides: [hero("Private showings"), cta] },
+    { name: "Private showing", caption: [`Want to see ${prop.address} in person?`, "", "Private showings are open — send me a message and we'll find a time that works for you. 🔑"].join("\n"), slides: [hero("Private showings"), hi(line || "See it in person", 2), cta] },
     { name: "Offered at", caption: [prop.list_price && prop.verified ? `Offered at ${fullMoney(prop.list_price)} ${icon}` : `Your next home could be ${prop.address} ${icon}`, "", where, line && !prop.list_price ? line : facts.filter((f) => !/^Offered/.test(f)).join(" • "), "", "DM me for the full details."].filter((l, i, arr) => !(l === "" && arr[i - 1] === "")).join("\n"), slides: [hero(prop.list_price && prop.verified ? `Offered at ${fullMoney(prop.list_price)}` : "Now available"), hi(line || "Details on request", 2), cta] },
-    { name: "Save it", caption: [`Save this one for later. 🔖`, "", where, "", "Know someone looking in the area? Send them my way."].join("\n"), slides: [hero("Save for later"), cta] },
-    { name: "Ask me", caption: [`Questions about ${prop.address}?`, "", "I'm happy to walk you through it — message me anytime. 💬"].join("\n"), slides: [hero("Ask me anything"), cta] },
+    { name: "Save it", caption: [`Save this one for later. 🔖`, "", where, "", "Know someone looking in the area? Send them my way."].join("\n"), slides: [hero("Save for later"), hi("Know someone looking in the area?", 1), cta] },
+    { name: "Ask me", caption: [`Questions about ${prop.address}?`, "", "I'm happy to walk you through it — message me anytime. 💬"].join("\n"), slides: [hero("Ask me anything"), hi("I will walk you through it", 1), cta] },
   ];
 }
 
@@ -98,7 +98,10 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   const images = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop!.id).sort((a, b) => a.position - b.position).map((i) => i.id);
   // "congrats to the Nguyens" / "sold caption" for a home: a Just Sold post, not a listing announcement
   if (/\b(sold|congrat\w*|just closed|closed on)\b/i.test(text) && !/open\s*house/i.test(text)) {
-    const soldPosts = await createPosts(ctx, { category: "just_sold", platforms: [platform], propertyId: prop.id, topic: null });
+    const nm = /(?:congrat\w*|sold|thank\w*)\s+(?:to|for)?\s*(the\s+)?([A-Z][\p{L}'’-]+(?:\s*(?:&|and)\s*[A-Z][\p{L}'’-]+)?(?:\s+[A-Z][\p{L}'’-]+)?)/u.exec(text);
+    const cleanName = nm ? nm[2].split(/\s+/).filter((w, k, a) => !(k > 0 && /^(It|It's|This|That|They|We|I|And|For|On|At|In|Was|Is|Just|Sold|Write|Make)$/.test(w) && a.slice(0, k).length >= 1) || /^(&|and)$/i.test(a[k - 1] ?? "")).join(" ") : "";
+    const client = nm && cleanName && !/^(Sold|Just|The|It|This|That|Mila|Instagram|Caption|Post)$/i.test(cleanName) ? `${nm[1] ? "The " : ""}${cleanName.replace(/\s+and\s+/i, " & ")}` : null;
+    const soldPosts = await createPosts(ctx, { category: "just_sold", platforms: [platform], propertyId: prop.id, topic: null, client });
     if (soldPosts.ok) {
       const soldBlocks: Block[] = [];
       for (const post of soldPosts.posts) {
@@ -123,7 +126,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     const options: { label: string; post: Extract<Block, { type: "draft_social" }> }[] = [];
     // different angles AND different looks: each option gets its own design so they don't read as the same post three times
     for (const [ai, angle] of postAngles(prop, facts, images, ctx).slice(0, count).entries()) {
-      const post = ((await TOOLS.create_social_post.run(ctx, { platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"], caption: angle.caption.replace(/\n{3,}/g, "\n\n"), slides: await designSlides(ctx, prop, angle.slides, "just_listed", ai * 2) })) as any).data.post as SocialPost;
+      const post = ((await TOOLS.create_social_post.run(ctx, { platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"], caption: angle.caption.replace(/\n{3,}/g, "\n\n"), slides: await designSlides(ctx, prop, angle.slides, "just_listed", ai * 2, platform) })) as any).data.post as SocialPost;
       const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
       if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
       options.push({ label: angle.name, post: { type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined } });
@@ -138,7 +141,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   if (!ev && wantsOpenHouse) {
     // an open house post with no date on the calendar yet: build it now, add the day and time once she gives them
     const s = await openHouseSocial(ctx, prop, null, null, images);
-    post = ((await TOOLS.create_social_post.run(ctx, { platform, category: "open_house", caption: s.caption, hashtags: s.hashtags, slides: await designSlides(ctx, prop, s.slides, "open_house"), property_id: prop.id })) as any).data.post;
+    post = ((await TOOLS.create_social_post.run(ctx, { platform, category: "open_house", caption: s.caption, hashtags: s.hashtags, slides: await designSlides(ctx, prop, s.slides, "open_house", 0, platform), property_id: prop.id })) as any).data.post;
     await attach(post);
     ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text: `open house at ${prop.address}${prop.city ? `, ${prop.city}` : ""}${prop.state ? ` ${prop.state}` : ""}` }, missing: "date" }; // her next message ("Saturday 1 to 4") books it
     await persistState(ctx);
@@ -148,14 +151,14 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   if (ev && /open house|carousel/i.test(text) || (ev && !/just listed|price/i.test(text))) {
     const s = await openHouseSocial(ctx, prop, new Date(ev!.start_at), new Date(ev!.end_at), images);
-    post = ((await TOOLS.create_social_post.run(ctx, { platform, category: "open_house", caption: s.caption, hashtags: s.hashtags, slides: await designSlides(ctx, prop, s.slides, "open_house"), property_id: prop.id, event_id: ev!.id })) as any).data.post;
+    post = ((await TOOLS.create_social_post.run(ctx, { platform, category: "open_house", caption: s.caption, hashtags: s.hashtags, slides: await designSlides(ctx, prop, s.slides, "open_house", 0, platform), property_id: prop.id, event_id: ev!.id })) as any).data.post;
   } else {
     const facts = verifiedFacts(prop);
     const kind = /price/i.test(text) ? "Price Improvement" : "Just Listed";
     post = ((await TOOLS.create_social_post.run(ctx, {
       platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"],
       caption: [`${kind}! ${classifyProperty({ address: prop.address, beds: prop.beds, baths: prop.baths, description: prop.description }).group === "commercial" ? "🏢" : "🏡"}`, "", prop.address + (prop.city ? `, ${prop.city}` : ""), facts.join(" • "), "", "Message me for details or a private showing."].filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n"),
-      slides: await designSlides(ctx, prop, [{ role: "hero", headline: prop.address, sub: kind, image_id: images[0] ?? null }, { role: "highlight", headline: facts.join(" • ") || "See it in person", image_id: images[1] ?? images[0] ?? null }, { role: "cta", headline: "Let's talk", sub: ctx.profile.full_name, image_id: null }], kind === "Price Improvement" ? "price_improvement" : "just_listed"), category: kind === "Price Improvement" ? "price_improvement" : "just_listed",
+      slides: await designSlides(ctx, prop, [{ role: "hero", headline: prop.address, sub: kind, image_id: images[0] ?? null }, { role: "highlight", headline: facts.join(" • ") || "See it in person", image_id: images[1] ?? images[0] ?? null }, { role: "cta", headline: "Let's talk", sub: ctx.profile.full_name, image_id: null }], kind === "Price Improvement" ? "price_improvement" : "just_listed", 0, platform), category: kind === "Price Improvement" ? "price_improvement" : "just_listed",
     })) as any).data.post;
   }
   await attach(post);
