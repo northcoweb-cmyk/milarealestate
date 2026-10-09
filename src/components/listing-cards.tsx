@@ -26,7 +26,7 @@ export function ListingCard({ c, photo, onAction, onNavigate, busy }: { c: Listi
         <Photo src={photo ?? c.photo ?? c.image} alt={photo ?? c.photo ? `Photo of ${full}` : `Street view of ${full}`} />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2" style={{ background: "linear-gradient(to top, rgba(0,0,0,.62), transparent)" }} />
         {c.badge && <span className="absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11.5px] font-bold" style={{ background: "rgba(255,255,255,.92)", color: "#111" }}>{c.badge}</span>}
-        {c.price != null && <span className="absolute bottom-2.5 left-3 text-[22px] font-extrabold leading-none text-white drop-shadow">{money(c.price)}</span>}
+        {c.price != null && <span className="absolute bottom-2.5 left-3 text-[22px] font-extrabold leading-none text-white drop-shadow">{money(c.price)}{c.rental ? <span className="text-[13px] font-semibold">/mo</span> : null}</span>}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3.5">
         <div className="min-w-0">
@@ -40,10 +40,14 @@ export function ListingCard({ c, photo, onAction, onNavigate, busy }: { c: Listi
         </p>
         {(c.type || c.lines?.length || c.mls) && <p className="faint truncate text-[12px]">{[c.type, c.lines?.[0], c.mls].filter(Boolean).join(" · ")}</p>}
         <div className="mt-auto flex gap-2 pt-1">
-          <button disabled={busy} className="btn btn-primary btn-sm !min-h-[40px] flex-1" onClick={() => onAction({ type: "prompt", text: `Prep for ${full}` })}>Prep</button>
-          {c.propertyId
-            ? <button className="btn btn-sm !min-h-[40px] flex-1" onClick={() => onNavigate(`/properties/${c.propertyId}`)}>Open</button>
-            : <button disabled={busy} className="btn btn-sm !min-h-[40px] flex-1" onClick={() => onAction({ type: "save_listing", card: { address: c.address, city: c.city, state: c.state, zip: c.zip, price: c.price, beds: c.beds, baths: c.baths, sqft: c.sqft } })}>Save</button>}
+          {c.rental
+            ? <button disabled={busy} className="btn btn-primary btn-sm !min-h-[40px] flex-1" onClick={() => onAction({ type: "save_rental", card: { address: c.address, city: c.city, state: c.state, zip: c.zip, price: c.price, beds: c.beds, baths: c.baths, sqft: c.sqft, note: c.lines?.[0] ?? null } })}>Save for a client</button>
+            : <>
+              <button disabled={busy} className="btn btn-primary btn-sm !min-h-[40px] flex-1" onClick={() => onAction({ type: "prompt", text: `Prep for ${full}` })}>Prep</button>
+              {c.propertyId
+                ? <button className="btn btn-sm !min-h-[40px] flex-1" onClick={() => onNavigate(`/properties/${c.propertyId}`)}>Open</button>
+                : <button disabled={busy} className="btn btn-sm !min-h-[40px] flex-1" onClick={() => onAction({ type: "save_listing", card: { address: c.address, city: c.city, state: c.state, zip: c.zip, price: c.price, beds: c.beds, baths: c.baths, sqft: c.sqft } })}>Save</button>}
+            </>}
         </div>
       </div>
     </article>

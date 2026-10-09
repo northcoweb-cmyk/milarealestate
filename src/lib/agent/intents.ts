@@ -87,6 +87,8 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
 
   // A client's search brief ("my clients want an apartment: legal weed, walkable at night, balcony, under $2,500...") is research for
   // the agent to act on, not a calendar item. It needs several requirements, a place or property word, and no street address.
+  // "New buyer Dana Reyes, 512-555-0199, wants a rental under $2,000": a new person to save, even though what they want sounds like a search
+  if (!isQuestion && /\b(?:new|got a|have a|met a|add)\b.{0,15}\b(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\b/.test(t) && /\b(?:buyer|seller|renter|tenant|investor|lead|client|prospect)s?\s+(?:named\s+|called\s+|is\s+)?\p{Lu}[\p{L}'’-]+/u.test(raw) && !/\b(find|search|look up|recommend|shortlist|options for|pull|show me)\b/.test(t)) return { intent: "new_contact" };
   if (isClientSearch(raw) || isResearchTask(raw)) return { intent: "client_search" };
   // an actual date or time somewhere in the message (slang included: tmrw, Sat, the 15th, 1030am, half past 2)
   const hasWhen = !!parseDate(raw, new Date(), "UTC") || !!parseTime(raw);

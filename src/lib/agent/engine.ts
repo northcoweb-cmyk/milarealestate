@@ -13,7 +13,7 @@ import { logError } from "../server/errors";
 import { aiLimitedReason, runInAiScope } from "../ai/budget";
 import { listingReadyHandler, whatMissingHandler } from "./handlers/readiness";
 import { meetingPrepHandler, showingFollowupsHandler } from "./handlers/briefs";
-import { newListingsHandler, prepPropertyHandler, saveListingCard } from "./handlers/marketdata";
+import { newListingsHandler, prepPropertyHandler, saveListingCard, saveRentalCard, saveRentalsForClient } from "./handlers/marketdata";
 import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
@@ -426,6 +426,8 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       return reply(`Merged into ${cur.name}.`, [], "smalltalk");
     }
     case "save_listing": return saveListingCard(ctx, (a.card ?? {}) as Record<string, unknown>);
+    case "save_rental": return saveRentalCard(ctx, a.card);
+    case "save_rentals_for": return saveRentalsForClient(ctx, String(a.contactId), a.cards);
     case "event_reminder": return eventReminder(ctx, String(a.eventId), Number(a.minutes) || 60, a.title ? String(a.title) : undefined);
     case "listing_checklist": return listingChecklist(ctx, String(a.propertyId));
     case "tag_contact": {

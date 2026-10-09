@@ -419,7 +419,7 @@ export interface Message extends Row {
 /** One home in a rail of listing cards. `image` is a same-origin URL (Street View or a photo the agent supplied); the card shows a placeholder when it fails. */
 export interface ListingCardData {
   id: string; address: string; city: string | null; state: string | null; zip: string | null; price: number | null; beds: number | null; baths: number | null; sqft: number | null;
-  type: string | null; days_on_market: number | null; listed_date: string | null; mls: string | null; image: string | null; photo?: string | null; photoStatus?: "ok" | "unavailable" | "pending"; badge?: string; lines?: string[]; propertyId?: string;
+  type: string | null; days_on_market: number | null; listed_date: string | null; mls: string | null; image: string | null; photo?: string | null; photoStatus?: "ok" | "unavailable" | "pending"; badge?: string; lines?: string[]; propertyId?: string; /** a rental: price is per month, and the card saves to a client instead of Properties */ rental?: boolean;
 }
 
 /** One thing Mila knows (or has noticed is missing) about a listing. `gap` is the plain sentence used when she lists what's missing. */

@@ -1,11 +1,14 @@
 import type { Block, ListingCardData, Property } from "../../types";
 import type { Ctx } from "../context";
 import { fullMoney } from "../context";
+import { creditCost, ensureCredits } from "../../credits";
+import { contactFacts } from "../memory";
+import { mentionedContacts } from "./contacts";
 import { hit } from "../../server/rate-limit";
 import { peekMedia } from "../../media/service";
 import { tierLimits, tierOf } from "../../media/limits";
 import { trackApi, usageFor } from "../../media/usage";
-import { type ListingCard, type PropertyExtra, newListings, rentcastConfigured, RentcastError } from "../../listing-data/rentcast";
+import { type ListingCard, type PropertyExtra, newListings, rentalListings, rentcastConfigured, RentcastError } from "../../listing-data/rentcast";
 import { extractPlace, enrichProperty, type LookupMemory } from "../property-lookup";
 import { locationGate } from "./location";
 import { parseAddress, parseBeds, parseMoney } from "../nlu";
@@ -128,4 +131,76 @@ export async function saveListingCard(ctx: Ctx, raw: Record<string, unknown>): P
   const p = made.data.property as Property;
   ctx.state.last_property_id = p.id;
   return reply(`Saved ${p.address}${p.city ? `, ${p.city}` : ""} to your properties.`, [{ type: "choice", title: "Next", buttons: [{ label: "Prep it", style: "primary", action: { type: "prompt", text: `Prep for ${p.address}` } }, { label: "Open property", style: "secondary", href: `/properties/${p.id}` }] }], "smalltalk");
+}
+
+
+// ------------------------------------------------------------------ rentals for a client
+/** "Find rentals under $2,000 in Austin for a client": up to 5 rental cards to swipe through, then ask who they are for. Returns null when this isn't a rental search or listing data isn't connected. */
+export async function rentalCardsHandler(ctx: Ctx, text: string): Promise<HandlerOut | null> {
+  if (!rentcastConfigured()) return null;
+  if (!/\b(rentals?|for rent|to rent|apartments?|lease|renting)\b/i.test(text)) return null;
+  if (text.split(/\s+/).length > 28) return null; // a long brief with many requirements gets the deeper research instead
+  const here = extractPlace(text);
+  const real = (p: ReturnType<typeof extractPlace>) => (p.city && !/\bcounty\b/i.test(p.city) ? p : { ...p, city: undefined });
+  const a1 = real(extractPlace(ctx.profile.location ?? "")), a2 = real(extractPlace(ctx.profile.primary_market ?? ""));
+  const home = a1.city || a1.zip ? a1 : a2;
+  const city = here.city ?? home.city, state = here.state ?? home.state, zip = here.zip ?? (here.city ? undefined : home.zip);
+  if (!(city && state) && !zip) return null; // no place to search yet: the deeper research reads the whole brief
+  if (!hit(`rentals:${ctx.userId}`, 20, 3_600_000)) return reply("I've pulled a lot of rental searches this hour. Give it a few minutes and ask again.", [], "smalltalk");
+  const money = parseMoney(text), beds = parseBeds(text) ?? undefined;
+  ctx.steps.push("Finding rentals");
+  if ((await usageFor(ctx.userId)).listingApiRequests >= tierLimits(await tierOf(ctx.userId)).listingSearches) return reply("You've used this month's listing searches on your plan. They reset on the 1st, or you can upgrade for more.", [], "smalltalk");
+  await ensureCredits(ctx.userId, await creditCost("property_lookup"));
+  let cards;
+  try { cards = await rentalListings({ city: city ?? undefined, state: state ?? undefined, zip: zip ?? undefined, beds, minRent: money.min ?? undefined, maxRent: money.max ?? undefined, limit: 5 }); }
+  catch { return reply("I couldn't reach the rental listings just now. Try again in a minute.", [], "smalltalk"); }
+  await trackApi({ userId: ctx.userId, provider: "rentcast", endpoint: "listings/rental", success: true, units: 1, estCostUsd: Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074 });
+  const where = [city, state].filter(Boolean).join(", ") || zip || "your area";
+  if (!cards.length) return reply(`I don't see rentals in ${where}${money.max ? ` under ${fullMoney(money.max)}` : ""} right now. Want me to widen it?`, [], "smalltalk");
+  // a client named in the message whose notes mention a pet: show each place's pet policy up front
+  const known = await mentionedContacts(ctx, text);
+  const client = known[0] ?? null;
+  const petty = client ? (await contactFacts(ctx, client)).some((f) => /\b(dog|cat|pet)s?\b/i.test(f)) : /\b(dog|cat|pet)s?\b/i.test(text);
+  const out: ListingCardData[] = cards.map((c) => ({
+    id: c.id, address: c.unit ? `${c.address} ${c.unit}` : c.address, city: c.city, state: c.state, zip: c.zip, price: c.rent, beds: c.beds, baths: c.baths, sqft: c.sqft, type: c.type, days_on_market: c.days_on_market, listed_date: c.listed_date, mls: null,
+    image: streetViewUrl({ address: c.address, city: c.city, state: c.state, zip: c.zip }), rental: true, badge: c.days_on_market != null && c.days_on_market <= 3 ? "New" : undefined,
+    lines: [petty ? (c.pets ? `Pets: ${c.pets}` : "Pets: ask the building") : [c.hoa ? `HOA ${fullMoney(c.hoa)}` : null, c.pets ? `Pets: ${c.pets}` : null].filter(Boolean).join(" · ")].filter(Boolean) as string[],
+  }));
+  await Promise.all(out.map(async (c, i) => { const m = await peekMedia({ address: cards[i].address, city: c.city, state: c.state, zip: c.zip, listingId: c.id }).catch(() => null); if (m?.photos[0]) { c.photo = m.photos[0].thumbUrl ?? m.photos[0].url; c.photoStatus = "ok"; } }));
+  const filt = [beds && `${beds}+ bd`, money.max && `under ${fullMoney(money.max)}/mo`].filter(Boolean).join(" · ");
+  const blocks: Block[] = [{ type: "listings", title: `Rentals in ${where}`, subtitle: filt || undefined, cards: out }];
+  const pool = (await ctx.store.list("contacts", ctx.userId)).filter((c) => ["buyer", "renter", "lead"].includes(c.type) && c.status !== "closed").sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const picks = client ? [client] : pool.slice(0, 3);
+  blocks.push({ type: "choice", title: client ? `Save these for ${client.name.split(/\s+/)[0]}?` : "Who are these for?", buttons: [
+    ...picks.map((c, i) => ({ label: client ? `Save all ${out.length} for ${c.name.split(/\s+/)[0]}` : c.name, style: (i === 0 ? "primary" : "secondary") as "primary" | "secondary", action: { type: "save_rentals_for", contactId: c.id, cards: out.map((x) => ({ address: x.address, city: x.city, state: x.state, zip: x.zip, price: x.price, beds: x.beds, baths: x.baths, sqft: x.sqft, note: x.lines?.[0] ?? null })) } })),
+    { label: "A new client", style: "secondary" as const, action: { type: "prompt", text: "I have a new client who is looking for a rental. Their name is " } },
+  ] });
+  return reply(`Here ${out.length === 1 ? "is a rental" : `are ${out.length} rentals`} in ${where}${filt ? ` (${filt})` : ""}. Swipe through them${client ? "" : ", then tell me who they're for and I'll save them to that client's profile"}.`, blocks, "market_research");
+}
+
+const rentalLine = (c: { address: string; city?: unknown; state?: unknown; price?: unknown; beds?: unknown; baths?: unknown; note?: unknown }) => {
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return [String(c.address).slice(0, 80), [c.city, c.state].filter((x) => typeof x === "string" && x).join(", "), num(c.price) ? `${fullMoney(num(c.price)!)}/mo` : null, num(c.beds) != null ? `${num(c.beds)} bd` : null, num(c.baths) != null ? `${num(c.baths)} ba` : null, typeof c.note === "string" && c.note ? c.note.slice(0, 60) : null].filter(Boolean).join(" · ");
+};
+
+/** Saves rentals to a CLIENT's profile (never to Properties, which is only for homes the agent has work to do at). */
+export async function saveRentalsForClient(ctx: Ctx, contactId: string, rawCards: unknown): Promise<HandlerOut> {
+  const c = await ctx.store.get("contacts", ctx.userId, contactId);
+  if (!c) return reply("I couldn't find that client.", [], "smalltalk");
+  const cards = (Array.isArray(rawCards) ? rawCards : []).slice(0, 8).filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && typeof (x as { address?: unknown }).address === "string") as unknown as Parameters<typeof rentalLine>[0][];
+  if (!cards.length) return reply("There was nothing to save.", [], "smalltalk");
+  const { saveMemory } = await import("../memory");
+  for (const card of cards) await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: `Saved rental: ${String(card.address).slice(0, 60)}`, value: rentalLine(card), source: "system" });
+  ctx.state.last_contact_ids = [c.id];
+  return reply(`Saved ${cards.length === 1 ? "that rental" : `all ${cards.length} rentals`} to ${c.name.split(/\s+/)[0]}'s profile. They live there, not in your Properties tab.`, [{ type: "choice", title: "Next", buttons: [
+    { label: "Open profile", style: "primary", href: `/contacts/${c.id}` },
+    { label: `Draft an email to ${c.name.split(/\s+/)[0]}`, style: "secondary", action: { type: "prompt", text: `Email ${c.name} the rentals we found` } },
+  ] }], "smalltalk");
+}
+
+/** The "Save for a client" button on one rental card: ask whose profile it goes in. */
+export async function saveRentalCard(ctx: Ctx, card: unknown): Promise<HandlerOut> {
+  const pool = (await ctx.store.list("contacts", ctx.userId)).filter((c) => ["buyer", "renter", "lead"].includes(c.type) && c.status !== "closed").sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 4);
+  if (!pool.length) return reply("Who is this for? Tell me their name and I'll add them as a client first.", [], "smalltalk");
+  return reply("Whose profile should I save it to?", [{ type: "choice", title: "Pick a client", buttons: pool.map((c, i) => ({ label: c.name, style: (i === 0 ? "primary" : "secondary") as "primary" | "secondary", action: { type: "save_rentals_for", contactId: c.id, cards: [card] } })) }], "smalltalk");
 }

@@ -1,3 +1,4 @@
+import { rentalCardsHandler } from "./marketdata";
 import { plainText } from "../plain";
 import { aiAvailable, estimateCost, getProvider } from "../../ai/provider";
 import { recordUsage } from "../../credits";
@@ -65,6 +66,8 @@ function withContext(ctx: Ctx, text: string): string {
 
 export async function clientSearchHandler(ctx: Ctx, textIn: string): Promise<HandlerOut> {
   const text = withContext(ctx, textIn);
+  const rentals = await rentalCardsHandler(ctx, text); // "rentals under $2,000 in Austin": cards to swipe through, then who they are for
+  if (rentals) return rentals;
   ctx.state.last_search = { text: text.slice(0, 2500), at: Date.now() };
   if (!aiAvailable()) {
     return reply("I can do this research, but it needs my AI service, which isn't available right now, and I won't guess at laws, prices or buildings. I've kept the request so you don't lose it:", [{
