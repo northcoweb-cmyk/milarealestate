@@ -1,5 +1,5 @@
 import { MAX_SOCIAL_POSTS_PER_DAY } from "../config";
-import { cachedListingPhotoUrls } from "../media/service";
+import { cachedListingPhotoUrls, getListingMedia } from "../media/service";
 import { streetViewPostUrl } from "../media/proxy";
 import { aiAvailable } from "../ai/provider";
 import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../time";
@@ -29,6 +29,17 @@ async function imageUrls(ctx: Ctx, propertyId: string | null): Promise<string[]>
   return all;
 }
 
+/** A home with no photos yet gets one real lookup for its listing photos (the plan's photo allowance and the shared budget still apply), so a post never goes out with an empty picture when a listing photo exists. Never throws. */
+async function ensureListingPhotos(ctx: Ctx, prop: Property | null): Promise<void> {
+  if (!prop?.city || !prop.state) return;
+  try {
+    const q = { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, propertyId: prop.id };
+    const own = (await ctx.store.list("property_images", ctx.userId)).some((i) => i.property_id === prop.id && i.url.startsWith("/api/files/"));
+    if (own || (await cachedListingPhotoUrls(q)).length) return;
+    await getListingMedia(ctx.userId, q, { fetch: true });
+  } catch { /* photos are optional: the post falls back to Street View or asks for the agent's own */ }
+}
+
 /** The agent's own photos across all their properties (for tips, market posts, etc.). */
 async function anyPhotoUrls(ctx: Ctx): Promise<string[]> {
   return (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.url.startsWith("/api/files/")).sort((a, b) => a.position - b.position).map((i) => i.url);
@@ -44,6 +55,7 @@ function withDesign(slides: SocialSlide[], urls: string[], category: string, see
 
 /** Slides built in chat get the same designs as the Content tab: a rotating palette and layout, and the home's real photos (read from its listing link when none are saved yet). */
 export async function designSlides(ctx: Ctx, prop: Property, slides: SocialSlide[], category: string, bump = 0): Promise<SocialSlide[]> {
+  await ensureListingPhotos(ctx, prop);
   let urls = await imageUrls(ctx, prop.id);
   if (!urls.length && prop.listing_url) { try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); urls = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ } }
   const seed = (await ctx.store.list("social_posts", ctx.userId)).length + bump;
@@ -76,6 +88,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
   if (def.needsProperty && !prop) return { ok: false, error: `A ${def.label.toLowerCase()} post needs a property.` };
 
   const when = input.category === "open_house" && prop ? await openHouseWhen(ctx, prop) : null;
+  await ensureListingPhotos(ctx, prop);
   let ids = await imageUrls(ctx, prop?.id ?? null);
   // "Pull the images": a listing post with no photos yet reads the listing link's public preview photos.
   if (prop && !ids.length && prop.listing_url) {
@@ -156,7 +169,8 @@ export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost
   const category = (post.category as Category) ?? "buyer_tip";
   const prop = post.property_id ? await ctx.store.get("properties", ctx.userId, post.property_id) : null;
   const variant = ((post.variant ?? 0) + 1) % Math.max(variantCount(category), 2);
-  const ids = prop ? await imageUrls(ctx, prop.id) : await anyPhotoUrls(ctx);
+  await ensureListingPhotos(ctx, prop);
+  const ids = prop ? await imageUrls(ctx, prop.id) : []; // a post that is not about a home never borrows another home's photos
   const curLayout = post.slides[0]?.layout ?? "panel";
   const hasPhoto = ids.length > 0;
   const order = LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes").map((l) => l.key);
