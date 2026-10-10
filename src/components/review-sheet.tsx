@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { Approval, CalendarEvent, EmailDraft, SocialPost } from "@/lib/types";
 import { Sheet, jfetch, Skeleton } from "./ui";
 import { useApp } from "./app-context";
-import { SlidePreview } from "./blocks";
+import { SlideImage } from "./content/shared";
 import { fmtDayTime } from "@/lib/time";
 import { type Compose, gmailUrl, isTooLongForLink, mailtoUrl } from "@/lib/mailto";
 
@@ -25,6 +25,8 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
     jfetch<Detail>(`/api/approvals/${approvalId}`).then((r) => { setD(r); setCaption(r.post?.caption ?? ""); }).catch((e) => { toast(e.message, "error"); onClose(); });
   }, [approvalId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const bi = profile.settings.brand, pfp = bi?.pfp ?? null;
+  const brand = { name: profile.full_name, brokerage: profile.brokerage, pfp: pfp ? `/api/files/${pfp}` : null, phone: bi?.cell || bi?.office || null, email: bi?.email || null, credentials: [bi?.credentials, bi?.license ? `Lic# ${bi.license}` : ""].filter(Boolean).join(" ") || null, team: bi?.team || null };
   const a = d?.approval;
   const draft = d?.drafts[idx];
   const cur = draft ? edits[draft.id] ?? { subject: draft.subject, body: draft.body } : null;
@@ -78,10 +80,10 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
 
           {d.post && (
             <div>
-              <div className="no-scrollbar -mx-1 mb-4 flex gap-3 overflow-x-auto px-1">{d.post.slides.map((s, i) => <SlidePreview key={i} slide={s} index={i} total={d.post!.slides.length} />)}</div>
+              <div className="no-scrollbar -mx-1 mb-4 flex gap-3 overflow-x-auto px-1">{d.post.slides.map((s, i) => <div key={i} className="w-[210px] shrink-0 snap-start"><SlideImage slide={s} index={i} total={d.post!.slides.length} post={d.post!} brand={brand} width={420} rounded={18} className="w-full" /></div>)}</div>
               {d.post.stale && <p className="mb-2 text-[13.5px]" style={{ color: "var(--warn)" }}>⚠ {d.post.stale_reason}. Ask Mila to update it.</p>}
               <label className="lbl">Caption</label><textarea className="field min-h-[160px]" disabled={!pending} value={caption} onChange={(e) => setCaption(e.target.value)} />
-              <p className="faint mt-2 text-[13px]">Automatic posting isn't connected yet. After you approve, copy the caption and slides to publish yourself.</p>
+              <p className="faint mt-2 text-[13px]">After you approve, open the post in Content to save the images and copy the caption.</p>
             </div>
           )}
 
