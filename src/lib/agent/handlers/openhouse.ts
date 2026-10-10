@@ -90,7 +90,8 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
   }
   const start = rollPastWeekday(w.start!, text, ctx.now, ctx.tz);
   const end = w.end && start.getTime() === w.start!.getTime() ? w.end : new Date(start.getTime() + (w.end && w.start ? w.end.getTime() - w.start.getTime() : 2 * 3_600_000)); // default 2h; stated in the summary so it's easy to correct
-  if (start.getTime() < ctx.now.getTime()) return reply(`That time has already passed. Did you mean next ${fmtDay(start, ctx.tz)}?`);
+  // one that is happening right now ("open house today from 1-3" said at 2pm) is still real: put it on the calendar
+  if (end.getTime() <= ctx.now.getTime()) return reply(/\btoday\b/i.test(text) ? `That open house window (${fmtRange(start, end, ctx.tz)}) has already ended today. Which day did you mean?` : `That time has already passed. Did you mean next ${fmtDay(start, ctx.tz)}?`);
 
   ctx.steps.push("Checking your calendar");
   const conflicts = await eventConflicts(ctx, start.toISOString(), end.toISOString());

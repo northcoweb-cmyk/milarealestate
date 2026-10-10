@@ -262,7 +262,8 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
     return askBack(ctx, "create_event", text, "time", `What time on ${fmtDay(start, ctx.tz)}?`);
   }
   start = rollPastWeekday(start, text, ctx.now, ctx.tz);
-  if (start.getTime() < ctx.now.getTime() - 60_000) return askBack(ctx, "create_event", text, "time", `That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
+  const endNow = w.end ?? new Date(start.getTime() + (kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30) * 60_000);
+  if (start.getTime() < ctx.now.getTime() - 60_000 && endNow.getTime() <= ctx.now.getTime()) return askBack(ctx, "create_event", text, "time", `That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
   const end = w.end ?? new Date(start.getTime() + durMin * 60_000);
   const addr = parseAddress(text);

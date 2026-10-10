@@ -88,3 +88,12 @@ test("a story is one image that carries the details, and 'make it a story' stays
   const r2: any = await a.say("No a open house instagram story");
   assert.match(r2.milaMessage.content, /22 Elm Court/, "stays on the home we were on, not the other open house");
 });
+
+test("an open house happening right now still goes on the calendar, and a clash with another one is flagged", async () => {
+  const a = await newAgent({ now: new Date("2026-10-10T18:00:00Z"), tz, seed: false }); // Saturday 2pm: 1-3 is in progress
+  await text(a, "I have an open house at 15727 Ambience Drive Gaithersburg MD today from 1-3");
+  const evs = (await store.list("calendar_events", a.id)).filter((e: any) => e.kind === "open_house");
+  assert.equal(evs.length, 1, "added to the calendar, not just the properties tab");
+  const r: any = await a.say("I have an open house at 201 Main Street Gaithersburg MD today from 1-3");
+  assert.match(r.milaMessage.content, /already have/i, "flags the one already there");
+});
