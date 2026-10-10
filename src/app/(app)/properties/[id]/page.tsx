@@ -173,6 +173,8 @@ function PropertyHero({ id, address, own, lookup, busy, onUpload, onRemove }: { 
     return () => { live = false; };
   }, [id, lookup]);
   const all = [...own.map((im) => ({ url: im.url, thumb: im.url, caption: im.caption, ownId: im.id as string | null })), ...(g?.photos ?? []).map((ph) => ({ url: ph.url, thumb: ph.thumbUrl ?? ph.url, caption: ph.caption, ownId: null as string | null }))];
+  // the standard image is always there: with no photos at all, the street view of the address stands in (adding photos is optional)
+  if (!all.length && lookup) all.push({ url: `/api/properties/${id}/streetview?size=1280x720`, thumb: `/api/properties/${id}/streetview?size=320x220`, caption: null, ownId: null });
   const cur = all[Math.min(i, Math.max(all.length - 1, 0))];
   return (
     <section className="glass mb-5 overflow-hidden !p-0" aria-label="Photos">
@@ -182,7 +184,7 @@ function PropertyHero({ id, address, own, lookup, busy, onUpload, onRemove }: { 
           <img src={cur.url} referrerPolicy="no-referrer" alt={cur.caption || `Photo of ${address}`} className="h-full w-full object-cover" />
           <span className="absolute bottom-2 left-3 rounded-full bg-black/50 px-2 py-0.5 text-[11.5px] text-white">{Math.min(i, all.length - 1) + 1} / {all.length}{cur.ownId ? " · yours" : ""}</span>
           {cur.ownId && <button type="button" className="absolute right-3 top-3 rounded-full bg-black/50 p-2 text-white" aria-label="Remove photo" onClick={() => { onRemove(cur.ownId!); setI(0); }}><Trash2 size={15} /></button>}
-        </>) : <div className="grid h-full w-full place-items-center px-6 text-center"><p className="muted text-[14.5px]">No photos yet. Add your own and Mila uses them in texts, emails (only when you say so) and posts.</p></div>}
+        </>) : <div className="grid h-full w-full place-items-center px-6 text-center"><p className="muted text-[14.5px]">Add the full address (city and state) and Mila shows the street view here. You can add your own photos too.</p></div>}
         <button type="button" className="btn btn-primary btn-sm absolute bottom-3 right-3" disabled={busy} onClick={() => pick.current?.click()}><ImagePlus size={16} />{busy ? "Adding…" : "Add photos"}</button>
         <input ref={pick} type="file" accept="image/*" multiple hidden onChange={(e) => { onUpload(e.target.files); e.target.value = ""; }} />
       </div>

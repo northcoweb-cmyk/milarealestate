@@ -42,7 +42,7 @@ export default function PropertiesPage() {
   const all = data?.properties ?? [];
   // listing photos only for homes that are live or coming up, and not when the agent already uploaded one (the server caps how many it enriches at once)
   const photoOf = useListingPhotos(useMemo(() => all.filter((p) => p.image_source !== "photo" && p.group !== "past" && p.city && p.state).slice(0, 8).map((p) => ({ key: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, propertyId: p.id })), [all]), { enrich: true });
-  const needsWork = (p: PropertyCardInfo) => p.group !== "past" && (!p.list_price || !p.has_data || p.image_source !== "photo");
+  const needsWork = (p: PropertyCardInfo) => p.group !== "past" && (!p.list_price || !p.has_data);
   const counts = useMemo(() => ({ work: all.filter(needsWork).length, current: all.filter((p) => p.group === "current").length, upcoming: all.filter((p) => p.group === "upcoming").length, past: all.filter((p) => p.group === "past").length, all: all.length }), [all]);
   // open on whatever the agent is most likely here for: what's live now, else what's coming, else everything
   const tab: Tab = picked ?? (counts.work ? "work" : counts.current ? "current" : counts.upcoming ? "upcoming" : "all");
