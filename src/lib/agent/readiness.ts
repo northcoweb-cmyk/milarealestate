@@ -47,6 +47,10 @@ export async function buildListingBrief(ctx: Ctx, prop: Property): Promise<Listi
   const home: BriefItem[] = [{ text: `${street}${place ? `, ${place}` : ""}`, state: "info" }];
   const gaps = kindMissing(kind, prop);
   home.push(!gaps.length ? { text: facts, state: "done" } : { text: facts || `No ${gaps.slice(0, 3).join(", ")} yet`, state: "missing", gap: `the ${gaps.join(", ")} ${gaps.length === 1 ? "is" : "are"} incomplete`, button: { label: "Add details", style: "secondary", href: `/properties/${prop.id}` } });
+  const lx = lookup?.extra;
+  const found = [lx?.property_type, lx?.year_built && `built ${lx.year_built}`, lx?.lot_sqft && `${lx.lot_sqft.toLocaleString("en-US")} sq ft lot`, lx?.tax_amount && `taxes about ${fullMoney(lx.tax_amount)}/yr`, lx?.last_sale_price && `last sold ${fullMoney(lx.last_sale_price)}`].filter(Boolean).join(" · ");
+  if (found) home.push({ text: `Already found for you: ${found}`, state: "info" });
+  if (!prop.list_price && lx?.est_value) home.push({ text: `No list price yet. The automated estimate is ${fullMoney(lx.est_value)}, a starting point only`, state: "info", button: { label: "Use it as the price", style: "quiet", action: ask(`The price for ${street} is ${fullMoney(lx.est_value)}`) } });
   add("🏠", kind.group !== "unknown" && kind.group !== "residential" ? `The ${kind.label.toLowerCase()}` : kind.group === "residential" && kind.label !== "Single-family home" ? `The ${kind.label.toLowerCase()}` : "The home", home);
 
   // ---- seller + dates

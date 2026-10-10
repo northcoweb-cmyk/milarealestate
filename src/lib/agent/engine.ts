@@ -18,6 +18,9 @@ import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHan
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
+import { petCheckHandler, setPets } from "./handlers/pets";
+import { listingAgreementHandler, saveWorksheet, worksheetForm } from "./handlers/worksheet";
+import { saveAnswers } from "./handlers/contacts";
 import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, eventReminder, eventCard } from "./handlers/calendar";
 import { fmtDayTime } from "../time";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
@@ -285,6 +288,8 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     if (known.length) { const u = await clientUpdateHandler(ctx, text, known); if (u) return u; }
   }
   switch (intent) {
+    case "listing_agreement": return listingAgreementHandler(ctx, text);
+    case "pet_check": return petCheckHandler(ctx, text);
     case "client_search": return clientSearchHandler(ctx, text);
     case "time_off": return timeOffHandler(ctx, text);
     case "add_listing": return addListingHandler(ctx, text);
@@ -309,7 +314,11 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     case "cancel_event": return cancelEventHandler(ctx, text);
     case "create_event": return createEventHandler(ctx, text);
     case "reminder": return reminderHandler(ctx, text);
-    case "new_contact": return newContactHandler(ctx, text);
+    case "new_contact": {
+      // "I just talked to Priya, she wants…" about someone already saved is a call to log, not a new person
+      if (/\b(?:talked|spoke|met|ran into)\b/i.test(text) && (await mentionedContacts(ctx, text)).length) return logInteractionHandler(ctx, text);
+      return newContactHandler(ctx, text);
+    }
     case "priorities": ctx.steps.push("Looking at your contacts and tasks"); return prioritiesHandler(ctx);
     case "debrief": return debriefHandler(ctx);
     case "find_contacts": return findContactsHandler(ctx, text);
@@ -440,6 +449,10 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       if (isNaN(s.getTime()) || isNaN(e.getTime()) || e.getTime() <= s.getTime()) return reply("That time isn't valid, so I haven't moved anything.", [], "smalltalk");
       return applyMove(ctx, ev, s, e, !!a.declared, !!a.ignoreConflicts);
     }
+    case "answer_questions": return saveAnswers(ctx, String(a.contactId), (a.answers ?? {}) as Record<string, string>);
+    case "listing_worksheet_start": return worksheetForm(ctx, String(a.propertyId));
+    case "listing_worksheet": return saveWorksheet(ctx, String(a.propertyId), (a.answers ?? {}) as Record<string, string>);
+    case "set_pets": return setPets(ctx, String(a.propertyId), String(a.policy ?? "Pets allowed"));
     case "shift_events": return shiftEvents(ctx, (a.eventIds ?? []).map(String), String(a.after));
     case "find_time": return findTimeForEvent(ctx, a.eventId, a.durationMin ?? 60);
     case "cancel_pick": { const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId); return ev ? cancelEvent(ctx, ev) : reply("I couldn't find that event.", [], "smalltalk"); }

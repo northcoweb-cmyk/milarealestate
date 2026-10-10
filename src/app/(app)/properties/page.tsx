@@ -12,8 +12,8 @@ import { PropertyCard } from "@/components/property-card";
 import { useListingPhotos } from "@/components/use-listing-photos";
 import { useMila } from "@/components/mila-chat";
 
-type Tab = "current" | "upcoming" | "past" | "all";
-const TABS: [Tab, string][] = [["current", "Current"], ["upcoming", "Upcoming"], ["past", "Past"], ["all", "All"]];
+type Tab = "work" | "current" | "upcoming" | "past" | "all";
+const TABS: [Tab, string][] = [["work", "Needs work"], ["current", "Current"], ["upcoming", "Upcoming"], ["past", "Past"], ["all", "All"]];
 const GROUP_TITLE: Record<Group, string> = { current: "Current", upcoming: "Upcoming", past: "Past" };
 
 const REASON: Record<string, string> = {
@@ -42,12 +42,13 @@ export default function PropertiesPage() {
   const all = data?.properties ?? [];
   // listing photos only for homes that are live or coming up, and not when the agent already uploaded one (the server caps how many it enriches at once)
   const photoOf = useListingPhotos(useMemo(() => all.filter((p) => p.image_source !== "photo" && p.group !== "past" && p.city && p.state).slice(0, 8).map((p) => ({ key: p.id, address: p.address, city: p.city, state: p.state, zip: p.zip, propertyId: p.id })), [all]), { enrich: true });
-  const counts = useMemo(() => ({ current: all.filter((p) => p.group === "current").length, upcoming: all.filter((p) => p.group === "upcoming").length, past: all.filter((p) => p.group === "past").length, all: all.length }), [all]);
+  const needsWork = (p: PropertyCardInfo) => p.group !== "past" && (!p.list_price || !p.has_data || p.image_source !== "photo");
+  const counts = useMemo(() => ({ work: all.filter(needsWork).length, current: all.filter((p) => p.group === "current").length, upcoming: all.filter((p) => p.group === "upcoming").length, past: all.filter((p) => p.group === "past").length, all: all.length }), [all]);
   // open on whatever the agent is most likely here for: what's live now, else what's coming, else everything
-  const tab: Tab = picked ?? (counts.current ? "current" : counts.upcoming ? "upcoming" : "all");
+  const tab: Tab = picked ?? (counts.work ? "work" : counts.current ? "current" : counts.upcoming ? "upcoming" : "all");
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return all.filter((p) => (tab === "all" || p.group === tab) && (mkt === "all" || p.market === mkt) && (!t || `${p.address} ${p.city ?? ""} ${p.state ?? ""} ${p.zip ?? ""}`.toLowerCase().includes(t)));
+    return all.filter((p) => (tab === "all" || (tab === "work" ? needsWork(p) : p.group === tab)) && (mkt === "all" || p.market === mkt) && (!t || `${p.address} ${p.city ?? ""} ${p.state ?? ""} ${p.zip ?? ""}`.toLowerCase().includes(t)));
   }, [all, tab, q, mkt]);
   const mktCounts = { all: all.length, on: all.filter((p) => p.market === "on").length, off: all.filter((p) => p.market === "off").length };
 

@@ -109,6 +109,7 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
     plan.push({ label: type === "buyer" ? "Buyer agreement" : "Listing agreement", tool: "create_task", state: "pending", detail: "Upload your template in More → Templates and I'll prepare it" });
   }
 
+  const needQ = !existing && (type === "buyer" || type === "lead" || type === "seller") && [!money$.max && "budget", !location && "area", !timeline && "timeline"].filter(Boolean).length >= 2;
   await ctx.store.update("workflow_runs", ctx.userId, run.id, { plan, status: "completed", subtitle: [money$.max && money(money$.max), location, timeline].filter(Boolean).join(" • ") || null });
   await persistState(ctx);
   return reply(existing ? `I already had ${name}, so I updated her record.`.replace("her", "their") : `Got it. ${name} is set up.`, [{
@@ -118,7 +119,35 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
       ...((type === "buyer" || (type as string) === "rental") && location ? [{ label: `🔎 Find listings for ${firstName(name)}`, style: "primary" as const, action: { type: "prompt" as const, text: (type as string) === "rental" || /\brent(al|ing)?\b/i.test(text) ? `Find rentals in ${location}${money$.max ? ` under ${fullMoney(money$.max)}` : ""}${beds ? ` with ${beds}+ bedrooms` : ""} for ${name}` : `Show me new listings in ${location}${money$.max ? ` under ${fullMoney(money$.max)}` : ""}${beds ? ` with ${beds}+ bedrooms` : ""}` } }] : []),
       { label: "Open profile", style: existing || !location ? "primary" : "secondary", href: `/contacts/${contact.id}` },
     ],
-  }], "workflow_default");
+  }, ...(needQ ? [questionsBlock(contact, type)] : [])], "workflow_default");
+}
+
+const Q_BUYER = [{ key: "budget", label: "Budget", placeholder: "$500k" }, { key: "area", label: "Where", placeholder: "Rockville, MD" }, { key: "beds", label: "Bedrooms", placeholder: "3" }, { key: "timeline", label: "Timeline", placeholder: "next 3 months" }, { key: "preapproved", label: "Pre-approved?", placeholder: "yes / no" }];
+const Q_SELLER = [{ key: "home", label: "Their home", placeholder: "12 Oak St" }, { key: "budget", label: "Hoped-for price", placeholder: "$650k" }, { key: "timeline", label: "Timeline", placeholder: "list in spring" }, { key: "why", label: "Why selling", placeholder: "relocating" }];
+/** One card, one tap: the questions worth asking a new client, answered all at once. */
+export const questionsBlock = (c: Contact, type: ContactType): Block => ({ type: "questions", title: `Quick questions for ${firstName(c.name)}`, contactId: c.id, fields: type === "seller" ? Q_SELLER : Q_BUYER });
+
+/** The answers from the quick-questions card: saved straight onto the contact (never guessed). */
+export async function saveAnswers(ctx: Ctx, contactId: string, answers: Record<string, string>): Promise<HandlerOut> {
+  const c = await ctx.store.get("contacts", ctx.userId, contactId);
+  if (!c) return reply("I couldn't find that contact.", [], "smalltalk");
+  const a = Object.fromEntries(Object.entries(answers).map(([k, v]) => [k, String(v ?? "").trim().slice(0, 200)]).filter(([, v]) => v));
+  if (!Object.keys(a).length) return reply("I didn't get any answers, so nothing changed.", [], "smalltalk");
+  const patch: Partial<Contact> = {}; const notes: string[] = [];
+  if (a.budget) { const m = parseMoney(a.budget); if (m.max) patch.budget_max = m.max; if (m.min) patch.budget_min = m.min; }
+  if (a.area) patch.location = a.area;
+  if (a.timeline) patch.timeline = a.timeline;
+  if (a.beds) { const n = parseBeds(`${a.beds} bedrooms`); if (n) patch.preferences = { beds_min: n }; }
+  if (a.preapproved) notes.push(`Pre-approved: ${a.preapproved}`);
+  if (a.home) notes.push(`Home: ${a.home}`);
+  if (a.why) notes.push(`Reason for selling: ${a.why}`);
+  if (notes.length) patch.notes = [c.notes, notes.join(". ")].filter(Boolean).join("\n");
+  await TOOLS.update_contact.run(ctx, { id: c.id, patch, eventTitle: "Answers saved by Mila", eventKind: "note" });
+  for (const n of notes) { const [k, ...v] = n.split(": "); await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: k, value: v.join(": "), source: "user_stated" }); }
+  ctx.state.last_contact_ids = [c.id];
+  const first = firstName(c.name);
+  const buyer = c.type === "buyer" || c.type === "lead";
+  return reply(`Saved. ${first}'s profile is updated.`, [{ type: "choice", title: `Next for ${first}`, buttons: [...(buyer && (patch.location ?? c.location) ? [{ label: `🔎 Find listings for ${first}`, style: "primary" as const, action: { type: "prompt" as const, text: `Show me new listings in ${patch.location ?? c.location}${patch.budget_max ? ` under ${fullMoney(patch.budget_max)}` : ""}` } }] : []), { label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] }], "smalltalk");
 }
 
 export async function prioritiesHandler(ctx: Ctx): Promise<HandlerOut> {

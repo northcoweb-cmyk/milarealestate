@@ -71,6 +71,8 @@ export function BlockView(p: Props) {
         </div>
       );
     }
+    case "questions":
+      return <QuestionsCard b={b} onAction={p.onAction} busy={!!p.busy} />;
     case "share_photos":
       return <SharePhotosCard b={b} />;
     case "advice":
@@ -343,6 +345,26 @@ function SharePhotosCard({ b }: { b: Extract<Block, { type: "share_photos" }> })
         ))}
       </div>
       <button className="btn btn-primary btn-sm mt-3" disabled={busy || !on.size} onClick={share}>{busy ? "Getting them ready…" : `Share ${on.size} photo${on.size === 1 ? "" : "s"} with the message`}</button>
+    </div>
+  );
+}
+
+/** A short form: fill in what you know, send it all in one tap. */
+function QuestionsCard({ b, onAction, busy }: { b: Extract<Block, { type: "questions" }>; onAction: Props["onAction"]; busy: boolean }) {
+  const [v, setV] = useState<Record<string, string>>(() => Object.fromEntries(b.fields.filter((f) => f.value).map((f) => [f.key, f.value!])));
+  const [sent, setSent] = useState(false);
+  return (
+    <div className="glass p-4 sm:p-5" style={{ borderRadius: 24 }}>
+      <p className="font-semibold">{b.title}</p>
+      <p className="muted text-[13.5px]">Fill in what you know. Skip the rest.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {b.fields.map((f) => (
+          <label key={f.key} className="block text-[13px] font-semibold">{f.label}
+            <input className="field mt-1 w-full" value={v[f.key] ?? ""} placeholder={f.placeholder} disabled={sent} onChange={(e) => setV((x) => ({ ...x, [f.key]: e.target.value }))} />
+          </label>
+        ))}
+      </div>
+      <button className="btn btn-primary btn-sm mt-3" disabled={busy || sent || !Object.values(v).some((x) => x.trim())} onClick={() => { setSent(true); onAction({ type: b.action ?? "answer_questions", ...(b.contactId ? { contactId: b.contactId } : {}), ...(b.context ?? {}), answers: v } as never); }}>{sent ? "Sent" : b.submitLabel ?? "Save answers"}</button>
     </div>
   );
 }

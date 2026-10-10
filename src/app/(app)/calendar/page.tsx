@@ -16,7 +16,7 @@ import { EventPhotoCard } from "@/components/event-card";
 
 interface Person { name: string; phone: string | null; email: string | null; type: string }
 interface Place { address: string; city: string | null; state: string | null; list_price: number | null; beds: number | null; baths: number | null; sqft: number | null; verified: boolean }
-interface Data { people: Record<string, Person>; places: Record<string, Place>; events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean }; link?: { connected: boolean; host?: string | null } }
+interface Data { reminders?: { id: string; title: string; remind_at: string; event_id: string | null }[]; people: Record<string, Person>; places: Record<string, Place>; events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean }; link?: { connected: boolean; host?: string | null } }
 const KIND_COLOR: Record<string, string> = { open_house: "#111111", showing: "#444447", call: "#6e6e73", lunch: "#8e8e93", closing: "#111111", meeting: "#5a5a5e", other: "#a1a1a6" };
 
 export default function CalendarPage() {
@@ -33,6 +33,7 @@ export default function CalendarPage() {
   const key = (d: Date) => { const p = partsIn(d, tz); return `${p.y}-${p.m}-${p.d}`; };
   const byDay = useMemo(() => { const m = new Map<string, CalendarEvent[]>(); for (const e of data?.events ?? []) { const k = key(new Date(e.start_at)); m.set(k, [...(m.get(k) ?? []), e]); } return m; }, [data, tz]); // eslint-disable-line react-hooks/exhaustive-deps
   const dayEvents = byDay.get(key(days[sel])) ?? [];
+  const dayReminders = (data?.reminders ?? []).filter((r) => key(new Date(r.remind_at)) === key(days[sel]));
   const overlaps = (e: CalendarEvent) => dayEvents.some((o) => o.id !== e.id && new Date(o.start_at) < new Date(e.end_at) && new Date(e.start_at) < new Date(o.end_at));
 
   async function sync() {
@@ -79,6 +80,13 @@ export default function CalendarPage() {
         </ul>
       ) : <Empty title="Nothing scheduled" body="Add an event, or just tell Mila: “Schedule a showing Friday at 3.”" />}
 
+      {dayReminders.length > 0 && (
+        <div className="mt-5"><p className="kicker mb-2">Reminders</p>
+          <ul className="space-y-2">{dayReminders.map((r) => (
+            <li key={r.id} className="glass flex items-center gap-3 px-4 py-3" style={{ borderRadius: 20 }}><span aria-hidden>🔔</span><span className="min-w-0 flex-1 truncate font-semibold">{r.title}</span><span className="faint shrink-0 text-[13px]">{fmtTime(r.remind_at, tz)}</span></li>
+          ))}</ul>
+        </div>
+      )}
       <CalendarSync data={data} googleReady={!!capabilities.google} syncing={syncing} sync={sync} reload={reload} />
       </div>
       </div>
