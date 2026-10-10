@@ -46,7 +46,7 @@ export interface BuildInput {
   when?: { day: string; range: string } | null; // for open houses
   topic?: string | null;
   /** "5 tips for first-time buyers": how many tips, and for whom */
-  tips?: { n: number; audience: string } | null;
+  tips?: { n: number; audience: string; own?: string[] } | null;
   /** the buyers the agent named on a sold post: "the Nguyens" */
   client?: string | null;
   /** Shown on the last image's button, e.g. "Call or text 301.509.7280". Defaults to the agent's name. */
@@ -171,12 +171,14 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
       if (i.tips && i.tips.n >= 2) {
         // "5 tips for first-time buyers": a real numbered list, one image per tip, so nothing is promised and left out
         const pool = [...bank.map((b) => b.hook), ...bank.flatMap((b) => b.points)].filter((x, k, a) => a.indexOf(x) === k);
-        const picked = Array.from({ length: Math.min(i.tips.n, pool.length) }, (_, k) => pool[(v * 2 + k) % pool.length]).filter((x, k, a) => a.indexOf(x) === k);
+        const own = (i.tips.own ?? []).slice(0, i.tips.n);
+        const filler = Array.from({ length: Math.min(i.tips.n, pool.length) + own.length }, (_, k) => pool[(v * 2 + k) % pool.length]).filter((x, k, a) => a.indexOf(x) === k && !own.includes(x));
+        const picked = [...own, ...filler].slice(0, i.tips.n); // the agent's own tips come first, Mila fills the rest
         const title = `${picked.length} tips for ${i.tips.audience}`;
         return {
           headline: `${emoji} ${title}`, lines: picked.map((p, k) => `${k + 1}. ${p}`), cta: "Save this for later, and message me if you want help with any of it.",
           // a carousel is always three images: the cover, the whole list on one image, and who to call
-          slides: [slide("hero", title, "Swipe →"), slide("highlight", picked.map((p, k) => `${k + 1}. ${p}`).join("\n"), "The list"), slide("cta", "Questions? Message me.", sig)],
+          slides: [slide("hero", title, "Swipe →"), slide("highlight", picked.map((p, k) => `${k + 1}. ${p}`).join("\n"), `For ${i.tips.audience}`), slide("cta", "Questions? Message me.", sig)],
         };
       }
       const t = pickTip(bank, v);
@@ -238,10 +240,29 @@ export const capSlides = (s: SocialSlide[]): SocialSlide[] => (s.length <= MAX_S
 export function buildPost(i: BuildInput): Built {
   const c = core(i);
   const topic = i.topic?.trim();
-  const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic && !i.tips ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic && !i.tips?.own?.length && !i.tips ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const f = fitToPlatform(i.platform, body, baseTags(i));
   const carousel = PLATFORMS.find((p) => p.key === i.platform)?.carousel ?? true;
   return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capSlides(c.slides) : c.slides.slice(0, 1) };
 }
 
 export const variantCount = (cat: Category) => (cat === "buyer_tip" || cat === "seller_tip" ? 10 : cat === "education" ? 8 : cat === "local" ? 5 : 3);
+
+const NUMWORD: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 };
+/**
+ * "3 tips for first-time buyers: get pre-approved; walk the block; ask about the roof": how many tips, for whom, and the agent's own wording.
+ * Notes with no count and no list leave things as they were (one tip, note added to the caption).
+ */
+export function parseTipRequest(topic: string | null | undefined): { n: number; audience: string; own: string[] } | null {
+  const t = (topic ?? "").trim();
+  if (!t) return null;
+  const m = /\b(\d{1,2}|two|three|four|five|six|seven|eight)\s+(?:quick |simple |easy |top |great )?tips?\b/i.exec(t);
+  const rest = m ? t.slice(m.index + m[0].length) : t;
+  const afterColon = /[:\n]/.test(rest) ? rest.slice(rest.search(/[:\n]/) + 1) : "";
+  const pieces = (afterColon || (m ? "" : t)).split(/\n+|;|\s*\b\d{1,2}[.)]\s+|\s*[•\-–]\s+/).map((x) => x.replace(/^[\s,.:]+|[\s,.]+$/g, "")).filter((x) => x.length >= 8);
+  const own = pieces.length >= 2 || (m && pieces.length >= 1) ? pieces.slice(0, 8) : [];
+  const n = m ? (/^\d/.test(m[1]) ? Number(m[1]) : NUMWORD[m[1].toLowerCase()]) : own.length;
+  if (!n || n < 2) return null;
+  const aud = /\bfor\s+([a-z][a-z' -]{3,40}?)(?=[:;,.\n]|$)/i.exec(rest.split(/[:\n]/)[0])?.[1]?.trim();
+  return { n: Math.min(8, Math.max(n, own.length)), audience: aud ?? "buyers", own };
+}

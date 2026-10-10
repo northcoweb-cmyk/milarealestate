@@ -455,15 +455,22 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
         const items = slide.headline.split("\n").map((x) => x.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean);
         const top0 = m + (slide.sub ? 120 * u : 40 * u), avail = contentBottom - top0;
         if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 700); c.textAlign = ax; c.fillText(slide.sub, tx, m + 56 * u); c.textAlign = "left"; }
-        let size = 84 * u, rows: string[][] = [];
-        for (; size >= 30 * u; size -= 3 * u) { c.font = sans(size, 700); rows = items.map((t) => wrap(c, t.replace(/'/g, "’"), boxW - size * 2.2)); const h = rows.reduce((a, r) => a + r.length * size * 1.18 + size * 0.7, 0); if (h <= avail) break; }
-        const used = rows.reduce((a, r) => a + r.length * size * 1.18 + size * 0.7, 0) - size * 0.7;
-        let y = top0 + Math.max(0, (avail - used) / 2 - (slide.sub ? 0 : 20 * u));
+        const padX = 30 * u, padY = 22 * u, gapY = 22 * u;
+        let size = 72 * u, rows: string[][] = [];
+        for (; size >= 28 * u; size -= 3 * u) { c.font = sans(size, 700); rows = items.map((t) => wrap(c, t.replace(/'/g, "’"), boxW - size * 1.5 - padX * 2 - size * 0.5)); const h = rows.reduce((a, r) => a + Math.max(size * 1.5, r.length * size * 1.18) + padY * 2 + gapY, -gapY); if (h <= avail) break; }
+        const heights = rows.map((r) => Math.max(size * 1.5, r.length * size * 1.18) + padY * 2);
+        const used = heights.reduce((a, h) => a + h, 0) + gapY * (rows.length - 1);
+        let y = top0 + Math.max(0, (avail - used) / 2);
         items.forEach((_, k) => {
-          const bd = size * 1.5; c.beginPath(); c.arc(m + bd / 2, y + size * 0.62, bd / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
-          c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(size * 0.9, 800); c.textAlign = "center"; c.fillText(String(k + 1), m + bd / 2, y + size * 0.62 + size * 0.32); c.textAlign = "left";
-          c.fillStyle = ink; c.font = sans(size, 700); rows[k].forEach((ln, li) => c.fillText(ln, m + bd + size * 0.5, y + size * 0.85 + li * size * 1.18));
-          y += rows[k].length * size * 1.18 + size * 0.7;
+          const h = heights[k];
+          rrect(c, m, y, boxW, h, 28 * u); c.fillStyle = fullBleed ? "rgba(12,12,12,.66)" : pal.bg2; c.fill();
+          const bd = size * 1.5, bx = m + padX + bd / 2, by = y + h / 2;
+          c.beginPath(); c.arc(bx, by, bd / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
+          c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(size * 0.9, 800); c.textAlign = "center"; c.fillText(String(k + 1), bx, by + size * 0.32); c.textAlign = "left";
+          c.fillStyle = fullBleed ? "#fff" : ink; c.font = sans(size, 700);
+          const th = rows[k].length * size * 1.18, ty = y + (h - th) / 2 + size * 0.85;
+          rows[k].forEach((ln, li) => c.fillText(ln, m + padX + bd + size * 0.5, ty + li * size * 1.18));
+          y += h + gapY;
         });
         return cv;
       }

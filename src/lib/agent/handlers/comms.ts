@@ -1,3 +1,4 @@
+import { parseTipRequest } from "../../content/templates";
 import { sharePhotosBlock, wantsPhotos } from "./photos";
 import { classifyProperty } from "../../property-kind";
 import { fmtDay, fmtRange } from "../../time";
@@ -54,7 +55,8 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
       const category = /\b(sell(?:er|ers|ing)?|list(?:ing)? your|home ?owners?)\b/i.test(text) ? "seller_tip" : /\b(buy(?:er|ers|ing)?|first[- ]time|purchase)\b/i.test(text) ? "buyer_tip" : "education";
       const tn = /\b(\d{1,2})\s+(?:quick |simple |easy |top |great )?tips?\b/i.exec(text);
       const aud = /\btips?\s+(?:for|to help)\s+(.+?)[.?!]*$/i.exec(text)?.[1]?.trim() || (category === "seller_tip" ? "home sellers" : category === "buyer_tip" ? "home buyers" : "everyone");
-      const made2 = await createPosts(ctx, { category, platforms: [platform], topic: null, tips: tn ? { n: Math.min(8, Math.max(2, Number(tn[1]))), audience: aud } : null });
+      const parsedTips = parseTipRequest(text);
+      const made2 = await createPosts(ctx, { category, platforms: [platform], topic: parsedTips ? text : null, tips: parsedTips ? undefined : tn ? { n: Math.min(8, Math.max(2, Number(tn[1]))), audience: aud } : null });
       if (made2.ok) {
         const blocks2: Block[] = [];
         for (const post of made2.posts) {

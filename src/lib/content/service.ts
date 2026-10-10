@@ -9,7 +9,7 @@ import { polish, propertyPostData } from "../agent/comms";
 import { LAYOUTS, pickLayout, pickTheme } from "./design";
 import { pullListingPhotos } from "../images/listing";
 import { brandOf, buildSignature, stripSignature, withSignature } from "../signature";
-import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, platformLimit, variantCount } from "./templates";
+import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, parseTipRequest, platformLimit, variantCount } from "./templates";
 
 /** Content engine: creates, schedules and manages social posts. Nothing here publishes externally. */
 
@@ -46,6 +46,7 @@ async function anyPhotoUrls(ctx: Ctx): Promise<string[]> {
 }
 
 /** Every slide gets a palette, a layout template and (when the agent has photos) a real photo — rotating so no two posts match. */
+const isTipCat = (c: string) => c === "buyer_tip" || c === "seller_tip" || c === "education";
 function withDesign(slides: SocialSlide[], urls: string[], category: string, seed: number, layout?: string): SocialSlide[] {
   const theme = pickTheme(category, seed);
   const lay = layout ?? pickLayout(urls.length > 0, seed);
@@ -65,7 +66,7 @@ export async function designSlides(ctx: Ctx, prop: Property, slides: SocialSlide
 /** The call-to-action line on the last image: a phone number when we have one. */
 export const contactLine = (p: Parameters<typeof brandOf>[0] & { full_name: string }) => (brandOf(p).cell ? `Call or text ${brandOf(p).cell}` : null);
 
-export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; tips?: { n: number; audience: string } | null; client?: string | null; scheduledFor?: string | null; variantSeed?: number }
+export interface CreateInput { category: Category; platforms: SocialPlatform[]; propertyId?: string | null; topic?: string | null; tips?: { n: number; audience: string; own?: string[] } | null; client?: string | null; scheduledFor?: string | null; variantSeed?: number }
 export type CreateResult = { ok: true; posts: SocialPost[] } | { ok: false; error: string };
 
 async function nextVariant(ctx: Ctx, category: Category): Promise<number> {
@@ -105,7 +106,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
     const photos = ids; // a post that is not about a home never borrows another home\u2019s photos
     const built = buildPost({
       category: input.category, platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage,
-      market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic, tips: input.tips ?? null, client: input.client ?? null,
+      market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic, tips: input.tips ?? (isTipCat(input.category) ? (() => { const r = parseTipRequest(input.topic); return r && !/\bfor\b/i.test(input.topic ?? "") ? { ...r, audience: input.category === "seller_tip" ? "sellers" : input.category === "education" ? "everyone" : "buyers" } : r; })() : null), client: input.client ?? null,
       property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, fullAddress: data.fullAddress, placeLine: data.placeLine } : null, when, contact: contactLine(ctx.profile),
     });
     let caption = built.caption;
