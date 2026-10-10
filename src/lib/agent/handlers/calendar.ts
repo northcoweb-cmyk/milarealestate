@@ -280,7 +280,8 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   const nounTitle = noun && /^(inspection|walk-?through|consult|consultation|dinner|coffee|breakfast)$/i.test(noun) ? noun.charAt(0).toUpperCase() + noun.slice(1).toLowerCase() : null;
   // "call with Dana", "lunch with Mary-Kate O'Neil": keep who it's with, and link a saved contact
   const notName = /^(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|january|february|march|april|may|june|july|august|september|october|november|december|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|today|tomorrow|tonight|at|on|for|and|about|next|this|a|an|the)$/i;
-  const rawWho = /\bwith\s+((?:the\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,2})/u.exec(text)?.[1];
+  const rawWho0 = /\b(?:with|for|to)\s+((?:the\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,2})/u.exec(text)?.[1];
+  const rawWho = rawWho0 && !notName.test(rawWho0.replace(/^the\s+/i, "").split(/\s+/)[0]) ? rawWho0 : undefined;
   const withWho = rawWho ? rawWho.split(/\s+/).reduce<string[]>((acc, w, i) => (acc.length === i && !(i > 0 && notName.test(w)) ? [...acc, w] : acc), []).join(" ") || undefined : undefined;
   let who: Contact | null = null;
   if (withWho && contactId === undefined) {

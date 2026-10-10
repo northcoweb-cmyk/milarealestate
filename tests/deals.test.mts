@@ -86,8 +86,10 @@ test("how's my week and what's my pipeline worth answer from real data", async (
   await say(a, "Offer accepted on 123 Main Street, closing November 20");
   await say(a, "New listing at 22 Elm Court Bethesda MD, 3/2, $650k");
   await say(a, "I have a new buyer named Priya Shah looking for a 3 bedroom around $500k");
-  const w = await say(a, "How's my week looking?");
-  assert.match(w, /Thu Oct 8: .*Earnest money due/, "days are shown with their dates");
+  const wr: any = await a.say("How's my week looking?");
+  const brief = JSON.stringify(wr.milaMessage.blocks ?? wr.milaMessage.content);
+  assert.match(brief, /Thu Oct 8/, "days are shown with their dates");
+  assert.match(brief, /Earnest money due/);
   const p = await say(a, "What's my pipeline worth?");
   assert.match(p, /Active listings: 1 · \$650,000 → about \$19,500/);
   assert.match(p, /Active buyers: 1/);

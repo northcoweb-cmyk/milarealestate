@@ -1,6 +1,6 @@
 import { warmText } from "../warm";
 import { addDays, fmtDay, fmtShortDate, fmtTime, partsIn, zonedToUtc } from "../../time";
-import type { Block, CalendarEvent, Contact, Property, Task } from "../../types";
+import type { Block, BriefItem, BriefSection, CalendarEvent, Contact, Property, Task } from "../../types";
 import type { Ctx } from "../context";
 import { fullMoney, plural } from "../context";
 import { persistState } from "../conversation";
@@ -179,8 +179,13 @@ export async function logInteractionHandler(ctx: Ctx, text: string): Promise<Han
     { label: "Find homes for them", style: "secondary", action: { type: "prompt", text: `Find homes for ${c.name}` } },
     { label: "Open profile", style: "quiet", href: `/contacts/${c.id}` },
   ] }];
-  const saved = learned.length ? `\nSaved to ${first}'s profile:\n${learned.map((i) => `• ${i.key}: ${i.value}`).join("\n")}` : "";
-  return reply(`Logged your ${kind} with ${c.name}${added ? " (I didn't have them, so I added them as a new lead)" : ""} and set a follow-up for tomorrow at 9 AM: “${title}”.${saved}`, blocks, "chat_simple");
+  const sections: BriefSection[] = [
+    { emoji: "📞", label: `${kind[0].toUpperCase()}${kind.slice(1)} with ${c.name}`, items: [{ text: text.replace(/\s+/g, " ").slice(0, 160), state: "done", button: { label: "Open profile", style: "quiet", href: `/contacts/${c.id}` } }] },
+    ...(learned.length ? [{ emoji: "🧠", label: `Saved to ${first}'s profile`, items: learned.slice(0, 6).map((i) => ({ text: `${i.key}: ${i.value}`, state: "info" as const, button: { label: "Edit", style: "quiet" as const, href: `/contacts/${c!.id}` } })) }] : []),
+    { emoji: "✅", label: "Follow-up set", items: [{ text: `${title} · tomorrow 9 AM`, state: "info", button: { label: "Change it", style: "quiet", href: "/tasks" } }] },
+  ];
+  blocks.unshift({ type: "listing_brief", kicker: "Logged", title: `${first}: call outcome`, done: 0, total: 0, sections });
+  return reply(`Logged your ${kind} with ${c.name}${added ? " (new lead added)" : ""}. Here's what I saved.`, blocks, "chat_simple");
 }
 
 // ------------------------------------------------------------------ text message drafts (sent from the agent's own phone — one tap)
@@ -223,21 +228,26 @@ export async function weekOverviewHandler(ctx: Ctx): Promise<HandlerOut> {
   const overdue = tasks.filter((t) => t.status === "open" && t.due_at && new Date(t.due_at).getTime() < t0 - 3_600_000);
   const dueSoon = tasks.filter((t) => t.status === "open" && t.due_at && new Date(t.due_at).getTime() >= t0 - 3_600_000 && new Date(t.due_at).getTime() < t7 && t.subtitle?.startsWith(TX_NOTE) !== true);
   const quiet = contacts.filter((c) => !["inactive", "closed"].includes(c.status) && (!c.last_contact_at || t0 - new Date(c.last_contact_at).getTime() > 14 * 86_400_000)).sort((a, b) => b.importance - a.importance).slice(0, 3);
-  const lines: string[] = [];
-  if (!week.length) lines.push("Your calendar is clear for the next 7 days.");
-  for (const [day, es] of byDay) lines.push(`${day}${es.length >= 4 ? " (packed)" : ""}: ${es.map((e) => `${new Date(e.start_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ctx.tz })} ${e.title.split(/ — |, /)[0]}`).join(" · ")}`);
-  const flags: string[] = [];
-  if (deadlines.length) flags.push(`${plural(deadlines.length, "contract deadline")} this week (${deadlines.map((d) => d.title.split(" — ")[0].toLowerCase()).join(", ")}).`);
-  if (overdue.length) flags.push(`${plural(overdue.length, "task")} overdue — oldest: ${overdue[0].title}.`);
-  if (dueSoon.length) flags.push(`${plural(dueSoon.length, "task")} due this week.`);
-  if (quiet.length) flags.push(`Going quiet (14+ days): ${quiet.map((q) => q.name).join(", ")} — worth a touch this week.`);
+  const cName = new Map(contacts.map((c) => [c.id, c.name]));
+  const pAddr = new Map(props.map((p) => [p.id, p.address]));
+  const sections: BriefSection[] = [...byDay].map(([day, es]) => ({
+    emoji: "📅", label: `${day}${es.length >= 4 ? " · packed" : ""}`,
+    items: es.map((e) => {
+      const who = e.contact_id ? cName.get(e.contact_id) : null, where = e.property_id ? pAddr.get(e.property_id) : null;
+      const base = e.title.split(" — ")[0].replace(/ with .*/i, "");
+      return { text: `${new Date(e.start_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: ctx.tz })} · ${base}${who ? ` for ${who}` : ""}${where ? ` · ${where}` : ""}`, state: "info" as const };
+    }),
+  }));
+  const flags: BriefItem[] = [];
+  if (deadlines.length) flags.push({ text: `${plural(deadlines.length, "contract deadline")} this week: ${deadlines.map((d) => d.title.split(" — ")[0].toLowerCase()).join(", ")}`, state: "missing" });
+  if (overdue.length) flags.push({ text: `${plural(overdue.length, "task")} overdue, oldest: ${overdue[0].title}${overdue[0].contact_id && cName.get(overdue[0].contact_id) ? ` (${cName.get(overdue[0].contact_id)})` : ""}`, state: "missing", button: { label: "See tasks", style: "quiet", href: "/tasks" } });
+  if (dueSoon.length) flags.push({ text: `${plural(dueSoon.length, "task")} due this week`, state: "info" });
+  quiet.forEach((q) => flags.push({ text: `${q.name} has gone quiet (14+ days)`, state: "info", button: { label: "Draft a follow-up", style: "quiet", action: { type: "prompt", text: `Draft a follow-up for ${q.name}` } } }));
   const free = [...Array(7).keys()].map((i) => addDays(ctx.now, i, ctx.tz)).find((d) => !byDay.has(`${fmtDay(d, ctx.tz).slice(0, 3)} ${fmtShortDate(d, ctx.tz)}`));
-  if (free && week.length) flags.push(`${fmtDay(free, ctx.tz)}, ${fmtShortDate(free, ctx.tz)} is open — a good day for follow-ups or prospecting.`);
-  void props;
-  return reply(`${lines.join("\n")}${flags.length ? `\n\n${flags.join("\n")}` : ""}`, [{ type: "choice", title: "Want me to…", buttons: [
-    { label: "Prioritize my follow-ups", style: "primary", action: { type: "prompt", text: "Who do I need to follow up with today?" } },
-    { label: "Open calendar", style: "secondary", href: "/calendar" },
-  ] }], "chat_simple");
+  if (free && week.length) flags.push({ text: `${fmtDay(free, ctx.tz)}, ${fmtShortDate(free, ctx.tz)} is open, good for follow-ups`, state: "done" });
+  if (flags.length) sections.push({ emoji: "⚠️", label: "Needs your attention", items: flags });
+  if (!sections.length) return reply("Your calendar is clear for the next 7 days. Want me to find who to follow up with?", [{ type: "choice", title: "Want me to…", buttons: [{ label: "Prioritize my follow-ups", style: "primary", action: { type: "prompt", text: "Who do I need to follow up with today?" } }] }], "chat_simple");
+  return reply(`You have ${plural(week.length, "thing")} on the calendar this week${overdue.length ? ` and ${plural(overdue.length, "overdue task")}` : ""}.`, [{ type: "listing_brief", kicker: "This week", title: "Your week", done: 0, total: 0, sections, buttons: [{ label: "Prioritize my follow-ups", style: "primary", action: { type: "prompt", text: "Who do I need to follow up with today?" } }, { label: "Open calendar", style: "secondary", href: "/calendar" }] }], "chat_simple");
 }
 
 const RATE_KEY = "Commission rate";

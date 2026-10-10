@@ -1,3 +1,4 @@
+import { fmtDay, fmtTime } from "../../time";
 import type { Block, ListingCardData, Property } from "../../types";
 import type { Ctx } from "../context";
 import { fullMoney } from "../context";
@@ -72,7 +73,11 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
   if (x?.tax_amount) lines.push(`Property taxes about ${fullMoney(x.tax_amount)}${x.tax_year ? ` (${x.tax_year})` : ""}.`);
   const notes = prepNotes(prop, x);
   const found = Boolean(mem?.found);
-  const head = found ? `Here's what I pulled on ${prop.address}${prop.city ? `, ${prop.city}` : ""}:` : `I saved ${prop.address}, but I couldn't find its details${rentcastConfigured() ? " in the property data" : ""}. Tell me the beds, baths and price and I'll fill it in.`;
+  const ohEvent = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime() && (e.property_id === prop!.id || `${e.title} ${e.location ?? ""}`.toLowerCase().includes(prop!.address.toLowerCase()))).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
+  const forOH = !!ohEvent || /\bopen house\b/i.test(text);
+  const market = x?.list_status ? (x.list_status === "Active" ? `On the market: active${x.days_on_market != null ? `, ${x.days_on_market} days` : ""}${prop.list_price ? ` at ${fullMoney(prop.list_price)}` : ""}.` : `Market status: ${String(x.list_status).toLowerCase()}.`) : found ? "Not showing as an active listing right now." : "";
+  if (market) lines.unshift(market);
+  const head = forOH && found ? `Open house prep for ${prop.address}${ohEvent ? ` (${fmtDay(ohEvent.start_at, ctx.tz)}, ${fmtTime(ohEvent.start_at, ctx.tz)})` : ""}. I already did the research, so you can walk in ready:` : found ? `Here's what I pulled on ${prop.address}${prop.city ? `, ${prop.city}` : ""}:` : `I saved ${prop.address}, but I couldn't find its details${rentcastConfigured() ? " in the property data" : ""}. Tell me the beds, baths and price and I'll fill it in.`;
   const body = [head, ...lines, ...(notes.length ? ["", "Worth knowing:", ...notes.map((n) => `• ${n}`)] : []), ...(found ? ["", "Double-check anything before you quote it to a client."] : [])].join("\n");
   const blocks: Block[] = [{ type: "listings", title: prop.address, subtitle: found ? undefined : "Details not found", cards: [card] }, {
     type: "choice", title: "Next",
