@@ -82,7 +82,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
     setOpen(true); setBusy(true); setSteps(["Understanding request"]);
     if (userText || files?.length) setMessages((m) => [...m, { id: "tmp-" + Date.now(), user_id: "", created_at: new Date().toISOString(), updated_at: "", conversation_id: convId ?? "", role: "user", content: userText ?? "", blocks: [], attachments: (files ?? []).map((f) => ({ ...f })) }]);
     try {
-      const res = await fetch("/api/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...payload, conversationId: convId }) });
+      const res = await fetch("/api/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...payload, conversationId: convId, tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })() }) });
       if (!res.ok || !res.body) throw new Error((await res.json().catch(() => ({}))).error ?? "Mila couldn't respond.");
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
       for (;;) {

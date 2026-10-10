@@ -1,5 +1,7 @@
 import { getProfile } from "@/lib/auth";
 import { handleTurn } from "@/lib/agent/engine";
+import { getStore } from "@/lib/db/store";
+import { isValidTz } from "@/lib/time";
 import { hit } from "@/lib/server/rate-limit";
 
 export const maxDuration = 120;
@@ -10,19 +12,25 @@ export async function POST(req: Request) {
   if (!profile) return Response.json({ error: "Please sign in." }, { status: 401 });
   if (!hit(`agent:${profile.id}`, 30, 60_000)) return Response.json({ error: "You're sending messages quickly. Give me a moment and try again." }, { status: 429 });
   if (Number(req.headers.get("content-length") ?? 0) > 200_000) return Response.json({ error: "That request is too large." }, { status: 413 });
-  const body = (await req.json().catch(() => ({}))) as { message?: string; action?: any; attachmentIds?: string[]; conversationId?: string };
+  const body = (await req.json().catch(() => ({}))) as { message?: string; action?: any; attachmentIds?: string[]; conversationId?: string; tz?: string };
   if (body.message != null && typeof body.message !== "string") return Response.json({ error: "Say something first." }, { status: 400 });
   if (body.action != null && (typeof body.action !== "object" || typeof body.action.type !== "string")) return Response.json({ error: "That action isn't valid." }, { status: 400 });
   if (Array.isArray(body.attachmentIds) ? body.attachmentIds.length > 10 || body.attachmentIds.some((x) => typeof x !== "string") : body.attachmentIds != null) return Response.json({ error: "Too many attachments." }, { status: 400 });
   if (!body.message?.trim() && !body.action && !body.attachmentIds?.length) return Response.json({ error: "Say something first." }, { status: 400 });
   if ((body.message?.length ?? 0) > 6000) return Response.json({ error: "That message is too long." }, { status: 400 });
 
+  // the phone's own time zone wins: "today at 1" must mean 1 o'clock where the agent is standing
+  let who = profile;
+  if (typeof body.tz === "string" && body.tz !== profile.timezone && isValidTz(body.tz)) {
+    try { who = (await getStore().update("profiles", profile.id, profile.id, { timezone: body.tz })) ?? { ...profile, timezone: body.tz }; } catch { who = { ...profile, timezone: body.tz }; }
+  }
+
   const enc = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       const send = (o: unknown) => controller.enqueue(enc.encode(JSON.stringify(o) + "\n"));
       try {
-        const out = await handleTurn(profile, { ...body, onStep: (step) => send({ step }) });
+        const out = await handleTurn(who, { ...body, onStep: (step) => send({ step }) });
         send({ done: out });
       } catch (e) {
         console.error("[agent]", e);
