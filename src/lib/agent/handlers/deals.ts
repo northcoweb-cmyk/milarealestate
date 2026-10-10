@@ -12,6 +12,7 @@ import type { Intent } from "../intents";
 import { locationGate } from "./location";
 import { TOOLS, invoke, logContactEvent } from "../tools";
 import { askBack } from "./ask";
+import { sharePhotosBlock, wantsPhotos } from "./photos";
 import { mentionedContacts } from "./contacts";
 import { type HandlerOut, reply } from "./types";
 
@@ -207,7 +208,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   return reply(`Here's the text to ${first}:\n\n“${msg}”\n\n${phone ? "Tap below and it opens in your Messages, ready to send." : `I don't have a number for ${first} yet — tap below to pick them in Messages.`} I don't send texts myself, so nothing goes out until you tap Send.`, [{
     type: "choice", title: `Text ${first}`,
     buttons: [{ label: `Open in Messages`, style: "primary", href }, ...(c ? [{ label: "Open profile", style: "quiet" as const, href: `/contacts/${c.id}` }] : [])],
-  }], "chat_simple");
+  }, ...(wantsPhotos(text) ? await sharePhotosBlock(ctx, text, msg) : [])], "chat_simple");
 }
 
 // ------------------------------------------------------------------ week overview + pipeline

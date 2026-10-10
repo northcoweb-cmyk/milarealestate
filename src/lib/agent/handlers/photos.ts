@@ -1,3 +1,4 @@
+import type { Block } from "../../types";
 import type { Property } from "../../types";
 import type { Ctx } from "../context";
 import { persistState } from "../conversation";
@@ -56,4 +57,16 @@ export async function listingLinkHandler(ctx: Ctx, text: string): Promise<Handle
   const msg = explainPull(r, prop.address);
   if (r.added) return reply(msg, [{ type: "notice", tone: "success", title: msg, body: r.filledCity ? "I also filled in the city from the listing." : "They'll show up on the property card and in your social posts. Only use photos you have the right to share.", buttons: [{ label: "View property", style: "primary", href: `/properties/${prop.id}` }] }]);
   return reply(msg, [{ type: "notice", tone: "warn", title: "I couldn't pull photos from that link", body: msg, buttons: [{ label: "Add your own photos", style: "quiet", href: `/properties/${prop.id}` }] }]);
+}
+
+/** "…and include photos of 12 Oak St": the agent's OWN uploaded photos for that home, ready to share along with a message. Only ever built when the agent asks for photos. */
+export const wantsPhotos = (text: string) => /\b(?:photos?|pictures?|pics?|images?)\b/i.test(text) && /\b(?:with|include|attach|add|send|and)\b/i.test(text);
+export async function sharePhotosBlock(ctx: Ctx, text: string, message: string): Promise<Block[]> {
+  const props = await ctx.store.list("properties", ctx.userId);
+  const addr = parseAddress(text)?.toLowerCase();
+  const prop = (addr ? props.find((p) => p.address.toLowerCase().startsWith(addr.split(/\s+/).slice(0, 2).join(" "))) : null) ?? (ctx.state.last_property_id ? props.find((p) => p.id === ctx.state.last_property_id) : undefined);
+  if (!prop) return [{ type: "notice", tone: "info", title: "Which home's photos?", body: "Tell me the address and I'll line them up to share." }];
+  const own = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop.id && i.url.startsWith("/api/files/")).sort((a, b) => a.position - b.position).slice(0, 10);
+  if (!own.length) return [{ type: "notice", tone: "info", title: `No photos saved for ${prop.address}`, body: "Add your own photos on the property page and I can share them in texts, emails and posts.", buttons: [{ label: "Add photos", style: "primary", href: `/properties/${prop.id}` }] }];
+  return [{ type: "share_photos", title: `Photos of ${prop.address}`, message, photos: own.map((i) => ({ url: i.url })) }];
 }

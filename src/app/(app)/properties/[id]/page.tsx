@@ -77,6 +77,7 @@ function PropertyDetail({ id }: { id: string }) {
       <Link href="/properties/all" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />Properties</Link>
       <PageHeader title={p.address} sub={p.is_demo ? "Fictional demo property" : undefined} right={<button className="btn btn-quiet btn-sm" onClick={() => setDelOpen(true)}><Trash2 size={16} />Delete</button>} />
       <DeletePropertyConfirm id={p.id} address={p.address} open={delOpen} onClose={() => setDelOpen(false)} onDeleted={() => window.location.assign("/properties/all")} />
+      <PropertyHero id={id} address={p.address} own={data.images} lookup={!!addrComplete} busy={busy} onUpload={upload} onRemove={(imageId) => jfetch(`/api/properties/${id}/images?imageId=${imageId}`, { method: "DELETE" }).then(reload)} />
       <SheetsSection propertyId={id} />
       <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
       <div>
@@ -103,7 +104,6 @@ function PropertyDetail({ id }: { id: string }) {
         <div className="mt-3 flex flex-wrap items-center gap-3"><button className="btn btn-sm" disabled={finding || !addrComplete} onClick={() => findHome()}>{finding ? "Looking…" : data.lookup ? "Look up again" : "Find details"}</button>{!data.lookupAvailable && <span className="faint text-[12.5px]">Lookup isn't available right now.</span>}</div></> : <button className="mt-3 text-[13.5px] font-semibold text-accent underline" onClick={() => setShowAddr(true)}>Wrong address? Edit it</button>}
         {findMsg && <p className="mt-3 rounded-2xl p-3 text-[14px]" style={{ background: "color-mix(in srgb, var(--ink) 6%, transparent)" }}>{findMsg}</p>}
       </section>
-      {addrComplete && <ListingGallery id={id} address={p.address} />}
       <section className="glass mb-5 p-5 sm:p-6">
         <p className="kicker mb-1">Photos</p>
         <p className="muted mb-3 text-[14px]">Paste the listing link and Mila pulls the photos for you. She only uses what the page itself shares publicly, and never stock images.</p>
@@ -161,29 +161,35 @@ function SheetsSection({ propertyId }: { propertyId: string }) {
 type Gallery = { photoStatus: string; photos: { url: string; thumbUrl?: string; caption: string | null }[] };
 const galleryMemo = new Map<string, Gallery>();
 
-/** Full listing gallery, fetched once when the page opens (the server serves it from cache whenever it can). Hides itself when there's nothing to show. */
-function ListingGallery({ id, address }: { id: string; address: string }) {
+/** The home's photos at the top of the page: the agent's own uploads first (those are the ones texts, emails and posts use), then the public listing photos. Always offers "Add photos". */
+function PropertyHero({ id, address, own, lookup, busy, onUpload, onRemove }: { id: string; address: string; own: PropertyImage[]; lookup: boolean; busy: boolean; onUpload: (f: FileList | null) => void; onRemove: (imageId: string) => void }) {
   const [g, setG] = useState<Gallery | null>(galleryMemo.get(id) ?? null);
   const [i, setI] = useState(0);
+  const pick = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (galleryMemo.has(id)) return;
+    if (!lookup || galleryMemo.has(id)) return;
     let live = true;
     jfetch<{ media: Gallery }>(`/api/properties/${id}/photos`).then((r) => { galleryMemo.set(id, r.media); if (live) setG(r.media); }).catch(() => undefined);
     return () => { live = false; };
-  }, [id]);
-  if (!g || !g.photos.length) return null;
-  const cur = g.photos[Math.min(i, g.photos.length - 1)];
+  }, [id, lookup]);
+  const all = [...own.map((im) => ({ url: im.url, thumb: im.url, caption: im.caption, ownId: im.id as string | null })), ...(g?.photos ?? []).map((ph) => ({ url: ph.url, thumb: ph.thumbUrl ?? ph.url, caption: ph.caption, ownId: null as string | null }))];
+  const cur = all[Math.min(i, Math.max(all.length - 1, 0))];
   return (
-    <section className="glass mb-5 overflow-hidden !p-0" aria-label="Listing photos">
-      <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={cur.url} referrerPolicy="no-referrer" alt={cur.caption || `Listing photo of ${address}`} className="h-full w-full object-cover" />
-        <span className="absolute bottom-2 right-3 rounded-full bg-black/50 px-2 py-0.5 text-[11.5px] text-white">{i + 1} / {g.photos.length}</span>
+    <section className="glass mb-5 overflow-hidden !p-0" aria-label="Photos">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/10 sm:aspect-[16/7]">
+        {cur ? (<>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={cur.url} referrerPolicy="no-referrer" alt={cur.caption || `Photo of ${address}`} className="h-full w-full object-cover" />
+          <span className="absolute bottom-2 left-3 rounded-full bg-black/50 px-2 py-0.5 text-[11.5px] text-white">{Math.min(i, all.length - 1) + 1} / {all.length}{cur.ownId ? " · yours" : ""}</span>
+          {cur.ownId && <button type="button" className="absolute right-3 top-3 rounded-full bg-black/50 p-2 text-white" aria-label="Remove photo" onClick={() => { onRemove(cur.ownId!); setI(0); }}><Trash2 size={15} /></button>}
+        </>) : <div className="grid h-full w-full place-items-center px-6 text-center"><p className="muted text-[14.5px]">No photos yet. Add your own and Mila uses them in texts, emails (only when you say so) and posts.</p></div>}
+        <button type="button" className="btn btn-primary btn-sm absolute bottom-3 right-3" disabled={busy} onClick={() => pick.current?.click()}><ImagePlus size={16} />{busy ? "Adding…" : "Add photos"}</button>
+        <input ref={pick} type="file" accept="image/*" multiple hidden onChange={(e) => { onUpload(e.target.files); e.target.value = ""; }} />
       </div>
-      {g.photos.length > 1 && <div className="no-scrollbar flex gap-2 overflow-x-auto p-3">{g.photos.slice(0, 40).map((ph, n) => (
+      {all.length > 1 && <div className="no-scrollbar flex gap-2 overflow-x-auto p-3">{all.slice(0, 40).map((ph, n) => (
         <button key={n} type="button" onClick={() => setI(n)} aria-label={`Show photo ${n + 1}`} className="h-14 w-20 shrink-0 overflow-hidden rounded-lg" style={{ outline: n === i ? "2px solid var(--accent)" : "none" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={ph.thumbUrl ?? ph.url} referrerPolicy="no-referrer" alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }} />
+          <img src={ph.thumb} referrerPolicy="no-referrer" alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }} />
         </button>))}</div>}
     </section>
   );

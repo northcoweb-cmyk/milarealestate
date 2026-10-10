@@ -71,6 +71,8 @@ export function BlockView(p: Props) {
         </div>
       );
     }
+    case "share_photos":
+      return <SharePhotosCard b={b} />;
     case "advice":
       return (
         <div className="glass p-4 sm:p-5" style={{ borderRadius: 24 }}>
@@ -309,6 +311,38 @@ function DraftSocialCard({ b, ...btns }: { b: Extract<Block, { type: "draft_soci
       <p className="mt-3 line-clamp-4 whitespace-pre-line text-[14.5px]">{b.caption}</p>
       <Buttons buttons={[...(b.buttons ?? []), { label: "Edit & change style", style: "quiet", href: "/content" }]} {...btns} />
       {viewAt != null && <SlideViewer slides={b.slides} start={viewAt} post={post} brand={brand} onClose={() => setViewAt(null)} />}
+    </div>
+  );
+}
+
+/** The agent's own photos, ready to attach: on a phone the share sheet puts them straight into Messages or Mail; elsewhere they download. */
+function SharePhotosCard({ b }: { b: Extract<Block, { type: "share_photos" }> }) {
+  const { toast } = useApp();
+  const [on, setOn] = useState<Set<number>>(() => new Set(b.photos.map((_, i) => i)));
+  const [busy, setBusy] = useState(false);
+  async function share() {
+    setBusy(true);
+    try {
+      const files = await Promise.all([...on].map(async (i, n) => { const r = await fetch(b.photos[i].url); const blob = await r.blob(); return new File([blob], `photo-${n + 1}.${(blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg")}`, { type: blob.type || "image/jpeg" }); }));
+      if (!files.length) return;
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      if (nav.canShare?.({ files })) { try { await nav.share({ files, text: b.message }); } catch { /* cancelled */ } }
+      else { for (const f of files) { const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); } toast("Photos saved. Attach them to your message.", "success"); }
+    } catch { toast("Couldn't load the photos.", "error"); } finally { setBusy(false); }
+  }
+  return (
+    <div className="glass p-4 sm:p-5" style={{ borderRadius: 24 }}>
+      <p className="font-semibold">{b.title}</p>
+      <p className="muted text-[13.5px]">Tap to pick which ones go with your message.</p>
+      <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">
+        {b.photos.map((ph, i) => (
+          <button key={i} type="button" aria-pressed={on.has(i)} onClick={() => setOn((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl" style={{ outline: on.has(i) ? "2px solid var(--accent)" : "none", opacity: on.has(i) ? 1 : 0.5 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={ph.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+          </button>
+        ))}
+      </div>
+      <button className="btn btn-primary btn-sm mt-3" disabled={busy || !on.size} onClick={share}>{busy ? "Getting them ready…" : `Share ${on.size} photo${on.size === 1 ? "" : "s"} with the message`}</button>
     </div>
   );
 }

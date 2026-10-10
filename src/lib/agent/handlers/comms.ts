@@ -1,3 +1,4 @@
+import { sharePhotosBlock, wantsPhotos } from "./photos";
 import { classifyProperty } from "../../property-kind";
 import { fmtDay, fmtRange } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, SocialSlide } from "../../types";
@@ -188,6 +189,7 @@ export async function draftEmailHandler(ctx: Ctx, text: string): Promise<Handler
   const blocks: Block[] = [{ type: "draft_email", draftId: d.id, to: `${c.name}${c.email ? ` <${c.email}>` : ""}`, subject, body, status: "Draft", buttons: out.status === "needs_approval" ? [{ label: "Edit", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Open in email app", style: "primary", approvalId: out.approval.id }] : undefined }];
   if (out.status === "needs_approval") await ctx.store.update("email_drafts", ctx.userId, d.id, { status: "pending_approval" });
   if (!c.email) blocks.push({ type: "notice", tone: "warn", title: `${c.name} has no email address`, body: "Add one in their profile before sending.", buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] });
+  if (wantsPhotos(text)) blocks.push(...(await sharePhotosBlock(ctx, text, body))); // photos go in an email only when the agent says so
   return reply(ai ? `Here's a draft for ${firstName(c.name)}.` : `Here's a simple draft for ${firstName(c.name)}.`, blocks, "email_generation");
 }
 
