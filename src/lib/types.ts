@@ -268,6 +268,8 @@ export interface SocialSlide {
   theme?: string;
   /** Layout template (see lib/content/design.ts). */
   layout?: string;
+  /** Headline font (see lib/content/fonts.ts). Independent of the colors. */
+  font?: string;
   role: "hero" | "highlight" | "cta";
 }
 

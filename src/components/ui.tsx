@@ -6,7 +6,8 @@ import { useScrollLock } from "./use-scroll-lock";
 import { AnimatePresence, motion, useMotionValue } from "motion/react";
 import { useSwipeDismiss } from "./use-swipe-dismiss";
 import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
 
 const AV_TONES = ["#0b0b0c", "#232326", "#3b3b40", "#5a5a60", "#8a8a90", "#b8b8bd", "#e4e4e7", "#f7f7f8"];
@@ -62,13 +63,17 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
   const y = useMotionValue(60);
   const panel = useRef<HTMLDivElement>(null);
   useSwipeDismiss(panel, y, open, onClose);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", k);
     return () => document.removeEventListener("keydown", k);
   }, [open, onClose]);
-  return (
+  // rendered at the top of the page, outside any transformed parent, so it always reaches the true bottom edge (a PWA left a strip under it otherwise)
+  if (!mounted) return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" style={pinTo(vvBox)} role="dialog" aria-modal="true" aria-label={title}>
@@ -88,7 +93,8 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

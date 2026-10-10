@@ -1,5 +1,6 @@
 "use client";
 
+import { POST_FONTS, fontOf } from "@/lib/content/fonts";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -153,6 +154,7 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   }
   const live: SocialPost = { ...post, caption, slides };
 
+  const setFont = (k: string) => setSlides((x) => x.map((s) => ({ ...s, font: k })));
   const setTheme = (t: string) => setSlides((x) => x.map((s) => ({ ...s, theme: t })));
   const layout = layoutOf(slides[0]?.layout).key;
   const hasPhoto = slides.some((s) => s.image_url);
@@ -220,6 +222,13 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
           <p className="kicker mb-2">Design · {layoutOf(layout).label}</p>
           <div className="no-scrollbar -mx-6 flex gap-2 overflow-x-auto px-6 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes").map((l) => <button key={l.key} onClick={() => setLayout(l.key)} aria-pressed={layout === l.key} className={"chip " + (layout === l.key ? "is-selected" : "")}>{l.label}</button>)}
+          </div>
+        </div>
+
+        <div>
+          <p className="kicker mb-2">Font · {fontOf(slides[0]?.font).label}</p>
+          <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 py-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+            {POST_FONTS.map((ft) => <button key={ft.key} onClick={() => setFont(ft.key)} aria-pressed={fontOf(slides[0]?.font).key === ft.key} className={"chip shrink-0 !text-[17px] " + (fontOf(slides[0]?.font).key === ft.key ? "is-selected" : "")} style={{ fontFamily: `var(${ft.cssVar})`, fontWeight: ft.weight }}>{ft.label}</button>)}
           </div>
         </div>
 

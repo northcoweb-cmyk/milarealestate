@@ -1,10 +1,16 @@
 import { MobileGuards } from "@/components/mobile-guards";
 import type { Metadata, Viewport } from "next";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { Inter, Instrument_Serif, Playfair_Display, Cormorant_Garamond, DM_Serif_Display, Libre_Baskerville, Montserrat, Oswald } from "next/font/google";
 import "./globals.css";
 import { SwRegister } from "@/components/sw-register";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["600"], variable: "--font-playfair", display: "swap" });
+const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ["600"], variable: "--font-cormorant", display: "swap" });
+const dmserif = DM_Serif_Display({ subsets: ["latin"], weight: "400", variable: "--font-dmserif", display: "swap" });
+const baskerville = Libre_Baskerville({ subsets: ["latin"], weight: ["700"], variable: "--font-baskerville", display: "swap" });
+const montserrat = Montserrat({ subsets: ["latin"], weight: ["800"], variable: "--font-montserrat", display: "swap" });
+const oswald = Oswald({ subsets: ["latin"], weight: ["600"], variable: "--font-oswald", display: "swap" });
 const display = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: "--font-display", display: "swap" });
 
 const shareTitle = "Mila | Your AI operations manager for real estate";
@@ -29,7 +35,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${display.variable}`} data-tone="day">
+    <html lang="en" className={`${inter.variable} ${display.variable} ${playfair.variable} ${cormorant.variable} ${dmserif.variable} ${baskerville.variable} ${montserrat.variable} ${oswald.variable}`} data-tone="day">
       <body>
         {children}
         <MobileGuards />

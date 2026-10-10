@@ -1,3 +1,4 @@
+import { POST_FONTS, fontOf } from "./fonts";
 import type { SocialPost, SocialSlide } from "../types";
 import { FORMATS, formatFor, layoutOf, paletteOf, type Palette } from "./design";
 
@@ -9,14 +10,17 @@ export interface Brand { name: string; brokerage?: string | null; pfp?: string |
 export interface RenderOpts { index: number; total: number; platform: string; brand: Brand; category?: string | null; width?: number }
 
 type Ctx = CanvasRenderingContext2D;
-let fonts: { serif: string; sans: string } | null = null;
+let fonts: { serif: string; sans: string; byKey: Record<string, string> } | null = null;
 async function loadFonts() {
   if (fonts) return fonts;
   const probe = (cls: string) => { const s = document.createElement("span"); s.className = cls; document.body.appendChild(s); const f = getComputedStyle(s).fontFamily; s.remove(); return f; };
   const serif = probe("display") || "Georgia, serif";
   const sans = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
+  const byKey: Record<string, string> = {};
+  for (const pf of POST_FONTS) { const s2 = document.createElement("span"); s2.style.fontFamily = `var(${pf.cssVar})`; document.body.appendChild(s2); byKey[pf.key] = getComputedStyle(s2).fontFamily || sans; s2.remove(); }
+  try { await Promise.all(POST_FONTS.map((pf) => document.fonts.load(`${pf.weight} 80px ${byKey[pf.key]}`))); } catch { /* fall back */ }
   try { await Promise.all([document.fonts.load(`400 80px ${serif}`), document.fonts.load(`500 30px ${sans}`), document.fonts.load(`700 30px ${sans}`)]); await document.fonts.ready; } catch { /* fall back to whatever is loaded */ }
-  fonts = { serif, sans };
+  fonts = { serif, sans, byKey };
   return fonts;
 }
 
@@ -198,8 +202,10 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   const fullBleed = lay === "cinema" && !!photo;
   const ink = fullBleed ? "#ffffff" : pal.ink, soft = fullBleed ? "rgba(255,255,255,.8)" : pal.soft;
   const poster = lay === "poster";
-  const headSerif = pal.serif && !poster;
-  const head = (px: number) => (headSerif ? `400 ${px}px ${f.serif}` : `800 ${px}px ${f.sans}`);
+  // the headline font is its own choice (colors never change it)
+  const pf = fontOf(slide.font);
+  const headSerif = pf.serif && !poster;
+  const head = (px: number) => `${pf.weight} ${px}px ${f.byKey[pf.key] ?? f.sans}`;
   const sans = (px: number, w = 500) => `${w} ${px}px ${f.sans}`;
   const tight = (px: number) => { try { (c as unknown as { letterSpacing: string }).letterSpacing = headSerif ? "0px" : `${(-0.025 * px).toFixed(2)}px`; } catch { /* unsupported */ } };
   const loose = () => { try { (c as unknown as { letterSpacing: string }).letterSpacing = "0px"; } catch { /* ignore */ } };
