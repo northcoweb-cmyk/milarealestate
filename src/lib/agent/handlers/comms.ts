@@ -15,7 +15,7 @@ import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
 import { persistState } from "../conversation";
 import { resolveProperty } from "./listing";
-import { resolveAddress } from "../property-lookup";
+import { enrichProperty, resolveAddress } from "../property-lookup";
 
 const COUNT_WORDS: Record<string, number> = { one: 1, a: 1, an: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
 /** "make me 3 posts", "three captions", "a post" → how many the agent asked for (1-6). */
@@ -71,7 +71,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   const events = await upcomingEvents(ctx);
   // "make a post for it" means the property we were just talking about (the showing just added, the last listing), never some other open house
-  const refersBack = !addr && /\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home)\b/i.test(text);
+  const refersBack = !addr && (/\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home)\b/i.test(text) || (!!ctx.state.last_property_id && !/\b(next|upcoming|tomorrow|saturday|sunday|monday|tuesday|wednesday|thursday|friday|my open house)\b/i.test(text))); // no address said: the home we were just on, not some other open house
   let prop: Property | null = refersBack ? null : await resolveProperty(ctx, text, false);
   if (refersBack && ctx.state.last_property_id) prop = await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id);
   if (refersBack && !prop) {
@@ -98,6 +98,10 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   if (!prop) return reply("Which property is the post for? Give me an address and I'll build it.");
   ctx.state.last_property_id = prop.id;
+  // a post is only as good as its facts: when the home has no beds, baths, size or price yet, look them up once (cached) instead of posting an address alone
+  if (prop.beds == null && prop.baths == null && !prop.sqft && !prop.list_price && prop.city && prop.state && !/\b(commercial|land|lot|retail|office)\b/i.test(`${prop.description ?? ""}`)) {
+    try { ctx.steps.push("Looking up the home's details"); prop = (await enrichProperty(ctx, prop, {})).property; } catch { /* the post still goes ahead */ }
+  }
   const images = (await ctx.store.list("property_images", ctx.userId)).filter((i) => i.property_id === prop!.id).sort((a, b) => a.position - b.position).map((i) => i.id);
   // "congrats to the Nguyens" / "sold caption" for a home: a Just Sold post, not a listing announcement
   if (/\b(sold|congrat\w*|just closed|closed on)\b/i.test(text) && !/open\s*house/i.test(text)) {
@@ -166,7 +170,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   await attach(post);
   if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Send me the listing link and I'll pull the photos. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
-  return reply(`Here's ${/^[aeiou]/i.test(platform) ? "an" : "a"} ${platform} carousel for ${prop.address}.`, blocks, "social_generation");
+  return reply(platform === "instagram_story" ? `Here's an Instagram story for ${prop.address}.` : `Here's an Instagram carousel for ${prop.address}.`, blocks, "social_generation");
 }
 
 export async function draftEmailHandler(ctx: Ctx, text: string): Promise<HandlerOut> {

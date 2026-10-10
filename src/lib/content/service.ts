@@ -60,7 +60,14 @@ export async function designSlides(ctx: Ctx, prop: Property, slides: SocialSlide
   let urls = await imageUrls(ctx, prop.id);
   if (!urls.length && prop.listing_url) { try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); urls = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ } }
   const seed = (await ctx.store.list("social_posts", ctx.userId)).length + bump;
-  return withDesign(platform === "instagram_story" ? slides.slice(0, 1) : slides, urls, category, seed); // a story is one image
+  if (platform === "instagram_story") { // a story is one image, so it carries the details itself
+    const d = await propertyPostData(ctx, prop, { sold: category === "just_sold" }).catch(() => null);
+    const sub = slides[0]?.sub ?? "";
+    const when = /^Open House\s*•\s*(.+)$/i.exec(sub)?.[1];
+    const lines = [...(when ? [when.replace(/^Open House\s*•\s*/i, "")] : []), ...(d?.stats ?? []), ...(d?.details ?? []).slice(0, 2)].filter(Boolean).slice(0, 7);
+    return withDesign(slides[0] ? [{ ...slides[0], ...(slides[0].lines?.length || !lines.length ? {} : { lines }) }] : [], urls, category, seed);
+  }
+  return withDesign(slides, urls, category, seed);
 }
 
 /** The call-to-action line on the last image: a phone number when we have one. */

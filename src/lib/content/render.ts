@@ -271,9 +271,17 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   // "swipe" cue on the first slide of a carousel
   const swipeCue = slide.role === "hero" && o.total > 1 && !landscape;
 
-  const contentBottom = footY - 100 * u;
   const btnH0 = 84 * u;
   const boxW = W - 2 * m;
+  // a single image (a story) carries its details as a row of chips above the footer: price, beds, baths, size, when
+  const infoLines = lone && !landscape ? (slide.lines ?? []).filter(Boolean).slice(0, 8) : [];
+  const chipH = 62 * u, chipGap = 16 * u;
+  const chips: { t: string; x: number; w: number; row: number }[] = [];
+  if (infoLines.length) { c.font = sans(30 * u, 800); let cx0 = 0, row = 0; for (const t of infoLines) { const w = c.measureText(t).width + 48 * u; if (cx0 + w > boxW && cx0 > 0) { row++; cx0 = 0; } chips.push({ t, x: cx0, w, row }); cx0 += w + chipGap; } }
+  const chipBlockH = chips.length ? (Math.max(...chips.map((r) => r.row)) + 1) * (chipH + chipGap) + 40 * u : 0;
+  const contentBottom = footY - 100 * u - chipBlockH;
+  const chipTop = footY - 100 * u - chipBlockH + 40 * u;
+  const drawChips = () => { for (const r of chips) { const x = m + r.x, y = chipTop + r.row * (chipH + chipGap); rrect(c, x, y, r.w, chipH, chipH / 2); c.fillStyle = fullBleed ? "rgba(255,255,255,.94)" : pal.accent; c.fill(); c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(30 * u, 800); c.fillText(r.t, x + 24 * u, y + chipH * 0.67); } };
   const mediaBox = (x: number, y: number, w: number, h: number, shape: Shape) => {
     if (photo && !fullBleed) {
       c.save(); shapePath(c, shape, x, y, w, h); c.clip();
@@ -319,7 +327,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
       c.fillStyle = tInk; c.font = sans(40 * u, 800); c.fillText(o.brand.name, x0, y, mw); y += 42 * u;
       if (o.brand.brokerage) { c.fillStyle = tSoft; c.font = sans(28 * u, 500); c.fillText(o.brand.brokerage, x0, y, mw); y += 40 * u; }
       c.fillStyle = tInk; c.font = sans(28 * u, 700); for (const l of info) { c.fillText(l, x0, y, mw); y += 38 * u; }
-      return cv;
+      { drawChips(); return cv; }
     }
     const topY = m + 40 * u;
     c.fillStyle = tInk;
@@ -339,7 +347,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
       rrect(c, bxp, py, pw, btnH0, btnH0 / 2); c.fillStyle = dark ? "#ffffff" : pal.accent; c.fill();
       c.fillStyle = dark ? "#111" : pal.onAccent; c.fillText(label, bxp + 36 * u, py + btnH0 / 2 + 11 * u, boxW - 72 * u);
     }
-    return cv;
+    { drawChips(); return cv; }
   }
 
   // ================================================================ HERO
@@ -434,7 +442,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
       drawLines(lines, px, m, format === "story" ? top + 20 * u : top, lhOf);
       if (swipeCue) swipe(m, contentBottom - 12 * u);
     }
-    return cv;
+    { drawChips(); return cv; }
   }
 
   // ================================================================ HIGHLIGHT
@@ -478,7 +486,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
           rows[k].forEach((ln, li) => c.fillText(ln, m + padX + bd + size * 0.5, ty + li * size * 1.18));
           y += h + gapY;
         });
-        return cv;
+        { drawChips(); return cv; }
       }
       const n = slide.sub?.match(/^(\d+)\s+of\s+(\d+)/i);
       const badge = 150 * u; let top = m + 20 * u;
@@ -499,7 +507,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
       if (!fullBleed && !landscape) mediaBox(m, contentBottom - panelH, boxW, panelH, lay === "arch" ? "round" : stripShape);
       if (!fullBleed && landscape) mediaBox(W * 0.54, m, W - m - W * 0.54, contentBottom - m, "round");
     }
-    return cv;
+    { drawChips(); return cv; }
   }
 
   // ================================================================ CALL TO ACTION
@@ -517,7 +525,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
     rrect(c, bxp, py, pw, btnH, lay === "poster" || lay === "split" ? 14 * u : btnH / 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
     c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.fillText(label, bxp + 36 * u, py + btnH / 2 + 11 * u, boxW - 72 * u);
   }
-  return cv;
+  { drawChips(); return cv; }
 }
 
 export const toBlob = (cv: HTMLCanvasElement, type = "image/png") => new Promise<Blob>((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error("Couldn't render the image."))), type));

@@ -270,6 +270,8 @@ export interface SocialSlide {
   layout?: string;
   /** Headline font (see lib/content/fonts.ts). Independent of the colors. */
   font?: string;
+  /** Details drawn as chips on a single-image post (a story): price, beds, baths, size, when. */
+  lines?: string[];
   role: "hero" | "highlight" | "cta";
 }
 

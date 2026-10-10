@@ -243,7 +243,11 @@ export function buildPost(i: BuildInput): Built {
   const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic && !i.tips?.own?.length && !i.tips ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const f = fitToPlatform(i.platform, body, baseTags(i));
   const carousel = PLATFORMS.find((p) => p.key === i.platform)?.carousel ?? true;
-  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capSlides(c.slides) : c.slides.slice(0, 1) };
+  // a story is ONE image, so it has to carry the details a carousel spreads over three: when, price, beds/baths/size, the extras
+  const when = i.when && (i.category === "open_house") ? [`${i.when.day} ${i.when.range}`] : [];
+  const info = i.property ? [...when, ...(i.property.facts ?? []), ...(i.property.details ?? []).slice(0, 2)] : [];
+  const one = c.slides[0] ? [{ ...c.slides[0], ...(info.length ? { lines: info.slice(0, 7) } : {}) }] : [];
+  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capSlides(c.slides) : one };
 }
 
 export const variantCount = (cat: Category) => (cat === "buyer_tip" || cat === "seller_tip" ? 10 : cat === "education" ? 8 : cat === "local" ? 5 : 3);

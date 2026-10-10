@@ -74,3 +74,17 @@ test("a logged call comes back as a card with what was saved", async () => {
   const r: any = await a.say("I just talked to Priya, she wants to see houses this weekend and I'll send her listings");
   assert.ok(r.milaMessage.blocks.some((b: any) => b.type === "listing_brief" && /call outcome/i.test(b.title)));
 });
+
+test("a story is one image that carries the details, and 'make it a story' stays on the same home", async () => {
+  const a = await fresh();
+  await text(a, "Open house at 99 Birch Road Austin TX Saturday at 1pm");
+  await text(a, "New listing at 22 Elm Court Bethesda MD, 3/2, $650k, 1800 sqft");
+  const r: any = await a.say("make an instagram story for 22 Elm Court");
+  assert.match(r.milaMessage.content, /Instagram story for 22 Elm Court/);
+  const post = r.milaMessage.blocks.find((b: any) => b.type === "draft_social" || b.type === "post_set");
+  const d = post.type === "post_set" ? post.options[0].post : post;
+  assert.equal(d.slides.length, 1);
+  assert.ok((d.slides[0].lines ?? []).some((l: string) => /650,000/.test(l)), "price is on the story");
+  const r2: any = await a.say("No a open house instagram story");
+  assert.match(r2.milaMessage.content, /22 Elm Court/, "stays on the home we were on, not the other open house");
+});
