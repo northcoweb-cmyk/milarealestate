@@ -44,7 +44,7 @@ test("telling Mila about a client saves it and flags a contradiction", async () 
 test("a listing in one message is saved whole, with the sellers, and no questions", async () => {
   const a = await newAgent({ now, tz: "America/New_York", seed: false });
   const r = await a.say("I just got a new listing at 8814 Brookside Drive, Rockville MD 20850. 4 bed 3 bath, 2,400 sq ft, listed at $875,000. Sellers are the Hendersons");
-  assert.match(r.milaMessage.content, /Saved your listing: 8814 Brookside Drive, Rockville, MD 20850/);
+  assert.match(r.milaMessage.content, /8814 Brookside Drive, Rockville, MD 20850 is saved/);
   assert.doesNotMatch(r.milaMessage.content, /\?/);
   const [p] = await store.list("properties", a.id);
   assert.deepEqual([p.beds, p.baths, p.sqft, p.list_price, p.verified], [4, 3, 2400, 875000, true]);

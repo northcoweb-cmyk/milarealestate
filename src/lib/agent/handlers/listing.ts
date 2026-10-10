@@ -63,15 +63,15 @@ export async function addListingHandler(ctx: Ctx, text: string): Promise<Handler
   const have = kind2.group === "commercial" || kind2.group === "land" || kind2.group === "multifamily"
     ? kindFacts(kind2, prop, money).join(" · ")
     : [prop.beds != null ? `${prop.beds} bd` : null, prop.baths != null ? `${prop.baths} ba` : null, prop.sqft ? `${prop.sqft.toLocaleString("en-US")} sq ft` : null, prop.list_price ? money(prop.list_price) : null].filter(Boolean).join(" · ");
-  const lines = [`Saved your listing: ${street}${where ? `, ${where}` : ""}${prop.zip ? ` ${prop.zip}` : ""}.`];
-  if (have) lines.push(have + (hasAnyFact(f) && looked ? " (you gave me some, I found the rest online — please check them)" : looked ? " — found online, please check" : ""));
+  const lines = [`✅ ${street}${where ? `, ${where}` : ""}${prop.zip ? ` ${prop.zip}` : ""} is saved.`];
+  if (have) lines.push(`${have}${looked ? " (some found online, give them a quick check)" : ""}`);
   if (seller) lines.push(`Sellers: ${seller.name} (saved as a contact).`);
   const still = kindMissing(kind2, prop);
   const eg = kind2.group === "commercial" ? "12,000 sq ft, zoned C-2, $2.4M" : kind2.group === "land" ? "12 acres, zoned residential, $350k" : kind2.group === "multifamily" ? "4 units, $620k, rents total $4,800" : "it's 3 bed 2 bath, $480k";
   const note = kindLine(kind2);
   if (note) lines.push(note);
-  if (still.length) lines.push(`Still blank: ${still.join(", ")} — tell me whenever (e.g. “${eg}”) or add them on the property page.`);
-  if (assumed) lines.push(`I assumed it's in ${where} (your market) — if not, just tell me the city and state.`);
+  if (still.length) lines.push(`Still needed: ${still.join(", ")}. Just tell me, like “${eg}”.`);
+  if (assumed) lines.push(`I put it in ${where}, your market. Tell me if that's wrong.`);
   if (unverified) lines.push("I couldn't find that address on the map, so double-check the spelling.");
   if (!f.seller && !seller) lines.push("");
   void describeStated;
@@ -152,10 +152,14 @@ export async function updateListingHandler(ctx: Ctx, text: string): Promise<Hand
   const typed = classifyProperty({ agentText: text });
   if (typed.group !== "unknown" && typed.basis === "agent" && !hasAnyFact(extractListingFacts(text)) && !/\$\s?\d/.test(text)) {
     await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: KIND_KEY, value: typed.label, source: "user_stated" });
-    const upd = typed.group !== "residential" ? (await ctx.store.update("properties", ctx.userId, prop.id, { description: typed.label } as never)) ?? prop : prop;
+    // a capitol, a shop or a lot has no bedrooms: clear any that were guessed or looked up (undo puts them back)
+    const clears = typed.group === "commercial" || typed.group === "land";
+    const had = clears && (prop.beds != null || prop.baths != null);
+    const upd = typed.group !== "residential" ? (await ctx.store.update("properties", ctx.userId, prop.id, { description: typed.label, ...(clears ? { beds: null, baths: null } : {}) } as never)) ?? prop : prop;
+    if (had) ctx.state.last_action = { type: "property", property_id: prop.id, patch: { beds: prop.beds, baths: prop.baths, description: prop.description } };
     ctx.state.last_property_id = prop.id;
     const gaps = kindMissing(classifyProperty({ address: upd.address, beds: upd.beds, baths: upd.baths, sqft: upd.sqft, description: upd.description, agentText: text }), upd);
-    return reply(`Marked ${prop.address} as ${typed.label}. ${typed.note}${gaps.length ? ` Still blank: ${gaps.join(", ")}.` : ""}`, [], "smalltalk");
+    return reply(`Marked ${prop.address} as ${typed.label}.${had ? " I cleared the bedrooms and baths." : ""} ${typed.note}${gaps.length ? ` Still blank: ${gaps.join(", ")}.` : ""}`, [], "smalltalk");
   }
   const f = extractListingFacts(text);
   // "reduced to 399", "change the price to 435,000", "now asking 1.2M": a price after to/now/at/for, with thousands implied for a bare 3 digits

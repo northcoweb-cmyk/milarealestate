@@ -1,5 +1,6 @@
 import { Shell } from "@/components/shell";
 import { Checklist } from "@/components/checklist";
+import { TopupButton } from "@/components/topup-button";
 import { Pill, Section } from "@/components/ui";
 import { isAuthed } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -24,6 +25,7 @@ export default async function Launch() {
           {checks.map((c) => <tr key={c.name}><td>{c.name}<br /><span className="mute">{c.url}</span></td><td><Pill tone={c.ok ? "ok" : "bad"}>{c.ok ? `Up (${c.status})` : c.status ? `Problem (${c.status})` : "Not reachable"}</Pill></td><td className="n">{c.ms} ms</td></tr>)}
         </tbody></table></div>
       </Section>
+      <Section title="Before testing"><TopupButton /></Section>
       <Section title="Go / no-go checklist"><Checklist /></Section>
     </Shell>
   );

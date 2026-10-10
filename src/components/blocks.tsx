@@ -71,6 +71,25 @@ export function BlockView(p: Props) {
         </div>
       );
     }
+    case "advice":
+      return (
+        <div className="glass p-4 sm:p-5" style={{ borderRadius: 24 }}>
+          {b.kicker && <p className="kicker mb-1">{b.kicker}</p>}
+          <p className="font-semibold">{b.title}</p>
+          <ol className="mt-3 flex flex-col gap-2.5">
+            {b.steps.map((st, i) => (
+              <li key={i} className="flex gap-3 rounded-2xl p-3" style={{ background: "var(--surface-2, rgba(127,127,127,.08))" }}>
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-bold" style={{ background: "var(--accent)", color: "#fff" }}>{i + 1}</span>
+                <div className="min-w-0">{st.heading && <p className="text-[14.5px] font-semibold">{st.heading}</p>}<p className="muted whitespace-pre-line text-[14.5px]">{st.body}</p></div>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {b.copy && <button className="btn btn-quiet" onClick={() => { try { void navigator.clipboard.writeText(b.copy!); } catch { /* clipboard unavailable */ } }}>Copy</button>}
+          </div>
+          <Buttons buttons={b.buttons} {...btns} />
+        </div>
+      );
     case "choice":
       return (
         <div className="glass-strong p-5" style={{ borderRadius: 26 }}>

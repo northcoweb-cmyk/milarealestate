@@ -45,7 +45,7 @@ test("an unreadable answer never gets the question again: she carries on with th
 });
 
 test("the open-house, listing and transaction flows all take a bare-city answer", async () => {
-  for (const [first, re] of [["New listing at 14 Birch Lane. $725,000", /Saved your listing/], ["Offer accepted on 14 Birch Lane, closing November 20", /built the timeline/]] as const) {
+  for (const [first, re] of [["New listing at 14 Birch Lane. $725,000", / is saved/], ["Offer accepted on 14 Birch Lane, closing November 20", /built the timeline/]] as const) {
     const a = await newAgent({ now, tz, seed: false });
     await setLoc(a, "");
     const q = await say(a, first);

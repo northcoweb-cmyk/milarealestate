@@ -8,9 +8,9 @@ const mk = () => newAgent({ now: new Date("2026-10-09T14:00:00Z"), tz: "America/
 test("'Add a retail space / office / warehouse / the Alamo at <address>' saves a property of that kind", async () => {
   const a = await mk();
   const r1 = (await a.say("Add a retail space at 11410 Century Oaks Terrace, Austin, TX 78758, about 2,400 sq ft, for lease.")).milaMessage.content;
-  assert.match(r1, /Saved your listing/); assert.match(r1, /Retail space/);
+  assert.match(r1, / is saved/); assert.match(r1, /Retail space/);
   assert.match((await a.say("Add an office at 401 Congress Ave, Austin, TX 78701, 5,000 sq ft, for lease.")).milaMessage.content, /Office space/);
-  assert.match((await a.say("Add the Alamo, 300 Alamo Plaza, San Antonio, TX 78205, for sale at $1.5M.")).milaMessage.content, /Saved your listing/);
+  assert.match((await a.say("Add the Alamo, 300 Alamo Plaza, San Antonio, TX 78205, for sale at $1.5M.")).milaMessage.content, / is saved/);
 });
 
 test("'Add a warehouse … What's missing?' saves it and then answers for THAT property", async () => {

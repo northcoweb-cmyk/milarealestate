@@ -465,8 +465,24 @@ export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut
   if (!clash.length) return reply(`Blocked ${when} as out of office. Nothing else is booked then.`, [eventCard(ctx, (out.result as any).data.event)]);
   return reply(`Blocked ${when} as out of office. Heads up — you already have ${plural(clash.length, "thing")} on those days. Want me to move them?`, [
     ...clash.slice(0, 4).map((e) => eventCard(ctx, e, "Conflicts with time off")),
-    { type: "choice", title: "Fix the conflicts", buttons: clash.slice(0, 4).map((e) => ({ label: `Move ${e.title}`, style: "secondary" as const, action: { type: "move_pick", eventId: e.id, text: "move to", declared: false } })) },
+    { type: "choice", title: "Fix the conflicts", buttons: [{ label: `Push all ${clash.length} to the first day back`, style: "primary" as const, action: { type: "shift_events", eventIds: clash.map((e) => e.id), after: last.toISOString() } }, ...clash.slice(0, 4).map((e) => ({ label: `Move ${e.title}`, style: "secondary" as const, action: { type: "move_pick", eventId: e.id, text: "move to", declared: false } }))] },
   ]);
+}
+
+/** Moves each booked event to the same time on the first day after time off (the day after `after`). */
+export async function shiftEvents(ctx: Ctx, eventIds: string[], after: string): Promise<HandlerOut> {
+  const back = addDays(new Date(after), 1, ctx.tz), b = partsIn(back, ctx.tz);
+  const moved: CalendarEvent[] = [];
+  for (const id of eventIds.slice(0, 20)) {
+    const ev = await ctx.store.get("calendar_events", ctx.userId, id);
+    if (!ev || ev.status !== "confirmed") continue;
+    const sp = partsIn(new Date(ev.start_at), ctx.tz), len = new Date(ev.end_at).getTime() - new Date(ev.start_at).getTime();
+    const start = zonedToUtc(b.y, b.m, b.d, sp.h, sp.mi, ctx.tz);
+    const out = await invoke(ctx, "update_calendar_event", { id: ev.id, start_at: start.toISOString(), end_at: new Date(start.getTime() + len).toISOString(), requested: true });
+    if (out.status !== "needs_approval" && out.result.ok) moved.push(((out.result as any).data?.event as CalendarEvent) ?? ev);
+  }
+  if (!moved.length) return reply("I couldn't move those, so nothing changed.", [], "smalltalk");
+  return reply(`Moved ${plural(moved.length, "thing")} to ${fmtDay(back, ctx.tz)}, your first day back. Want me to let anyone know?`, moved.slice(0, 6).map((e) => eventCard(ctx, e, "Moved")), "smalltalk");
 }
 
 

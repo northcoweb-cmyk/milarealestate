@@ -450,6 +450,7 @@ export type Block =
     }
   | { type: "notice"; tone: "info" | "warn" | "error" | "success"; title: string; body?: string; buttons?: ActionButton[] }
   | { type: "choice"; title: string; body?: string; buttons: ActionButton[] }
+  | { type: "advice"; title: string; kicker?: string; steps: { heading?: string; body: string }[]; copy?: string; buttons?: ActionButton[] }
   | { type: "contacts"; title: string; contacts: { id: ID; name: string; type: string; reason?: string; color: string }[]; buttons?: ActionButton[] }
   | { type: "priorities"; groups: { priority: TaskPriority; items: { id: ID; title: string; subtitle?: string; reason?: string; href?: string; contactId?: ID }[] }[]; buttons?: ActionButton[] }
   | { type: "debrief"; greeting: string; counts: { appointments: number; followups: number; approvals: number }; noticed: string[]; buttons?: ActionButton[] }

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { InsufficientCredits, TrialEnded, creditCost, ensureCredits, getBalance, recordUsage } from "../credits";
 import { aiAvailable } from "../ai/provider";
-import type { Block, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
+import type { ActionButton, Block, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
 import { greetingFor } from "./debrief";
 import { type Ctx, firstName, plural } from "./context";
 import { appendMila, persistState } from "./conversation";
@@ -18,7 +18,7 @@ import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHan
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
-import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, eventReminder, eventCard } from "./handlers/calendar";
+import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, eventReminder, eventCard } from "./handlers/calendar";
 import { fmtDayTime } from "../time";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
@@ -345,6 +345,25 @@ async function marketHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   return reply(r.cached ? "Here's the latest I pulled (cached for a few hours)." : "Here's what I found.", [r.block], r.cached ? "chat_simple" : "smalltalk");
 }
 
+/** A long how-to or script answer becomes a tidy card (one step per row, copy button) instead of a wall of text. */
+function adviceCard(ask: string, answer: string, who?: { name: string; phone?: string | null }): { lead: string; block: Block } | null {
+  const paras = answer.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+  if (answer.length < 380 || paras.length < 3) return null;
+  const script = /\b(script|what (?:do|should|can) i say|negotiat|talking points)\b/i.test(ask);
+  const lead = paras[0].length <= 220 ? paras[0] : script ? "Here's a script you can use." : "Here's the short version.";
+  const rest = paras[0].length <= 220 ? paras.slice(1) : paras;
+  const steps = rest.slice(0, 8).map((x) => {
+    const m = /^(?:\*\*([^*]{2,60})\*\*[:\s-]*|(#{1,4}\s*)?([A-Z][^.\n]{2,50}):\s*)([\s\S]*)$/.exec(x);
+    const clean = (t: string) => t.replace(/\*\*/g, "").replace(/^[-•*]\s+/gm, "• ").trim();
+    return m && (m[1] || m[3]) && m[4].trim() ? { heading: (m[1] ?? m[3]).trim(), body: clean(m[4]) } : { body: clean(x) };
+  });
+  const buttons: ActionButton[] = who && script ? [
+    { label: `✉️ Make it an email to ${who.name.split(" ")[0]}`, style: "secondary", action: { type: "prompt", text: `Draft an email to ${who.name}: ${ask}` } },
+    ...(who.phone ? [{ label: `💬 Make it a text to ${who.name.split(" ")[0]}`, style: "secondary" as const, action: { type: "prompt" as const, text: `Draft a text to ${who.name}: ${ask}` } }] : []),
+  ] : [];
+  return { lead, block: { type: "advice", title: script ? "Your script" : "How it works", kicker: script ? "Say it" : "Good to know", steps, copy: rest.join("\n\n").replace(/\*\*/g, ""), buttons } };
+}
+
 async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   // Questions that mention someone in the user's own data are answered from that data first.
   const known = await mentionedContacts(ctx, text);
@@ -355,6 +374,10 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
     extra = (await Promise.all(known.slice(0, 3).map(async (c) => `${c.name} (${c.type}, ${c.status}${c.location ? ", " + c.location : ""}): ${(await contactFacts(ctx, c)).join("; ") || "no saved details"}`))).join("\n");
   }
   const ai = await llmChat(ctx, text, await recentHistory(ctx), extra);
+  if (ai) {
+    const card = adviceCard(text, ai.text, known[0]);
+    if (card) return reply(card.lead, [card.block, ...(ai.suggestions.length ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+  }
   if (ai) return reply(ai.text, ai.suggestions.length ? [{ type: "choice", title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   await logError({ source: "unhandled", level: "info", message: text.slice(0, 300), userId: ctx.userId, email: ctx.profile.email });
   return reply("I'm not sure how to do that yet. Here are things I can do right now:", [{
@@ -417,6 +440,7 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       if (isNaN(s.getTime()) || isNaN(e.getTime()) || e.getTime() <= s.getTime()) return reply("That time isn't valid, so I haven't moved anything.", [], "smalltalk");
       return applyMove(ctx, ev, s, e, !!a.declared, !!a.ignoreConflicts);
     }
+    case "shift_events": return shiftEvents(ctx, (a.eventIds ?? []).map(String), String(a.after));
     case "find_time": return findTimeForEvent(ctx, a.eventId, a.durationMin ?? 60);
     case "cancel_pick": { const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId); return ev ? cancelEvent(ctx, ev) : reply("I couldn't find that event.", [], "smalltalk"); }
     case "stale_comms": return resolveStale(ctx, a.eventId, a.choice);

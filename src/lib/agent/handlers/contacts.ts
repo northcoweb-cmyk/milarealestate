@@ -43,7 +43,11 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   const money$ = parseMoney(text);
   const beds = parseBeds(text), baths = parseBaths(text);
   const features = FEATURES.filter(([re]) => re.test(text)).map(([, f]) => f);
-  const location = parseLocation(text);
+  let location = parseLocation(text);
+  if (location && !/,\s*[A-Z]{2}$|\bCounty\b/.test(location)) { // a city with no state is in the agent's own state
+    const st = /,\s*([A-Z]{2})\b/.exec(`${ctx.profile.location ?? ""} ${ctx.profile.primary_market ?? ""}`)?.[1];
+    if (st) location = `${location}, ${st}`;
+  }
   const timeline = parseTimeline(text);
   const email = parseEmail(text), phone = parsePhone(text);
 
@@ -54,7 +58,7 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   const out = await invoke(ctx, "create_contact", {
     name, type, email, phone, location, timeline, budget_max: money$.max, budget_min: money$.min,
     preferences: { ...(beds ? { beds_min: beds } : {}), ...(baths ? { baths_min: baths } : {}), ...(features.length ? { features } : {}) },
-    status: "new", source: "Mila", next_action: "Intro call / confirm search criteria", next_action_at: new Date(ctx.now.getTime() + 24 * 3_600_000).toISOString(),
+    status: "new", source: "Mila", next_action: type === "seller" ? null : "Intro call / confirm search criteria", next_action_at: type === "seller" ? null : new Date(ctx.now.getTime() + 24 * 3_600_000).toISOString(),
     importance: money$.max && money$.max >= 800_000 ? 3 : 2,
   }, { runId: run.id });
   if (out.status === "needs_approval") {
@@ -88,8 +92,11 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   // first follow-up
   const tmr = partsIn(addDays(ctx.now, 1, ctx.tz), ctx.tz);
   const due = zonedToUtc(tmr.y, tmr.m, tmr.d, 10, 0, ctx.tz).toISOString();
-  const t = await invoke(ctx, "create_task", { kind: "follow_up", title: `Intro call with ${firstName(name)}`, subtitle: "Confirm criteria and book a consultation", due_at: due, contact_id: contact.id, workflow_run_id: run.id }, { runId: run.id });
-  plan.push({ label: "First follow-up", tool: "create_task", state: t.status === "done" && t.result.ok ? "done" : "needs_approval", detail: "Tomorrow, 10:00 AM" });
+  if (type === "seller") plan.push({ label: "No follow-up scheduled", tool: "create_task", state: "skipped", detail: "Tell me when you want to reach out" });
+  else {
+    const t = await invoke(ctx, "create_task", { kind: "follow_up", title: `Intro call with ${firstName(name)}`, subtitle: "Confirm criteria and book a consultation", due_at: due, contact_id: contact.id, workflow_run_id: run.id }, { runId: run.id });
+    plan.push({ label: "First follow-up", tool: "create_task", state: t.status === "done" && t.result.ok ? "done" : "needs_approval", detail: "Tomorrow, 10:00 AM" });
+  }
 
   // intake documents: use the agent's own template when one exists, never invent legal language
   const templates = await ctx.store.list("document_templates", ctx.userId);
@@ -107,7 +114,10 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   return reply(existing ? `I already had ${name}, so I updated her record.`.replace("her", "their") : `Got it. ${name} is set up.`, [{
     type: "workflow", runId: run.id, kicker: wf.kicker, title: name, subtitle: [money$.max && money(money$.max), location, timeline].filter(Boolean).join(" • ") || label(type),
     items: plan.map((p) => ({ label: p.label, state: p.state, detail: p.detail })),
-    buttons: [{ label: "Open profile", style: "primary", href: `/contacts/${contact.id}` }],
+    buttons: [
+      ...((type === "buyer" || (type as string) === "rental") && location ? [{ label: `🔎 Find listings for ${firstName(name)}`, style: "primary" as const, action: { type: "prompt" as const, text: (type as string) === "rental" || /\brent(al|ing)?\b/i.test(text) ? `Find rentals in ${location}${money$.max ? ` under ${fullMoney(money$.max)}` : ""}${beds ? ` with ${beds}+ bedrooms` : ""} for ${name}` : `Show me new listings in ${location}${money$.max ? ` under ${fullMoney(money$.max)}` : ""}${beds ? ` with ${beds}+ bedrooms` : ""}` } }] : []),
+      { label: "Open profile", style: existing || !location ? "primary" : "secondary", href: `/contacts/${contact.id}` },
+    ],
   }], "workflow_default");
 }
 
