@@ -57,7 +57,7 @@ export async function openHouseSocial(ctx: Ctx, prop: Property, start: Date | nu
   const d = await propertyPostData(ctx, prop);
   const built = buildPost({
     category: "open_house", platform: "instagram", variant: 0, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location || undefined,
-    property: { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: d.stats, details: d.details, descriptors: d.descriptors, fullAddress: d.fullAddress, placeLine: d.placeLine },
+    property: { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: d.stats, details: d.details, descriptors: d.descriptors, notes: d.notes, fullAddress: d.fullAddress, placeLine: d.placeLine },
     when: start && end ? { day: fmtDay(start, ctx.tz), range: fmtRange(start, end, ctx.tz) } : null,
   });
   const slides: SocialSlide[] = built.slides.map((sl, i) => ({ ...sl, image_id: imageIds[i] ?? imageIds[0] ?? null }));

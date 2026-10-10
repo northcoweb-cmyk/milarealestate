@@ -272,6 +272,8 @@ export interface SocialSlide {
   font?: string;
   /** Details drawn as chips on a single-image post (a story): price, beds, baths, size, when. */
   lines?: string[];
+  /** Extra photos of the home drawn as a strip under the highlights (up to 3). */
+  gallery?: string[];
   role: "hero" | "highlight" | "cta";
 }
 

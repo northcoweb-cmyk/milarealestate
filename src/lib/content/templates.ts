@@ -29,6 +29,7 @@ export const CATEGORIES: CategoryDef[] = [
 export const PLATFORMS: { key: SocialPlatform; label: string; limit: number; carousel: boolean }[] = [
   { key: "instagram", label: "Instagram post", limit: 2200, carousel: true },
   { key: "instagram_story", label: "Instagram story", limit: 2200, carousel: false },
+  { key: "tiktok", label: "TikTok", limit: 2200, carousel: false },
 ];
 /** Older posts may still be on platforms we no longer create for; they keep working. */
 const LEGACY_LIMITS: Record<string, number> = { facebook: 5000, tiktok: 2200, linkedin: 3000, x: 280 };
@@ -42,7 +43,7 @@ export interface BuildInput {
   role?: string;
   brokerage?: string | null;
   market?: string; // "Montgomery County, MD"
-  property?: { address: string; city?: string | null; state?: string | null; zip?: string | null; facts: string[]; details?: string[]; descriptors?: string[]; fullAddress?: string; placeLine?: string } | null;
+  property?: { address: string; city?: string | null; state?: string | null; zip?: string | null; facts: string[]; details?: string[]; descriptors?: string[]; notes?: string[]; fullAddress?: string; placeLine?: string } | null;
   when?: { day: string; range: string } | null; // for open houses
   topic?: string | null;
   /** "5 tips for first-time buyers": how many tips, and for whom */
@@ -126,7 +127,10 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
   // the data every listing post carries: full address, price, beds/baths/size, and the extras we know
   const dataLines = prop ? [prop.fullAddress || where ? `📍 ${prop.fullAddress || where}` : "", price ? `💰 ${price}` : "", specs.length ? `🛏 ${specs.join(" • ")}` : "", details.length || prop.descriptors?.length ? `✨ ${[...(prop.descriptors ?? []), ...details].join(" • ")}` : ""].filter(Boolean) : [];
   // ONE stats image: price, beds/baths/size AND the extras (year built, lot, taxes…) together, so a post never needs a second stats slide.
+  // the highlights image: the flyer's "Property Highlights" in one place: price and size first, then every extra we know and the agent's own words
   const tiles = (role: SocialSlide["role"] = "highlight"): SocialSlide[] => {
+    const rows = [facts.join(" • "), ...(prop?.descriptors ?? []), ...details, ...(prop?.notes ?? [])].filter(Boolean).slice(0, 8);
+    if (rows.length >= 2) return [slide(role, rows.join("\n"), "Property highlights")];
     const all = [...facts, ...details.slice(0, 3)];
     return all.length ? [slide(role, all.length >= 2 ? all.join(" • ") : all[0], prop?.placeLine || prop?.city || undefined)] : [];
   };
@@ -243,11 +247,14 @@ export function buildPost(i: BuildInput): Built {
   const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic && !i.tips?.own?.length && !i.tips ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const f = fitToPlatform(i.platform, body, baseTags(i));
   const carousel = PLATFORMS.find((p) => p.key === i.platform)?.carousel ?? true;
-  // a story is ONE image, so it has to carry the details a carousel spreads over three: when, price, beds/baths/size, the extras
-  const when = i.when && (i.category === "open_house") ? [`${i.when.day} ${i.when.range}`] : [];
-  const info = i.property ? [...when, ...(i.property.facts ?? []), ...(i.property.details ?? []).slice(0, 2)] : [];
+  // the cover carries the headline details as chips (price, size, when); a story / TikTok is ONE image, so it carries the whole set
+  const when = i.when && i.category === "open_house" ? [`${i.when.day} ${i.when.range}`] : [];
+  const cover = i.property ? [...when, ...(i.property.facts ?? [])] : [];
+  const info = i.property ? [...cover, ...(i.property.details ?? []).slice(0, 2)] : [];
   const one = c.slides[0] ? [{ ...c.slides[0], ...(info.length ? { lines: info.slice(0, 7) } : {}) }] : [];
-  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capSlides(c.slides) : one };
+  const capped = capSlides(c.slides);
+  if (cover.length && capped[0] && ["just_listed", "open_house", "price_improvement"].includes(i.category)) capped[0] = { ...capped[0], lines: cover.slice(0, 6) };
+  return { caption: f.caption, hashtags: f.hashtags, slides: carousel ? capped : one };
 }
 
 export const variantCount = (cat: Category) => (cat === "buyer_tip" || cat === "seller_tip" ? 10 : cat === "education" ? 8 : cat === "local" ? 5 : 3);

@@ -48,7 +48,8 @@ test("listing posts carry the full data: address with city/state/zip, price, bed
   const slides = post.slides;
   assert.equal(slides[0].headline, "12 Oak Lane, Rockville, MD 20850", "the first image carries the full address: street, city, state, ZIP"); assert.equal(slides[0].sub, "Just Listed • $650,000");
   assert.equal(slides.length, 3, "a post is at most 3 images");
-  assert.equal(slides[1].headline, "$650,000 • 4 bd • 3 ba • 2,400 sq ft • 1998 built • 7,405 sq ft lot • $250 HOA/mo", "price, specs and extras share ONE stats image"); assert.equal(slides[1].sub, "Rockville, MD 20850");
+  assert.equal(slides[1].headline, "$650,000 • 4 bd • 3 ba • 2,400 sq ft\nSingle Family\n2-car garage\n1998 built\n7,405 sq ft lot\n$250 HOA/mo\n$7,812 taxes/yr\n12 days on market", "price and specs first, then every extra, on ONE highlights image"); assert.equal(slides[1].sub, "Property highlights");
+  assert.deepEqual(slides[0].lines, ["$650,000", "4 bd", "3 ba", "2,400 sq ft"], "the cover carries the headline numbers as chips");
   assert.equal(slides[slides.length - 1].role, "cta");
 });
 
@@ -84,8 +85,8 @@ test("property categories require a property; platform required", async () => {
   assert.equal((await svc.createPosts(ctx, { category: "buyer_tip", platforms: [] })).ok, false);
 });
 
-test("only Instagram post + story exist (no TikTok)", () => {
-  assert.deepEqual(PLATFORMS.map((p: any) => p.key), ["instagram", "instagram_story"]);
+test("Instagram post is a carousel; story and TikTok are one image", () => {
+  assert.deepEqual(PLATFORMS.map((p: any) => [p.key, p.carousel]), [["instagram", true], ["instagram_story", false], ["tiktok", false]]);
 });
 
 test("every caption ends with the agent's signature, within limits, and story is 1080x1920", async () => {

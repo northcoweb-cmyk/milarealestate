@@ -274,7 +274,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   const btnH0 = 84 * u;
   const boxW = W - 2 * m;
   // a single image (a story) carries its details as a row of chips above the footer: price, beds, baths, size, when
-  const infoLines = lone && !landscape ? (slide.lines ?? []).filter(Boolean).slice(0, 8) : [];
+  const infoLines = (lone || isHero) && !landscape ? (slide.lines ?? []).filter(Boolean).slice(0, 8) : [];
   const chipH = 62 * u, chipGap = 16 * u;
   const chips: { t: string; x: number; w: number; row: number }[] = [];
   if (infoLines.length) { c.font = sans(30 * u, 800); let cx0 = 0, row = 0; for (const t of infoLines) { const w = c.measureText(t).width + 48 * u; if (cx0 + w > boxW && cx0 > 0) { row++; cx0 = 0; } chips.push({ t, x: cx0, w, row }); cx0 += w + chipGap; } }
@@ -448,7 +448,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   // ================================================================ HIGHLIGHT
   const ax: CanvasTextAlign = centered ? "center" : "left"; const tx = centered ? W / 2 : m;
   if (slide.role === "highlight") {
-    const stats = parseStats(slide.headline);
+    const stats = slide.headline.includes("\n") ? null : parseStats(slide.headline);
     if (stats) {
       const cols = landscape ? Math.min(stats.length, 4) : 2; const rows = Math.ceil(stats.length / cols);
       const gap = 28 * u; const cw = (boxW - gap * (cols - 1)) / cols;
@@ -466,12 +466,15 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
       });
     } else {
       if (slide.headline.includes("\n")) { // a numbered list on one image: every item its own row with a round number
+        const numbered = slide.headline.split("\n").every((x) => /^\s*\d+[.)]\s/.test(x)); // tips are numbered; highlights get check marks
         const items = slide.headline.split("\n").map((x) => x.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean);
-        const top0 = m + (slide.sub ? 120 * u : 40 * u), avail = contentBottom - top0;
+        const gal = (await Promise.all((slide.gallery ?? []).slice(0, 3).map((g) => loadImage(g)))).filter((g): g is HTMLImageElement => !!g);
+        const galH = gal.length ? Math.min(260 * u, (boxW / gal.length) * 0.7) : 0;
+        const top0 = m + (slide.sub ? 120 * u : 40 * u), avail = contentBottom - top0 - (galH ? galH + 36 * u : 0);
         if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 700); c.textAlign = ax; c.fillText(slide.sub, tx, m + 56 * u); c.textAlign = "left"; }
         const padX = 30 * u, padY = 22 * u, gapY = 22 * u;
-        let size = 72 * u, rows: string[][] = [];
-        for (; size >= 28 * u; size -= 3 * u) { c.font = sans(size, 700); rows = items.map((t) => wrap(c, t.replace(/'/g, "’"), boxW - size * 1.5 - padX * 2 - size * 0.5)); const h = rows.reduce((a, r) => a + Math.max(size * 1.5, r.length * size * 1.18) + padY * 2 + gapY, -gapY); if (h <= avail) break; }
+        let size = (numbered ? 72 : 50) * u, rows: string[][] = [];
+        for (; size >= 26 * u; size -= 3 * u) { c.font = sans(size, 700); rows = items.map((t) => wrap(c, t.replace(/'/g, "’"), boxW - size * 1.5 - padX * 2 - size * 0.5)); const h = rows.reduce((a, r) => a + Math.max(size * 1.5, r.length * size * 1.18) + padY * 2 + gapY, -gapY); if (h <= avail) break; }
         const heights = rows.map((r) => Math.max(size * 1.5, r.length * size * 1.18) + padY * 2);
         const used = heights.reduce((a, h) => a + h, 0) + gapY * (rows.length - 1);
         let y = top0 + Math.max(0, (avail - used) / 2);
@@ -480,12 +483,17 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
           rrect(c, m, y, boxW, h, 28 * u); c.fillStyle = fullBleed ? "rgba(12,12,12,.66)" : pal.bg2; c.fill();
           const bd = size * 1.5, bx = m + padX + bd / 2, by = y + h / 2;
           c.beginPath(); c.arc(bx, by, bd / 2, 0, Math.PI * 2); c.fillStyle = fullBleed ? "#fff" : pal.accent; c.fill();
-          c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(size * 0.9, 800); c.textAlign = "center"; c.fillText(String(k + 1), bx, by + size * 0.32); c.textAlign = "left";
+          if (numbered) { c.fillStyle = fullBleed ? "#111" : pal.onAccent; c.font = sans(size * 0.9, 800); c.textAlign = "center"; c.fillText(String(k + 1), bx, by + size * 0.32); c.textAlign = "left"; }
+          else { c.save(); c.strokeStyle = fullBleed ? "#111" : pal.onAccent; c.lineWidth = Math.max(4, size * 0.13); c.lineCap = "round"; c.lineJoin = "round"; c.beginPath(); c.moveTo(bx - bd * 0.22, by + bd * 0.02); c.lineTo(bx - bd * 0.06, by + bd * 0.18); c.lineTo(bx + bd * 0.24, by - bd * 0.16); c.stroke(); c.restore(); }
           c.fillStyle = fullBleed ? "#fff" : ink; c.font = sans(size, 700);
           const th = rows[k].length * size * 1.18, ty = y + (h - th) / 2 + size * 0.85;
           rows[k].forEach((ln, li) => c.fillText(ln, m + padX + bd + size * 0.5, ty + li * size * 1.18));
           y += h + gapY;
         });
+        if (galH) { // the home's other photos, side by side under the highlights
+          const gw = (boxW - 20 * u * (gal.length - 1)) / gal.length, gy = contentBottom - galH;
+          gal.forEach((g, gi) => { const gx = m + gi * (gw + 20 * u); c.save(); rrect(c, gx, gy, gw, galH, 22 * u); c.clip(); const sc = Math.max(gw / g.width, galH / g.height); c.drawImage(g, gx + (gw - g.width * sc) / 2, gy + (galH - g.height * sc) / 2, g.width * sc, g.height * sc); c.restore(); });
+        }
         { drawChips(); return cv; }
       }
       const n = slide.sub?.match(/^(\d+)\s+of\s+(\d+)/i);
@@ -533,7 +541,7 @@ export const toBlob = (cv: HTMLCanvasElement, type = "image/png") => new Promise
 // ---------------------------------------------------------------- preview cache + queue
 const urlCache = new Map<string, string>();
 let chain: Promise<unknown> = Promise.resolve();
-const slideKey = (s: SocialSlide, o: RenderOpts) => JSON.stringify([s.role, s.headline, s.sub, s.image_url, s.theme, s.layout, o.index, o.total, o.platform, o.brand, o.category, o.width]);
+const slideKey = (s: SocialSlide, o: RenderOpts) => JSON.stringify([s.role, s.headline, s.sub, s.image_url, s.theme, s.layout, s.font, s.lines, s.gallery, o.index, o.total, o.platform, o.brand, o.category, o.width]);
 
 /** Small preview image (object URL). Renders one at a time so the page stays smooth. */
 export function previewUrl(slide: SocialSlide, o: RenderOpts): Promise<string> {

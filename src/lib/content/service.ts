@@ -51,7 +51,13 @@ function withDesign(slides: SocialSlide[], urls: string[], category: string, see
   const theme = pickTheme(category, seed);
   const lay = layout ?? pickLayout(urls.length > 0, seed);
   const offset = Math.abs(seed);
-  return slides.map((s, i) => ({ ...s, theme, layout: lay, image_url: urls.length ? urls[(offset + (s.role === "hero" ? 0 : i)) % urls.length] : null }));
+  const heroUrl = urls.length ? urls[offset % urls.length] : null;
+  return slides.map((s, i) => {
+    const image_url = urls.length ? urls[(offset + (s.role === "hero" ? 0 : i)) % urls.length] : null;
+    // the highlights image shows the home's other photos in a strip, like a flyer (only when there are at least two)
+    const gallery = s.role === "highlight" && s.headline.includes("\n") && /highlights/i.test(s.sub ?? "") ? urls.filter((u) => u !== heroUrl).slice(0, 3) : undefined;
+    return { ...s, theme, layout: lay, image_url, ...(gallery?.length ? { gallery } : {}) };
+  });
 }
 
 /** Slides built in chat get the same designs as the Content tab: a rotating palette and layout, and the home's real photos (read from its listing link when none are saved yet). */
@@ -60,7 +66,7 @@ export async function designSlides(ctx: Ctx, prop: Property, slides: SocialSlide
   let urls = await imageUrls(ctx, prop.id);
   if (!urls.length && prop.listing_url) { try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); urls = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ } }
   const seed = (await ctx.store.list("social_posts", ctx.userId)).length + bump;
-  if (platform === "instagram_story") { // a story is one image, so it carries the details itself
+  if (platform === "instagram_story" || platform === "tiktok") { // a story is one image, so it carries the details itself
     const d = await propertyPostData(ctx, prop, { sold: category === "just_sold" }).catch(() => null);
     const sub = slides[0]?.sub ?? "";
     const when = /^Open House\s*•\s*(.+)$/i.exec(sub)?.[1];
@@ -114,7 +120,7 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
     const built = buildPost({
       category: input.category, platform, variant, name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage,
       market: ctx.profile.primary_market || ctx.profile.location, topic: input.topic, tips: input.tips ?? (isTipCat(input.category) ? (() => { const r = parseTipRequest(input.topic); return r && !/\bfor\b/i.test(input.topic ?? "") ? { ...r, audience: input.category === "seller_tip" ? "sellers" : input.category === "education" ? "everyone" : "buyers" } : r; })() : null), client: input.client ?? null,
-      property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, fullAddress: data.fullAddress, placeLine: data.placeLine } : null, when, contact: contactLine(ctx.profile),
+      property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, notes: data.notes, fullAddress: data.fullAddress, placeLine: data.placeLine } : null, when, contact: contactLine(ctx.profile),
     });
     let caption = built.caption;
     if (aiAvailable() && platform !== "x") {
@@ -185,7 +191,7 @@ export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost
   const nextLayout = order[(Math.max(0, order.indexOf(curLayout)) + 1) % order.length];
   const data = prop ? await propertyPostData(ctx, prop, { sold: category === "just_sold" }) : null;
   const when = category === "open_house" && prop ? await openHouseWhen(ctx, prop) : null;
-  const built = buildPost({ category, platform: post.platform, variant, contact: contactLine(ctx.profile), name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, when, property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, fullAddress: data.fullAddress, placeLine: data.placeLine } : null });
+  const built = buildPost({ category, platform: post.platform, variant, contact: contactLine(ctx.profile), name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, when, property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, notes: data.notes, fullAddress: data.fullAddress, placeLine: data.placeLine } : null });
   // photos the agent picked or uploaded stay on their slides; only empty slides get a fresh pick
   const designed = withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout).map((sl, i) => ({ ...sl, image_url: post.slides[i]?.image_url ?? sl.image_url }));
   return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: withSignature(built.caption, buildSignature(ctx.profile), platformLimit(post.platform)), hashtags: built.hashtags, slides: designed, variant, stale: false, stale_reason: null }))!;

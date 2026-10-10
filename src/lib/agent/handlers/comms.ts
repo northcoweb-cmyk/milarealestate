@@ -45,7 +45,7 @@ function postAngles(prop: Property, facts: string[], images: string[], ctx: Ctx)
 }
 
 export async function socialPostHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const platform = /\bstor(y|ies)\b/i.test(text) ? "instagram_story" : "instagram"; // Instagram feed posts and stories are what Mila makes
+  const platform = /\btik ?tok\b/i.test(text) ? "tiktok" : /\bstor(y|ies)\b/i.test(text) ? "instagram_story" : "instagram"; // Instagram feed posts and stories are what Mila makes
   const addr = parseAddress(text);
   // not about a property at all: tips, advice, how-it-works, "congrats to the Nguyens". Never reuse whatever listing came up last.
   if (!addr && !/\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home|open house)\b/i.test(text)) {
@@ -139,9 +139,9 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
       options.push({ label: angle.name, post: { type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined } });
       made.push(post);
     }
-    blocks.push({ type: "post_set", title: `${options.length} ${platform === "instagram_story" ? "story" : "post"} options`, options });
+    blocks.push({ type: "post_set", title: `${options.length} ${platform === "instagram_story" || platform === "tiktok" ? "story" : "post"} options`, options });
     if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add your photos", body: "I don't have photos for this home yet. Add yours and every option updates, or send me the listing link and I'll pull them. I never use stock images for a real property.", buttons: [{ label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] });
-    return reply(`Here are ${options.length} ${platform === "instagram_story" ? "stories" : "posts"} for ${prop.address}. Swipe to compare, then pick the one you like. Nothing posts until you approve it.`, blocks, "social_generation");
+    return reply(`Here are ${options.length} ${platform === "instagram_story" || platform === "tiktok" ? "stories" : "posts"} for ${prop.address}. Swipe to compare, then pick the one you like. Nothing posts until you approve it.`, blocks, "social_generation");
   }
   let post: SocialPost;
   const wantsOpenHouse = /open\s*house/i.test(text);
@@ -170,7 +170,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   await attach(post);
   if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Send me the listing link and I'll pull the photos. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
-  return reply(platform === "instagram_story" ? `Here's an Instagram story for ${prop.address}.` : `Here's an Instagram carousel for ${prop.address}.`, blocks, "social_generation");
+  return reply(platform === "tiktok" ? `Here's a TikTok cover for ${prop.address}.` : platform === "instagram_story" ? `Here's an Instagram story for ${prop.address}.` : `Here's an Instagram carousel for ${prop.address}.`, blocks, "social_generation");
 }
 
 export async function draftEmailHandler(ctx: Ctx, text: string): Promise<HandlerOut> {

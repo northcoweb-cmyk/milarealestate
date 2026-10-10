@@ -11,6 +11,8 @@ export interface ListingPostData {
   details: string[];
   /** words, not numbers: property type etc. — for the caption */
   descriptors: string[];
+  /** short sentences from the agent's own description of the home, for the highlights image */
+  notes: string[];
   fullAddress: string;
   placeLine: string;
 }
@@ -29,7 +31,8 @@ export function listingPostData(prop: Property, o: { extra?: PropertyExtra | nul
   ].filter(Boolean);
   const descriptors = [x?.property_type ?? "", x?.garage_spaces ? `${x.garage_spaces}-car garage` : "", x?.pool ? "Pool" : ""].filter(Boolean);
   const cityState = [prop.city, [prop.state, prop.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  return { stats, details, descriptors, fullAddress: [prop.address, cityState].filter(Boolean).join(", "), placeLine: cityState };
+  const notes = (prop.description ?? "").split(/(?<=[.!?])\s+|\n+|;\s*/).map((t) => t.replace(/^[-•*\s]+/, "").trim()).filter((t) => t.length >= 18 && t.length <= 110).slice(0, 3);
+  return { stats, details, descriptors, notes, fullAddress: [prop.address, cityState].filter(Boolean).join(", "), placeLine: cityState };
 }
 
 /** The data block of a listing caption. */
