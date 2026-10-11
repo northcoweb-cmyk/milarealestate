@@ -14,7 +14,7 @@ import { contactEmoji } from "@/lib/emoji";
 
 interface Detail { contact: Contact; facts: string[]; memories: Memory[]; timeline: ContactEvent[]; notes: ContactNote[]; tasks: Task[]; drafts: EmailDraft[] }
 
-const ICON: Record<string, string> = { added: "＋", email_sent: "✉︎", showing: "⌂", status_changed: "↻", note: "✎", import: "⇪", calendar_added: "◷", calendar_changed: "◷", calendar_cancelled: "◷", task_done: "✓" };
+const ICON: Record<string, string> = { added: "＋", email_sent: "✉︎", email_handoff: "✉︎", showing: "⌂", status_changed: "↻", note: "✎", import: "⇪", calendar_added: "◷", calendar_changed: "◷", calendar_cancelled: "◷", task_done: "✓" };
 
 export default function ContactPage() {
   const { id } = useParams<{ id: string }>();

@@ -1,6 +1,7 @@
 import { Shell } from "@/components/shell";
 import { Checklist } from "@/components/checklist";
 import { TopupButton } from "@/components/topup-button";
+import { ExtendTrial, GrantCredits } from "@/components/admin-actions";
 import { Pill, Section } from "@/components/ui";
 import { isAuthed } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -26,6 +27,8 @@ export default async function Launch() {
         </tbody></table></div>
       </Section>
       <Section title="Before testing"><TopupButton /></Section>
+      <Section title="Grant credits (audited)"><GrantCredits /></Section>
+      <Section title="Extend a free trial (audited)"><ExtendTrial /></Section>
       <Section title="Go / no-go checklist"><Checklist /></Section>
     </Shell>
   );

@@ -66,6 +66,22 @@ async function trialPoolSpent() {
   poolMemo = { at: Date.now(), usd };
   return usd;
 }
+/** What one admitted trial user may cost at most: their AI allowance plus a small allowance for paid data and photo lookups. */
+export const trialReservePerUserUsd = (cfg: AppConfig) => (cfg.trial ?? DEFAULT_CONFIG.trial!).ai_budget_usd + num(process.env.MILA_TRIAL_DATA_RESERVE_USD, 0.25);
+/**
+ * Can another trial user be admitted without risking the pool? Every admitted (non-tester) trial user holds a reservation, spent or not,
+ * so the sum of promises can never exceed the pool. Admin gets an alert when this closes.
+ */
+export async function trialAdmissionOpen(): Promise<{ open: boolean; reservedUsd: number; poolUsd: number; admitted: number }> {
+  const store = getStore();
+  const cfg = await store.getConfig();
+  const [subs, profiles] = await Promise.all([store.listAll("subscriptions"), store.listAll("profiles")]);
+  const { testerEmails } = await import("../testers");
+  const skip = new Set(profiles.filter((p) => testerEmails().includes((p.email ?? "").toLowerCase())).map((p) => p.id));
+  const admitted = new Set(subs.filter((x) => x.status === "trial" && !skip.has(x.user_id)).map((x) => x.user_id)).size;
+  const per = trialReservePerUserUsd(cfg), pool = trialPoolUsd(cfg), reservedUsd = admitted * per;
+  return { open: reservedUsd + per <= pool + 1e-9, reservedUsd, poolUsd: pool, admitted };
+}
 export const trialPoolUsd = (cfg: AppConfig) => num(process.env.MILA_TRIAL_POOL_USD, cfg.trial?.pool_usd ?? DEFAULT_CONFIG.trial!.pool_usd ?? 20);
 
 async function globalToday() {
@@ -93,7 +109,8 @@ export async function assertAiBudget(opts: { tier: string; inputChars: number; w
   const extra = pending.get(scope.userId) ?? 0;
   // expensive paths (deep reasoning, live web research) need real headroom, not just "not yet over"
   const need = opts.tier === "reasoning" || opts.webSearch ? 0.25 : 0;
-  if (sub?.status === "trial" && a.label !== "test account" && await trialPoolSpent() + [...pending.values()].reduce((x, y) => x + y, 0) >= trialPoolUsd(cfg)) refuse(new AiBudgetError("trial_pool", "The free trial allowance is fully used for now."));
+  // Each admitted trial user's promised allowance is reserved when they are admitted (see trialAdmissionOpen), so one trial user can never use up another's.
+  // The shared pool therefore stops NEW admissions; it never switches off someone who was already promised a trial.
   if (spent.month + extra + need >= a.monthlyUsd) refuse(new AiBudgetError("user_month", `AI allowance for this ${a.label} reached.`));
   if (spent.day + extra + need >= a.dailyUsd) refuse(new AiBudgetError("user_day", "Daily AI allowance reached."));
 }

@@ -1,6 +1,8 @@
 import { supabaseUrl } from "@/lib/supabase-url";
 import { NextResponse } from "next/server";
 import { AuthError, authMode, createProfile, localSignIn, setSupabaseSession } from "@/lib/auth";
+import { trialAdmissionOpen } from "@/lib/ai/budget";
+import { logError } from "@/lib/server/errors";
 import { getStore } from "@/lib/db/store";
 import { clientIp, hit } from "@/lib/server/rate-limit";
 import { codeLocked, codeMatches, recordBadCode, requiredCode } from "@/lib/access-code";
@@ -15,6 +17,11 @@ export async function POST(req: Request) {
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
   if (typeof name !== "string" || !name.trim() || name.length > 120) return NextResponse.json({ error: "Enter your name." }, { status: 400 });
+  const seat = await trialAdmissionOpen();
+  if (!seat.open) {
+    await logError({ source: "api", level: "warn", message: `Trial admissions paused: ${seat.admitted} admitted trial users reserve $${seat.reservedUsd.toFixed(2)} of the $${seat.poolUsd.toFixed(2)} pool`, route: "POST /api/auth/signup" });
+    return NextResponse.json({ error: "Mila is full for free trials right now. You're still on the list, and we'll email you when a seat opens." }, { status: 503 });
+  }
   try {
     if (authMode() === "supabase") {
       if (!password || password.length < 8) return NextResponse.json({ error: "Use a password of at least 8 characters." }, { status: 400 });

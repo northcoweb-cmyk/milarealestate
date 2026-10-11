@@ -10,6 +10,7 @@ import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { PlaceInput } from "@/components/place-input";
+import { syncLabel } from "@/lib/calendar-sync";
 import { eventEmoji } from "@/lib/emoji";
 import { addDays, fmtRange, fmtTime, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
 import { EventPhotoCard } from "@/components/event-card";
@@ -71,7 +72,7 @@ export default function CalendarPage() {
               <div className="min-w-0 flex-1 border-l-[3px] pl-4" style={{ borderColor: KIND_COLOR[e.kind] ?? KIND_COLOR.other }}>
                 <p className="font-semibold leading-snug"><span aria-hidden>{eventEmoji(e.kind)} </span>{e.title}</p>
                 {e.location && <p className="faint truncate text-[13.5px]">{e.location}</p>}
-                <p className="faint mt-1 text-[12px]">{e.source === "google" ? "From Google Calendar" : e.synced_at ? "In Google Calendar" : "Mila calendar"}</p>
+                <p className="faint mt-1 text-[12px]">{syncLabel(e, { googleCalendar: !!data?.google.calendar }).text}</p>
                 {overlaps(e) && <p className="mt-1 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}
               </div>
               <ChevronRight size={18} className="mt-1 shrink-0 text-ink-faint" aria-hidden />
@@ -189,11 +190,11 @@ function CalendarSync({ data, googleReady, syncing, sync, reload }: { data: Data
   return (
     <div className="glass mt-8 space-y-4 p-5" style={{ borderRadius: 24 }}>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1"><p className="font-semibold">📅 Sync your calendar</p><p className="muted text-[14px]">Mila checks it so she never double-books a showing. {google || linked ? "Tap Sync to refresh." : "Bring in Google, Apple or Outlook."}</p></div>
+        <div className="min-w-0 flex-1"><p className="font-semibold">📅 Sync your calendar</p><p className="muted text-[14px]">Your Mila calendar works on its own. Connect another calendar if you want Mila to see those appointments too, so she can warn you before double-booking. {google || linked ? "Tap Sync to refresh." : ""}</p></div>
         {(google || linked) && <button className="btn btn-primary btn-sm" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />Sync now</button>}
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--line)" }}>
-        <p className="min-w-0 flex-1 text-[15px]"><b>Google Calendar</b><span className="faint block text-[13.5px]">{google ? `Connected${data?.google.account ? ` as ${data.google.account}` : ""}. Mila also adds events to it.` : googleReady ? "One tap to connect." : "Coming soon."}</span></p>
+        <p className="min-w-0 flex-1 text-[15px]"><b>Google Calendar</b><span className="faint block text-[13.5px]">{google ? `Connected${data?.google.account ? ` as ${data.google.account}` : ""}. Mila adds the events she creates to it.` : googleReady ? "Connect, then approve access on Google's screen and choose a calendar." : "Not available yet."}</span></p>
         {!google && googleReady && <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a>}
       </div>
       <div className="border-t pt-3" style={{ borderColor: "var(--line)" }}>

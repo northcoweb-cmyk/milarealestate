@@ -37,7 +37,7 @@ export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
   const remaining = all.filter((d) => d && d.status !== "approved_unsent" && d.status !== "sent").length;
   if (!remaining && approval.status === "pending") await ctx.store.update("approvals", profile.id, approval.id, { status: "executed", decided_at: new Date().toISOString(), executed_at: new Date().toISOString(), result: { via: "mail_app" }, error: null, blocked_integration: null } as never);
   // log it on the contact so their history shows the email
-  for (const c of people.slice(0, 20)) await ctx.store.insert("contact_events", profile.id, { contact_id: c.id, kind: "email_sent", title: `Emailed: ${draft.subject}`.slice(0, 160), detail: null, occurred_at: new Date().toISOString() }).catch(() => undefined);
+  for (const c of people.slice(0, 20)) await ctx.store.insert("contact_events", profile.id, { contact_id: c.id, kind: "email_handoff", title: `Opened in your mail app: ${draft.subject}`.slice(0, 160), detail: null, occurred_at: new Date().toISOString() }).catch(() => undefined);
 
   return { to: single ? emails : [], bcc: single ? [] : emails, subject: draft.subject, body, from: profile.email, remaining, recipients: emails.length };
 });

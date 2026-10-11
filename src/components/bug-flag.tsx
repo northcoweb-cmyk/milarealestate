@@ -22,7 +22,7 @@ export function BugFlag() {
   const { tester, toast } = useApp();
   const [open, setOpen] = useState(false);
   const [cat, setCat] = useState<(typeof CATS)[number]["v"]>("wrong_answer");
-  const [note, setNote] = useState(""); const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(""); const [expected, setExpected] = useState(""); const [share, setShare] = useState(false); const [busy, setBusy] = useState(false);
   const [target, setTarget] = useState<{ snippet?: string; targetId?: string } | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -46,9 +46,9 @@ export function BugFlag() {
     if (!note.trim()) { toast("Say what's wrong in a few words.", "error"); return; }
     setBusy(true);
     try {
-      await jfetch("/api/bug", { method: "POST", json: { note, category: cat, page: window.location.pathname + window.location.search + whereOpen(), snippet: target?.snippet, targetId: target?.targetId, device: `${window.innerWidth}x${window.innerHeight} · ${navigator.userAgent}`.slice(0, 200) } });
+      await jfetch("/api/bug", { method: "POST", json: { note, expected, includeTranscript: share, appVersion: await fetch("/api/version").then((r) => r.json()).then((j: { commit?: string }) => String(j.commit ?? "")).catch(() => ""), category: cat, page: window.location.pathname + window.location.search + whereOpen(), snippet: target?.snippet, targetId: target?.targetId, device: `${window.innerWidth}x${window.innerHeight} · ${navigator.userAgent}`.slice(0, 200) } });
       toast("Thanks, we got it.", "success");
-      setNote(""); setTarget(null); setOpen(false);
+      setNote(""); setExpected(""); setShare(false); setTarget(null); setOpen(false);
     } catch (e) { toast(e instanceof Error ? e.message : "Couldn't send that. Try again.", "error"); }
     finally { setBusy(false); }
   }
@@ -67,6 +67,8 @@ export function BugFlag() {
             {target?.snippet ? <p className="faint line-clamp-3 rounded-2xl p-3 text-[13px]" style={{ background: "color-mix(in srgb, var(--ink) 6%, transparent)" }}>About: “{target.snippet}”</p> : <p className="muted text-[14px]">We get the screen you're on and your last few messages automatically. Just say what's wrong.</p>}
             <div className="flex flex-wrap gap-1.5">{CATS.map((c) => <button key={c.v} type="button" onClick={() => setCat(c.v)} className="chip !min-h-[34px] !px-3 text-[13.5px]" aria-pressed={cat === c.v} style={cat === c.v ? { background: "#14122b", color: "#fff" } : undefined}>{c.label}</button>)}</div>
             <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 2000))} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} rows={3} autoFocus className="field w-full text-[16px]" placeholder="What happened, and what should it do instead?" aria-label="What's wrong" />
+            <input value={expected} onChange={(e) => setExpected(e.target.value.slice(0, 600))} className="field w-full text-[16px]" placeholder="What did you expect to happen? (optional)" aria-label="What you expected" />
+            {!tester && <label className="flex items-start gap-2 text-[13.5px]"><input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} className="mt-1" /><span>Include my recent chat so the team can see what happened. Names, emails and phone numbers are removed.</span></label>}
             <div className="flex gap-2"><button type="button" className="btn btn-primary flex-1" disabled={busy} onClick={send}>{busy ? "Sending…" : "Send"}</button><button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button></div>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { isLegacyPlan } from "@/lib/plans";
 import { api, bad, readJson } from "@/lib/server/route";
 import { getStore } from "@/lib/db/store";
 
@@ -19,6 +20,7 @@ export const POST = api(async ({ profile, req }) => {
   if (b.kind === "plan") {
     const plan = cfg.plans.find((p) => p.key === b.plan_key);
     if (!plan) throw bad("Unknown plan.");
+    if (isLegacyPlan(plan.key) && (await ctx_subKey(profile.id)) !== plan.key) throw bad("That plan is no longer offered. Choose the current Mila plan.");
     if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email admin@milarealestate.app.");
     name = plan.name; cents = Math.round(plan.price_usd * 100);
     f.set("mode", "subscription");
@@ -42,3 +44,5 @@ export const POST = api(async ({ profile, req }) => {
   if (!r.ok || !d.url) throw bad(d.error?.message ?? "Couldn't start checkout.");
   return { url: d.url };
 });
+
+async function ctx_subKey(userId: string) { return (await getStore().list("subscriptions", userId))[0]?.plan_key ?? null; }

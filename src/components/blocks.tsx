@@ -1,5 +1,6 @@
 "use client";
 
+import { wordingFlags } from "@/lib/content/guardrails";
 import { ListingRail } from "./listing-cards";
 import Link from "next/link";
 import { useState } from "react";
@@ -311,6 +312,7 @@ function DraftSocialCard({ b, ...btns }: { b: Extract<Block, { type: "draft_soci
         ))}
       </div>
       <p className="mt-3 line-clamp-4 whitespace-pre-line text-[14.5px]">{b.caption}</p>
+      {wordingFlags(b.caption + " " + b.slides.map((x) => x.headline).join(" ")).slice(0, 2).map((f, i) => <p key={i} className="mt-2 rounded-2xl p-2.5 text-[12.5px] leading-snug" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}><b>Review the wording:</b> “{f.phrase}”. {f.why}</p>)}
       <Buttons buttons={[...(b.buttons ?? []), { label: "Edit & change style", style: "quiet", href: "/content" }]} {...btns} />
       {viewAt != null && <SlideViewer slides={b.slides} start={viewAt} post={post} brand={brand} onClose={() => setViewAt(null)} />}
     </div>

@@ -4,7 +4,8 @@ import { getStore } from "@/lib/db/store";
 export const GET = api(async ({ profile, url }) => {
   const store = getStore();
   const convs = (await store.list("conversations", profile.id)).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  const conv = convs[0];
+  const want = url.searchParams.get("conversationId");
+  const conv = want ? convs.find((c) => c.id === want) : convs[0]; // only chats that belong to this person can be opened
   if (!conv) return { conversationId: null, messages: [] };
   const limit = Math.min(Math.max(Math.floor(Number(url.searchParams.get("limit") ?? 40)) || 40, 1), 200);
   const msgs = (await store.list("messages", profile.id)).filter((m) => m.conversation_id === conv.id).sort((a, b) => a.created_at.localeCompare(b.created_at));

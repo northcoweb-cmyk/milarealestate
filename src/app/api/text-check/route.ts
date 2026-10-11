@@ -24,7 +24,7 @@ export const POST = api(async ({ profile, req }) => {
   if (!c || !p) return { ok: true };
   if (sent) {
     const now = new Date().toISOString();
-    await store.insert("contact_events", profile.id, { contact_id: p.contact_id, kind: "text", title: "Text sent", detail: null, occurred_at: now });
+    await store.insert("contact_events", profile.id, { contact_id: p.contact_id, kind: "text", title: "Text marked sent by you", detail: null, occurred_at: now });
     await store.update("contacts", profile.id, p.contact_id, { last_contact_at: now });
   }
   await store.update("conversations", profile.id, c.id, { state: { ...c.state, pending_text: null } });

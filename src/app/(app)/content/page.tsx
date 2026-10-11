@@ -1,5 +1,6 @@
 "use client";
 
+import { wordingFlags } from "@/lib/content/guardrails";
 import { POST_FONTS, fontOf } from "@/lib/content/fonts";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -270,6 +271,7 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
           <textarea className="field w-full" rows={6} value={caption} onChange={(e) => setCaption(e.target.value)} aria-label="Caption" />
           <p className={"mt-1 text-right text-[12.5px] " + (over ? "text-[color:var(--danger)]" : "faint")}>{caption.length.toLocaleString()} / {limit.toLocaleString()}</p>
           {post.hashtags.length > 0 && <p className="faint text-[13px]">{post.hashtags.join(" ")}</p>}
+          {wordingFlags(caption + " " + slides.map((x) => x.headline).join(" ")).slice(0, 3).map((f, i) => <p key={i} className="mt-2 rounded-2xl p-2.5 text-[13px] leading-snug" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}><b>Review the wording:</b> “{f.phrase}”. {f.why}</p>)}
         </div>
 
         <div>

@@ -404,6 +404,10 @@ export interface ConversationState {
   last_contact_ids?: ID[];
   last_import_batch?: ID[]; // contact ids from most recent sign-in/import
   pending?: PendingQuestion | null;
+  /** questions the agent walked away from by asking something else: they stay visible and can be resumed, never silently dropped */
+  parked?: { intent: string; slots: Record<string, unknown>; missing: string; label: string; at: number }[];
+  /** what the last multi-part request did, subtask by subtask */
+  last_workflow?: { at: number; items: { label: string; state: string; detail?: string }[] } | null;
   /** the last client search brief, so "search for the specified criteria" a minute later still knows what that means */
   last_search?: { text: string; at: number } | null;
   /** a text Mila drafted and the agent opened in Messages: when they come back we ask "message sent?" so the contact log is true */

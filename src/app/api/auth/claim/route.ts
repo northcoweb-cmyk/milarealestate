@@ -1,3 +1,4 @@
+import { trialAdmissionOpen } from "@/lib/ai/budget";
 import { NextResponse } from "next/server";
 import { supabaseUrl } from "@/lib/supabase-url";
 import { authMode, createProfile, localSignIn, setSupabaseSession } from "@/lib/auth";
@@ -16,6 +17,11 @@ export async function POST(req: Request) {
   // backstop for the seat cap: even a valid link can't push the number of accounts past the launch limit
   const cap = Number(process.env.SEAT_CAP ?? 20);
   if (Number.isFinite(cap)) { const joined = (await getStore().list("waitlist", NIL_USER)).filter((w) => w.claimed_at).length; if (joined >= cap) return NextResponse.json({ error: "We're letting people in a few at a time to keep Mila fast. You're still in line and we'll email you when your spot opens." }, { status: 403 }); }
+  const seat = await trialAdmissionOpen();
+  if (!seat.open) {
+    await logError({ source: "api", level: "warn", message: `Trial admissions paused: ${seat.admitted} admitted trial users reserve $${seat.reservedUsd.toFixed(2)} of the $${seat.poolUsd.toFixed(2)} pool`, route: "POST /api/auth/claim" });
+    return NextResponse.json({ error: "Mila is full for free trials right now. You keep your place on the list, and we'll email you when a seat opens." }, { status: 503 });
+  }
   const name = (entry.name || entry.email.split("@")[0]).slice(0, 120);
   try {
     if (authMode() === "supabase") {

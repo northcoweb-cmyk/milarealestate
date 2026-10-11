@@ -6,7 +6,8 @@ import { useScrollLock } from "./use-scroll-lock";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { Plus, Sparkles, X } from "lucide-react";
+import { History, Plus, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import { ChatHistory } from "./chat-history";
 import type { ActionButton, Block, Message } from "@/lib/types";
 import { BlockView } from "./blocks";
 import { PromptInput } from "./ui/ai-chat-input";
@@ -160,6 +161,31 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   };
   const onApprove = (id: string) => run({ action: { type: "approve", id } });
   const onNavigate = (href: string) => { setOpen(false); if (/^sms:/i.test(href)) { try { sessionStorage.setItem("mila_sms", String(Date.now())); } catch { /* private mode: no check-in, nothing breaks */ } window.location.href = href; return; } router.push(href); };
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // spoken replies: the device's own voice reads Mila's text answer aloud. Nothing is recorded or stored, and speaking never approves anything.
+  const [readAloud, setReadAloud] = useState(false);
+  const spoken = useRef<string | null>(null);
+  const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
+  useEffect(() => { try { setReadAloud(localStorage.getItem("mila_read_aloud") === "1"); } catch { /* private mode */ } }, []);
+  useEffect(() => { if (!loaded) return; const last = [...messages].reverse().find((m) => m.role === "mila"); if (spoken.current === null) spoken.current = last?.id ?? ""; }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!canSpeak) return;
+    if (!readAloud || !isOpen) { window.speechSynthesis.cancel(); return; }
+    if (busy) return;
+    const last = [...messages].reverse().find((m) => m.role === "mila");
+    if (!last || last.id.startsWith("tmp") || spoken.current === last.id) return;
+    spoken.current = last.id;
+    const text = (last.content ?? "").replace(/[*_#`>]/g, "").replace(/\s+/g, " ").trim().slice(0, 600);
+    if (!text) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }, [messages, busy, readAloud, isOpen, canSpeak]);
+  const toggleReadAloud = () => { const n = !readAloud; setReadAloud(n); try { localStorage.setItem("mila_read_aloud", n ? "1" : "0"); } catch { /* ignore */ } if (!n && canSpeak) window.speechSynthesis.cancel(); };
+  async function openChat(id: string) {
+    if (!id) { await newChat(); return; } // the open chat was deleted: start a fresh one
+    const r = await jfetch<{ conversationId: string; messages: Message[] }>(`/api/messages?conversationId=${encodeURIComponent(id)}&limit=100`);
+    setConvId(r.conversationId); setMessages(r.messages ?? []);
+  }
   async function newChat() {
     const r = await jfetch<{ conversationId: string }>("/api/messages", { method: "POST" });
     setConvId(r.conversationId); setMessages([]);
@@ -189,7 +215,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
               initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: "spring", damping: 30, stiffness: 340 }}>
               <div className="flex items-center justify-between px-5 pb-2 pt-4" style={keyboardUp(vvBox) ? { paddingTop: "max(env(safe-area-inset-top), 14px)" } : undefined}>
                 <p className="display text-[28px]">Mila</p>
-                <div className="flex gap-2"><button className="chip" onClick={newChat} disabled={busy}><Plus size={15} />New chat</button><button className="btn btn-quiet btn-sm !px-2" onClick={() => setOpen(false)} aria-label="Close"><X size={20} /></button></div>
+                <div className="flex gap-2">{canSpeak && <button className="chip" onClick={toggleReadAloud} aria-pressed={readAloud} aria-label={readAloud ? "Stop reading replies aloud" : "Read replies aloud"} title={readAloud ? "Stop reading replies aloud" : "Read replies aloud"}>{readAloud ? <Volume2 size={15} /> : <VolumeX size={15} />}</button>}<button className="chip" onClick={() => setHistoryOpen(true)} disabled={busy} aria-label="Past chats"><History size={15} />Chats</button><button className="chip" onClick={newChat} disabled={busy}><Plus size={15} />New chat</button><button className="btn btn-quiet btn-sm !px-2" onClick={() => setOpen(false)} aria-label="Close"><X size={20} /></button></div>
               </div>
               <div ref={scroller} className="no-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-4" aria-live="polite">
                 {messages.length === 0 && !busy && <EmptyChat onPick={(t) => run({ message: t }, t)} />}
@@ -202,6 +228,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
 
+      <ChatHistory open={historyOpen} onClose={() => setHistoryOpen(false)} currentId={convId} onPick={(id) => void openChat(id)} />
       <Confirm open={!!runSheet} title="Do all of this?" onClose={() => setRunSheet(null)} confirmLabel="Approve everything" onConfirm={() => { const id = runSheet!.runId; setRunSheet(null); run({ action: { type: "approve_run", runId: id } }); }}
         body={runSheet?.items.map((i) => `• ${i.title}${i.summary ? ` — ${i.summary}` : ""}`).join("\n") + (runSheet?.items.some((i) => i.risk === "high") ? "\n\nThis includes a large send, so I'm asking you to confirm it." : "")} />
     </Ctx.Provider>

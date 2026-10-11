@@ -82,17 +82,17 @@ function PropertyDetail({ id }: { id: string }) {
       <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
       <div>
       <section className="glass mb-5 p-5 sm:p-6" style={{ borderRadius: 26 }}>
-        <p className="kicker mb-1">Find this home</p>
+        <p className="kicker mb-1">What Mila found</p>
         {data.lookup?.found ? (
           <>
-            <p className="text-[15px] leading-snug">Found: <b>{[data.lookup.facts?.beds && `${data.lookup.facts.beds} bd`, data.lookup.facts?.baths && `${data.lookup.facts.baths} ba`, data.lookup.facts?.sqft && `${data.lookup.facts.sqft.toLocaleString("en-US")} sq ft`, data.lookup.facts?.list_price && `$${data.lookup.facts.list_price.toLocaleString("en-US")}`].filter(Boolean).join(" · ")}</b>{data.lookup.facts?.status && data.lookup.facts.status !== "unknown" ? ` (${data.lookup.facts.status})` : ""}</p>
+            <p className="text-[15px] leading-snug">Mila found this information: <b>{[data.lookup.facts?.beds && `${data.lookup.facts.beds} bd`, data.lookup.facts?.baths && `${data.lookup.facts.baths} ba`, data.lookup.facts?.sqft && `${data.lookup.facts.sqft.toLocaleString("en-US")} sq ft`, data.lookup.facts?.list_price && `$${data.lookup.facts.list_price.toLocaleString("en-US")}`].filter(Boolean).join(" · ")}</b>{data.lookup.facts?.status && data.lookup.facts.status !== "unknown" ? ` (${data.lookup.facts.status})` : ""}</p>
             {data.lookup.extra && (() => { const x = data.lookup!.extra!; const d = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : ""); const m = (n: number | null) => (n ? `$${n.toLocaleString("en-US")}` : ""); const rows: [string, string][] = ([
-              ["Est. value", x.est_value ? `${m(x.est_value)}${x.est_low && x.est_high ? ` (${m(x.est_low)}–${m(x.est_high)})` : ""}` : ""], ["Last sold", x.last_sale_price ? `${m(x.last_sale_price)}${x.last_sale_date ? ` · ${d(x.last_sale_date)}` : ""}` : ""],
+              ["Estimated value", x.est_value ? `${m(x.est_value)}${x.est_low && x.est_high ? ` (${m(x.est_low)}–${m(x.est_high)})` : ""}` : ""], ["Last sold", x.last_sale_price ? `${m(x.last_sale_price)}${x.last_sale_date ? ` · ${d(x.last_sale_date)}` : ""}` : ""],
               ["On market", x.list_status === "Active" && x.days_on_market != null ? `${x.days_on_market} days` : ""], ["Year built", x.year_built ? String(x.year_built) : ""], ["Lot", x.lot_sqft ? `${x.lot_sqft.toLocaleString("en-US")} sq ft` : ""], ["Type", x.property_type ?? ""],
               ["Taxes", x.tax_amount ? `${m(x.tax_amount)}/yr${x.tax_year ? ` (${x.tax_year})` : ""}` : ""], ["HOA", x.hoa_fee ? `${m(x.hoa_fee)}/mo` : ""], ["MLS", x.mls ?? ""], ["Listing agent", [x.listing_agent, x.listing_office].filter(Boolean).join(", ")],
             ] as [string, string][]).filter(([, v]) => v);
               return rows.length ? <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 text-[14px] sm:grid-cols-2">{rows.map(([k, v]) => <div key={k} className="flex justify-between gap-3 border-b py-1" style={{ borderColor: "var(--line)" }}><dt className="muted">{k}</dt><dd className="text-right font-semibold">{v}</dd></div>)}</dl> : null; })()}
-            <p className="muted mt-2 text-[13.5px]">Not looking right? <a href="#edit" className="font-semibold text-accent underline">Let's change it.</a></p>
+            <p className="muted mt-2 text-[13.5px]">{data.lookup.at ? `Updated ${new Date(data.lookup.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. ` : ""}Needs review? <a href="#edit" className="font-semibold text-accent underline">Review details</a>.</p>
           </>
         ) : (
           <p className="muted text-[14px]">{!addrComplete ? "Add the city and state (or ZIP) and I'll find the home and fill in the details for you." : data.lookup ? "I couldn't find this exact home. Check the address below, or add the details yourself." : "I'll look the address up and fill in the details."}</p>
@@ -182,7 +182,7 @@ function PropertyHero({ id, address, own, lookup, busy, onUpload, onRemove }: { 
         {cur ? (<>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={cur.url} referrerPolicy="no-referrer" alt={cur.caption || `Photo of ${address}`} className="h-full w-full object-cover" />
-          <span className="absolute bottom-2 left-3 rounded-full bg-black/50 px-2 py-0.5 text-[11.5px] text-white">{Math.min(i, all.length - 1) + 1} / {all.length}{cur.ownId ? " · yours" : ""}</span>
+          <span className="absolute bottom-2 left-3 rounded-full bg-black/50 px-2 py-0.5 text-[11.5px] text-white">{Math.min(i, all.length - 1) + 1} / {all.length}{cur.ownId ? " · yours" : cur.url.includes("/streetview") ? " · street view preview, may not be the exact building" : ""}</span>
           {cur.ownId && <button type="button" className="absolute right-3 top-3 rounded-full bg-black/50 p-2 text-white" aria-label="Remove photo" onClick={() => { onRemove(cur.ownId!); setI(0); }}><Trash2 size={15} /></button>}
         </>) : <div className="grid h-full w-full place-items-center px-6 text-center"><p className="muted text-[14.5px]">Add the full address (city and state) and Mila shows the street view here. You can add your own photos too.</p></div>}
         <button type="button" className="btn btn-primary btn-sm absolute bottom-3 right-3" disabled={busy} onClick={() => pick.current?.click()}><ImagePlus size={16} />{busy ? "Adding…" : "Add photos"}</button>

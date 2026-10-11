@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { InsufficientCredits, TrialEnded, creditCost, ensureCredits, getBalance, recordUsage } from "../credits";
 import { aiAvailable } from "../ai/provider";
-import type { ActionButton, Block, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
+import type { ActionButton, Block, PendingQuestion, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
 import { greetingFor } from "./debrief";
 import { type Ctx, firstName, plural } from "./context";
 import { appendMila, persistState } from "./conversation";
@@ -124,6 +124,16 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   return { conversationId: ctx.conversationId, userMessage, milaMessage, balance: await getBalance(ctx.userId) };
 }
 
+/** An unfinished question the agent walked away from: kept (max 3) so it can be resumed. */
+function park(ctx: Ctx, pend: PendingQuestion | null | undefined) {
+  if (pend?.kind !== "clarify") return;
+  const text = String((pend.slots as { text?: string }).text ?? "").trim();
+  if (!text) return;
+  const keep = (ctx.state.parked ?? []).filter((x) => !(x.intent === pend.intent && x.missing === pend.missing && String((x.slots as { text?: string }).text) === text));
+  ctx.state.parked = [{ intent: String(pend.intent), slots: pend.slots, missing: String(pend.missing), label: text.slice(0, 80), at: Date.now() }, ...keep].slice(0, 3);
+}
+const ASK_BY_MISSING: Record<string, string> = { address: "Which property is it for?", date: "Which day?", time: "What time?", name: "Who is it for?", location: "Which city and state?", details: "What should I change?" };
+
 async function recentHistory(ctx: Ctx) {
   const msgs = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId).sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(-8);
   return msgs.map((m) => ({ role: m.role === "user" ? ("user" as const) : ("assistant" as const), content: m.content })).filter((m) => m.content);
@@ -199,9 +209,10 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       forced = pend.intent as Intent;
       answering = { intent: String(pend.intent), missing: String(pend.missing ?? "") };
       ctx.state.pending = null;
-    } else ctx.state.pending = null;
+    } else { park(ctx, pend); ctx.state.pending = null; }
   } else if (pend && text && pend.kind !== "stale_comms") {
-    // a new request supersedes an unanswered choice
+    // a new request supersedes an unanswered choice (an unfinished question is parked and offered again, never lost)
+    park(ctx, pend);
     ctx.state.pending = null;
   }
 
@@ -281,10 +292,35 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       outs.push(reply(`I couldn't make that out, and I don't want to keep asking, so I haven't changed anything. ${HINT[answering.missing] ?? "Send me the whole request in one message and I'll take it from there."}`, [], "smalltalk"));
     } else ctx.state.clarify_streak = { key, n: streak };
   } else ctx.state.clarify_streak = null;
+  // still-open questions from earlier stay visible after the new request is handled
+  const reminder: Block[] = [];
+  if (ctx.state.parked?.length && !ctx.state.pending && !answering) {
+    const p0 = ctx.state.parked[0];
+    reminder.push({ type: "choice", title: `Still open: ${p0.label}`, body: ASK_BY_MISSING[p0.missing] ?? "I still need one detail to finish that.", buttons: [{ label: "Continue it", style: "primary", action: { type: "resume_parked", index: 0 } }, { label: "Drop it", style: "quiet", action: { type: "drop_parked", index: 0 } }] });
+  }
+  if (outs.length > 1) {
+    // never silently omit a subtask: say exactly what was done, drafted, waiting on a yes, blocked or failed
+    const items = outs.map((o, i) => ({ label: clauses[i]?.replace(/\s+/g, " ").slice(0, 70) || `Part ${i + 1}`, state: subtaskState(o), detail: firstSentence(o.text) }));
+    ctx.state.last_workflow = { at: Date.now(), items };
+    const waiting = items.filter((x) => x.state !== "done").length;
+    outs.push({ text: "", blocks: [{ type: "workflow", runId: "", kicker: "WHAT I DID", title: `${items.length} things`, subtitle: waiting ? `${items.length - waiting} done, ${waiting} need${waiting === 1 ? "s" : ""} you` : "All done", items: items as never }], creditKey: undefined });
+  }
+  if (reminder.length) outs.push({ text: "", blocks: reminder });
   if (outs.length === 1) return { out: outs[0], intent: lastIntent };
   const costs = await Promise.all(outs.map(async (o) => ({ k: o.creditKey ?? "chat_simple", c: await creditCost(o.creditKey ?? "chat_simple") })));
   const top = costs.sort((a, b) => b.c - a.c)[0];
   return { out: { text: outs.map((o) => o.text).filter(Boolean).join("\n\n"), blocks: outs.flatMap((o) => o.blocks), creditKey: top.k }, intent: lastIntent };
+}
+
+const firstSentence = (t: string) => t.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0]?.slice(0, 140) ?? "";
+/** What a handler's answer means for the reconciliation card. */
+function subtaskState(o: HandlerOut): "done" | "pending" | "needs_approval" | "failed" {
+  const btns = o.blocks.flatMap((b) => ("buttons" in b ? (b.buttons ?? []) : []));
+  if (btns.some((b) => b.approvalId)) return "needs_approval";
+  if (/^(?:which|what|who|where|when|how long)\b[^.]*\?\s*$|^(?:give me|tell me|send me)\b/i.test(o.text.trim().split("\n")[0]) || /\?\s*$/.test(firstSentence(o.text))) return "pending";
+  if (/\b(?:couldn't|can't|cannot|didn't go through|isn't a real|already passed|haven't changed|not sure how|don't see|don't have)\b/i.test(firstSentence(o.text))) return "failed";
+  if (o.blocks.some((b) => b.type === "draft_email" || b.type === "draft_social" || b.type === "post_set")) return "pending";
+  return "done";
 }
 
 async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolean): Promise<HandlerOut> {
@@ -469,6 +505,15 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
     case "replace_slot_options": return replaceSlotOptions(ctx);
     case "replace_slot": return replaceSlot(ctx, String(a.start), String(a.end));
     case "replace_cancel": return replaceCancel(ctx);
+    case "resume_parked": {
+      const i = Number(a.index) || 0, p = ctx.state.parked?.[i];
+      if (!p) return reply("That one is already handled.", [], "smalltalk");
+      ctx.state.parked = (ctx.state.parked ?? []).filter((_, k) => k !== i);
+      ctx.state.pending = { kind: "clarify", intent: p.intent, slots: p.slots, missing: p.missing };
+      await persistState(ctx);
+      return reply(`${ASK_BY_MISSING[p.missing] ?? "I still need one detail."} (for “${p.label}”)`, [], "smalltalk");
+    }
+    case "drop_parked": { ctx.state.parked = (ctx.state.parked ?? []).filter((_, k) => k !== (Number(a.index) || 0)); await persistState(ctx); return reply("Okay, dropped.", [], "smalltalk"); }
     case "shift_events": return shiftEvents(ctx, (a.eventIds ?? []).map(String), String(a.after));
     case "find_time": return findTimeForEvent(ctx, a.eventId, a.durationMin ?? 60);
     case "cancel_pick": { const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId); return ev ? cancelEvent(ctx, ev) : reply("I couldn't find that event.", [], "smalltalk"); }
