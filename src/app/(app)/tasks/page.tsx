@@ -97,7 +97,7 @@ function TasksInner() {
 }
 
 function labelFor(a: Approval) {
-  return { send_email: "Approve & send", send_bulk_email: "Approve & send", send_sms: "Approve & send", publish_social: "Approve post", calendar_create: "Add to calendar", calendar_change: "Approve", calendar_cancel: "Confirm cancel", send_document: "Approve & send", delete: "Confirm delete", other: "Approve" }[a.action];
+  return { send_email: "Approve & send", send_bulk_email: "Approve & send", send_sms: "Approve & send", publish_social: "Approve post", calendar_create: "Add to calendar", calendar_change: "Approve", calendar_cancel: "Confirm cancel", calendar_replace: "Confirm replacement", send_document: "Approve & send", delete: "Confirm delete", other: "Approve" }[a.action];
 }
 
 export default function TasksPage() { return <Suspense><TasksInner /></Suspense>; }

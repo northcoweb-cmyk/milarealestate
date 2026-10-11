@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db/store";
+import { bearerMatches } from "@/lib/server/bearer";
 import { sendEmailNotification } from "@/lib/notify";
 
 // Scheduled (e.g. Vercel Cron) delivery for reminders when the app isn't open. Protect with CRON_SECRET.
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!bearerMatches(req, secret)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const store = getStore();
   const now = new Date().toISOString();
   let delivered = 0, emailed = 0;

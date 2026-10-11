@@ -206,6 +206,7 @@ export type ApprovalAction =
   | "calendar_create"
   | "calendar_change"
   | "calendar_cancel"
+  | "calendar_replace"
   | "send_document"
   | "delete"
   | "other";
@@ -406,13 +407,19 @@ export interface ConversationState {
   /** a text Mila drafted and the agent opened in Messages: when they come back we ask "message sent?" so the contact log is true */
   pending_text?: { contact_id: ID; name: string; at: number } | null;
   /** the last change Mila made on her own, so a typed "undo" knows what to reverse */
-  last_action?: { type: "move"; event_id: ID; start_at: string; end_at: string } | { type: "create"; event_id: ID } | { type: "property"; property_id: ID; patch: Record<string, unknown> } | null;
+  last_action?: { type: "move"; event_id: ID; start_at: string; end_at: string } | { type: "create"; event_id: ID } | { type: "property"; property_id: ID; patch: Record<string, unknown> } | { type: "replace"; original_id: ID; new_id: ID } | null;
 }
 
 export type PendingQuestion =
   | { kind: "calendar_conflict"; draft: Record<string, unknown>; conflict_ids: ID[] }
   | { kind: "stale_comms"; event_id: ID; email_ids: ID[]; social_ids: ID[] }
-  | { kind: "clarify"; intent: string; slots: Record<string, unknown>; missing: string };
+  | { kind: "clarify"; intent: string; slots: Record<string, unknown>; missing: string }
+  /** a preview Mila just showed (cancel, replace…): a typed "yes" confirms exactly this approval, and nothing else */
+  | { kind: "approval"; approval_id: ID; label: string }
+  /** "cancel Oak and replace it with Pine": which event is the original? */
+  | { kind: "replace_pick"; replacement: string; candidate_ids: ID[] }
+  /** a replacement that overlaps something else: held server-side so the "Replace anyway" button can only confirm this exact draft */
+  | { kind: "replace_draft"; args: Record<string, unknown>; clash_titles: string[] };
 
 export interface Message extends Row {
   conversation_id: ID;

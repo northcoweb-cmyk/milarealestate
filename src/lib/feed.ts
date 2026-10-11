@@ -33,7 +33,7 @@ export interface Feed {
   next: UpItem[];
 }
 
-const APPROVAL_LABEL: Record<string, string> = { send_email: "Email", send_bulk_email: "Email", send_sms: "Text", publish_social: "Post", calendar_create: "Calendar", calendar_change: "Calendar", calendar_cancel: "Calendar", send_document: "Document", delete: "Delete" };
+const APPROVAL_LABEL: Record<string, string> = { send_email: "Email", send_bulk_email: "Email", send_sms: "Text", publish_social: "Post", calendar_create: "Calendar", calendar_change: "Calendar", calendar_cancel: "Calendar", calendar_replace: "Calendar", send_document: "Document", delete: "Delete" };
 const POST_LABEL: Record<string, string> = { just_listed: "Instagram announcement", open_house: "Open house post", price_improvement: "Price update post", just_sold: "Just sold post" };
 const ask = (q: string) => `/?ask=${encodeURIComponent(q)}`;
 

@@ -56,7 +56,7 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
       if (m.remaining === 0) setTimeout(onClose, 600);
     } catch (e) { toast(e instanceof Error ? e.message : "Couldn't open your email.", "error"); } finally { setBusy(false); }
   }
-  const action = a ? { send_email: "Approve & send", send_bulk_email: "Approve & send", send_sms: "Approve & send", publish_social: "Approve post", calendar_create: "Add to calendar", calendar_change: "Confirm change", calendar_cancel: "Confirm cancel", send_document: "Approve & send", delete: "Confirm delete", other: "Approve" }[a.action] : "";
+  const action = a ? { send_email: "Approve & send", send_bulk_email: "Approve & send", send_sms: "Approve & send", publish_social: "Approve post", calendar_create: "Add to calendar", calendar_change: "Confirm change", calendar_cancel: "Confirm cancel", calendar_replace: "Confirm replacement", send_document: "Approve & send", delete: "Confirm delete", other: "Approve" }[a.action] : "";
   const pending = a?.status === "pending";
   return (
     <Sheet open={!!approvalId} onClose={onClose} title={a?.title ?? "Review"} wide>

@@ -3,6 +3,7 @@ import { rateLimit } from "@/lib/server/rate-limit";
 import { getStore } from "@/lib/db/store";
 import { isTester } from "@/lib/testers";
 import { logError } from "@/lib/server/errors";
+import { redactSecrets } from "@/lib/server/sanitize";
 
 const CATEGORIES = { wrong_answer: "Wrong answer", looks_bad: "Looks bad", broke: "Something broke", idea: "Idea / change" } as const;
 const clip = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
@@ -35,7 +36,7 @@ export const POST = api(async ({ req, profile }) => {
   const row = await store.insert("feedback", profile.id, { kind: "bug", target: "bug", target_id: clip(b.targetId, 80), note, snippet: clip(b.snippet, 400), page: clip(b.page, 120), category, context, status: "open", github_issue: null } as never);
   const title = `[${CATEGORIES[category]}] ${note.replace(/\s+/g, " ").slice(0, 70)}`;
   const body = [`**Reported by a test agent** (${profile.full_name || "tester"}) from \`${context.page ?? "unknown page"}\`.`, "", `**What they said**\n${note}`, context.flagged_message ? `\n**Message flagged**\n> ${context.flagged_message.replace(/\n/g, "\n> ")}` : "", "\n**Recent chat**", ...transcript.map((m) => `- ${m.role === "user" ? "👤" : "🤖"} ${m.text.replace(/\n/g, " ")}${m.blocks.length ? ` _[${m.blocks.join(", ")}]_` : ""}`), `\n_Device: ${context.device ?? "unknown"} · feedback id ${row.id}_`].join("\n");
-  const issue = await openIssue(title, body);
+  const issue = await openIssue(redactSecrets(title), redactSecrets(body).replace(/@(?=[A-Za-z0-9_-])/g, "@\u200b")); // no credentials in the issue, and no @mentions that would ping strangers
   if (issue) await store.update("feedback", profile.id, row.id, { github_issue: issue } as never);
   else if (process.env.GITHUB_BUG_TOKEN) await logError({ source: "api", message: "Bug report saved but the GitHub issue could not be created", route: "POST /api/bug", userId: profile.id, email: profile.email });
   return { ok: true, id: row.id, issue };

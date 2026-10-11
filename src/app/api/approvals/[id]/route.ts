@@ -22,11 +22,19 @@ export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
   const b = await readJson<{ decision: "approve" | "reject"; edits?: { draftId: string; subject?: string; body?: string }[]; caption?: string; postId?: string }>(req);
   if (b.decision !== "approve" && b.decision !== "reject") throw bad("Choose approve or reject.");
   const ctx = await buildCtx(profile);
-  for (const e of b.edits ?? []) {
-    const d = await ctx.store.get("email_drafts", profile.id, e.draftId);
-    if (d) await ctx.store.update("email_drafts", profile.id, d.id, { subject: e.subject ?? d.subject, body: e.body ?? d.body });
+  // Look the approval up first: edits are only applied to things THIS approval covers, only while it is still undecided, and only on approve.
+  const approval = await ctx.store.get("approvals", profile.id, params.id);
+  if (!approval) throw notFound("That approval");
+  if (b.decision === "approve" && approval.status === "pending") {
+    const a = approval.payload.args as { draftIds?: string[]; draftId?: string; postId?: string };
+    const covered = new Set<string>(a.draftIds ?? (a.draftId ? [a.draftId] : []));
+    for (const e of (Array.isArray(b.edits) ? b.edits : []).slice(0, 50)) {
+      if (!e || typeof e.draftId !== "string" || !covered.has(e.draftId)) continue; // not part of this approval: ignore
+      const d = await ctx.store.get("email_drafts", profile.id, e.draftId);
+      if (d) await ctx.store.update("email_drafts", profile.id, d.id, { subject: typeof e.subject === "string" ? e.subject.slice(0, 300) : d.subject, body: typeof e.body === "string" ? e.body.slice(0, 20_000) : d.body });
+    }
+    if (a.postId && b.postId === a.postId && typeof b.caption === "string") await ctx.store.update("social_posts", profile.id, a.postId, { caption: b.caption.slice(0, 5_000) });
   }
-  if (b.postId && typeof b.caption === "string") await ctx.store.update("social_posts", profile.id, b.postId, { caption: b.caption });
   try {
     const r = await decideApproval(ctx, params.id, b.decision);
     // Surface follow-up questions (e.g. stale communications) in the conversation

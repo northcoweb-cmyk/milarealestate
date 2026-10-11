@@ -550,6 +550,16 @@ export async function undoHandler(ctx: Ctx): Promise<HandlerOut> {
     if (!ev || ev.status !== "confirmed") return reply("That event is already gone.", [], "smalltalk");
     return cancelEvent(ctx, ev);
   }
+  if (la.type === "replace") {
+    const orig = await ctx.store.get("calendar_events", ctx.userId, la.original_id), now = await ctx.store.get("calendar_events", ctx.userId, la.new_id);
+    if (!orig || !now) return reply("I can't find those events anymore, so there's nothing to put back.", [], "smalltalk");
+    if (now.status !== "confirmed") return reply("The replacement was already changed, so I left everything as it is.", [], "smalltalk");
+    const clash = await eventConflicts(ctx, orig.start_at, orig.end_at, now.id);
+    if (clash.length) return reply(`I can't put ${orig.title} back because it now overlaps ${clash[0].title}. Nothing changed.`, [], "smalltalk");
+    await ctx.store.update("calendar_events", ctx.userId, now.id, { status: "cancelled" } as never);
+    await ctx.store.update("calendar_events", ctx.userId, orig.id, { status: "confirmed" } as never);
+    return reply(`Undone. ${orig.title} is back on your calendar (${fmtDayTime(orig.start_at, ctx.tz)}) and ${now.title} is canceled.`, [eventCard(ctx, orig, "Restored")], "smalltalk");
+  }
   const prop = await ctx.store.get("properties", ctx.userId, la.property_id);
   if (!prop) return reply("I can't find that listing anymore.", [], "smalltalk");
   await ctx.store.update("properties", ctx.userId, prop.id, la.patch as never);

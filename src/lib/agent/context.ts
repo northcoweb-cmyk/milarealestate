@@ -18,7 +18,7 @@ export interface Ctx {
 
 export type ToolResult<T = any> =
   | { ok: true; data: T }
-  | { ok: false; code: "not_connected" | "invalid" | "not_found" | "failed" | "coming_soon"; message: string; integration?: string };
+  | { ok: false; code: "not_connected" | "invalid" | "not_found" | "failed" | "coming_soon" | "stale" | "conflict"; message: string; integration?: string };
 
 export const ok = <T>(data: T): ToolResult<T> => ({ ok: true, data });
 export const fail = (code: Exclude<ToolResult, { ok: true }>["code"], message: string, integration?: string): ToolResult<never> => ({ ok: false, code, message, integration });

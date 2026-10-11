@@ -5,6 +5,8 @@ import { googleConfigured } from "@/lib/integrations/google";
 import { activeProvider, providerName } from "@/lib/media/providers";
 import { zillapiBase, zillapiKey } from "@/lib/media/providers/zillapi";
 import { photoTrail } from "@/lib/media/service";
+import { getProfile, isAdmin } from "@/lib/auth";
+import { bearerMatches } from "@/lib/server/bearer";
 import { getStore, schemaGaps, ephemeralStoreBlocked, supabaseConfigured } from "@/lib/db/store";
 
 /** Photo pipeline status for deployment checks: booleans, counts and a one-word failure code - never keys or addresses. */
@@ -45,7 +47,12 @@ async function streetViewStatus() {
 }
 
 // Non-secret capability report (booleans only) — handy for verifying a deployment.
-export async function GET() {
-  if (ephemeralStoreBlocked()) return NextResponse.json({ ok: false, store: "none", error: "database not configured — saving is disabled so data is never lost" }, { status: 503 });
+export const dynamic = "force-dynamic";
+export async function GET(req: Request) {
+  if (ephemeralStoreBlocked()) return NextResponse.json({ ok: false }, { status: 503 });
+  // Public callers (uptime pings, deploy checks) get only up/down. Capability detail, schema gaps, photo-pipeline errors and the
+  // outbound provider probes need the cron secret or a signed-in admin, so nothing about our setup leaks and strangers can't trigger provider calls.
+  const privileged = bearerMatches(req, process.env.CRON_SECRET) || await getProfile().then((p) => Boolean(p && isAdmin(p))).catch(() => false);
+  if (!privileged) return NextResponse.json({ ok: schemaGaps.size === 0 });
   return NextResponse.json({ ok: schemaGaps.size === 0, persistent: supabaseConfigured(), schema_gaps: [...schemaGaps], store: getStore().kind, auth: authMode(), ai: aiAvailable(), ai_provider: aiProviderName(), google: googleConfigured(), stripe: Boolean(process.env.STRIPE_SECRET_KEY), email: Boolean(process.env.RESEND_API_KEY), maps: Boolean(process.env.GOOGLE_MAPS_API_KEY), property_data: Boolean(process.env.RENTCAST_API_KEY || process.env.RENTCAST_API_KEY1 || process.env.RENTCAST_API_KEY2),daily_summary_ready: Boolean(process.env.CRON_SECRET && process.env.RESEND_API_KEY && (process.env.MAIL_FROM || process.env.EMAIL_FROM)), outlook: Boolean(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET), seat_cap: Number(process.env.SEAT_CAP ?? 20), census: Boolean(process.env.CENSUS_API_KEY), walkscore: Boolean(process.env.WALKSCORE_API_KEY), photos: await photoStatus(), street_view: await streetViewStatus() });
 }

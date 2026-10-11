@@ -15,6 +15,7 @@ export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
   const ctx = await buildCtx(profile);
   const approval = await ctx.store.get("approvals", profile.id, params.id);
   if (!approval) throw notFound("That email");
+  if (approval.status !== "pending" && !(approval.status === "approved" && approval.blocked_integration)) throw bad("That request was already handled, so I won't hand it off again.");
   const args = approval.payload.args as { draftId?: string; draftIds?: string[] };
   const ids = args.draftIds ?? (args.draftId ? [args.draftId] : []);
   if (!ids.includes(b.draftId)) throw bad("That draft isn't part of this request.");

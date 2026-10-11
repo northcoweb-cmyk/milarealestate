@@ -307,6 +307,49 @@ export const TOOLS: Record<string, ToolDef> = {
     },
   },
 
+  /**
+   * "Cancel Oak and replace it with Pine": ONE consequential operation. The approval binds the original event (id + version) and the exact
+   * replacement, so editing either one afterwards makes the old approval useless. The replacement is created first; the original is canceled
+   * only after that worked, and if the cancel fails the new event is rolled back, so there is never a silent duplicate or a lost event.
+   */
+  replace_calendar_event: {
+    name: "replace_calendar_event", status: "Replacing the event",
+    gate: async (ctx, a) => {
+      const orig = await ctx.store.get("calendar_events", ctx.userId, a.originalId);
+      const r = a.replacement ?? {};
+      return { key: null, risk: "high", action: "calendar_replace", title: `Replace ${orig?.title ?? "event"}`, summary: `${orig ? `${orig.title} (${fmtDayTime(orig.start_at, ctx.tz)}) will be canceled and ` : ""}${r.title} (${fmtDayTime(r.start_at, ctx.tz)}) will be added.`, dueAt: r.start_at, contactId: orig?.contact_id ?? r.contact_id ?? null, propertyId: r.property_id ?? null };
+    },
+    run: async (ctx, a) => {
+      const orig = await ctx.store.get("calendar_events", ctx.userId, a.originalId);
+      if (!orig || orig.status !== "confirmed") return fail("stale", "The event you wanted to replace has already changed or is gone, so I haven't changed anything.");
+      if (a.originalVersion && orig.updated_at !== a.originalVersion) return fail("stale", `${orig.title} was edited after you were shown this, so I haven't changed anything. Ask me again and I'll show the updated preview.`);
+      const r = a.replacement as { title: string; kind: CalendarEventKind; start_at: string; end_at: string; location?: string | null; property_id?: string | null; contact_id?: string | null };
+      if (!r?.start_at || !r?.end_at || new Date(r.end_at) <= new Date(r.start_at)) return fail("invalid", "That replacement time isn't valid, so I haven't changed anything.");
+      // other appointments still count; only the event being replaced is excluded. Unrelated events are never touched.
+      const clash = a.allowOverlap ? [] : await eventConflicts(ctx, r.start_at, r.end_at, orig.id);
+      if (clash.length) return fail("conflict", `The new time overlaps ${clash[0].title}, so I haven't changed anything.`);
+      const made = await TOOLS.create_calendar_event.run(ctx, { ...r, notes: `Replaces ${orig.title} (${orig.id})`, ignoreConflicts: true, workflow_run_id: a.workflow_run_id });
+      if (!made.ok) return fail(made.code, `I couldn't add the replacement, so ${orig.title} is still on your calendar. ${made.message}`);
+      const created = (made.data as any).event as CalendarEvent;
+      let syncNote: string | undefined = (made.data as any).syncNote;
+      try {
+        await ctx.store.update("calendar_events", ctx.userId, orig.id, { status: "cancelled", notes: [orig.notes, `Replaced by ${created.title} (${created.id})`].filter(Boolean).join("\n") } as never);
+      } catch {
+        await ctx.store.update("calendar_events", ctx.userId, created.id, { status: "cancelled" } as never); // roll back: never leave both active
+        return fail("failed", `I couldn't cancel ${orig.title}, so I didn't add the replacement either. Nothing changed.`);
+      }
+      if (orig.external_id) { try { await gcal.remove(ctx.userId, orig.external_id); } catch (e) { syncNote = [syncNote, `Your connected calendar still shows ${orig.title}: ${e instanceof GoogleError ? e.message : "it didn't accept the change"}. It's canceled in Mila.`].filter(Boolean).join(" "); } }
+      // a brand-new address is saved only now that the agent has confirmed (never before)
+      let event = created;
+      if (a.replacement?.newProperty?.address) {
+        const made = (await TOOLS.create_property.run(ctx, { ...a.replacement.newProperty })) as any;
+        if (made.ok) event = (await ctx.store.update("calendar_events", ctx.userId, created.id, { property_id: made.data.property.id } as never)) ?? created;
+      }
+      await logContactEvent(ctx, orig.contact_id, "calendar_cancelled", `${orig.title} replaced by ${event.title}`);
+      return ok({ original: orig, event, cancelled: orig.id, syncNote });
+    },
+  },
+
   // ---------------- email
   draft_email: {
     name: "draft_email", status: "Preparing messages",
@@ -539,7 +582,7 @@ async function decideApprovalOnce(ctx: Ctx, id: string, decision: "approve" | "r
     const u = (await ctx.store.update("approvals", ctx.userId, id, { status: "executed", decided_at: nowIso(), executed_at: nowIso(), result: r.data as any, error: null, blocked_integration: null }))!;
     if (task) await ctx.store.update("tasks", ctx.userId, task.id, { status: "done", completed_at: nowIso() });
     const followUp = await postExecute(ctx, a, r.data);
-    const sent = a.payload.tool.startsWith("send_email") ? `Sent ${plural((r.data as any).sent ?? 1, "email")}.` : "Done.";
+    const sent = a.payload.tool.startsWith("send_email") ? `Sent ${plural((r.data as any).sent ?? 1, "email")}.` : a.payload.tool === "replace_calendar_event" ? `Replaced ${(r.data as any).original?.title} with ${(r.data as any).event?.title}.` : "Done.";
     return { approval: u, result: r, followUp, message: (r.data as any)?.syncNote ? `${sent} Note: ${(r.data as any).syncNote}` : sent };
   }
 
@@ -554,6 +597,15 @@ async function decideApprovalOnce(ctx: Ctx, id: string, decision: "approve" | "r
 }
 
 async function postExecute(ctx: Ctx, a: Approval, data: any): Promise<import("../types").Block[]> {
+  if (a.payload.tool === "replace_calendar_event" && data?.event && data?.original) {
+    const { eventCard } = await import("./handlers/calendar");
+    const { persistState } = await import("./conversation");
+    ctx.state.last_action = { type: "replace", original_id: data.original.id, new_id: data.event.id };
+    ctx.state.last_event_id = data.event.id;
+    ctx.state.pending = null;
+    await persistState(ctx);
+    return [eventCard(ctx, data.event as CalendarEvent, "Replaced"), { type: "choice", title: `${data.original.title} is canceled`, buttons: [{ label: "Undo the swap", style: "quiet", action: { type: "prompt", text: "undo" } }] }];
+  }
   if (a.payload.tool === "update_calendar_event" && data?.event && data?.before) {
     const { markCommsStale } = await import("./handlers/calendar");
     return markCommsStale(ctx, data.before as CalendarEvent, data.event as CalendarEvent);

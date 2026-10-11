@@ -1,7 +1,7 @@
 /** One place that decides which emoji stands for which kind of item, so lists read at a glance. */
 export const EVENT_EMOJI: Record<string, string> = { open_house: "🏠", showing: "🏠", call: "📞", meeting: "👥", lunch: "🍽️", closing: "🔑", other: "📌" };
 export const TASK_EMOJI: Record<string, string> = { approval: "✋", follow_up: "💬", reminder: "⏰", task: "📝", event: "📅", document: "📄", communication: "✉️" };
-export const APPROVAL_EMOJI: Record<string, string> = { send_email: "✉️", send_bulk_email: "✉️", send_sms: "💬", publish_social: "📣", calendar_create: "📅", calendar_change: "📅", calendar_cancel: "📅", send_document: "📄", delete: "🗑️", other: "✋" };
+export const APPROVAL_EMOJI: Record<string, string> = { send_email: "✉️", send_bulk_email: "✉️", send_sms: "💬", publish_social: "📣", calendar_create: "📅", calendar_change: "📅", calendar_cancel: "📅", calendar_replace: "📅", send_document: "📄", delete: "🗑️", other: "✋" };
 export const CONTACT_EMOJI: Record<string, string> = { buyer: "🔍", seller: "🏷️", rental: "🏢", investor: "💼", past_client: "⭐", lead: "🌱", vendor: "🛠️", agent: "🤝", other: "👤" };
 export const PLATFORM_EMOJI: Record<string, string> = { instagram: "📸", facebook: "👍", tiktok: "🎵", linkedin: "💼", x: "🐦" };
 

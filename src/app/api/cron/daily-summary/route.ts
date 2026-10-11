@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db/store";
+import { bearerMatches } from "@/lib/server/bearer";
 import { sendEmailNotification } from "@/lib/notify";
 import { dailySummaryEmail, summaryHasContent } from "@/lib/daily-summary";
 import { startOfDay, addDays } from "@/lib/time";
@@ -10,7 +11,7 @@ const MAX_PER_RUN = 200;
 /** Scheduled morning summary (Vercel Cron, protected by CRON_SECRET). Sent at most once a day, only if the person opted in and was recently active. */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!bearerMatches(req, secret)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const store = getStore();
   const now = new Date();
   const since = new Date(now.getTime() - ACTIVE_DAYS * 86_400_000).toISOString();

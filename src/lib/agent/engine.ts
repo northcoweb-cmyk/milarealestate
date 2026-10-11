@@ -18,6 +18,7 @@ import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHan
 import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
+import { correctReplacement, replaceCancel, replaceEventHandler, replaceOverlap, replacePick, replaceSlot, replaceSlotOptions } from "./handlers/replace";
 import { petCheckHandler, setPets } from "./handlers/pets";
 import { listingAgreementHandler, saveWorksheet, worksheetForm } from "./handlers/worksheet";
 import { saveAnswers } from "./handlers/contacts";
@@ -161,6 +162,15 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   let forced: Intent | null = null; // an answer to Mila's question continues THAT request, whatever the merged text looks like
   let answering: { intent: string; missing: string } | null = null;
 
+  // a typed "yes" confirms exactly the preview Mila just showed (and nothing else); "no" declines it
+  if (pend?.kind === "approval" && text) {
+    const fixed = await correctReplacement(ctx, text);
+    if (fixed) return { out: fixed, intent: "replace_event" };
+    const ap = await ctx.store.get("approvals", ctx.userId, pend.approval_id);
+    if (!ap || ap.status !== "pending") ctx.state.pending = null;
+    else if (isYes(text)) { ctx.state.pending = null; await persistState(ctx); return { out: await runAction(ctx, { type: "approve", id: ap.id }), intent: "smalltalk" }; }
+    else if (isNo(text)) { ctx.state.pending = null; await persistState(ctx); return { out: await runAction(ctx, { type: "reject", id: ap.id }), intent: "smalltalk" }; }
+  }
   if (pend?.kind === "stale_comms" && text) {
     if (isYes(text)) return { out: await resolveStale(ctx, pend.event_id, "update"), intent: "move_event" };
     if (isNo(text)) return { out: await resolveStale(ctx, pend.event_id, "leave"), intent: "smalltalk" };
@@ -288,6 +298,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     if (known.length) { const u = await clientUpdateHandler(ctx, text, known); if (u) return u; }
   }
   switch (intent) {
+    case "replace_event": return replaceEventHandler(ctx, text);
     case "listing_agreement": return listingAgreementHandler(ctx, text);
     case "pet_check": return petCheckHandler(ctx, text);
     case "client_search": return clientSearchHandler(ctx, text);
@@ -453,6 +464,11 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
     case "listing_worksheet_start": return worksheetForm(ctx, String(a.propertyId));
     case "listing_worksheet": return saveWorksheet(ctx, String(a.propertyId), (a.answers ?? {}) as Record<string, string>);
     case "set_pets": return setPets(ctx, String(a.propertyId), String(a.policy ?? "Pets allowed"));
+    case "replace_pick": return replacePick(ctx, String(a.eventId));
+    case "replace_overlap": return replaceOverlap(ctx);
+    case "replace_slot_options": return replaceSlotOptions(ctx);
+    case "replace_slot": return replaceSlot(ctx, String(a.start), String(a.end));
+    case "replace_cancel": return replaceCancel(ctx);
     case "shift_events": return shiftEvents(ctx, (a.eventIds ?? []).map(String), String(a.after));
     case "find_time": return findTimeForEvent(ctx, a.eventId, a.durationMin ?? 60);
     case "cancel_pick": { const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId); return ev ? cancelEvent(ctx, ev) : reply("I couldn't find that event.", [], "smalltalk"); }
