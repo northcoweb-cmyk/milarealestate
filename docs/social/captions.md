@@ -1,6 +1,6 @@
 # Mila launch post (Oct 11)
 
-## Instagram caption (carousel: mila-launch-1 to 5)
+## Instagram caption (carousel: mila-brand-1 to 5)
 
 9 days. 🔑
 
@@ -23,7 +23,7 @@ Comment "MILA" and I'll make sure you're on the list.
 
 #realestate #realtor #realestateagent #realestatetech #realestatemarketing
 
-## X post (image: mila-launch-x.png), 261 characters
+## X post (image: mila-brand-x.png), 261 characters
 
 Real estate agents: what if you could say one sentence and your whole day got handled?
 
