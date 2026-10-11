@@ -2,7 +2,7 @@ import next from "eslint-config-next";
 
 const config = [
   ...next,
-  { ignores: [".next/**", ".data/**", "node_modules/**", "admin-os/**", "waitlist/**"] },
+  { ignores: [".next/**", ".data/**", "node_modules/**", "admin-os/**", "waitlist/**", "docs/audit/**"] },
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",

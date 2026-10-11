@@ -68,15 +68,23 @@ export async function prepPropertyHandler(ctx: Ctx, text: string): Promise<Handl
   const lines: string[] = [];
   const specs = [prop.beds != null && `${prop.beds} bd`, prop.baths != null && `${prop.baths} ba`, prop.sqft && `${plus(prop.sqft)} sq ft`, x?.year_built && `built ${x.year_built}`, x?.lot_sqft && `${plus(x.lot_sqft)} sq ft lot`, x?.property_type].filter(Boolean);
   if (specs.length) lines.push(specs.join(" · "));
-  if (x?.list_status === "Active" && prop.list_price) lines.push(`Active listing at ${fullMoney(prop.list_price)}${x.days_on_market != null ? `, ${x.days_on_market} days on market` : ""}${x.mls ? ` (${x.mls})` : ""}${x.listing_agent ? ` — ${x.listing_agent}${x.listing_office ? `, ${x.listing_office}` : ""}` : ""}.`);
+  // the feed's own numbers are labelled as the feed's; what the agent saved is never silently replaced by them, and a disagreement is said out loud
+  const feed = mem?.facts ?? null, feedPrice = feed?.list_price ?? prop.list_price;
+  const diffs: string[] = [];
+  if (feed?.list_price && prop.list_price && feed.list_price !== prop.list_price) diffs.push(`price ${fullMoney(feed.list_price)} (you have ${fullMoney(prop.list_price)})`);
+  if (feed?.beds && prop.beds != null && feed.beds !== prop.beds) diffs.push(`${feed.beds} bd (you have ${prop.beds})`);
+  if (feed?.baths && prop.baths != null && feed.baths !== prop.baths) diffs.push(`${feed.baths} ba (you have ${prop.baths})`);
+  if (feed?.sqft && prop.sqft != null && feed.sqft !== prop.sqft) diffs.push(`${plus(feed.sqft)} sq ft (you have ${plus(prop.sqft)})`);
+  if (x?.list_status === "Active" && feedPrice) lines.push(`Active listing at ${fullMoney(feedPrice)}${x.days_on_market != null ? `, ${x.days_on_market} days on market` : ""}${x.mls ? ` (${x.mls})` : ""}${x.listing_agent ? ` — ${x.listing_agent}${x.listing_office ? `, ${x.listing_office}` : ""}` : ""}.`);
   if (x?.est_value) lines.push(`Estimated value ${fullMoney(x.est_value)}${x.est_low && x.est_high ? ` (range ${fullMoney(x.est_low)}–${fullMoney(x.est_high)})` : ""} — an automated estimate, not an appraisal.`);
   if (x?.last_sale_price) lines.push(`Last sold ${fullMoney(x.last_sale_price)}${x.last_sale_date ? ` on ${new Date(x.last_sale_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}` : ""}.`);
   if (x?.tax_amount) lines.push(`Property taxes about ${fullMoney(x.tax_amount)}${x.tax_year ? ` (${x.tax_year})` : ""}.`);
+  if (diffs.length) lines.push(`The data I pulled disagrees with what you saved: ${diffs.join("; ")}. I kept your numbers. Tell me if the data is right and I'll update them.`);
   const notes = prepNotes(prop, x);
   const found = Boolean(mem?.found);
   const ohEvent = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime() && (e.property_id === prop!.id || `${e.title} ${e.location ?? ""}`.toLowerCase().includes(prop!.address.toLowerCase()))).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
   const forOH = !!ohEvent || /\bopen house\b/i.test(text);
-  const market = x?.list_status ? (x.list_status === "Active" ? `On the market: active${x.days_on_market != null ? `, ${x.days_on_market} days` : ""}${prop.list_price ? ` at ${fullMoney(prop.list_price)}` : ""}.` : `Market status: ${String(x.list_status).toLowerCase()}.`) : found ? "Not showing as an active listing right now." : "";
+  const market = x?.list_status ? (x.list_status === "Active" ? `On the market: active${x.days_on_market != null ? `, ${x.days_on_market} days` : ""}${feedPrice ? ` at ${fullMoney(feedPrice)}` : ""}.` : `Market status: ${String(x.list_status).toLowerCase()}.`) : found ? "Not showing as an active listing right now." : "";
   if (market) lines.unshift(market);
   const head = forOH && found ? `Open house prep for ${prop.address}${ohEvent ? ` (${fmtDay(ohEvent.start_at, ctx.tz)}, ${fmtTime(ohEvent.start_at, ctx.tz)})` : ""}. I already did the research, so you can walk in ready:` : found ? `Here's what I pulled on ${prop.address}${prop.city ? `, ${prop.city}` : ""}:` : `I saved ${prop.address}, but I couldn't find its details${rentcastConfigured() ? " in the property data" : ""}. Tell me the beds, baths and price and I'll fill it in.`;
   const body = [head, ...lines, ...(notes.length ? ["", "Worth knowing:", ...notes.map((n) => `• ${n}`)] : []), ...(found ? ["", "Double-check anything before you quote it to a client."] : [])].join("\n");

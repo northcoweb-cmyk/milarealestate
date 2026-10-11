@@ -142,7 +142,7 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
   else if (calOut.result.ok) {
     event = (calOut.result.data as { event: CalendarEvent }).event;
     outputs.event_id = event.id; ctx.state.last_event_id = event.id;
-    plan.push({ label: "Calendar event", tool: "create_calendar_event", state: "done", detail: (calOut.result.data as any).syncedToGoogle ? "Added to Google Calendar" : "Added to your Mila calendar" });
+    plan.push({ label: "Calendar event", tool: "create_calendar_event", state: "done", detail: (calOut.result.data as any).syncedToGoogle ? "Added to Google Calendar" : (calOut.result.data as any).syncPending ? "Saved in Mila; Google Calendar did not confirm it yet" : "Added to your Mila calendar" });
   } else plan.push({ label: "Calendar event", tool: "create_calendar_event", state: "failed", detail: calOut.result.message });
 
   // Communications reference the event; if the calendar write is waiting for approval, fall back to the

@@ -43,15 +43,21 @@ test("new buyer gets the quick-questions card and the answers land on the contac
   assert.equal(c.location, "Rockville, MD");
 });
 
-test("out of office: one tap pushes the booked things to the first day back", async () => {
+test("out of office: the push to the first day back shows an exact preview and moves things only after a confirm", async () => {
+  // Changed on purpose (docs/implementation/eval-failures.md, EV-23): this used to move the events on the first tap with no preview.
   const a = await fresh();
   await text(a, "Showing at 12 Oak Lane Rockville MD Thursday at 2pm with Dana");
   const r: any = await a.say("I'm out of town Thursday");
   const shift = r.milaMessage.blocks.flatMap((b: any) => b.buttons ?? []).find((b: any) => b.action?.type === "shift_events");
   assert.ok(shift, "offers to push everything");
-  await a.act(shift.action);
-  const ev = (await store.list("calendar_events", a.id)).find((e: any) => /Showing/.test(e.title)) as any;
-  assert.match(new Date(ev.start_at).toISOString(), /2026-10-09/);
+  const preview: any = await a.act(shift.action);
+  const showing = async () => (await store.list("calendar_events", a.id)).find((e: any) => /Showing/.test(e.title)) as any;
+  assert.doesNotMatch((await showing()).start_at, /2026-10-09/, "nothing moves on the first tap");
+  assert.match(JSON.stringify(preview.milaMessage), /Showing/);
+  const confirm = preview.milaMessage.blocks.flatMap((b: any) => b.buttons ?? []).find((b: any) => b.approvalId);
+  assert.ok(confirm, "an exact preview with a confirm button");
+  await a.act({ type: "approve", id: confirm.approvalId });
+  assert.match(new Date((await showing()).start_at).toISOString(), /2026-10-09/);
 });
 
 test("event titles keep who it is for", async () => {

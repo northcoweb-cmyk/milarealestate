@@ -44,6 +44,21 @@ export function invalidTimeToken(text: string): string | null {
   return null;
 }
 
+const MONTH_ABBR = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+/** Returns the offending phrase if the text names a day that cannot exist ("February 30", "the 45th", "October thirty fifth"), so it is asked about instead of guessed. */
+export function invalidDateToken(text: string): string | null {
+  const t = text.toLowerCase();
+  for (const m of t.matchAll(new RegExp(`\\b(${MONTH_ABBR.join("|")})[a-z]*\\.?\\s+(\\d{1,3})(?:st|nd|rd|th)?\\b(?!\\s*(?::|am|pm|a\\.m|p\\.m))`, "g"))) {
+    const day = +m[2];
+    if (day < 1 || day > DAYS_IN[MONTH_ABBR.indexOf(m[1])]) return text.slice(m.index!, m.index! + m[0].length).trim();
+  }
+  for (const m of t.matchAll(/\bthe\s+(\d{1,3})(?:st|nd|rd|th)\b/g)) if (+m[1] < 1 || +m[1] > 31) return text.slice(m.index!, m.index! + m[0].length);
+  // spoken: "october thirty fifth", "the forty first"
+  for (const m of t.matchAll(new RegExp(`\\b(?:(?:${MONTH_ABBR.join("|")})[a-z]*|the)\\s+(thirty|forty|fifty|sixty|seventy|eighty|ninety)[-\\s]?(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)\\b`, "g"))) if (!(m[1] === "thirty" && m[2] === "first")) return text.slice(m.index!, m.index! + m[0].length);
+  return null;
+}
+
 /** Parses "1 PM", "1:30pm", "1–3 PM", "from 10 to noon", "at three", "noon", "morning". */
 export function parseTime(text: string): TimeSpec | null {
   const t = parseTimeRaw(text);
@@ -62,6 +77,10 @@ function parseTimeRaw(text: string): TimeSpec | null {
   const clock = `(\\d{1,2}|${word})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?)?`;
   const toNum = (s: string) => numWord(s) ?? 0;
 
+  // "showing Thursday 11" / "lunch fri 1:30": a bare clock number right after a weekday is a time (never before bed/bath/people/units)
+  const dayHour = /\b(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?,?\s+(?:at\s+)?(1[0-2]|[1-9])(?::([0-5]\d))?(?![\d:]|\s*(?:[ap]\.?m|st|nd|rd|th|bed|bath|br\b|ba\b|bd\b|people|min|hour|hr|day|week|month|year|%|\/|-|o['’]?clock|pm|am))/i.exec(t);
+  const streetAfter = dayHour ? new RegExp(`^\\s+[a-z0-9'.]+(?:\\s+[a-z0-9'.]+){0,2}\\s+(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|way|blvd|boulevard|pl|place|cir|circle|ter|terrace|pkwy|parkway|pike)\\b`, "i").test(t.slice((dayHour.index ?? 0) + dayHour[0].length)) : false;
+  if (dayHour && !streetAfter && !/\b(?:half past|quarter (?:to|past|after))\b/i.test(t) && !/\d\s*(?:a\.?m\.?|p\.?m\.?)/i.test(t)) return { start: to24(+dayHour[1], dayHour[2] ? +dayHour[2] : 0), explicit: false };
   // spoken forms: "half past 2", "quarter to 3", "quarter after 4", "2 o'clock"
   const spoken = new RegExp(`\\b(half past|quarter past|quarter after|quarter to)\\s+(\\d{1,2}|${word})\\b`, "i").exec(t);
   if (spoken) {
@@ -140,7 +159,9 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
   };
 
   // "a week from Friday", "two weeks from today", "3 days after tomorrow"
-  const away = new RegExp(`\\b(a|an|one|two|three|four|\\d+)\\s+(week|day)s?\\s+(?:from|after)\\s+(today|tomorrow|(?:next\\s+)?(?:${WEEKDAYS.join("|")}|${WD_ABBR}))\\b`).exec(t);
+  // "a day after tomorrow" / "3 days after tomorrow" -- but "around 2 day after tomorrow" is "day after tomorrow", and the 2 belongs to the time
+  const away0 = new RegExp(`\\b(?:(a|an|one)\\s+(week|day)s?|(two|three|four|\\d+)\\s+(week|day)s)\\s+(?:from|after)\\s+(today|tomorrow|(?:next\\s+)?(?:${WEEKDAYS.join("|")}|${WD_ABBR}))\\b`).exec(t);
+  const away = away0 && [away0[0], away0[1] ?? away0[3], away0[2] ?? away0[4], away0[5]];
   if (away) {
     const base = parseDate(away[3], now, tz);
     const n = (numWord(away[1]) ?? 1) * (away[2] === "week" ? 7 : 1);
@@ -318,6 +339,11 @@ export function parseTimeline(text: string): string | null {
     ?? /\bin\s+(?:about\s+|around\s+)?(\d+|one|two|three|four|five|six|twelve)\s+(month|week|year)s?\b/.exec(t);
   if (m) { const n = numWord(m[1]); return `Next ${n} ${m[2]}${n === 1 ? "" : "s"}`; }
   if (/\basap\b|\bright away\b|\bimmediately\b/.test(t)) return "ASAP";
+  // "thinking of listing in the spring" / "wants to buy by summer" / "moving next fall" / "closing in March"
+  const season = /\b(?:(next|this|early|late)\s+)?(spring|summer|fall|autumn|winter)\b/.exec(t);
+  if (season && /\b(?:in|by|before|this|next|early|late|for|during)\b/.test(t.slice(Math.max(0, (season.index ?? 0) - 14), season.index ?? 0) + " " + (season[1] ?? ""))) return `${season[1] ? season[1][0].toUpperCase() + season[1].slice(1) + " " : ""}${season[2][0].toUpperCase() + season[2].slice(1)}`;
+  const mon = /\b(?:in|by|before|around)\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b(?!\s+\d)/.exec(t);
+  if (mon) return mon[1][0].toUpperCase() + mon[1].slice(1);
   if (/\bthis (spring|summer|fall|winter)\b/.test(t)) return /\bthis (spring|summer|fall|winter)\b/.exec(t)![0].replace(/^./, (c) => c.toUpperCase());
   if (/\b(just|only)\s+(starting|browsing|looking)|no rush|someday\b/.test(t)) return "No rush";
   return null;
@@ -341,7 +367,13 @@ export function parsePersonName(text: string): string | null {
   const NM = `(${W}(?:\\s+${W}){0,2})`;
   const named = new RegExp(`\\b(?:named|called|name is|name's)\\s+${NM}`, "u").exec(text);
   if (named) return named[1];
-  const asA = new RegExp(`\\b(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\s*[,:-]?\\s+${NM}`, "u").exec(text);
+  // "Priya Shah is a new buyer, wants…" / "my new client is Lisa Gray"
+  const subj = new RegExp(`^\\s*${NM}\\s+(?:is|are|'s)\\s+(?:a|an|my)\\s+(?:new\\s+)?(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\b`, "u").exec(text);
+  if (subj && !NAME_STOP.has(subj[1].split(" ")[0])) return subj[1];
+  // "spoke with Greg Hall, he wants to buy" / "just met Dana Cole"
+  const met = new RegExp(`\\b(?:spoke\\s+(?:to|with)|talked\\s+(?:to|with)|chatted\\s+with|met(?:\\s+with)?|ran\\s+into|(?:phone|call)\\s+with)\\s+(?:an?\\s+)?${NM}`, "u").exec(text);
+  if (met && !NAME_STOP.has(met[1].split(" ")[0])) return met[1];
+  const asA = new RegExp(`\\b(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\s*(?:[,:-]|\\bis\\b)?\\s+${NM}`, "u").exec(text);
   if (asA && !NAME_STOP.has(asA[1].split(" ")[0])) return asA[1];
   const addAs = new RegExp(`\\b[Aa]dd\\s+${NM}\\s+as\\b`, "u").exec(text);
   if (addAs) return addAs[1];
@@ -406,13 +438,13 @@ export function splitClauses(text: string): string[] {
   const another = /^(.*?\b(showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)s?\b.*?)\s+and\s+(?:another|one more|a second)\s+(?:(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)\s+)?(.+)$/i.exec(text.trim());
   if (another) return [another[1].trim(), `${another[2]} ${another[3]}`.trim()];
   const parts = text
-    .split(/\s*(?:;|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b)|[.!]\s+(?=(?:what(?:'s| is)|what am i|anything)\b[^.?!]*\bmissing\b))\s*/i)
+    .split(/\s*(?:;|,\s*(?:and\s+)?(?=(?:remind me|email|e-mail|text|draft|add|book|schedule|cancel|move|reschedule|set up|create)\b)|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b)|[.!]\s+(?=(?:what(?:'s| is)|what am i|anything)\b[^.?!]*\bmissing\b))\s*/i)
     .map((s) => s.trim())
     .filter(Boolean);
   // "… and remind me …", "… and move my …" start a new clause when followed by an action verb
   const out: string[] = [];
   for (const p of parts) {
-    const sub = p.split(/\s+and\s+(?=(?:remind me|move|reschedule|schedule|cancel|delete|remove|draft|email|text|set up|add (?:it|this|that|an? )|create|make|find)\b)/i);
+    const sub = p.split(/\s+and\s+(?=(?:remind me|move|reschedule|schedule|cancel|delete|remove|draft|email|text|set up|add\b|book\b|put\b|send\b|tell\b|create|make|find)\b)/i);
     // "lunch with Dana Saturday at noon and a meeting Monday at 3pm": a second booking with its own day/time is its own request
     for (const piece of sub) {
       const again = piece.split(/\s+and\s+(?=(?:(?:an?|another)\s+)?(?:showing|meeting|call|appointment|inspection|tour|lunch|dinner|coffee|walkthrough|closing|open house)\b)/i);
@@ -434,7 +466,7 @@ const WD = "(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(?:day|sday|nesday|rs
 const MON = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?";
 const DATE_ALT = `day after tomorrow|tomorrow|tmrw|tmw|today|tonight|this weekend|(?:this|next|on|coming)\\s+${WD}|${WD}(?:\\s+the\\s+\\d{1,2}(?:st|nd|rd|th))?|the\\s+\\d{1,2}(?:st|nd|rd|th)|${MON}\\s+\\d{1,2}(?:st|nd|rd|th)?|\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?|in\\s+(?:\\d+|one|two|three|four|five|six|seven)\\s+(?:day|week)s?`;
 const DATE_WORDS = new RegExp(`\\b(?:${DATE_ALT})\\b`, "gi");
-const TIME_WORDS = /\b(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?:\s*(?:-|to|until)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)?|(?:half past|quarter (?:to|past))\s+\w+|noon|midnight|at\s+\d{1,2}(?::\d{2})?)(?=\W|$)/gi;
+const TIME_WORDS = /\b(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?:\s*(?:-|to|until)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)?|(?:half past|quarter (?:to|past))\s+\w+|noon|midnight|at\s+\d{1,2}(?::\d{2})?|(?:at\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:fifteen|thirty|forty[- ]?five)(?:\s*(?:a\.?m\.?|p\.?m\.?))?|at\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s*(?:a\.?m\.?|p\.?m\.?|o['’]?clock))?)(?=\W|$)/gi;
 
 /**
  * When someone corrects an earlier request ("sorry, the one for today Saturday"), the new date/time REPLACES the old one

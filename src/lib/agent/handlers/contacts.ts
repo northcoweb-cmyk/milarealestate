@@ -1,10 +1,10 @@
 import { askWhichPerson, ambiguousFirstName, pickProperty } from "./entity";
 import { plausibleName } from "../nlu";
-import { addDays, fmtDayTime, partsIn, zonedToUtc } from "../../time";
+import { addDays, fmtDayTime, fmtTime, partsIn, zonedToUtc } from "../../time";
 import type { Block, Contact, ContactType, DocumentTemplate, WorkflowRun } from "../../types";
 import { type Ctx, firstName, fullMoney, label, money, pickColor, plural } from "../context";
 import { persistState } from "../conversation";
-import { buildDebrief, greetingFor } from "../debrief";
+import { buildDebrief, coverageNote, greetingFor } from "../debrief";
 import { contactFacts, listMemories, saveMemory } from "../memory";
 import { capitalisedNames, parseBaths, parseBeds, parseContactType, parseEmail, parseLocation, parseMoney, parsePersonName, parsePhone, parseTimeline } from "../nlu";
 import { computePriorities } from "../prioritize";
@@ -167,7 +167,12 @@ export async function prioritiesHandler(ctx: Ctx): Promise<HandlerOut> {
 
 export async function debriefHandler(ctx: Ctx): Promise<HandlerOut> {
   const d = await buildDebrief(ctx);
-  return reply("Here's your day.", [{ type: "debrief", greeting: greetingFor(ctx.now, ctx.tz, ctx.profile.full_name).toUpperCase(), counts: d.counts, noticed: d.noticed, buttons: [{ label: "Open Home", style: "secondary", href: "/" }] }]);
+  const cov = await coverageNote(ctx);
+  const line = (e: { start_at: string; title: string }) => `• ${fmtTime(e.start_at, ctx.tz)}  ${e.title}`;
+  const today = d.today.length ? `Today you have ${plural(d.today.length, "thing")}:\n${d.today.slice(0, 8).map(line).join("\n")}` : "Nothing is on your calendar today.";
+  const blocks: Block[] = [{ type: "debrief", greeting: greetingFor(ctx.now, ctx.tz, ctx.profile.full_name).toUpperCase(), counts: d.counts, noticed: d.noticed, buttons: [{ label: "Open Home", style: "secondary", href: "/" }] }];
+  if (cov) blocks.push({ type: "notice", tone: "info", title: "What this plan can see", body: cov.text, buttons: [{ label: "See connections", style: "secondary", href: "/settings/connections" }] });
+  return reply(`Here's your day. ${today}${cov ? `\n\n${cov.text}` : ""}`, blocks);
 }
 
 /** Rank the agent's buyers and renters against one property: beds, budget, area, type. Pure scoring over saved data, no outside calls. */
@@ -270,7 +275,7 @@ export async function deleteHandler(ctx: Ctx, text: string): Promise<HandlerOut>
 }
 
 export async function saveMemoryHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
-  const body = text.replace(/^.*?\b(?:remember(?: that)?|note that|keep in mind(?: that)?)\b[:,]?\s*/i, "").trim();
+  const body = text.replace(/^.*?\b(?:remember(?: that)?|note that|keep in mind(?: that)?|going forward|from now on|from here on(?: out)?)\b[:,]?\s*/i, "").trim();
   if (!body) return reply("What should I remember?");
   const names = capitalisedNames(body);
   let subject: Contact | null = null;

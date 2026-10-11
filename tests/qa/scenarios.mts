@@ -107,7 +107,8 @@ export function buildScenarios(): Scenario[] {
       check: async (res, a) => {
         const s = slot(now, tz, day, t);
         const evs = (await events(a)).filter((e: any) => !a.seedIds.has(e.id) && new Date(e.start_at).getTime() === s.start.getTime());
-        if (s.start.getTime() < now.getTime()) { if (evs.length && Math.abs(new Date(evs[0].start_at).getTime() - (s.start.getTime() + 7 * 86_400_000)) > 60_000) return `scheduled in the past: ${evs[0].start_at}`; return; }
+        // "today at 12" asked at 12:39 for a one-hour lunch is happening right now: it belongs on today's calendar
+        if (s.start.getTime() < now.getTime()) { if (evs.length && day === "today" && new Date(evs[0].end_at).getTime() > now.getTime()) return; if (evs.length && Math.abs(new Date(evs[0].start_at).getTime() - (s.start.getTime() + 7 * 86_400_000)) > 60_000) return `scheduled in the past: ${evs[0].start_at}`; return; }
         if (await overlapsExisting(a, s.start, kind === "showing" ? 45 : kind === "lunch" ? 60 : 30)) { if (!blocks(res, "choice").length) return `overlap not surfaced as a choice: ${res.milaMessage.content.slice(0, 100)}`; return; }
         if (evs.length !== 1) return `expected an event at ${s.start.toISOString()}, found ${evs.length}: ${res.milaMessage.content.slice(0, 120)}`;
       },
@@ -386,7 +387,9 @@ export function buildScenarios(): Scenario[] {
       if (new Date(e.start_at).getTime() > now.getTime() + 400 * 86_400_000) return `date phrase produced an event over a year away for "${phr}"`;
       if (p.h !== h || p.mi !== mi) return `time wrong for "${phr}": got ${p.h}:${p.mi}, want ${h}:${mi}`;
       if (eh != null) { const q = local(e.end_at, tz); if (q.h !== eh || q.mi !== emi) return `end time wrong for "${phr}": got ${q.h}:${q.mi}, want ${eh}:${emi}`; }
-      const exp = dfn(now, tz);
+      let exp = dfn(now, tz);
+      // a weekday said on that same weekday, for a time that already passed today, means next week (the agent's documented rule; the open_house grid above accepts it too)
+      if (exp && dp === "Sat" && zonedToUtc(exp.y, exp.m, exp.d, h, mi, tz).getTime() < now.getTime() - 60_000) { const n7 = partsIn(addDays(zonedToUtc(exp.y, exp.m, exp.d, 12, 0, tz), 7, tz), tz); exp = { y: n7.y, m: n7.m, d: n7.d }; }
       if (exp && !(p.y === exp.y && p.m === exp.m && p.d === exp.d)) return `date wrong for "${phr}": got ${p.y}-${p.m}-${p.d}, want ${exp.y}-${exp.m}-${exp.d}`;
       const mm = /^(?:10\/|Oct |October )(\d+)/.exec(dtext); if (mm && !(p.d === +mm[1])) return `day-of-month wrong for "${phr}": got ${p.d}`;
       void T;
@@ -434,6 +437,160 @@ export function buildScenarios(): Scenario[] {
       if (ks.filter((c) => c.name === "Kim Lee").length !== 1) f.push("parallel new-buyer created wrong number of contacts");
       return f;
     } });
+  }
+
+  // ================================================================ real agent speech (added by the eval pass)
+  // Slang dates, spoken times, messy addresses, bulk imports, content requests, reschedules, cancellations (must ask) and ambiguous requests (must ask ONE clear question).
+  // Every oracle is state-based (what is in the store afterwards) and uses only phrasings with one unambiguous reading, so a failure is a real defect or a wrong oracle, never a taste question.
+  const SPEECH_DAYS: [string, number][] = [["tomorrow", 1], ["tmrw", 1], ["tmw", 1], ["day after tomorrow", 2], ["day after tmrw", 2], ["in 3 days", 3], ["in 2 days", 2]];
+  const SPOKEN: [string, number, number][] = [["quarter to three", 14, 45], ["half past nine", 9, 30], ["noonish", 12, 0], ["3ish", 15, 0], ["3p", 15, 0], ["10a", 10, 0], ["@ noon", 12, 0], ["quarter after four", 16, 15], ["at ten thirty", 10, 30], ["half past 2", 14, 30], ["around 2", 14, 0], ["11am", 11, 0], ["4:45 PM", 16, 45]];
+  const FILLER = ["", "", "yo ", "pls ", "hey ", "ok so ", "um "];
+  const dayLocal = (now: Date, tz: string, off: number) => partsIn(addDays(startOfDay(now, tz), off, tz), tz);
+
+  // ---- slang dates + spoken times (showings with an address)
+  for (let i = 0; i < 160; i++) {
+    const { now, tz } = randomClock(r);
+    const [dtxt, off] = pick(r, SPEECH_DAYS), [ttxt, h, mi] = pick(r, SPOKEN), addr = pick(r, ADDRS), fill = pick(r, FILLER);
+    const body = pick(r, [`showing at ${addr} ${dtxt} ${ttxt}`, `showing at ${addr} ${ttxt} ${dtxt}`, `set up a showing at ${addr} ${dtxt} ${ttxt}`]);
+    const phr = pick(r, [fill + body, (fill + body).toUpperCase(), fill + body.replace("showing", "shwoing")]);
+    S.push({ id: id("speech_when"), cat: "speech_when", now, tz, seed: false, steps: [{ say: phr, check: async (res, a) => {
+      const ev = (await events(a)).filter((e: any) => e.kind === "showing");
+      const d = dayLocal(now, tz, off);
+      if (ev.length !== 1) return `expected 1 showing for "${phr}", got ${ev.length}: ${res.milaMessage.content.slice(0, 120)}`;
+      const p = local(ev[0].start_at, tz);
+      if (p.y !== d.y || p.m !== d.m || p.d !== d.d) return `wrong day for "${phr}": got ${p.y}-${p.m}-${p.d}, want ${d.y}-${d.m}-${d.d} (tz ${tz} now ${now.toISOString()})`;
+      if (p.h !== h || p.mi !== mi) return `wrong time for "${phr}": got ${p.h}:${p.mi}, want ${h}:${mi}`;
+    } }] });
+  }
+
+  // ---- messy addresses: unit numbers, abbreviations, all lowercase, trailing punctuation, zip
+  const MESSY: [string, RegExp][] = [["123 main st.", /123 main/i], ["4501 n oak ave #2b", /4501.*oak/i], ["88 WILLOW CT", /88 willow/i], ["17 elm st apt 4", /17 elm/i], ["9000 rockville pike", /9000 rockville/i], ["52 lakeview dr, arlington va 22203", /52 lakeview/i], ["310 w diamond ave unit 5", /310 w.* diamond/i], ["7 maple ln", /7 maple/i]];
+  for (let i = 0; i < 60; i++) {
+    const { now, tz } = randomClock(r);
+    const [addr, re] = pick(r, MESSY);
+    const phr = pick(r, [`showing at ${addr} Arlington VA tomorrow at 2pm`, `${addr}, Arlington VA - showing tmrw 2pm`, `book a showing @ ${addr} Arlington VA tomorrow 2pm`]);
+    S.push({ id: id("messy_addr"), cat: "messy_addr", now, tz, seed: false, steps: [{ say: phr, check: async (res, a) => {
+      const ps: any[] = await store.list("properties", a.id), ev = (await events(a)).filter((e: any) => e.kind === "showing");
+      if (ev.length !== 1) return `expected 1 showing for "${phr}", got ${ev.length}: ${res.milaMessage.content.slice(0, 120)}`;
+      if (ps.length !== 1) return `expected 1 saved property for "${phr}", got ${ps.length}`;
+      if (!re.test(ps[0].address)) return `property address "${ps[0].address}" lost the street from "${addr}"`;
+      if (/undefined|NaN|\bnull\b/.test(ps[0].address)) return `property address has junk: ${ps[0].address}`;
+      const p = local(ev[0].start_at, tz), d = dayLocal(now, tz, 1);
+      if (p.d !== d.d || p.h !== 14) return `wrong time for "${phr}": ${p.m}/${p.d} ${p.h}:${p.mi}`;
+    } }] });
+  }
+
+  // ---- bulk imports pasted into chat: every distinct real person once, nobody silently dropped
+  const FIRST = ["Alan", "Beth", "Carl", "Dee", "Eli", "Fay", "Gus", "Hana", "Ian", "Jo", "Kit", "Lena", "Max", "Nia", "Omar", "Pia"], LAST = ["Poe", "Cole", "Dunn", "Evans", "Ford", "Gray", "Hall", "Ivy", "Jones", "Kerr", "Lowe", "Moss", "Nash", "Orr", "Park", "Quinn"];
+  for (let i = 0; i < 40; i++) {
+    const { now, tz } = randomClock(r);
+    const n = 3 + Math.floor(r() * 7), people: { name: string; email: string; phone: string }[] = [];
+    for (let k = 0; k < n; k++) { const f = FIRST[(i * 3 + k * 5) % FIRST.length], l = LAST[(i * 7 + k * 3) % LAST.length]; if (people.some((x) => x.name === `${f} ${l}`)) continue; people.push({ name: `${f} ${l}`, email: `${f}.${l}${i}${k}@example.com`.toLowerCase(), phone: `${200 + k}-555-${String(1000 + i * 7 + k).slice(-4)}` }); }
+    const rows = people.map((p) => pick(r, [`${p.name}, ${p.email}, ${p.phone}`, `${p.name} - ${p.email} - ${p.phone}`, `${p.name} ${p.email} ${p.phone}`, `${p.name.toLowerCase()} ${p.email}`, `${p.name}\t${p.email}\t${p.phone}`]));
+    const dupe = r() < 0.4 ? [rows[0]] : [];
+    const phr = `${pick(r, ["add these from the open house:", "new leads from the sign in sheet", "import these contacts"])}\n${[...rows, ...dupe].join("\n")}`;
+    S.push({ id: id("bulk_paste"), cat: "bulk_paste", now, tz, seed: false, steps: [{ say: phr, check: async (res, a) => {
+      const cs: any[] = await store.list("contacts", a.id), emails = cs.map((c) => (c.email ?? "").toLowerCase());
+      const missing = people.filter((p) => !emails.includes(p.email) && !JSON.stringify(res.milaMessage.blocks).includes(p.email));
+      if (missing.length) return `people silently dropped from the paste (not saved, not offered): ${missing.map((m) => m.name).join(", ")}`;
+      if (new Set(emails).size !== emails.length) return `duplicate contact emails after import: ${emails.join(",")}`;
+      const imported = cs.filter((c) => people.some((p) => p.email === (c.email ?? "").toLowerCase()));
+      const wrong = imported.find((c) => { const p = people.find((x) => x.email === c.email.toLowerCase())!; return c.name.toLowerCase().replace(/[^a-z]/g, "") !== p.name.toLowerCase().replace(/[^a-z]/g, ""); });
+      if (wrong) return `contact "${wrong.name}" does not carry the name written next to ${wrong.email}`;
+      if (imported.length < people.length - 2) return `only ${imported.length} of ${people.length} rows imported without asking`;
+    } }] });
+  }
+
+  // ---- content requests: "make me N posts for this listing" gives N options and invents no features
+  for (let i = 0; i < 40; i++) {
+    const { now, tz } = randomClock(r);
+    const N = 2 + Math.floor(r() * 4), addr = pick(r, ADDRS), facts = r() < 0.5 ? " 3 bed 2 bath $525,000" : "";
+    const phr = pick(r, [`make me ${N} posts for ${addr} Arlington VA${facts}`, `${N} instagram posts for ${addr} Arlington VA${facts}`, `I need ${N} captions for ${addr} Arlington VA${facts}`, `create ${N} posts for the listing at ${addr} Arlington VA${facts}`]);
+    S.push({ id: id("content_n"), cat: "content_n", now, tz, seed: false, steps: [{ say: phr, check: async (res, a) => {
+      const posts: any[] = await store.list("social_posts", a.id);
+      if (posts.length !== N) return `asked for ${N} posts, got ${posts.length}: ${res.milaMessage.content.slice(0, 120)}`;
+      if (posts.some((p) => p.status === "published")) return "a post was published without approval";
+      const body = posts.map((p) => p.caption + JSON.stringify(p.slides ?? [])).join(" ");
+      const invented = /\b(pool|waterfront|granite|hardwood|renovated|fireplace|garage|new roof|chef)/i.exec(body);
+      if (invented) return `post invents a feature that was never given: ${invented[0]}`;
+      if (facts && !/525/.test(body)) return `the price the agent gave is missing from every post: ${body.slice(0, 120)}`;
+      if (!facts && /\$\s?\d{3}/.test(body)) return `a price appears that nobody gave: ${body.slice(0, 120)}`;
+    } }] });
+  }
+
+  // ---- reschedules in slang: "move it to 4", "yo push it to 5", "can we do noon instead"
+  const RESCHED: [string, number, number][] = [["4pm", 16, 0], ["5", 17, 0], ["half past four", 16, 30], ["noon", 12, 0], ["11am", 11, 0], ["quarter to three", 14, 45], ["4:30", 16, 30]];
+  for (let i = 0; i < 80; i++) {
+    const { now, tz } = randomClock(r);
+    const [dtxt, off] = pick(r, SPEECH_DAYS.filter(([x]) => /tomorrow|tmrw|after/.test(x))), [t2, h, mi] = pick(r, RESCHED), addr = pick(r, ADDRS);
+    const verb = pick(r, [`move it to ${t2}`, `push it to ${t2}`, `change it to ${t2}`, `make it ${t2}`, `bump it to ${t2}`, `can we do ${t2} instead`, `yo move it to ${t2}`, `MOVE IT TO ${t2}`, `actually ${t2}`]);
+    S.push({ id: id("resched"), cat: "resched", now, tz, seed: false, steps: [
+      { say: `showing at ${addr} ${dtxt} 9am` },
+      { say: verb, check: async (res, a) => {
+        const all: any[] = await store.list("calendar_events", a.id), ev = all.filter((e) => e.status === "confirmed");
+        if (all.length !== 1) return `rescheduling must edit the one event, found ${all.length} rows after "${verb}"`;
+        if (ev.length !== 1) return `event no longer active after "${verb}": ${res.milaMessage.content.slice(0, 100)}`;
+        const p = local(ev[0].start_at, tz), d = dayLocal(now, tz, off);
+        if (p.d !== d.d) return `"${verb}" changed the day: ${p.m}/${p.d}`;
+        if (p.h !== h || p.mi !== mi) return `"${verb}" gave ${p.h}:${p.mi}, want ${h}:${mi}`;
+      } },
+    ] });
+  }
+
+  // ---- cancellations always ask first: nothing is canceled until the agent confirms
+  for (let i = 0; i < 50; i++) {
+    const { now, tz } = randomClock(r);
+    const addr = pick(r, ADDRS), [dtxt] = pick(r, SPEECH_DAYS.filter(([x]) => /tomorrow|tmrw|after/.test(x)));
+    const verb = pick(r, ["cancel the showing", "cancel it", "scrap the showing", "kill the showing", "get rid of the showing", "CANCEL THE SHOWING", "take the showing off my calendar", "call off the showing"]);
+    S.push({ id: id("cancel_ask"), cat: "cancel_ask", now, tz, seed: false, steps: [
+      { say: `showing at ${addr} ${dtxt} 2pm` },
+      { say: verb, check: async (res, a) => {
+        const ev = (await events(a));
+        if (ev.length !== 1) return `"${verb}" canceled the event without a confirmation (active events: ${ev.length})`;
+        const btn = res.milaMessage.blocks.flatMap((b: any) => b.buttons ?? []).find((b: any) => b.approvalId);
+        if (!btn) return `"${verb}" gave no confirm step: ${res.milaMessage.content.slice(0, 120)}`;
+        if (/^(?:canceled|cancelled|done)\b/i.test(res.milaMessage.content)) return `claims it is canceled before confirmation: ${res.milaMessage.content.slice(0, 100)}`;
+      } },
+      { act: { type: "noop" }, check: async (res, a) => { if ((await events(a)).length !== 1) return "a no-op button changed the calendar"; } },
+    ], custom: async (a) => {
+      const ap = (await store.list("approvals", a.id)).find((x: any) => x.status === "pending");
+      if (!ap) return ["no pending approval to confirm"];
+      await a.act({ type: "approve", id: ap.id });
+      const left = await events(a);
+      return left.length ? [`approving the cancel left ${left.length} active events`] : [];
+    } });
+  }
+
+  // ---- ambiguous requests: ask ONE clear question, change nothing
+  for (let i = 0; i < 60; i++) {
+    const { now, tz } = randomClock(r);
+    const verb = pick(r, ["move the showing to 5pm", "cancel the showing", "push the showing back an hour", "reschedule the showing to 6pm", "cancel the showing please", "MOVE THE SHOWING TO 5PM"]);
+    S.push({ id: id("ambig_event"), cat: "ambig_event", now, tz, seed: false, steps: [
+      { say: "showing at 12 Oak Lane Arlington VA tomorrow at 10am" }, { say: "showing at 40 Pine Court Arlington VA tomorrow at 3pm" },
+      { say: verb, check: async (res, a) => {
+        const ev = await events(a);
+        const q = (res.milaMessage.content.match(/\?/g) ?? []).length;
+        if (ev.length !== 2) return `"${verb}" with two showings changed the number of events (${ev.length})`;
+        if (!res.milaMessage.blocks.some((b: any) => b.type === "choice" && (b.buttons ?? []).length >= 2) && q === 0) return `"${verb}" is ambiguous but no question was asked: ${res.milaMessage.content.slice(0, 120)}`;
+        if (q > 2) return `more than one question asked at once (${q}): ${res.milaMessage.content.slice(0, 160)}`;
+        if (res.milaMessage.blocks.flatMap((b: any) => b.buttons ?? []).some((b: any) => b.approvalId)) return `offered a confirm for a guessed event: ${verb}`;
+      } },
+      { act: { type: "noop" }, check: async (res, a) => { const ev = await events(a); const t = ev.map((e: any) => local(e.start_at, tz).h).sort((x: number, y: number) => x - y).join(); if (t !== "10,15") return `an ambiguous request moved something anyway (hours now ${t})`; } },
+    ] });
+  }
+  for (let i = 0; i < 40; i++) {
+    const { now, tz } = randomClock(r);
+    const verb = pick(r, ["email {n} about the showing", "text {n} hi", "send {n} the flyer", "tell {n} I'm running late", "write {n} a note"]);
+    const first = pick(r, ["Priya", "Dana", "Alex", "Sam"]);
+    S.push({ id: id("ambig_person"), cat: "ambig_person", now, tz, seed: false, steps: [
+      { say: `new buyer ${first} Shah ${first.toLowerCase()}.shah@example.com` }, { say: `new buyer ${first} Patel ${first.toLowerCase()}.patel@example.com` },
+      { say: verb.replace("{n}", pick(r, [first, first.toLowerCase()])), check: async (res, a) => {
+        const dr: any[] = await store.list("email_drafts", a.id), asked = /\?/.test(res.milaMessage.content) || res.milaMessage.blocks.some((b: any) => b.type === "choice" || b.type === "contacts");
+        if (!asked) return `two ${first}s and no question for "${verb}": ${res.milaMessage.content.slice(0, 120)}`;
+        if (dr.length) return `a draft was written for a guessed ${first}`;
+        if ((res.milaMessage.content.match(/\?/g) ?? []).length > 2) return "more than one question at once";
+      } },
+    ] });
   }
   return S;
 }

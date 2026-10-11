@@ -16,6 +16,9 @@ import { askBack } from "./ask";
 import { persistState } from "../conversation";
 import { resolveProperty } from "./listing";
 import { enrichProperty, resolveAddress } from "../property-lookup";
+import { extractListingFacts, hasAnyFact } from "../listing";
+import { ambiguousFirstName, askWhichPerson } from "./entity";
+import { mentionedContacts } from "./contacts";
 
 const COUNT_WORDS: Record<string, number> = { one: 1, a: 1, an: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
 /** "make me 3 posts", "three captions", "a post" → how many the agent asked for (1-6). */
@@ -98,6 +101,13 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   }
   if (!prop) return reply("Which property is the post for? Give me an address and I'll build it.");
   ctx.state.last_property_id = prop.id;
+  // facts the agent states in the request itself ("…for 12 Oak Lane, 3 bed 2 bath, $525,000") are authoritative: keep them on the home, so the post uses them and the next one does too
+  const stated = extractListingFacts(text);
+  if (hasAnyFact(stated)) {
+    const patch: Record<string, unknown> = {};
+    for (const k of ["list_price", "beds", "baths", "sqft"] as const) if (stated[k] != null && stated[k] !== prop[k]) patch[k] = stated[k];
+    if (Object.keys(patch).length) prop = (await ctx.store.update("properties", ctx.userId, prop.id, { ...patch, verified: true } as never)) ?? prop;
+  }
   // a post is only as good as its facts: when the home has no beds, baths, size or price yet, look them up once (cached) instead of posting an address alone
   if (prop.beds == null && prop.baths == null && !prop.sqft && !prop.list_price && prop.city && prop.state && !/\b(commercial|land|lot|retail|office)\b/i.test(`${prop.description ?? ""}`)) {
     try { ctx.steps.push("Looking up the home's details"); prop = (await enrichProperty(ctx, prop, {})).property; } catch { /* the post still goes ahead */ }
@@ -180,16 +190,29 @@ export async function draftEmailHandler(ctx: Ctx, text: string): Promise<Handler
   const pronTo = /^\s*(?:(?:please|can you|could you)\s+)?(?:email|e-mail|write|draft|send)\s+(?:to\s+)?(?:him|her|them)\b/i.test(text) && ctx.state.last_contact_ids?.length === 1;
   const names = pronTo ? [] : capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:tell|let|notify)\s+(?:(?:her|him|them)\b(?:\s+know)?|(?=\p{Lu}))(?:\s+know)?)/iu, " ").replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " "));
   let c: Contact | null = null;
+  // typed in lowercase ("email priya about the showing"): still a saved client by first name, and two of them is a question
+  if (!pronTo && !names.length) {
+    const known = await mentionedContacts(ctx, text.replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:email|e-mail|write|draft|send|tell|let|notify)\b/i, " "));
+    const amb = ambiguousFirstName(text, known);
+    if (amb) return askWhichPerson(text, amb);
+    if (known.length === 1) c = known[0];
+  }
   for (const n of names) { const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any; if (r.ok && r.data.contacts.length === 1) { c = r.data.contacts[0]; break; } if (r.ok && r.data.contacts.length > 1) return reply(`Which ${n}?`, [{ type: "choice", title: `Which ${n}?`, buttons: r.data.contacts.slice(0, 5).map((x: Contact) => ({ label: `${x.name}${x.email ? ` · ${x.email}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: text.replace(n, x.name) } })) }]); }
   // someone was named but isn't a contact: say so, never quietly send the draft to whoever came up last
   if (!c && names.length) return askBack(ctx, "draft_email", text, "name", `I don't have ${names[0]} in your contacts. Who should the email go to? (Say their name, or add them first.)`);
   if (!c && ctx.state.last_contact_ids?.length === 1) c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
   if (!c) return askBack(ctx, "draft_email", text, "name", "Who is the email for?");
   const facts = await contactFacts(ctx, c);
-  const topic = text.replace(/^.*?\b(?:about|regarding|saying|to say|that)\b\s*/i, "").trim() || text;
+  // instructions about HOW to produce the draft ("draft only", "don't send it", "don't put anything on my calendar") are not its subject
+  const brief = text.replace(/[,;.]?\s*(?:and\s+)?(?:draft only|just (?:a )?draft(?: it)?|(?:do ?n['’]?t|do not|no need to|without)\s+[^.,;]*)/gi, "").replace(/\s{2,}/g, " ").trim();
+  const after = /\b(after|following|from)\s+(.{4,120}?)[.!?]*$/i.exec(brief);
+  // "email Gus the flyer for 12 Oak Lane": what comes after the recipient is the subject
+  const gave = /^\s*(?:(?:please|can you|could you)\s+)?(?:email|e-mail|write|draft|send)\s+(?:to\s+)?(?:him|her|them|\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)\s+((?:the|a|an|my)\s+.{3,100}?)[.!?]*$/iu.exec(brief);
+  const topic = after ? after[2].trim() : /\b(?:about|regarding|saying|to say|that)\b/i.test(brief) ? brief.replace(/^.*?\b(?:about|regarding|saying|to say|that)\b\s*/i, "").trim() || brief : gave ? gave[1].trim() : brief;
   const ai = await llmDraftEmail(ctx, text, c.name, facts);
-  const subject = ai?.subject ?? `Following up${topic && topic !== text ? ` — ${topic.slice(0, 50)}` : ""}`;
-  const body = ai?.body ?? `Hi ${firstName(c.name)},\n\n${topic && topic !== text ? `I wanted to follow up about ${topic.replace(/[.!?]+$/, "")}.` : "I wanted to follow up."} Let me know a good time to talk.\n\n${signature(ctx.profile)}`;
+  const hasTopic = !!topic && topic !== text && topic !== brief;
+  const subject = ai?.subject ?? `Following up${hasTopic ? ` — ${topic.slice(0, 50)}` : ""}`;
+  const body = ai?.body ?? `Hi ${firstName(c.name)},\n\n${hasTopic ? `I wanted to follow up ${after ? after[1].toLowerCase() === "following" ? "following" : after[1].toLowerCase() : "about"} ${topic.replace(/[.!?]+$/, "")}.` : "I wanted to follow up."} Let me know a good time to talk.\n\n${signature(ctx.profile)}`;
   const d = ((await TOOLS.draft_email.run(ctx, { contact_id: c.id, subject, body })) as any).data.draft as EmailDraft;
   const out = await invoke(ctx, "send_email", { draftId: d.id });
   const blocks: Block[] = [{ type: "draft_email", draftId: d.id, to: `${c.name}${c.email ? ` <${c.email}>` : ""}`, subject, body, status: "Draft", buttons: out.status === "needs_approval" ? [{ label: "Edit", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Open in email app", style: "primary", approvalId: out.approval.id }] : undefined }];

@@ -14,7 +14,12 @@ const rate = (x: { passed: number; total: number }) => (x.total ? `${x.passed}/$
 console.log(`\nMila eval (deterministic, mocked: rule-based agent, mocked clock, local store; NOT a live-model run)`);
 console.log(`scenarios: ${sum.results.length}  implemented: ${sum.implemented}  passed: ${sum.passed}  failed: ${sum.failed}  not_implemented: ${sum.notImplemented.length}`);
 console.log(`tuned    : ${rate(sum.tuned)}`);
-console.log(`held-out : ${rate(sum.heldOut)}`);
+console.log(`held-out : ${rate(sum.heldOut)}   (now, after fixes; see first-run below)`);
+try {
+  const fr = JSON.parse(fs.readFileSync(new URL("./first-run.json", import.meta.url), "utf8")) as { batches: Record<string, { passed: number; total: number }> };
+  const all = Object.values(fr.batches).reduce((a, b) => ({ passed: a.passed + b.passed, total: a.total + b.total }), { passed: 0, total: 0 });
+  console.log(`held-out FIRST RUN (before any fix for that batch): ${Object.entries(fr.batches).map(([k, v]) => `${k} ${v.passed}/${v.total}`).join(", ")}  =>  ${rate(all)}`);
+} catch { /* optional */ }
 console.log(`\nper-dimension (checks passed / checks run)`);
 for (const d of DIMS) {
   const x = sum.dims[d.key];

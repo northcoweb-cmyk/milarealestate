@@ -98,7 +98,13 @@ export const approvalButton = (r: any) => buttons(r).find((b) => b.approvalId);
 export const blocksOf = (r: any, type: string): any[] => (r?.milaMessage?.blocks ?? []).filter((b: any) => b.type === type);
 export const reply = (r: any): string => r?.milaMessage?.content ?? "";
 export const whole = (r: any): string => reply(r) + " " + JSON.stringify(r?.milaMessage?.blocks ?? []);
-export const isQuestion = (r: any) => /\?/.test(reply(r)) || (r?.milaMessage?.blocks ?? []).some((b: any) => /\?/.test(`${b.title ?? ""} ${b.body ?? ""}`) || (b.type === "choice" && (b.buttons ?? []).length > 1) || b.type === "questions" || (b.type === "contacts" && /which/i.test(b.title ?? "")));
+/** Did Mila ask the user something (instead of doing it)? A reassurance like "Wrong?" on an undo card after an action does not count. */
+export const isQuestion = (r: any) => {
+  const blocks: any[] = r?.milaMessage?.blocks ?? [];
+  if (/\?/.test(reply(r))) return true;
+  if (blocks.some((b) => b.type === "event" && /added|updated|moved|canceled/i.test(b.status ?? ""))) return false;
+  return blocks.some((b) => /\?/.test(`${b.title ?? ""} ${b.body ?? ""}`) || b.type === "questions" || (b.type === "contacts" && /which/i.test(b.title ?? "")) || (b.type === "choice" && (b.buttons ?? []).length > 1));
+};
 export const hasTitleMatch = (evs: any[], re: RegExp) => evs.filter((e) => re.test(e.title));
 export const localParts = (iso: string, tz: string) => {
   const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", weekday: "short" }).formatToParts(new Date(iso));

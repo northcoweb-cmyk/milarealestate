@@ -245,14 +245,14 @@ export const TOOLS: Record<string, ToolDef> = {
         try {
           const ge = await gcal.insert(ctx.userId, { summary: a.title, location: a.location, description: a.notes, start: a.start_at, end: a.end_at, tz: ctx.tz });
           ext = ge.id; syncedAt = nowIso();
-        } catch (e) { syncNote = e instanceof GoogleError ? e.message : "Google Calendar didn't accept it."; }
+        } catch (e) { syncNote = googleSyncNote(e); }
       }
       const ev = await ctx.store.insert("calendar_events", ctx.userId, {
         title: a.title, kind: (a.kind as CalendarEventKind) ?? "other", start_at: a.start_at, end_at: a.end_at,
         location: a.location ?? null, property_id: a.property_id ?? null, contact_id: a.contact_id ?? null,
         status: "confirmed", source: "mila", external_id: ext, synced_at: syncedAt, workflow_run_id: a.workflow_run_id ?? null, notes: a.notes ?? null,
       });
-      return ok({ event: ev, syncedToGoogle: !!ext, syncNote });
+      return ok({ event: ev, syncedToGoogle: !!ext, syncNote, syncPending: Boolean(google?.hasScope("calendar") && !ext) });
     },
   },
   update_calendar_event: {
@@ -304,6 +304,50 @@ export const TOOLS: Record<string, ToolDef> = {
         n++;
       }
       return n ? ok({ cancelled: n }) : fail("not_found", "I couldn't find those events.");
+    },
+  },
+
+  /**
+   * Several events moved at once ("I'm out Monday to Wednesday, push everything to Thursday"). The approval shows each move exactly and binds every event's version,
+   * so nothing moves until the agent has seen the full list, and an event edited after the preview voids the approval.
+   */
+  shift_calendar_events: {
+    name: "shift_calendar_events", status: "Moving your events",
+    gate: async (ctx, a) => {
+      const moves = (a.moves ?? []) as { id: string; start_at: string; end_at: string }[];
+      const lines: string[] = [];
+      for (const m of moves) { const e = await ctx.store.get("calendar_events", ctx.userId, m.id); if (e) lines.push(`${e.title}: ${fmtDayTime(e.start_at, ctx.tz)} → ${fmtDayTime(m.start_at, ctx.tz)}`); }
+      return { key: null, risk: "high", action: "calendar_change", title: `Move ${moves.length} ${moves.length === 1 ? "event" : "events"}`, summary: lines.join("\n"), dueAt: moves[0]?.start_at };
+    },
+    run: async (ctx, a) => {
+      const moves = ((a.moves ?? []) as { id: string; start_at: string; end_at: string }[]).slice(0, 25);
+      const evs: CalendarEvent[] = [];
+      for (const m of moves) {
+        const e = await ctx.store.get("calendar_events", ctx.userId, m.id);
+        if (!e || e.status !== "confirmed") return fail("stale", "One of those events is no longer on your calendar, so I haven't moved anything.");
+        if (!(new Date(m.end_at) > new Date(m.start_at))) return fail("invalid", "One of those new times isn't valid, so I haven't moved anything.");
+        evs.push(e);
+      }
+      const moving = new Set(moves.map((m) => m.id));
+      for (const [i, m] of moves.entries()) {
+        const clash = (await eventConflicts(ctx, m.start_at, m.end_at)).filter((c) => !moving.has(c.id));
+        if (clash.length) return fail("conflict", `${evs[i].title} would overlap ${clash[0].title}, so I haven't moved anything.`);
+        const other = moves.find((o, j) => j !== i && new Date(o.start_at) < new Date(m.end_at) && new Date(m.start_at) < new Date(o.end_at));
+        if (other) return fail("conflict", `${evs[i].title} would overlap another event being moved, so I haven't moved anything.`);
+      }
+      const updated: CalendarEvent[] = [];
+      const notes: string[] = [];
+      for (const [i, m] of moves.entries()) {
+        const ev = evs[i];
+        const patch: Partial<CalendarEvent> = { start_at: m.start_at, end_at: m.end_at };
+        if (ev.external_id) {
+          try { await gcal.patch(ctx.userId, ev.external_id, { start: m.start_at, end: m.end_at, tz: ctx.tz }); patch.synced_at = nowIso(); }
+          catch (e) { notes.push(`${ev.title}: ${e instanceof GoogleError ? e.message : "Google Calendar didn't accept the change"}`); }
+        }
+        updated.push((await ctx.store.update("calendar_events", ctx.userId, ev.id, patch))!);
+        await logContactEvent(ctx, ev.contact_id, "calendar_changed", `${ev.title} moved to ${fmtDayTime(m.start_at, ctx.tz)}`);
+      }
+      return ok({ events: updated, moved: updated.length, syncNote: notes.length ? `Your connected calendar didn't take every change (${notes.join("; ")}). They're moved in Mila.` : undefined });
     },
   },
 
@@ -456,6 +500,14 @@ export const TOOLS: Record<string, ToolDef> = {
 
 export function recipientCount(d: EmailDraft) { return new Set([...d.to_emails.map((e) => e.toLowerCase())]).size + d.to_contact_ids.length - 0; }
 
+/** Why a Google Calendar push did not finish, in words the agent can act on. */
+export function googleSyncNote(e: unknown): string {
+  if (e instanceof GoogleError) return e.message;
+  const name = (e as { name?: string } | null)?.name ?? "";
+  if (name === "TimeoutError" || name === "AbortError") return "Google Calendar didn't respond in time.";
+  return "Google Calendar didn't accept it.";
+}
+
 function googleFail(e: unknown): ToolResult<never> {
   if (e instanceof GoogleError) return fail(e.code === "api" ? "failed" : "not_connected", e.message, "google");
   return fail("failed", e instanceof Error ? e.message : "Something went wrong talking to Google.");
@@ -517,8 +569,8 @@ async function bindingFor(ctx: Ctx, tool: string, args: Args): Promise<Record<st
   } else if (tool === "publish_social_post") {
     const p = await ctx.store.get("social_posts", ctx.userId, args.postId);
     if (p) bind[`social_posts:${p.id}`] = fp({ c: p.caption, h: p.hashtags, s: p.slides, pl: p.platform });
-  } else if (tool === "update_calendar_event" || tool === "cancel_calendar_event") {
-    for (const id of (args.ids ?? [args.id]) as string[]) {
+  } else if (tool === "update_calendar_event" || tool === "cancel_calendar_event" || tool === "shift_calendar_events") {
+    for (const id of (tool === "shift_calendar_events" ? (args.moves ?? []).map((m: { id: string }) => m.id) : (args.ids ?? [args.id])) as string[]) {
       const e = await ctx.store.get("calendar_events", ctx.userId, id);
       if (e) bind[`calendar_events:${e.id}`] = e.updated_at;
     }
@@ -625,7 +677,7 @@ async function decideApprovalOnce(ctx: Ctx, id: string, decision: "approve" | "r
     const u = (await ctx.store.update("approvals", ctx.userId, id, { status: "executed", decided_at: nowIso(), executed_at: nowIso(), result: r.data as any, error: null, blocked_integration: null }))!;
     if (task) await ctx.store.update("tasks", ctx.userId, task.id, { status: "done", completed_at: nowIso() });
     const followUp = await postExecute(ctx, a, r.data);
-    const sent = a.payload.tool.startsWith("send_email") ? `Sent ${plural((r.data as any).sent ?? 1, "email")}.` : a.payload.tool === "replace_calendar_event" ? `Replaced ${(r.data as any).original?.title} with ${(r.data as any).event?.title}.` : "Done.";
+    const sent = a.payload.tool.startsWith("send_email") ? `Sent ${plural((r.data as any).sent ?? 1, "email")}.` : a.payload.tool === "shift_calendar_events" ? `Moved ${plural((r.data as any).moved ?? 0, "event")}.` : a.payload.tool === "replace_calendar_event" ? `Replaced ${(r.data as any).original?.title} with ${(r.data as any).event?.title}.` : "Done.";
     return { approval: u, result: r, followUp, message: (r.data as any)?.syncNote ? `${sent} Note: ${(r.data as any).syncNote}` : sent };
   }
 

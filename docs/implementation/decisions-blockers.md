@@ -16,3 +16,10 @@
 
 ## Known not done
 See `status.md` NOT DONE rows.
+
+## Open defects from the eval pass (see eval-failures.md)
+- Wrong-building photos: `pullListingPhotos` (src/lib/images/listing.ts) attaches photos from any pasted link without checking the address. Not fixed.
+- Multi-day out-of-office is one long event; no all-day or recurring event type (disclosed in replies).
+- Spoken ordinal "the thirty first" parses as today.
+- Double-tap parallel turns share state, lightly tested.
+- `decideApproval` for send_email really sends via Gmail/Outlook when connected, but the buttons say "Open in email app"/"Approve draft": label needs a decision.

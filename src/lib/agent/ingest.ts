@@ -109,9 +109,16 @@ export function textLineToCandidate(line: string): Candidate {
   let rest = line.replace(email ?? "", "").replace(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/, "").replace(/[()\[\]<>]/g, " ");
   // a hyphen only separates fields when it stands alone ("Dana Lee - wants a condo"); "Mary-Kate" and "Smith-Jones" stay whole
   const parts = rest.split(/\s*[,|\t–—]+\s*|\s+-+\s+/).map((s) => s.trim()).filter(Boolean);
-  const nameIdx = parts.findIndex((p) => /^\p{L}[\p{L}'’.-]+(?:\s+\p{L}[\p{L}'’.-]+){0,3}$/u.test(p) && p.split(" ").length <= 4 && !/\b(looking|interested|asked|wants|financ|just|rent|sell|buy)/i.test(p));
-  const name = nameIdx >= 0 ? parts[nameIdx] : null;
-  const notes = parts.filter((_, i) => i !== nameIdx).join("; ") || null;
+  const nameIdx = parts.findIndex((p) => /^\p{L}[\p{L}'’.-]*(?:\s+\p{L}[\p{L}'’.-]*){0,3}$/u.test(p) && /\p{L}{2}/u.test(p) && p.split(" ").length <= 4 && !/\b(looking|interested|asked|wants|financ|just|rent|sell|buy)/i.test(p));
+  let name = nameIdx >= 0 ? parts[nameIdx] : null;
+  let notes = parts.filter((_, i) => i !== nameIdx).join("; ") || null;
+  // "Dev Patel looking in Bethesda": the name is the capitalised run at the front, the rest is a note
+  if (!name && parts.length) {
+    const lead = /^(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,2})(?=\s|$)/u.exec(parts[0]);
+    if (lead && !/^(?:Looking|Interested|Wants|Asked|Just|Rent|Sell|Buy)$/i.test(lead[1])) { name = lead[1]; notes = [parts[0].slice(lead[1].length).trim(), ...parts.slice(1)].filter(Boolean).join("; ") || null; }
+  }
+  // typed in lowercase on a phone ("susan b"): save it as a name should look
+  if (name && name === name.toLowerCase()) name = name.replace(/(^|[\s'’-])(\p{L})/gu, (_m, s: string, ch: string) => s + ch.toUpperCase());
   return validate({ name, email, phone, notes, timeline: parseTimeline(line), location: null, type: null, issues: [], raw: line });
 }
 

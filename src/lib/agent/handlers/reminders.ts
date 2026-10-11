@@ -61,6 +61,11 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   if (!when) return askBack(ctx, "reminder", text, "time", `When should I remind you?${recurring ? " (I can only set one-time reminders for now, not repeating ones.)" : ""}`);
   if (when) when = rollPastWeekday(when, text, ctx.now, ctx.tz);
   if (when.getTime() <= ctx.now.getTime()) return askBack(ctx, "reminder", text, "time", "That time has already passed — what other time should I use?");
+  // "remind me to call him": him/her is the one person we were just talking about, so the reminder says who
+  if (/\b(?:him|her)\b/i.test(title) && ctx.state.last_contact_ids?.length === 1) {
+    const c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
+    if (c) title = title.replace(/\b(?:him|her)\b/i, c.name.split(/\s+/)[0]);
+  }
   if (!title) title = "Reminder";
   title = title.charAt(0).toUpperCase() + title.slice(1);
   const out = await invoke(ctx, "create_reminder", { title, remind_at: when.toISOString(), event_id: eventId });

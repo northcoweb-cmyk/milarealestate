@@ -164,7 +164,9 @@ export async function logInteractionHandler(ctx: Ctx, text: string): Promise<Han
   const kind = /text|dm/.test(verb) ? "text" : /email/.test(verb) ? "email" : /met|stopped|came/.test(verb) ? "meeting" : "call";
   await logContactEvent(ctx, c.id, kind, `${kind[0].toUpperCase()}${kind.slice(1)} logged`, text.slice(0, 400));
   await ctx.store.update("contacts", ctx.userId, c.id, { last_contact_at: ctx.now.toISOString() } as never);
-  const learned = (await learnDetailed(ctx, text)).filter((i) => i.contact?.id === c!.id);
+  // "…she's pre-approved up to 650k, wants 3 beds": a sentence that starts with she/he/they is about the person this call was with
+  const named = text.split(/(?<=[.!?])\s+|\n+/).map((s) => s.replace(/^(she|he|they)(?:('s)|('re))?\b/i, (_m, _p, s1) => (s1 ? `${first} is` : `${first} is`))).join(" ");
+  const learned = (await learnDetailed(ctx, named)).filter((i) => i.contact?.id === c!.id);
   ctx.state.last_contact_ids = [c.id];
 
   // the follow-up: what the agent promised, or what the client asked for — due tomorrow morning

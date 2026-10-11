@@ -22,7 +22,8 @@ import { correctReplacement, replaceCancel, replaceEventHandler, replaceOverlap,
 import { petCheckHandler, setPets } from "./handlers/pets";
 import { listingAgreementHandler, saveWorksheet, worksheetForm } from "./handlers/worksheet";
 import { saveAnswers } from "./handlers/contacts";
-import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, eventReminder, eventCard } from "./handlers/calendar";
+import { ambiguousFirstName, askWhichPerson } from "./handlers/entity";
+import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, syncEventHandler, eventReminder, eventCard } from "./handlers/calendar";
 import { fmtDayTime } from "../time";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
@@ -35,7 +36,7 @@ import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { clientSearchHandler } from "./handlers/search";
 import { importCandidates } from "./ingest";
-import { plausibleName, dropNegatedDate, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
+import { plausibleName, dropNegatedDate, invalidDateToken, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
 
 export type Action = { type: string; [k: string]: any };
 
@@ -68,8 +69,12 @@ export async function buildCtx(profile: Profile, conversationId?: string | null,
   return { userId: profile.id, profile, store, now: (globalThis as { __milaNow?: Date }).__milaNow ?? new Date(), tz: profile.timezone || "America/New_York", conversationId: conv.id, state: conv.state ?? {}, steps, usage: { aiCalls: 0, creditsKey: "chat_simple", extraCredits: 0 } };
 }
 
-const isYes = (t: string) => /^(yes|yep|yeah|sure|do it|please do|update (?:it|them|everything)|go ahead|ok|okay)\b/i.test(t.trim());
-const isNo = (t: string) => /^(no|nope|leave (?:it|them)|keep (?:it|them)|don'?t|not now)\b/i.test(t.trim());
+// A typed answer to a preview is only a yes/no when it is short and carries no new date, time or request ("ok the showing is at 3pm" is neither).
+const LEAD = "(?:(?:wait|actually|oh|hmm+|um+|ok(?:ay)?|so|well|alright|sorry|hold on|please|pls)[,.!\\s]+)*";
+const TAIL = "(?:[,.!\\s]+(?:please|pls|thanks|thank you|now|it|that|this|do it|go ahead|for me))*[.!\\s]*$";
+const isYes = (t: string) => t.trim().split(/\s+/).length <= 6 && !parseTime(t) && !parseDate(t, new Date(), "UTC") && new RegExp(`^${LEAD}(?:yes|yep|yeah|yup|sure|do it|please do|update (?:it|them)|go ahead|go for it|confirm(?:ed)?|approve(?:d)?|sounds good|that'?s right|ok|okay)${TAIL}`, "i").test(t.trim());
+const NO_TAIL = "(?:[,.!\\s]+(?:please|pls|thanks|thank you|now|it|that|this|keep (?:it|them|this|that)|leave (?:it|them|this|that)|don'?t|do not|cancel (?:it|that)|for now|not now|never ?mind))*[.!\\s]*$";
+const isNo = (t: string) => t.trim().split(/\s+/).length <= 6 && !parseTime(t) && !parseDate(t, new Date(), "UTC") && new RegExp(`^${LEAD}(?:no|nope|nah|leave (?:it|them)|keep (?:it|them)|don'?t|do not|never ?mind|nvm|cancel that|stop|not now|scratch that)${NO_TAIL}`, "i").test(t.trim());
 
 export function handleTurn(profile: Profile, input: TurnInput): Promise<TurnOutput> {
   return runInAiScope(profile.id, () => handleTurnInner(profile, input)); // AI spend during this turn is metered to this person
@@ -132,6 +137,46 @@ function park(ctx: Ctx, pend: PendingQuestion | null | undefined) {
   const keep = (ctx.state.parked ?? []).filter((x) => !(x.intent === pend.intent && x.missing === pend.missing && String((x.slots as { text?: string }).text) === text));
   ctx.state.parked = [{ intent: String(pend.intent), slots: pend.slots, missing: String(pend.missing), label: text.slice(0, 80), at: Date.now() }, ...keep].slice(0, 3);
 }
+// ---- is this message about the same thing as an unfinished question? ("lunch with Mark Friday" is not the answer to "what time is the Oak Lane showing?")
+const NOUN_RE = /\b(open house|showing|tour|lunch|dinner|coffee|breakfast|meeting|appointment|call|inspection|walk-?through|closing|consult\w*)\b/i;
+const nounKey = (s: string) => { const n = NOUN_RE.exec(s)?.[1]?.toLowerCase().replace(/-/g, ""); return n === "tour" ? "showing" : n === "appointment" ? "meeting" : n ?? null; };
+const STREET_NOISE = new Set(["street", "st", "avenue", "ave", "road", "rd", "drive", "dr", "lane", "ln", "court", "ct", "way", "boulevard", "blvd", "place", "pl", "terrace", "circle", "cir", "the", "at"]);
+const streetWords = (s: string) => (parseAddress(s) ?? "").toLowerCase().split(/\s+/).filter((w) => w.length >= 3 && !/^\d/.test(w) && !STREET_NOISE.has(w));
+function sameThread(orig: string, ans: string): boolean {
+  const a = nounKey(orig), b = nounKey(ans);
+  if (a && b && a !== b) return false;
+  const addrA = parseAddress(orig)?.toLowerCase(), addrB = parseAddress(ans)?.toLowerCase();
+  if (addrA && addrB && addrA !== addrB) return false;
+  return true;
+}
+/** A plain-words answer ("ok the oak lane showing is at 3pm") to a question that was set aside earlier. */
+function answersParked(p: NonNullable<ConversationStateParked>[number], text: string, ctx: Ctx): boolean {
+  const orig = String((p.slots as { text?: string }).text ?? "");
+  if (!orig || text.split(/\s+/).length > 12 || /\?\s*$/.test(text)) return false;
+  const miss = p.missing;
+  // a bare street address answers "which property?" whatever it is called; times and dates must also be about the same thing
+  if (miss === "address") return !!parseAddress(text) && text.split(/\s+/).length <= 8 && ["general", "smalltalk"].includes(detectIntent(text).intent);
+  const gives = miss === "time" ? !!parseTime(text) : miss === "date" ? !!parseDate(text, ctx.now, ctx.tz) : false;
+  if (!gives || !sameThread(orig, text)) return false;
+  const sw = streetWords(orig).some((w) => text.toLowerCase().includes(w));
+  const noun = nounKey(orig) && nounKey(orig) === nounKey(text) && text.split(/\s+/).length <= 7 && !parseDate(text, ctx.now, ctx.tz);
+  return sw || !!noun;
+}
+type ConversationStateParked = import("../types").ConversationState["parked"];
+const NOT_AN_ANSWER = /^(?:thanks|thank you|thx|ty|ok|okay|k|cool|great|got it|never ?mind|nvm|nothing|no thanks|stop|cancel|forget it)\b/i;
+
+/** A short complaint about Mila's last answer, with nothing else in it to act on. */
+function isFeedback(text: string): boolean {
+  const t = text.trim().replace(/[.!\s]+$/, "");
+  if (t.split(/\s+/).length > 9) return false;
+  return /^(?:(?:no|nope|hmm+|ugh|sorry|um+|wait|oops|hey)[,.!\s]+)*(?:you(?:'ve| have)? (?:got|gotten|did|made|misunderstood|misread)\b.{0,25}\b(?:wrong|incorrect|a mistake)|you(?:'re| are) wrong|that(?:'s| is| was| isn'?t| is not)?\s*(?:wrong|incorrect|not right|not correct|not what i (?:asked|said|meant|wanted)|not it|a mistake)|this(?:'s| is| was)? (?:wrong|incorrect|not right)|it(?:'s| is| was)? (?:wrong|incorrect|not right)|(?:wrong|incorrect|not right|not correct|nope wrong|that's not it)|(?:that|this) (?:isn'?t|is not|wasn'?t) (?:right|correct|it|what i (?:asked|said|meant|wanted)))\s*(?:at all|again)?$/i.test(t);
+}
+async function feedbackHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const last = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId && m.role === "mila").sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (last) await (await import("./reply-feedback")).recordReplyFeedback(ctx.store, ctx.userId, { kind: "wrong", messageId: last.id, note: text.slice(0, 300), snippet: last.content }).catch(() => undefined);
+  return reply("Sorry about that. I've noted it, and I haven't changed anything. What should it have been? Tell me the right detail and I'll fix it.", [], "smalltalk");
+}
+
 const ASK_BY_MISSING: Record<string, string> = { address: "Which property is it for?", date: "Which day?", time: "What time?", name: "Who is it for?", location: "Which city and state?", details: "What should I change?" };
 
 async function recentHistory(ctx: Ctx) {
@@ -168,7 +213,19 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       { label: "✉️ Email", style: "secondary", action: { type: "prompt", text: `${base}. Write it as an email script.` } },
     ] }], "smalltalk"), intent: "smalltalk" };
   }
-  const pend = ctx.state.pending;
+  // "You got that wrong" / "that's not right" is feedback about Mila's last answer: acknowledged and recorded, never a new contact, property or event
+  if (text && !docs.length && isFeedback(text)) return { out: await feedbackHandler(ctx, text), intent: "smalltalk" };
+  let pend = ctx.state.pending;
+  // the agent comes back to a set-aside question in plain words, without tapping Continue
+  if (!pend && text && ctx.state.parked?.length) {
+    const i = ctx.state.parked.findIndex((p) => answersParked(p, text, ctx));
+    if (i >= 0) {
+      const p = ctx.state.parked[i];
+      ctx.state.parked = ctx.state.parked.filter((_, k) => k !== i);
+      pend = { kind: "clarify", intent: p.intent, slots: p.slots, missing: p.missing };
+      ctx.state.pending = pend;
+    }
+  }
   let forced: Intent | null = null; // an answer to Mila's question continues THAT request, whatever the merged text looks like
   let answering: { intent: string; missing: string } | null = null;
 
@@ -195,11 +252,11 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     // "They said 2" / "2" / "around 2:30" answering "what time?": pull the number out and read it as a time (2 means 2 PM)
     const WORDNUM: Record<string, string> = { two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10", eleven: "11", twelve: "12" };
     const numText = miss === "time" ? text.replace(/\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/gi, (w) => WORDNUM[w.toLowerCase()]) : text;
-    const numTime = miss === "time" && words <= 8 && !/\d\s*(?:[ap]\.?m|o.?clock)|\d:\d\d/i.test(text) ? /(?:^|[^\d:])(1[0-2]|[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?(?![\d:]|\s*(?:st|nd|rd|th|people|bed|bath|min|hour|hr|day|week))/i.exec(numText) : null;
+    const numTime = miss === "time" && words <= 8 && (d.intent === "general" || d.intent === "smalltalk" || d.intent === pend.intent) && !/\d\s*(?:[ap]\.?m|o.?clock)|\d:\d\d/i.test(text) ? /(?:^|[^\d:])(1[0-2]|[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?(?![\d:]|\s*(?:st|nd|rd|th|people|bed|bath|min|hour|hr|day|week))/i.exec(numText) : null;
     if (numTime) text = `at ${numTime[1]}${numTime[2] ? ":" + numTime[2] : ""}${numTime[3] ?? (/\b(afternoon|evening|night)\b/i.test(text) ? "pm" : /\bmorning\b/i.test(text) ? "am" : "")}`;
-    const looksLikeAnswer = d.intent === pend.intent
+    const looksLikeAnswer = !(words <= 3 && NOT_AN_ANSWER.test(text.trim())) && (d.intent === pend.intent && sameThread(String((pend.slots as { text?: string }).text ?? ""), text)
       || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" || miss === "details" ? words <= 8 || !!parseAddress(text) : timeLike)))
-      || (words <= 4 && timeLike);
+      || (words <= 4 && timeLike));
     if (looksLikeAnswer && !/\?\s*$/.test(text)) {
       text = dropNegatedDate(text);
       const orig = overrideWhen((pend.slots as { text: string }).text, text, ctx.now, ctx.tz);
@@ -221,9 +278,9 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   // "Actually make that 4" / "no, Sunday" / "sorry 4pm" right after Mila put something on the calendar means: change THAT event.
   if (!forced && !pend && ctx.state.last_event_id && text.split(/\s+/).length <= 8) {
     text = text.replace(/\s+(?:instead|though|please|pls)\s*[.!]*$/i, "");
-    const m = /^(?:(?:actually|no|nope|wait|oops|sorry|hmm|ok(?:ay)?|um|i\s+meant|i\s+mean)[,.!\s]+)*(?:(?:can we |could we |let'?s |lets )?(?:make|do|change|move|push|switch|say)\s+(?:it|that|this)(?:\s+(?:to|at|for))?|it'?s|its|how about|what about|at|for|to)?\b\s*(.+?)[.!\s]*$/i.exec(text);
+    const m = /^(?:(?:actually|no|nope|wait|oops|sorry|hmm|ok(?:ay)?|um|yo|hey|so|well|alright|aight|yea|yeah|pls|plz|please|i\s+meant|i\s+mean)[,.!\s]+)*(?:(?:can we |could we |let'?s |lets )?(?:make|do|change|move|push|bump|switch|say)\s+(?:it|that|this)(?:\s+(?:to|at|for))?|(?:can we |could we |let'?s |lets )?(?:do|try|go with|say|make)(?:\s+(?:to|at|for))?|it'?s|its|how about|what about|at|for|to)?\b\s*(.+?)[.!\s]*$/i.exec(text);
     const rest = m?.[1]?.trim();
-    if (rest && /^(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?|noon|(?:today|tomorrow|tonight|mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)[a-z]*(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?)?)$/i.test(rest) && (parseTime(rest) || parseDate(rest, ctx.now, ctx.tz) || /^\d{1,2}$/.test(rest))) {
+    if (rest && /^(?:at\s+)?(?:\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?|noon(?:ish)?|(?:half past|quarter (?:to|past|after))\s+(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s+(?:fifteen|thirty|forty[- ]?five))?(?:\s*[ap]\.?m\.?)?|(?:today|tomorrow|tonight|mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)[a-z]*(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?)?)$/i.test(rest) && (parseTime(rest) || parseDate(rest, ctx.now, ctx.tz) || /^\d{1,2}$/.test(rest))) {
       const when = /^\d{1,2}$/.test(rest) ? `at ${rest}` : rest;
       return { out: await dispatch(ctx, "move_event", `move that to ${when}`, true), intent: "move_event" };
     }
@@ -306,10 +363,20 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     outs.push({ text: "", blocks: [{ type: "workflow", runId: "", kicker: "WHAT I DID", title: `${items.length} things`, subtitle: waiting ? `${items.length - waiting} done, ${waiting} need${waiting === 1 ? "s" : ""} you` : "All done", items: items as never }], creditKey: undefined });
   }
   if (reminder.length) outs.push({ text: "", blocks: reminder });
+  await armTypedYes(ctx, outs);
   if (outs.length === 1) return { out: outs[0], intent: lastIntent };
   const costs = await Promise.all(outs.map(async (o) => ({ k: o.creditKey ?? "chat_simple", c: await creditCost(o.creditKey ?? "chat_simple") })));
   const top = costs.sort((a, b) => b.c - a.c)[0];
   return { out: { text: outs.map((o) => o.text).filter(Boolean).join("\n\n"), blocks: outs.flatMap((o) => o.blocks), creditKey: top.k }, intent: lastIntent };
+}
+
+/** A single calendar preview with a confirm button can also be answered by typing "yes" / "no": exactly that approval, nothing else. */
+async function armTypedYes(ctx: Ctx, outs: HandlerOut[]) {
+  if (ctx.state.pending) return;
+  const ids = [...new Set(outs.flatMap((o) => o.blocks.flatMap((b) => ("buttons" in b ? (b.buttons ?? []) : []))).map((b) => b.approvalId).filter(Boolean) as string[])];
+  if (ids.length !== 1) return;
+  const ap = await ctx.store.get("approvals", ctx.userId, ids[0]);
+  if (ap?.status === "pending" && /^(?:(?:create|update|cancel|replace)_calendar_event|shift_calendar_events)$/.test(ap.payload.tool)) ctx.state.pending = { kind: "approval", approval_id: ap.id, label: ap.title };
 }
 
 const firstSentence = (t: string) => t.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0]?.slice(0, 140) ?? "";
@@ -323,11 +390,33 @@ function subtaskState(o: HandlerOut): "done" | "pending" | "needs_approval" | "f
   return "done";
 }
 
+const RECURRING = /\b(?:every|each)\s+(?:other\s+)?(?:week|weekend|day|month|mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\b(?:weekly|daily|monthly|biweekly|recurring|repeating)\b|\brepeat(?:s|ing)?\b|\bevery\s+\d+\s+(?:days?|weeks?)\b/i;
 async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolean): Promise<HandlerOut> {
+  const out = await dispatchInner(ctx, intent, text, declared);
+  // events don't repeat yet: say so instead of letting a single booking look like a series
+  if ((intent === "create_event" || intent === "open_house") && RECURRING.test(text) && !/^\s*(?:what|which|when|who|how)\b[^.]*\?\s*$/i.test(out.text)) {
+    return { ...out, text: `${out.text}\n\nHeads up: I can't repeat events yet, so I only added the next one. Tell me each date you want and I'll add them one by one.` };
+  }
+  return out;
+}
+
+async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: boolean): Promise<HandlerOut> {
   ctx.steps.push("Understanding request");
   if (["open_house", "create_event", "move_event", "reminder", "general"].includes(intent)) {
     const bad = invalidTimeToken(text);
     if (bad) return reply(`“${bad}” isn't a real time, so I haven't changed anything. What time did you mean? (for example 2 PM or 14:00)`, [], "smalltalk");
+    const badDay = invalidDateToken(text);
+    if (badDay) return reply(`“${badDay}” isn't a real date, so I haven't changed anything. Which day did you mean?`, [], "smalltalk");
+  }
+  // two clients share the first name that was typed: never write to, prep for, or draft about one of them by guessing
+  if (["general", "save_memory", "meeting_prep", "find_property", "market", "priorities"].includes(intent)) {
+    const amb = ambiguousFirstName(text, await mentionedContacts(ctx, text));
+    if (amb) return askWhichPerson(text, amb);
+  }
+  // "dana called, wants to see 12 oak lane saturday": a saved client reaching out is a call to log, even typed in lowercase
+  if (intent === "general" || intent === "save_memory") {
+    const caller = /^\s*([\p{L}'’-]{3,})\s+(?:just\s+)?(?:called|texted|emailed|messaged|phoned|stopped by|came by|replied|responded|reached out)\b/iu.exec(text);
+    if (caller && (await mentionedContacts(ctx, caller[1])).length) return logInteractionHandler(ctx, text);
   }
   if (["general", "recall", "find_contacts", "save_memory", "market", "priorities"].includes(intent)) {
     const known = await mentionedContacts(ctx, text);
@@ -363,7 +452,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
     case "reminder": return reminderHandler(ctx, text);
     case "new_contact": {
       // "I just talked to Priya, she wants…" about someone already saved is a call to log, not a new person
-      if (/\b(?:talked|spoke|met|ran into)\b/i.test(text) && (await mentionedContacts(ctx, text)).length) return logInteractionHandler(ctx, text);
+      if (/\b(?:talked|spoke|chatted|met|ran into|got off|hung up)\b/i.test(text) && (await mentionedContacts(ctx, text)).length) return logInteractionHandler(ctx, text);
       return newContactHandler(ctx, text);
     }
     case "priorities": ctx.steps.push("Looking at your contacts and tasks"); return prioritiesHandler(ctx);
@@ -386,6 +475,7 @@ async function dispatch(ctx: Ctx, intent: Intent, text: string, declared: boolea
 }
 
 function smalltalk(ctx: Ctx, text: string): HandlerOut {
+  if (/^(?:(?:please|pls|hey|ok|okay|actually|wait)[,\s]+)*(?:do ?n['’]?t|do not|never|no need to|stop)\s+(?:put|add|schedule|book|create|set up)\b/i.test(text)) return reply("Okay, I won't add that. Nothing was changed.", [], "smalltalk");
   if (/thank|thx/i.test(text)) return reply("Anytime.", [], "smalltalk");
   if (/^(ok|okay|cool|great|got it)/i.test(text)) return reply("👍", [], "smalltalk");
   return reply(`${greetingFor(ctx.now, ctx.tz, ctx.profile.full_name)} What do you need to get done?`, [], "smalltalk");
@@ -487,7 +577,7 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId);
       if (!ev) return reply("I couldn't find that event.", [], "smalltalk");
       ctx.state.last_event_id = ev.id;
-      return moveEventHandler(ctx, `${a.text} ${ev.kind.replace("_", " ")}`.trim(), !!a.declared);
+      return moveEventHandler(ctx, `${a.text} ${ev.kind.replace("_", " ")}`.trim(), !!a.declared, ev);
     }
     case "move_apply": {
       const ev = await ctx.store.get("calendar_events", ctx.userId, String(a.eventId));
@@ -514,6 +604,7 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       return reply(`${ASK_BY_MISSING[p.missing] ?? "I still need one detail."} (for “${p.label}”)`, [], "smalltalk");
     }
     case "drop_parked": { ctx.state.parked = (ctx.state.parked ?? []).filter((_, k) => k !== (Number(a.index) || 0)); await persistState(ctx); return reply("Okay, dropped.", [], "smalltalk"); }
+    case "sync_event": return syncEventHandler(ctx, String(a.eventId));
     case "shift_events": return shiftEvents(ctx, (a.eventIds ?? []).map(String), String(a.after));
     case "find_time": return findTimeForEvent(ctx, a.eventId, a.durationMin ?? 60);
     case "cancel_pick": { const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId); return ev ? cancelEvent(ctx, ev) : reply("I couldn't find that event.", [], "smalltalk"); }

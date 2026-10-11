@@ -63,6 +63,8 @@ export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> 
       const contacts = await ctx.store.list("contacts", ctx.userId);
       for (const c of contacts) {
         const first = c.name.split(/\s+/)[0];
+        // two clients share this first name and the sentence doesn't say which: the fact belongs to neither until the agent says so
+        if (contacts.filter((x) => x.name.split(/\s+/)[0].toLowerCase() === first.toLowerCase()).length > 1 && !s.toLowerCase().includes(c.name.toLowerCase())) continue;
         const esc = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         // short first names ("Li", "Mc") only count when written as a capitalised name, so ordinary words never match
         if (/\?\s*$/.test(s) || !(first.length >= 3 ? new RegExp(`\\b${esc}\\b`, "i").test(s) : new RegExp(`(?<![\\p{L}])${esc}(?![\\p{L}])`, "u").test(s))) continue;

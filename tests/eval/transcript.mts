@@ -1,3 +1,6 @@
+// Debug helper: print a conversation transcript (replies, blocks, store counts).
+//   node --import tsx tests/eval/transcript.mts '{"contacts":[{"name":"Dana Reyes","email":"d@x.com"}],"msgs":["email Dana about Oak"],"tz":"America/Denver","now":"2026-10-11T14:00:00Z"}'
+//   DUMP=calendar_events,reminders W=600 ... prints those tables; W = block JSON width.
 // scratch probe: run with a JSON spec {setup:[...], msgs:[...]} ; prints blocks fully
 import { makeSession, seedContact, seedProperty, store, buttons } from "./lib.mts";
 const spec = JSON.parse(process.argv[2]);
