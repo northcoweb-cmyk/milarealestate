@@ -7,7 +7,7 @@ import { firstName, label, plural } from "../context";
 import { persistState } from "../conversation";
 import { openHouseEmail, openHouseSocial, polish } from "../comms";
 import { capitalisedNames, parseAddress, parseDate, parseWhen, rollPastWeekday } from "../nlu";
-import { TOOLS, eventConflicts, freeSlots, invoke, logContactEvent } from "../tools";
+import { TOOLS, eventConflicts, freeSlots, invoke, logContactEvent, rebindApproval } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
 import { resolveProperty } from "./listing";
@@ -237,6 +237,12 @@ export async function refreshComms(ctx: Ctx, ev: CalendarEvent) {
     const s = await openHouseSocial(ctx, prop, start, end, imgs);
     await ctx.store.update("social_posts", ctx.userId, p.id, { caption: s.caption, slides: s.slides, hashtags: s.hashtags, stale: false, stale_reason: null });
     done.push("the social post");
+  }
+  // the agent asked Mila to update these, so any still-pending approval for them now covers the updated version
+  for (const ap of (await ctx.store.list("approvals", ctx.userId)).filter((x) => x.status === "pending")) {
+    const a = ap.payload.args as { draftId?: string; draftIds?: string[]; postId?: string };
+    const ids = [...(a.draftIds ?? []), ...(a.draftId ? [a.draftId] : []), ...(a.postId ? [a.postId] : [])];
+    if (ids.some((id) => emails.some((m) => m.id === id) || posts.some((p) => p.id === id))) await rebindApproval(ctx, ap.id);
   }
   const unique = [...new Set(done)];
   return { summary: unique.length ? `Updated ${unique.join(" and ")} for ${fmtDay(start, ctx.tz)} at ${fmtTime(start, ctx.tz)}.` : "Nothing needed updating.", blocks };

@@ -69,7 +69,8 @@ export function buildScenarios(): Scenario[] {
         const s = slot(now, tz, day, t);
         const oh = (await events(a)).filter((e: any) => e.kind === "open_house");
         const T = text(res);
-        if (s.start.getTime() < now.getTime()) {
+        if (s.start.getTime() < now.getTime() && now.getTime() < s.start.getTime() + 2 * 3_600_000) { if (oh.length) return; } // in progress right now: it still goes on the calendar
+        else if (s.start.getTime() < now.getTime()) {
           // the same weekday, earlier today ("Thursday at 9" on Thursday afternoon) now means next week
           if (oh.length && Math.abs(new Date(oh[0].start_at).getTime() - (s.start.getTime() + 7 * 86_400_000)) > 60_000) return `created an open house in the past (${oh[0].start_at}) for "${phr}"`;
           if (oh.length) return;

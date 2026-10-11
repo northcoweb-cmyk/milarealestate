@@ -214,6 +214,8 @@ export type ApprovalAction =
 export interface ApprovalPayload {
   tool: string;
   args: Record<string, unknown>;
+  /** fingerprints of exactly what the agent was shown when this approval was created; if any changed, the approval no longer applies */
+  bind?: Record<string, string>;
 }
 
 export interface Approval extends Row {

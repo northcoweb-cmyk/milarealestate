@@ -1,3 +1,4 @@
+import { askWhichPerson, ambiguousFirstName } from "./entity";
 import { warmText } from "../warm";
 import { addDays, fmtDay, fmtShortDate, fmtTime, partsIn, zonedToUtc } from "../../time";
 import type { Block, BriefItem, BriefSection, CalendarEvent, Contact, Property, Task } from "../../types";
@@ -148,6 +149,7 @@ export async function closedDealHandler(ctx: Ctx, text: string): Promise<Handler
 const VERB = /\b(called|phoned|texted|emailed|messaged|reached out|stopped by|came by|replied|responded|dm'?d|met with|spoke with|talked to|talked with|met)\b/i;
 export async function logInteractionHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const known = await mentionedContacts(ctx, text);
+  const amb = ambiguousFirstName(text, known); if (amb) return askWhichPerson(text, amb);
   let c: Contact | null = known[0] ?? null;
   let added = false;
   if (!c) {
@@ -196,6 +198,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   const pron = /^(her|him|them)\b\s*/i.exec(stripped);
   const lastId = ctx.state.last_contact_ids?.[0];
   const known = pron && lastId ? [await ctx.store.get("contacts", ctx.userId, lastId)].filter((x): x is Contact => !!x) : await mentionedContacts(ctx, stripped);
+  const amb = pron ? null : ambiguousFirstName(stripped, known); if (amb) return askWhichPerson(text, amb);
   const c = known[0] ?? null;
   const name = c?.name ?? (pron ? "" : capitalisedNames(stripped).find((n) => !/^(Text|Message|Tell|Send)$/i.test(n)) ?? "");
   const first = name.split(/\s+/)[0];

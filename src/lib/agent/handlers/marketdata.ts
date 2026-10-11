@@ -1,3 +1,4 @@
+import { askWhichPerson, ambiguousFirstName } from "./entity";
 import { fmtDay, fmtTime } from "../../time";
 import type { Block, ListingCardData, Property } from "../../types";
 import type { Ctx } from "../context";
@@ -164,6 +165,7 @@ export async function rentalCardsHandler(ctx: Ctx, text: string): Promise<Handle
   if (!cards.length) return reply(`I don't see rentals in ${where}${money.max ? ` under ${fullMoney(money.max)}` : ""} right now. Want me to widen it?`, [], "smalltalk");
   // a client named in the message whose notes mention a pet: show each place's pet policy up front
   const known = await mentionedContacts(ctx, text);
+  const ambC = ambiguousFirstName(text, known); if (ambC) return askWhichPerson(text, ambC);
   const client = known[0] ?? null;
   const petty = client ? (await contactFacts(ctx, client)).some((f) => /\b(dog|cat|pet)s?\b/i.test(f)) : /\b(dog|cat|pet)s?\b/i.test(text);
   const out: ListingCardData[] = cards.map((c) => ({

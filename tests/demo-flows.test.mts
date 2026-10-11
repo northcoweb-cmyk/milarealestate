@@ -22,17 +22,20 @@ async function seeded() {
   return { a, john, main, who };
 }
 
-test("#1 'I have an open house Sunday at 1 PM. Set everything up.' - no questions, event + property + prep", async () => {
+test("#1 'I have an open house Sunday at 1 PM. Set everything up.' - with several homes saved Mila asks which one (one tap), then does it all", async () => {
   const { a } = await seeded();
   const r = await a.say("I have an open house Sunday at 1 PM. Set everything up.");
-  assert.ok(!/^Which property/i.test(r.milaMessage.content), r.milaMessage.content);
-  assert.match(r.milaMessage.content, /I used .* — your/);
+  assert.match(r.milaMessage.content, /^Which property/i, "never a global guess: several saved homes means one short question");
+  assert.equal((await store.list("calendar_events", a.id)).filter((e: any) => e.kind === "open_house").length, 0, "nothing was created from a guess");
+  const pick = r.milaMessage.blocks.flatMap((b: any) => b.buttons ?? []).find((b: any) => b.action?.type === "prompt");
+  assert.ok(pick, "the homes are offered as buttons");
+  const r2 = await a.act(pick.action);
   const oh = (await store.list("calendar_events", a.id)).find((e: any) => e.kind === "open_house");
-  assert.ok(oh, "open house created");
+  assert.ok(oh, "open house created after the pick");
   const p = local(oh.start_at, tz);
   assert.deepEqual([p.m, p.d, p.h], [10, 11, 13], "Sunday Oct 11 at 1 PM");
   assert.ok(oh.property_id, "attached to a property");
-  assert.ok(r.milaMessage.blocks.length > 0, "shows the prepared plan");
+  assert.ok(r2.milaMessage.blocks.length > 0, "shows the prepared plan");
 });
 
 test("#2 'Prep me for my 2 PM meeting with John.' - the file, not a new meeting", async () => {

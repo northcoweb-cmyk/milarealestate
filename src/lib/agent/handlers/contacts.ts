@@ -1,3 +1,4 @@
+import { askWhichPerson, ambiguousFirstName, pickProperty } from "./entity";
 import { plausibleName } from "../nlu";
 import { addDays, fmtDayTime, partsIn, zonedToUtc } from "../../time";
 import type { Block, Contact, ContactType, DocumentTemplate, WorkflowRun } from "../../types";
@@ -175,7 +176,9 @@ export async function matchBuyersHandler(ctx: Ctx, text: string): Promise<Handle
   const t = text.toLowerCase();
   const named = props.find((p) => t.includes(p.address.toLowerCase().replace(/\b(street|drive|road|lane|court|avenue|boulevard)\b/g, (m) => m).split(",")[0]));
   const byStreet = props.find((p) => { const first = p.address.toLowerCase().split(/\s+/).slice(0, 2).join(" "); return first.length > 3 && t.includes(first); });
-  const prop = named ?? byStreet ?? (ctx.state.last_property_id ? props.find((p) => p.id === ctx.state.last_property_id) : undefined) ?? [...props].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  let prop = named ?? byStreet ?? (ctx.state.last_property_id ? props.find((p) => p.id === ctx.state.last_property_id) : undefined);
+  if (!prop && props.length > 1) { const picked = await pickProperty(ctx, text, (addr) => `${text.replace(/[.!?\s]+$/, "")} for ${addr}`); if ("ask" in picked) return picked.ask; prop = picked.prop; }
+  if (!prop && props.length === 1) prop = props[0];
   if (!prop) return reply("I don't have a listing saved yet to match against. Add one (for example “new listing 22 Elm Court Bethesda, 3 bed 2 bath, $650k”) and I'll find the buyers it fits.", [], "smalltalk");
   const buyers = (await ctx.store.list("contacts", ctx.userId)).filter((c) => ["buyer", "renter", "rental", "investor", "lead"].includes(c.type) && c.status !== "inactive");
   const city = (prop.city ?? "").toLowerCase();

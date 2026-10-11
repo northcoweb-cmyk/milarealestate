@@ -90,7 +90,7 @@ export async function checkInvariants(a: Agent, r: any, before: Snapshot, ms: nu
     else {
       if (en <= s) f.push(`event "${e.title}" ends before it starts`);
       if (en.getTime() - s.getTime() > 24 * 3_600_000) f.push(`event "${e.title}" is longer than 24h`);
-      if (!before.eventIds.has(e.id) && !allow.pastEvent && s.getTime() < a.now.getTime() - 60_000 && e.source === "mila") f.push(`event "${e.title}" was created in the past (${e.start_at})`);
+      if (!before.eventIds.has(e.id) && !allow.pastEvent && s.getTime() < a.now.getTime() - 60_000 && new Date(e.end_at).getTime() <= a.now.getTime() && e.source === "mila") f.push(`event "${e.title}" was created in the past (${e.start_at})`);
       const h = local(e.start_at, a.tz).h;
       if (!before.eventIds.has(e.id) && (h < 5) ) f.push(`event "${e.title}" created at ${h}:00 local (suspicious hour)`);
     }

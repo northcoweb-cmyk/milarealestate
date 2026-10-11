@@ -1,3 +1,4 @@
+import { pickProperty } from "./entity";
 import { addDays, fmtDay, fmtDayTime, fmtRange, fmtShortDate, partsIn, zonedToUtc } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, WorkflowRun } from "../../types";
 import type { Ctx } from "../context";
@@ -55,24 +56,12 @@ export async function emailAudienceHandler(ctx: Ctx, text: string): Promise<Hand
 export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const address = parseAddress(text);
   if (!address) {
-    // no address given: use the home we were just talking about, else the listing that's coming up next / saved most recently - never a question
-    let last = ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id) : null;
-    let guessed = false;
-    if (!last) {
-      const props = await ctx.store.list("properties", ctx.userId);
-      const mems = await ctx.store.list("memories", ctx.userId);
-      const today = ctx.now.toISOString().slice(0, 10);
-      const dated = (p: { id: string }) => mems.find((m) => m.scope === "property" && m.subject_id === p.id && m.key === "Listing date" && m.value >= today)?.value ?? "9";
-      last = [...props].sort((a, b) => dated(a).localeCompare(dated(b)) || b.created_at.localeCompare(a.created_at))[0] ?? null;
-      guessed = Boolean(last);
-    }
-    if (!last) {
-      ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text }, missing: "address" };
-      await persistState(ctx);
-      return reply("Which property is the open house at?");
-    }
+    // no address given: the home this conversation is on, or the only saved home. With several homes Mila asks which one: never a guess.
+    const picked = await pickProperty(ctx, text, (addr) => `${text.replace(/[.!?\s]+$/, "")} at ${addr}`, "open_house");
+    if ("ask" in picked) return picked.ask;
+    const last = picked.prop, guessed = picked.assumed;
     const out = await openHouseHandler(ctx, `${text} at ${last.address}`);
-    if (guessed && !ctx.state.pending) out.text = `I used ${last.address}${last.city ? `, ${last.city}` : ""} — your ${ctx.state.last_property_id ? "latest" : "most recent"} listing. If it's a different home, just tell me the address and I'll switch it. ${out.text}`;
+    if (guessed && !ctx.state.pending) out.text = `I used ${last.address}${last.city ? `, ${last.city}` : ""} because it's the only home you have saved. If it's a different home, just tell me the address and I'll redo it. ${out.text}`;
     return out;
   }
   const gate = await locationGate(ctx, "open_house", text, address);

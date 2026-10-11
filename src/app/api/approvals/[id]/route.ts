@@ -1,6 +1,6 @@
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
-import { decideApproval } from "@/lib/agent/tools";
+import { decideApproval, rebindApproval } from "@/lib/agent/tools";
 import { InsufficientCredits } from "@/lib/credits";
 import { appendMila } from "@/lib/agent/conversation";
 import { persistState } from "@/lib/agent/conversation";
@@ -35,6 +35,7 @@ export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
     }
     if (a.postId && b.postId === a.postId && typeof b.caption === "string") await ctx.store.update("social_posts", profile.id, a.postId, { caption: b.caption.slice(0, 5_000) });
   }
+  if (b.decision === "approve" && approval.status === "pending" && (b.edits?.length || b.caption != null)) await rebindApproval(ctx, params.id); // the agent saw and made these edits in this very review
   try {
     const r = await decideApproval(ctx, params.id, b.decision);
     // Surface follow-up questions (e.g. stale communications) in the conversation

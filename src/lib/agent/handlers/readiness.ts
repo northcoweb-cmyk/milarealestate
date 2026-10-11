@@ -19,6 +19,9 @@ async function resolveProperty(ctx: Ctx, text: string): Promise<Property | null>
   const street = parseAddress(text);
   if (street) { const k = street.toLowerCase().replace(/[^a-z0-9]/g, ""); const hit = props.find((p) => p.address.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(k.slice(0, Math.max(6, k.length - 6)))); if (hit) return hit; }
   if (ctx.state.last_property_id) { const p = props.find((x) => x.id === ctx.state.last_property_id); if (p) return p; }
+  // no address and no home in this conversation: only when there is exactly one saved home do we assume it; several means Mila must ask
+  if (props.filter((p) => !p.is_demo).length === 1) return props.find((p) => !p.is_demo) ?? null;
+  if (props.length > 1) return null;
   const mems = await ctx.store.list("memories", ctx.userId);
   const dated = props.map((p) => ({ p, d: mems.find((m) => m.scope === "property" && m.subject_id === p.id && m.key === LISTING_DATE_KEY)?.value ?? "" })).filter((x) => x.d && x.d >= ymd({ y: ctx.now.getUTCFullYear(), m: ctx.now.getUTCMonth() + 1, d: ctx.now.getUTCDate() })).sort((a, b) => a.d.localeCompare(b.d));
   return dated[0]?.p ?? [...props].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;

@@ -1,7 +1,7 @@
 import { outlook, outlookConnected } from "../integrations/microsoft";
 import { buildSignature, withSignature } from "../signature";
 import { capHashtags, MAX_HASHTAGS } from "../content/templates";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { creditCost, ensureCredits } from "../credits";
 import { gcal, gmail, getGoogle, GoogleError } from "../integrations/google";
 import { fmtDayTime, fmtRange, fmtShortDate, fmtTime, startOfDay, addDays, DAY_MS } from "../time";
@@ -465,8 +465,10 @@ async function sendDrafts(ctx: Ctx, draftIds: string[]): Promise<ToolResult> {
   const google = await getGoogle(ctx.userId);
   const viaGmail = !!google?.hasScope("gmail");
   const viaOutlook = !viaGmail && (await outlookConnected(ctx.userId)); // whichever mailbox the agent connected sends the email
-  const drafts = (await Promise.all(draftIds.map((id) => ctx.store.get("email_drafts", ctx.userId, id)))).filter(Boolean) as EmailDraft[];
-  if (!drafts.length) return fail("not_found", "I couldn't find those drafts.");
+  const all = (await Promise.all(draftIds.map((id) => ctx.store.get("email_drafts", ctx.userId, id)))).filter(Boolean) as EmailDraft[];
+  if (!all.length) return fail("not_found", "I couldn't find those drafts.");
+  const drafts = all.filter((d) => d.status !== "sent"); // an approval can never send the same draft twice
+  if (!drafts.length) return fail("invalid", "That email was already sent, so I didn't send it again.");
   if (!viaGmail && !viaOutlook) {
     for (const d of drafts) await ctx.store.update("email_drafts", ctx.userId, d.id, { status: "approved_unsent" });
     return fail("not_connected", "Nothing was sent. Open the email in your email app to send it.", "google");
@@ -503,16 +505,50 @@ export type InvokeOutcome =
   | { status: "done"; result: ToolResult }
   | { status: "needs_approval"; approval: Approval; task: Task };
 
+const fp = (o: unknown) => createHash("sha256").update(JSON.stringify(o)).digest("hex").slice(0, 32);
+/** What the approval covers, fingerprinted now: the exact draft text and recipients, post caption and slides, or the event version. */
+async function bindingFor(ctx: Ctx, tool: string, args: Args): Promise<Record<string, string>> {
+  const bind: Record<string, string> = {};
+  if (tool === "send_email" || tool === "send_email_batch") {
+    for (const id of (args.draftIds ?? [args.draftId]) as string[]) {
+      const d = await ctx.store.get("email_drafts", ctx.userId, id);
+      if (d) bind[`email_drafts:${id}`] = fp({ to: d.to_emails, c: d.to_contact_ids, contact: d.contact_id, s: d.subject, b: d.body });
+    }
+  } else if (tool === "publish_social_post") {
+    const p = await ctx.store.get("social_posts", ctx.userId, args.postId);
+    if (p) bind[`social_posts:${p.id}`] = fp({ c: p.caption, h: p.hashtags, s: p.slides, pl: p.platform });
+  } else if (tool === "update_calendar_event" || tool === "cancel_calendar_event") {
+    for (const id of (args.ids ?? [args.id]) as string[]) {
+      const e = await ctx.store.get("calendar_events", ctx.userId, id);
+      if (e) bind[`calendar_events:${e.id}`] = e.updated_at;
+    }
+  }
+  return bind;
+}
+/** True when something this approval covers changed after the person was shown it. Older approvals without a snapshot are left alone. */
+async function staleBinding(ctx: Ctx, payload: Approval["payload"]): Promise<string[]> {
+  if (!payload.bind) return [];
+  const now = await bindingFor(ctx, payload.tool, payload.args as Args);
+  return Object.keys(payload.bind).filter((k) => now[k] !== payload.bind![k]);
+}
+/** The review sheet applies the agent's own edits in the same request that approves; those edits were seen by the agent, so the snapshot is refreshed to match. */
+export async function rebindApproval(ctx: Ctx, approvalId: string) {
+  const a = await ctx.store.get("approvals", ctx.userId, approvalId);
+  if (!a || a.status !== "pending") return;
+  await ctx.store.update("approvals", ctx.userId, a.id, { payload: { ...a.payload, bind: await bindingFor(ctx, a.payload.tool, a.payload.args as Args) } } as never);
+}
+
 export async function createApproval(ctx: Ctx, gate: Gate, tool: string, args: Args, runId?: string | null): Promise<{ approval: Approval; task: Task }> {
   // De-duplicate: identical pending approval already exists
   const key = JSON.stringify({ tool, args });
-  const existing = (await ctx.store.list("approvals", ctx.userId)).find((a) => a.status === "pending" && JSON.stringify(a.payload) === key);
+  let existing: Approval | undefined;
+  for (const a of (await ctx.store.list("approvals", ctx.userId)).filter((x) => x.status === "pending" && JSON.stringify({ tool: x.payload.tool, args: x.payload.args }) === key)) if (!(await staleBinding(ctx, a.payload)).length) { existing = a; break; }
   if (existing) {
     const t = (await ctx.store.list("tasks", ctx.userId)).find((x) => x.approval_id === existing.id)!;
     return { approval: existing, task: t };
   }
   const approval = await ctx.store.insert("approvals", ctx.userId, {
-    action: gate.action, title: gate.title, summary: gate.summary, payload: { tool, args }, risk: gate.risk, status: "pending",
+    action: gate.action, title: gate.title, summary: gate.summary, payload: { tool, args, bind: await bindingFor(ctx, tool, args) }, risk: gate.risk, status: "pending",
     result: null, error: null, blocked_integration: null, workflow_run_id: runId ?? null, decided_at: null, executed_at: null,
   });
   const contact = gate.contactId ? await ctx.store.get("contacts", ctx.userId, gate.contactId) : null;
@@ -574,6 +610,13 @@ async function decideApprovalOnce(ctx: Ctx, id: string, decision: "approve" | "r
   }
 
   await ensureCredits(ctx.userId, 0);
+  const stale = await staleBinding(ctx, a.payload);
+  if (stale.length) {
+    const msg = "That changed after you were shown it, so I didn't send or change anything. Ask me again and I'll show you the updated version.";
+    const u = (await ctx.store.update("approvals", ctx.userId, id, { status: "failed", decided_at: nowIso(), error: msg }))!;
+    if (task) await ctx.store.update("tasks", ctx.userId, task.id, { status: "dismissed", completed_at: nowIso() });
+    return { approval: u, message: msg };
+  }
   const out = await invoke(ctx, a.payload.tool, a.payload.args, { approved: true, runId: a.workflow_run_id });
   if (out.status !== "done") return { approval: a, message: "Still needs approval." };
   const r = out.result;
