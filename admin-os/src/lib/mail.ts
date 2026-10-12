@@ -7,7 +7,7 @@ export async function sendMail(to: string, subject: string, text: string, html?:
   const from = process.env.SUPPORT_FROM || process.env.MAIL_FROM || `Mila Support <${SUPPORT_EMAIL()}>`;
   try {
     const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ from, reply_to: replyTo || process.env.INBOUND_REPLY_TO || SUPPORT_EMAIL(), to, subject, text, html }) });
-    if (!r.ok) return { ok: false, error: `Email service said ${r.status}.` };
+    if (!r.ok) { const j = (await r.json().catch(() => ({}))) as { message?: string; name?: string }; return { ok: false, error: `Email service said ${r.status}${j.message ? `: ${j.message}` : ""}` }; }
     return { ok: true };
   } catch { return { ok: false, error: "Couldn't reach the email service." }; }
 }

@@ -30,14 +30,17 @@ export async function POST(req: Request) {
   let text = rawText || rawHtml.replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ");
   text = text.split(/\r?\n/).filter((l) => !/^>/.test(l)).join("\n").split(/\n\s*On .{5,120} wrote:\s*\n/)[0].replace(/\s+\n/g, "\n").trim().slice(0, 8000);
   const no = /M-[A-Z0-9]{4,8}/.exec(subject)?.[0] ?? /M-[A-Z0-9]{4,8}/.exec(rawText)?.[0];
-  if (!no || !text) return NextResponse.json({ ok: true, ignored: "no ticket number or empty message" });
+  const copyTo = (process.env.FORWARD_REPLIES_TO ?? "").trim();
+  const fromAddr = String(d.from ?? d.From ?? "unknown sender");
+  // nothing is lost: mail to this address that isn't a ticket reply is passed on to the owner's inbox
+  const passOn = async (why: string) => { if (copyTo && (text || subject)) await sendMail(copyTo, `[Mila inbox] ${subject || "(no subject)"}`, `From: ${fromAddr}\nSubject: ${subject}\n\n${text || "(empty)"}`, brandedEmail({ preheader: subject, chip: "Mila inbox", heading: subject || "New email", body: text || "(empty message)", quote: { label: "From", text: fromAddr }, note: why }), fromAddr.match(/[^\s<>]+@[^\s<>]+/)?.[0]); };
+  if (!no || !text) { await passOn("This email wasn't a reply to a support ticket, so it was passed on to you."); return NextResponse.json({ ok: true, passedOn: Boolean(copyTo) }); }
   const rows = await table<{ id: string; context: Ctx | null }>("feedback", { select: "id,context", filter: `category=eq.support_ticket&context->>ticket_no=eq.${encodeURIComponent(no)}` });
   const t = rows?.[0];
-  if (!t) return NextResponse.json({ ok: true, ignored: "unknown ticket" });
+  if (!t) { await passOn("It mentions a ticket number we couldn't find, so it was passed on to you."); return NextResponse.json({ ok: true, passedOn: Boolean(copyTo) }); }
   const thread = [...(t.context?.thread ?? []), { dir: "in" as const, at: new Date().toISOString(), text, by: String(d.from ?? d.From ?? "customer").slice(0, 200) }];
   await write("feedback", "PATCH", { filter: `id=eq.${t.id}`, body: { context: { ...(t.context ?? {}), thread }, status: "open" } });
   // a copy to the owner's own inbox, so every reply is seen without opening Mila OS
-  const copyTo = (process.env.FORWARD_REPLIES_TO ?? "").trim();
   if (copyTo) {
     const from = String(d.from ?? d.From ?? "the customer");
     const base = (process.env.MILA_OS_URL || "").replace(/\/$/, "");
