@@ -10,7 +10,7 @@ export const POST = api(async ({ profile, req }) => {
   const cfg = await getStore().getConfig();
   const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
   const f = new URLSearchParams();
-  f.set("success_url", `${base}/settings/credits?checkout=success`);
+  f.set("success_url", `${base}/settings/credits?checkout=success&session_id={CHECKOUT_SESSION_ID}`);
   f.set("cancel_url", `${base}/settings/credits?checkout=cancelled`);
   f.set("customer_email", profile.email);
   f.set("client_reference_id", profile.id);

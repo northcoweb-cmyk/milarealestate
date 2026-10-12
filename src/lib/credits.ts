@@ -96,8 +96,16 @@ export interface UsageInput {
   creditsOverride?: number; // e.g. variable-cost imports
 }
 
+/** What one credit is worth in AI cost: a plan's AI ceiling divided by its credits (about 1 cent). A turn that uses more AI than that costs more credits. */
+export const AI_USD_PER_CREDIT = 0.01;
+const turnAiCost = new Map<string, number>();
+/** The AI cost recorded for this user since the last call, then reset. The agent calls it once per turn to price the turn by what it really used. */
+export function takeTurnAiCost(userId: string): number { const v = turnAiCost.get(userId) ?? 0; turnAiCost.delete(userId); return v; }
+export const creditsForAiCost = (usd: number) => Math.ceil(Math.max(0, usd) / AI_USD_PER_CREDIT - 1e-9);
+
 export async function recordUsage(u: UsageInput): Promise<{ usage: UsageRow; credits: number }> {
   const store = getStore();
+  if ((u.estCostUsd ?? 0) > 0) turnAiCost.set(u.userId, (turnAiCost.get(u.userId) ?? 0) + (u.estCostUsd ?? 0));
   const credits = u.creditsOverride ?? (await creditCost(u.creditKey));
   const usage = await store.insert("usage", u.userId, {
     conversation_id: u.conversationId ?? null,

@@ -227,7 +227,7 @@ const OP: Record<string, string> = { "turn:open_house": "Open house workflow", "
 function Credits() {
   const { data, loading, reload } = useApi<CreditsData>("/api/credits"); const [custom, setCustom] = useState("");
   const { toast, refresh } = useApp(); const params = useSearchParams();
-  useEffect(() => { if (params.get("checkout") === "success") { toast("Thanks! Your credits will appear in a moment.", "success"); setTimeout(() => { reload(); refresh(); }, 2500); } }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (params.get("checkout") === "success") { const sid = params.get("session_id"); (async () => { try { if (sid) await jfetch("/api/billing/confirm", { method: "POST", json: { session_id: sid } }); toast("Thanks! Your credits are on your account.", "success"); } catch { toast("Thanks! Your credits will appear in a moment.", "success"); } reload(); refresh(); setTimeout(() => { reload(); refresh(); }, 2500); })(); } }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
   if (loading || !data) return <Skeleton className="h-96" />;
   const pct = Math.min(100, Math.round((data.balance / Math.max(data.allowance, 1)) * 100));
   async function buy(body: Record<string, unknown>) {

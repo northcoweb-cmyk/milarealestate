@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db/store";
 import { grantCredits, getBalance } from "@/lib/credits";
+import { applyCheckoutSession } from "@/lib/billing/apply-checkout";
 
 function verify(payload: string, header: string, secret: string) {
   const parts = Object.fromEntries(header.split(",").map((p) => p.split("=") as [string, string]));
@@ -29,19 +30,7 @@ export async function POST(req: Request) {
 
   const cfg = await store.getConfig();
   if (event.type === "checkout.session.completed") {
-    if (o.metadata.kind === "pack") await grantCredits(uid, Number(o.metadata.credits), "purchase", `Credit pack (${event.id})`);
-    if (o.metadata.kind === "plan") {
-      const plan = cfg.plans.find((p) => p.key === o.metadata.plan_key);
-      const sub = (await store.list("subscriptions", uid))[0];
-      if (plan && sub) {
-        const start = new Date();
-        await store.update("subscriptions", uid, sub.id, { plan_key: plan.key, status: "active", credits_per_period: plan.credits, period_start: start.toISOString(), period_end: new Date(start.getTime() + 30 * 86_400_000).toISOString(), stripe_customer_id: o.customer, stripe_subscription_id: o.subscription });
-        // replace dev credits with the plan allowance
-        const bal = await getBalance(uid);
-        await grantCredits(uid, plan.credits - bal, "reset", `Plan started: ${plan.name} (${event.id})`);
-        if (plan.bonus_credits) await grantCredits(uid, plan.bonus_credits, "grant", `Annual perk: ${plan.bonus_credits} bonus credits (${event.id}:bonus)`);
-      }
-    }
+    await applyCheckoutSession(uid, o); // shared with the return page: whichever comes first applies it, the other is a no-op
   }
   if (event.type === "invoice.paid" && o.billing_reason === "subscription_cycle") {
     const sub = (await store.list("subscriptions", uid))[0];
