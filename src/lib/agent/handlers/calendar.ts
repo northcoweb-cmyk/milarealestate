@@ -274,6 +274,10 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
     const own = /\b(?:i'?ll be|i am|i'm|i will be)\s+(?:at|in|with)\s+(?:the\s+|my\s+|a\s+)?([a-z][\w'’ -]{2,30}?)(?=\s+(?:on\s+)?(?:mon|tue|wed|thu|fri|sat|sun|tomorrow|tmrw|today|tonight|next|this|from|at|around)\b|\s+\d|[,.;!]|$)/i.exec(text)?.[1]?.trim();
     if (own) title = own.replace(/(^|\s)(\p{L})/gu, (_m, s: string, ch: string) => s + ch.toUpperCase());
   }
+  if (!title && !noun && !kindHint) {
+    const lead = /^\s*(dentist|doctor|dr\.?\s*\w+|haircut|gym|workout|massage|vet|therapy|physio|pickup|errand)\b/i.exec(text)?.[1];
+    if (lead) title = lead.replace(/(^|\s)(\p{L})/gu, (_m, sp: string, ch: string) => sp + ch.toUpperCase());
+  }
   if (!kindHint && !title && !noun && !/open house/i.test(text)) {
     const day = w.date ? ` on ${fmtDay(w.start!, ctx.tz)}` : "";
     return askBack(ctx, "create_event", text, "kind", `What should I put on your calendar${day}${w.time ? "" : ", and at what time"} (a showing, call, meeting…)?`);

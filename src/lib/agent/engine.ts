@@ -29,7 +29,7 @@ import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
-import { openHouseHandler } from "./handlers/openhouse";
+import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { listingLinkHandler } from "./handlers/photos";
 import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
@@ -169,7 +169,7 @@ const NOT_AN_ANSWER = /^(?:thanks|thank you|thx|ty|ok|okay|k|cool|great|got it|n
 function isFeedback(text: string): boolean {
   const t = text.trim().replace(/[.!\s]+$/, "");
   if (t.split(/\s+/).length > 9) return false;
-  return /^(?:(?:no|nope|hmm+|ugh|sorry|um+|wait|oops|hey)[,.!\s]+)*(?:you(?:'ve| have)? (?:got|gotten|did|made|misunderstood|misread)\b.{0,25}\b(?:wrong|incorrect|a mistake)|you(?:'re| are) wrong|that(?:'s| is| was| isn'?t| is not)?\s*(?:wrong|incorrect|not right|not correct|not what i (?:asked|said|meant|wanted)|not it|a mistake)|this(?:'s| is| was)? (?:wrong|incorrect|not right)|it(?:'s| is| was)? (?:wrong|incorrect|not right)|(?:wrong|incorrect|not right|not correct|nope wrong|that's not it)|(?:that|this) (?:isn'?t|is not|wasn'?t) (?:right|correct|it|what i (?:asked|said|meant|wanted)))\s*(?:at all|again)?$/i.test(t);
+  return /^(?:(?:no|nope|hmm+|ugh|sorry|um+|wait|oops|hey)[,.!\s]+)*(?:you(?:'ve| have)? (?:got|gotten|did|made|misunderstood|misread)\b.{0,25}\b(?:wrong|incorrect|a mistake)|you(?:'re| are) wrong|not what i (?:asked|meant|said)|why did you (?:do|say) that|that(?:'s| is| was| isn'?t| is not)?\s*(?:wrong|incorrect|not right|not correct|not what i (?:asked|said|meant|wanted)|not it|a mistake)|this(?:'s| is| was)? (?:wrong|incorrect|not right)|it(?:'s| is| was)? (?:wrong|incorrect|not right)|(?:wrong|incorrect|not right|not correct|nope wrong|that's not it)|(?:that|this) (?:isn'?t|is not|wasn'?t) (?:right|correct|it|what i (?:asked|said|meant|wanted)))\s*(?:at all|again)?$/i.test(t);
 }
 async function feedbackHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const last = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId && m.role === "mila").sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
@@ -214,6 +214,9 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     ] }], "smalltalk"), intent: "smalltalk" };
   }
   // "You got that wrong" / "that's not right" is feedback about Mila's last answer: acknowledged and recorded, never a new contact, property or event
+  if (text && !docs.length && !ctx.state.pending && /^(?:yes|yeah|yep|yup|no|nope|nah|the (?:first|second|third|last) one|first|second|third)[.!\s]*$/i.test(text.trim())) {
+    return { out: reply(`Nothing is waiting on you right now, so "${text.trim()}" doesn't answer anything. Tell me the task, for example: book a showing Friday at 2.`, [], "smalltalk"), intent: "smalltalk" };
+  }
   if (text && !docs.length && isFeedback(text)) return { out: await feedbackHandler(ctx, text), intent: "smalltalk" };
   let pend = ctx.state.pending;
   // the agent comes back to a set-aside question in plain words, without tapping Continue
@@ -445,6 +448,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "update_listing": return updateListingHandler(ctx, text);
     case "agenda": return agendaHandler(ctx, text);
     case "undo": return undoHandler(ctx);
+    case "oh_recap": return openHouseRecapHandler(ctx, text, weekOverviewHandler);
     case "open_house": return openHouseHandler(ctx, text);
     case "move_event": return moveEventHandler(ctx, text, declared);
     case "cancel_event": return cancelEventHandler(ctx, text);

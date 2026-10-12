@@ -1,11 +1,11 @@
 import { parseDate, parseTime } from "./nlu";
 
 export type Intent =
-  | "replace_event" | "listing_agreement" | "pet_check" | "client_search" | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
+  | "oh_recap" | "replace_event" | "listing_agreement" | "pet_check" | "client_search" | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
   | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "email_audience" | "recall" | "save_memory"
   | "find_property" | "delete_data" | "listing_link" | "showing_sheet" | "agenda" | "update_listing" | "undo" | "smalltalk" | "general";
 
-export const INTENTS: Intent[] = ["replace_event", "listing_agreement", "pet_check", "client_search", "prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
+export const INTENTS: Intent[] = ["oh_recap", "replace_event", "listing_agreement", "pet_check", "client_search", "prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
 
 export interface Detected { intent: Intent; declared?: boolean }
 
@@ -71,7 +71,7 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
 
   const moveVerb = /\b(move|moved|moving|reschedule|rescheduled|push|pushed|change|changed|postpone|postponed|shift|shifted|switch|switched|bump|bumped|bumping|pushing)\b/;
   const past = /\bi\s+(?:just\s+)?(moved|rescheduled|changed|pushed|postponed|shifted|switched)\b|\bit(?:'s| is| has been)\s+(?:been\s+)?(moved|rescheduled|changed)\b|\b(?:got|has been|was)\s+(moved|rescheduled|changed)\b/.test(t);
-  const eventNoun = /\b(open house|showing|tour|appointment|presentation|meeting|call|lunch|dinner|coffee|closing|inspection|walkthrough|event|consult)/;
+  const eventNoun = /\b(open house|showing|tour|appointment|dentist|doctor|haircut|thing|\d{1,2}(?::\d\d)?\s?(?:am|pm)|presentation|meeting|call|lunch|dinner|coffee|closing|inspection|walkthrough|event|consult)/;
   const isQuestion = /^(what|when|who|where|how|do|did|is|are|can|could|should|why|which)\b|\?\s*$/.test(t) && !/^(can|could) (?:you|we) (?:please )?(?:move|reschedule|push|schedule|book|set|put|cancel|make|create|write|draft|add)\b/.test(t);
   // "going forward always cc my assistant": a standing instruction to remember (for this agent only)
   if (!isQuestion && /^\s*(?:going forward|from now on|from here on(?: out)?)\b/.test(t)) return { intent: "save_memory" };
@@ -96,6 +96,10 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   // two or more email addresses with a lead-in is a list of people to add
   if ((raw.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) ?? []).length >= 2 && (/:/.test(raw) || /^\s*(?:please\s+)?(?:add|save|import)\b/i.test(raw)) && !/\b(draft|write|compose|send|follow.?up)\b/.test(t)) return { intent: "signin_paste" };
   // "what's on my calendar Friday", "do I have anything tomorrow", "am I free Friday at 3", "when is my next showing"
+  // a bare "the one that happened today" is pointing at an event: show that day's calendar so the agent can say what they want
+  if (/^(?:the |that )?one\b.{0,40}\b(today|yesterday|tonight|this morning|this afternoon|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(t) && !/\b(add|put|book|create|move|cancel|reschedule|remind|email|text|post)\b/.test(t)) return { intent: "agenda" };
+  // "what time does it start on Sunday?" / "when does the open house begin": a question about the calendar, not a booking
+  if (/^(?:and |so |ok |okay )?(?:what time|when)\b/.test(t) && /\b(start|starts|starting|begin|begins|beginning|kick(?:s)? off|is it|does it|is the|is my|are my|are the)\b/.test(t) && (/\b(open house|showing|appointment|meeting|call|lunch|closing|inspection|tour|it|that|one)\b/.test(t)) && !/\b(add|put|book|schedule (?:a|an)|create|move|cancel|reschedule|remind)\b/.test(t)) return { intent: "agenda" };
   if (/\b(calendar|schedule|agenda)\b/.test(t) && /\b(what|whats|what'?s|show|check|see|anything|tell|pull up|read|how'?s|how is|look)\b/.test(t) && !/\b(add|put|schedule (?:a|an)|book|set up|create|block)\b/.test(t.replace(/\b(my|the) schedule\b/, "")) && !/\b(post|email|flyer)\b/.test(t)) return { intent: "agenda" };
   if (/^(?:what|whats|what'?s)\s+(?:do i have|have i got|am i doing|is on|'?s on|on for|do i got)\b|^what'?s on\b|^do i have (?:anything|something|a thing|any)\b|^anything (?:on|for|booked)\b|^am i (?:free|busy|available|open)\b|^(?:are|is) (?:there )?(?:anything|something) (?:on|booked|scheduled)\b|^(?:when|what time) (?:is|are|'?s) my (?:next |first |last )?(?:showing|appointment|meeting|call|lunch|closing|inspection|open house|tour)/.test(t) && !/\b(plate|to do|follow|checklists?|tips?|scripts?|advice|a good|the best)\b/.test(t)) return { intent: "agenda" };
 
@@ -163,6 +167,19 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   if (/\b(email|e-mail|message|send)\b/.test(t) && /\b(contacts|buyers|leads|clients|everyone|my list|audience)\b/.test(t) && /\b(open house|listing|just listed|showing)\b/.test(t)) return { intent: "email_audience" };
   // an address plus "open house" and a post word (or no date at all) is a post for that property, not a person to message and not a booking
   if (STREET.test(t) && /open\s*house/.test(t) && !isQuestion && !/\b(email|e-mail|text|sms|message|tell|invite)\b/.test(t) && (/\b(posts?|caption|carousel|instagram|insta|ig|story|stories|graphic|flyer|content|promo|promote|announce|announcement)\b/.test(t) || !hasWhen)) return { intent: "social_post" };
+  // natural phrasings that used to fall through to the menu
+  if (/^(?:dentist|doctor|dr\.?|haircut|gym|workout|massage|vet|therapy|physio|pickup|errand)\b/.test(t) && hasWhen && !isQuestion) return { intent: "create_event" };
+  if (/^(?:and |so |ok |okay )?(?:what'?s|whats|what is) next\b|\banything (?:this|on the|for the) (?:weekend|week)\b|\bwhat'?s (?:going on|happening) (?:this|next) (?:weekend|week)\b/.test(t)) return { intent: "agenda" };
+  if (/\bwhat should i (?:focus on|work on|tackle|do first)\b|\bi'?m (?:so )?(?:overwhelmed|swamped|buried|stressed|drowning)\b|\bwhere (?:do|should) i start\b/.test(t)) return { intent: "priorities" };
+  if (/\b(?:is|are)\s+.{3,40}\s+ready (?:to list|for (?:market|the market|listing))\b/.test(t)) return { intent: "listing_ready" };
+  if (/\bany (?:new )?(?:listings|homes|matches)\b.{0,25}\b(?:buyers?|clients?)\b/.test(t)) return { intent: "new_listings" };
+  if (/\bwhat'?s (?:coming up|next|left|due|happening) (?:on|with|for) (?:my|the) (?:closing|transaction|deal|contract)\b/.test(t)) return { intent: "transaction" };
+  if (/\bwhat did i (?:last )?(?:say|tell|send|write|text|email) (?:to )?[a-z]+/.test(t)) return { intent: "recall" };
+  if (/^(?:and |oh )?(?:oh |and )?(?:also )?cancel (?:my |the )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)\b/.test(t)) return { intent: "cancel_event" };
+  if (/^(?:follow up|follow-up|reach out|check in) with (?:everyone|all|the people|anyone|folks)\b.*\bopen house\b/.test(t)) return { intent: "email_audience" };
+  if (/\b(?:just|finally)\s+(?:wrapped|finished|got done|got back|ended)\b.{0,25}open\s*house|\bhow did (?:my|the) open\s*house go\b|\bwho (?:came|showed up|attended) (?:to|at) (?:my|the) open\s*house\b/.test(t)) return { intent: "oh_recap" };
+  // "my open house went good today": a report on something that already happened, never a booking
+  if (/open\s*house/.test(t) && /\b(went|was|were|turned out|had|hosted|did|finished|wrapped|ended|is over|are over|done)\b/.test(t) && /\b(good|great|go\b|up||well|awesome|amazing|fine|busy|slow|quiet|packed|rough|bad|terrible|crazy|fun|today|yesterday|last night|this morning|this afternoon)\b/.test(t) && !/\b(will|going to|gonna|plan|planning|schedule|book|set up|setup|next|tomorrow|upcoming)\b/.test(t) && !/\b(post|instagram|caption|carousel|flyer)\b/.test(t)) return { intent: "oh_recap" };
   if (/open house/.test(t) && (/\b(have|hosting|host|holding|set up|setup|plan|planning|prepare|schedule|organize|scheduled|this|next|on|at)\b/.test(t) || hasWhen) && !/instagram|facebook|post|carousel|tiktok/.test(t) && !isQuestion) return { intent: "open_house" };
   if (/\b(make|create|write|draft|design|generate|do|need|build|want|give)\b.{0,25}\b(an? |\d+ |one |two |three |four |five |some )?(social )?(posts?|captions?|carousels?|story|stories)\b/.test(t) && !/\b(email|open house at)\b/.test(t)) return { intent: "social_post" };
   // "a post for 12 Oak Lane" / "ig caption about the open house": a fragment, but unmistakably a content request

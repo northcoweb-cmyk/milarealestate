@@ -229,3 +229,26 @@ export async function continueOpenHouse(ctx: Ctx, draft: Record<string, any>, st
 }
 
 export { fmtShortDate };
+
+/**
+ * "My open house went good today, anything I need to know for this week?" The agent is reporting, not booking.
+ * Find the open house that just happened from the calendar (never ask for an address Mila already has), acknowledge it, and show what is next.
+ */
+export async function openHouseRecapHandler(ctx: Ctx, text: string, weekOverview: (ctx: Ctx) => Promise<HandlerOut>): Promise<HandlerOut> {
+  const now = ctx.now.getTime();
+  const events = await ctx.store.list("calendar_events", ctx.userId);
+  const dayStart = (d: Date) => { const p = partsIn(d, ctx.tz); return `${p.y}-${p.m}-${p.d}`; };
+  const wantYesterday = /\byesterday|last night\b/i.test(text);
+  const target = new Date(now - (wantYesterday ? 86_400_000 : 0));
+  const sameDay = events.filter((e) => e.status === "confirmed" && e.kind === "open_house" && dayStart(new Date(e.start_at)) === dayStart(target)).sort((a, b) => a.start_at.localeCompare(b.start_at));
+  const ev = sameDay[sameDay.length - 1] ?? events.filter((e) => e.status === "confirmed" && e.kind === "open_house" && new Date(e.start_at).getTime() <= now).sort((a, b) => b.start_at.localeCompare(a.start_at))[0] ?? null;
+  const where = ev ? (ev.location || ev.title.replace(/^open house( at)?\s*/i, "")) : "";
+  if (ev) { ctx.state.last_event_id = ev.id; if (ev.property_id) ctx.state.last_property_id = ev.property_id; await persistState(ctx); }
+  const asked = /\bhow did|who (?:came|showed|attended)\b/i.test(text);
+  const intro = asked ? `I can't see who walked in unless you tell me. Paste your sign-in sheet or give me the names and I'll add them as contacts and draft follow-ups.${ev ? "" : " I also don't see an open house on your calendar for that day."}` : ev ? `Glad it went well${where ? ` at ${where}` : ""}. Nice work.` : "Glad it went well. I don't see an open house on your calendar for that day, so tell me the address if you want me to log it.";
+  const week = await weekOverview(ctx);
+  const follow: Array<{ label: string; text: string }> = ev ? [{ label: "Email the people who came", text: `email my contacts about the open house${where ? ` at ${where}` : ""}` }, { label: "Make a thank-you post", text: `make a post for the open house${where ? ` at ${where}` : ""}` }] : [];
+  const blocks = [...(week.blocks ?? [])];
+  if (follow.length) blocks.push({ type: "choice", title: "Want me to follow up?", buttons: follow.map((f) => ({ label: f.label, style: "secondary" as const, action: { type: "prompt" as const, text: f.text } })) } as never);
+  return { ...week, text: `${intro} Here's what's coming this week. ${week.text}`.replace(/\s+/g, " ").trim(), blocks };
+}

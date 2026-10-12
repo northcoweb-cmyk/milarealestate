@@ -440,7 +440,7 @@ export function splitClauses(text: string): string[] {
   const parts = text
     .split(/\s*(?:;|,\s*(?:and\s+)?(?=(?:remind me|email|e-mail|text|draft|add|book|schedule|cancel|move|reschedule|set up|create)\b)|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b)|[.!]\s+(?=(?:what(?:'s| is)|what am i|anything)\b[^.?!]*\bmissing\b))\s*/i)
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter((s) => s && !/^(?:oh|ok|okay|and|also|so|um+|uh+|hey|wait|actually)[.,!\s]*$/i.test(s)); // "oh and also cancel Monday" leaves one request, not a stray "oh"
   // "… and remind me …", "… and move my …" start a new clause when followed by an action verb
   const out: string[] = [];
   for (const p of parts) {
