@@ -2,6 +2,7 @@ import { Shell } from "@/components/shell";
 import { Bars, Funnel, Missing, Pill, Section, Stat } from "@/components/ui";
 import { ago, usd } from "@/lib/data";
 import { NoKeys, load } from "@/lib/page";
+import { configured, table } from "@/lib/sb";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +10,14 @@ export default async function Overview() {
   const r = await load();
   if (!r) return <Shell title="Overview"><NoKeys /></Shell>;
   const k = r.kpis;
+  const tix = configured() ? await table<{ status: string | null; created_at: string }>("feedback", { select: "status,created_at", filter: "category=eq.support_ticket&status=neq.resolved", max: 200 }) : null;
+  const waiting = (tix ?? []).filter((t) => (t.status ?? "open") === "open");
+  const overdue = waiting.filter((t) => Date.now() - new Date(t.created_at).getTime() > 48 * 3_600_000).length;
   const alerts: { tone: "bad" | "warn" | "ok"; text: string }[] = [];
   if (k.errors24h > 0) alerts.push({ tone: k.errors24h > 10 ? "bad" : "warn", text: `${k.errors24h} ${k.errors24h === 1 ? "error" : "errors"} in the last 24 hours (${k.openErrors} open ${k.openErrors === 1 ? "issue type" : "issue types"})` });
   if (r.kpis.aiToday > 20) alerts.push({ tone: "warn", text: `AI spend today is ${usd(k.aiToday)}` });
   if (r.users.some((u) => u.state === "trial ended")) alerts.push({ tone: "warn", text: `${r.users.filter((u) => u.state === "trial ended").length} trials ended without paying` });
+  if (waiting.length) alerts.unshift({ tone: overdue ? "bad" : "warn", text: `${waiting.length} support ${waiting.length === 1 ? "ticket needs" : "tickets need"} a reply${overdue ? ` (${overdue} past the 48-hour promise)` : ""}. Open Inbox → Support.` });
   if (!alerts.length) alerts.push({ tone: "ok", text: "Nothing needs attention right now." });
   return (
     <Shell title="Overview" lead="Everything about the waitlist, the app, your users and your errors in one place.">
