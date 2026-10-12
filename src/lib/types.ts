@@ -591,6 +591,10 @@ export interface Integration extends Row {
 
 // Global (non per-user) configuration editable by the business owner.
 export interface PlanConfig {
+  /** "year" plans are billed once a year but still get their credits every month. */
+  interval?: "month" | "year";
+  /** one-time bonus credits when the plan starts (the annual perk). */
+  bonus_credits?: number;
   key: string;
   name: string;
   price_usd: number;

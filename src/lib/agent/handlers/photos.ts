@@ -16,7 +16,7 @@ export function explainPull(r: PullResult, address: string): string {
   const portal = PORTALS.test(r.host);
   if (r.reason === "robots" || r.reason === "blocked") {
     return portal
-      ? `${r.host} doesn't allow automated photo access, so I can't pull from it. If you send me the listing link from your brokerage or MLS site, I can try that.`
+      ? `I can't pull photos or details from ${r.host}: Zillow, Redfin and similar sites don't allow it, and the photos belong to the photographer or listing agent. Upload your own photos here, or paste the listing page from your brokerage's own website and I'll use that. Until then I'll use the street view photo so the home always has a picture.`
       : `${r.host} doesn't allow automatic access to its photos.`;
   }
   if (r.reason === "none") return `I found the page but it doesn't share photos I can use.`;

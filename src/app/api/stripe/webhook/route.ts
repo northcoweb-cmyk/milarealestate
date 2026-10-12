@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         // replace dev credits with the plan allowance
         const bal = await getBalance(uid);
         await grantCredits(uid, plan.credits - bal, "reset", `Plan started: ${plan.name} (${event.id})`);
+        if (plan.bonus_credits) await grantCredits(uid, plan.bonus_credits, "grant", `Annual perk: ${plan.bonus_credits} bonus credits (${event.id}:bonus)`);
       }
     }
   }

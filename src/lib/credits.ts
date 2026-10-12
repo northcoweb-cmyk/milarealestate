@@ -37,8 +37,33 @@ export async function getBalance(userId: string): Promise<number> {
   return tx.reduce((n, t) => n + t.delta, 0);
 }
 
+/**
+ * Annual subscribers pay once a year, so Stripe only tells us about the renewal. Their credits still arrive every month:
+ * when a monthly window has passed, the subscription is checked with Stripe (still active?) and the allowance is refilled.
+ */
+export async function refillAnnual(userId: string) {
+  const store = getStore();
+  const sub = (await store.list("subscriptions", userId))[0];
+  if (!sub || sub.status !== "active" || !sub.stripe_subscription_id || new Date(sub.period_end).getTime() > Date.now()) return;
+  const cfg = await store.getConfig();
+  if (cfg.plans.find((p) => p.key === sub.plan_key)?.interval !== "year") return;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return;
+  try {
+    const r = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(sub.stripe_subscription_id)}`, { headers: { Authorization: `Bearer ${key}` } });
+    if (!r.ok) return;
+    const d = (await r.json()) as { status?: string };
+    if (d.status !== "active" && d.status !== "trialing") { if (d.status === "canceled") await store.update("subscriptions", userId, sub.id, { status: "canceled" }); return; }
+    const start = new Date();
+    await store.update("subscriptions", userId, sub.id, { period_start: start.toISOString(), period_end: new Date(start.getTime() + 30 * 86_400_000).toISOString() });
+    const bal = await getBalance(userId);
+    await grantCredits(userId, Math.max(sub.credits_per_period - bal, 0), "reset", `Monthly refill (annual plan) ${start.toISOString().slice(0, 7)}`);
+  } catch { /* try again on the next request */ }
+}
+
 export async function ensureCredits(userId: string, needed: number) {
   if (needed <= 0) return;
+  await refillAnnual(userId);
   // test accounts never run dry: top them up when they get low, and the trial clock does not apply to them
   if (await isTesterId(userId)) {
     const bal0 = await getBalance(userId);
@@ -118,6 +143,7 @@ export async function ensureSubscription(userId: string, cfg?: AppConfig): Promi
 
 export async function creditSummary(userId: string) {
   const store = getStore();
+  await refillAnnual(userId);
   const [sub, tx, usage, cfg] = await Promise.all([
     ensureSubscription(userId),
     store.list("credit_transactions", userId),

@@ -39,6 +39,13 @@ export interface Store {
 
 const now = () => new Date().toISOString();
 
+/** A saved config keeps its own values, but a plan that was added to the defaults later (like the annual plan) still shows up. */
+function withDefaults(saved?: AppConfig | null): AppConfig {
+  if (!saved) return DEFAULT_CONFIG;
+  const missing = DEFAULT_CONFIG.plans.filter((p) => !saved.plans.some((x) => x.key === p.key));
+  return missing.length ? { ...saved, plans: [...saved.plans, ...missing] } : saved;
+}
+
 function prepare<K extends TableName>(table: K, userId: string, data: NewRow<K>): TableMap[K] {
   const id = (data as Partial<Row>).id ?? (table === "profiles" ? userId : randomUUID());
   const ts = now();
@@ -128,7 +135,7 @@ class FileStore implements Store {
     const r = this.rows("profiles").find((p) => (p as unknown as { email: string }).email.toLowerCase() === e);
     return r ? (structuredClone(r) as unknown as TableMap["profiles"]) : null;
   }
-  async getConfig() { return this.data.config ?? DEFAULT_CONFIG; }
+  async getConfig() { return withDefaults(this.data.config); }
   async setConfig(c: AppConfig) { this.data.config = c; this.persist(); }
   async listAll<K extends TableName>(table: K) {
     return this.rows(table).map((r) => structuredClone(r)) as unknown as TableMap[K][];
@@ -211,7 +218,7 @@ class SupabaseStore implements Store {
   }
   async getConfig() {
     const { data } = await this.sb.from("app_config").select("value").eq("key", "main").maybeSingle();
-    return (data?.value as AppConfig | undefined) ?? DEFAULT_CONFIG;
+    return withDefaults(data?.value as AppConfig | undefined);
   }
   async setConfig(c: AppConfig) {
     const { error } = await this.sb.from("app_config").upsert({ key: "main", value: c, updated_at: now() });

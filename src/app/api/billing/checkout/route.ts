@@ -24,7 +24,7 @@ export const POST = api(async ({ profile, req }) => {
     if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email admin@milarealestate.app.");
     name = plan.name; cents = Math.round(plan.price_usd * 100);
     f.set("mode", "subscription");
-    f.set("line_items[0][price_data][recurring][interval]", "month");
+    f.set("line_items[0][price_data][recurring][interval]", plan.interval === "year" ? "year" : "month");
     f.set("metadata[kind]", "plan"); f.set("metadata[plan_key]", plan.key);
     f.set("subscription_data[metadata][user_id]", profile.id); f.set("subscription_data[metadata][plan_key]", plan.key);
   } else {

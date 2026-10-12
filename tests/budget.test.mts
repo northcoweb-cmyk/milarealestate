@@ -51,8 +51,8 @@ test("when the trial ends nothing paid runs, with a clear reason", async () => {
 });
 
 test("plans: Standard $29 / Premium $49 / Team $299, each with a hard AI ceiling well under the price", () => {
-  assert.deepEqual(DEFAULT_CONFIG.plans.map((p) => [p.key, p.price_usd]), [["solo", 29], ["pro", 49], ["team", 299]]);
-  for (const p of DEFAULT_CONFIG.plans) assert.ok(p.ai_budget_usd! > 0 && p.ai_budget_usd! <= p.price_usd * 0.3, `${p.key} AI ceiling is at most 30% of the price`);
+  assert.deepEqual(DEFAULT_CONFIG.plans.map((p) => [p.key, p.price_usd]), [["solo", 29], ["pro", 49], ["pro_annual", 490], ["team", 299]]);
+  for (const p of DEFAULT_CONFIG.plans) assert.ok(p.ai_budget_usd! > 0 && p.ai_budget_usd! <= (p.price_usd / (p.interval === "year" ? 12 : 1)) * 0.3, `${p.key} AI ceiling is at most 30% of the price`);
   assert.ok(DEFAULT_CONFIG.trial!.ai_budget_usd <= 3);
 });
 

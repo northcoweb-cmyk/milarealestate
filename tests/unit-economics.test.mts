@@ -17,7 +17,7 @@ test("worst case (AI budget fully spent + every paid data limit used) stays unde
 });
 
 test("top-up credits always cost more per credit than any plan", () => {
-  const cheapest = Math.max(...DEFAULT_CONFIG.plans.filter((p) => p.key !== "team").map((p) => p.price_usd / p.credits));
+  const cheapest = Math.max(...DEFAULT_CONFIG.plans.filter((p) => p.key !== "team").map((p) => p.price_usd / (p.interval === "year" ? 12 : 1) / p.credits));
   assert.ok((DEFAULT_CONFIG.credit_price_usd ?? 0) > cheapest);
   for (const k of DEFAULT_CONFIG.packs) assert.ok(k.price_usd / k.credits >= cheapest);
 });

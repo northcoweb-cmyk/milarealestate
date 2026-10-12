@@ -30,6 +30,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   plans: [
     { key: "solo", name: "Mila Standard (no longer offered to new users)", price_usd: 29, credits: 700, ai_budget_usd: 8, blurb: "Mila's fast, accurate everyday model, for a one-agent business." },
     { key: "pro", name: "Mila", price_usd: 49, credits: 1400, ai_budget_usd: 14, blurb: "Everything in Mila for a one-agent business. Credits are provisional until we have real usage to calibrate them." },
+    { key: "pro_annual", name: "Mila Annual", price_usd: 490, credits: 1400, ai_budget_usd: 12, interval: "year", bonus_credits: 500, blurb: "Everything in Mila, billed once a year: two months free, plus 500 bonus credits as a founding-member perk. Credits arrive every month." },
     { key: "team", name: "Mila Team", price_usd: 299, credits: 12000, ai_budget_usd: 85, blurb: "For teams and small brokerages: shared pipeline and far more room to work." },
   ],
   packs: [
