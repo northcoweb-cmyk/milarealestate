@@ -76,3 +76,8 @@ Use real addresses and real client situations. Tap 🐞 on anything wrong. Run t
 
 ## Pay option (if the redeploy is still blocked)
 Vercel Pro is $20/month and removes the limit immediately. If you pay, push and redeploy as often as needed.
+
+## Added Oct 12 (owner)
+- [ ] Onboarding "Connect your tools" step said "Not available right now" with no way forward. Fixed in code: Google Calendar + Outlook Calendar cards, honest add-only wording, "Coming soon" until each is set up. Still needs: Google and Microsoft apps set up (client ids/secrets in Vercel) so the Connect buttons appear; test both on a phone.
+- [ ] Signup bug report: after creating an account the app showed "You already have a Mila account with this email" on the welcome page while loading. Reproduce the signup → onboarding redirect on the live app and fix.
+- [ ] Contacts import step in onboarding: make "import my contacts" a real button (CSV upload, Google contacts later).
