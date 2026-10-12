@@ -189,7 +189,7 @@ export default function Page() {
               <a href="https://instagram.com/milarealestateapp" target="_blank" rel="noopener" aria-label="Mila on Instagram (@milarealestateapp)" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:border-white/60 hover:bg-white/10 hover:text-white"><InstagramLogo size={22} weight="regular" aria-hidden /></a>
             </div></div>
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[14px]" aria-label="Footer">
-            <Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/terms" className="hover:text-white">Terms</Link>
+            <Link href="/guides" className="hover:text-white">Guides</Link><Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/terms" className="hover:text-white">Terms</Link>
             <a href="mailto:admin@milarealestate.app" className="hover:text-white">Contact</a>
           </nav>
         </div>
