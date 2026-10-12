@@ -23,3 +23,9 @@ See `status.md` NOT DONE rows.
 - Spoken ordinal "the thirty first" parses as today.
 - Double-tap parallel turns share state, lightly tested.
 - `decideApproval` for send_email really sends via Gmail/Outlook when connected, but the buttons say "Open in email app"/"Approve draft": label needs a decision.
+
+## Decisions made Oct 12 (owner)
+- Pinch zoom stays off. Google + Microsoft sign-in in for launch (Google for login; Microsoft for calendar/mail connection). Voice in, and Mila needs a spoken voice. Photos from pasted links in, capped at 5 per link.
+- Calendar sync is add-only: Mila writes to a connected calendar and never reads it (reading is behind CALENDAR_PULL=1). Tradeoff: she can't see events made elsewhere, so she can't warn about overlaps with them.
+- Refunds: none once 100+ credits are used.
+- **Open risk: Zillow / Redfin / Realtor links.** The code deliberately refuses big portals (PORTALS in src/lib/images/listing.ts) because their terms forbid automated access and listing photos are usually copyrighted. Removing that is a legal/terms risk the owner has to accept knowingly; I have not removed it. Safer options: (1) pull from agent/brokerage sites and public pages, (2) upload photos directly, (3) always fall back to the Street View image so every property has at least one photo.

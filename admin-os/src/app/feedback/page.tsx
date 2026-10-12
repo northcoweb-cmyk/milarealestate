@@ -4,6 +4,7 @@ import { Missing, Pill, Section } from "@/components/ui";
 import { isAuthed } from "@/lib/auth";
 import { ago, fmt } from "@/lib/data";
 import { NoKeys } from "@/lib/page";
+import { CopyReports } from "@/components/copy-reports";
 import { configured, table } from "@/lib/sb";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function Feedback() {
       <Missing tables={rows === null ? ["feedback"] : []} />
       {rows && (
         <>
+          <CopyReports />
           <p className="lead" style={{ marginTop: 8 }}>{n("bug")} bug reports · {n("useful")} useful · {n("missing")} missing something · {n("wrong")} wrong</p>
           <Section title={`Latest (${rows.length})`}>
             <div className="tw"><table>

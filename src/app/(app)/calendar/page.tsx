@@ -39,7 +39,7 @@ export default function CalendarPage() {
 
   async function sync() {
     setSyncing(true);
-    try { const r = await jfetch<{ added: number; updated: number }>("/api/calendar/sync", { method: "POST" }); toast(`Synced — ${r.added} new, ${r.updated} updated.`, "success"); reload(); }
+    try { const r = await jfetch<{ added: number; updated: number; pushOnly?: boolean }>("/api/calendar/sync", { method: "POST" }); toast(r.pushOnly ? "Mila adds your events to your connected calendar. She doesn't read it." : `Synced — ${r.added} new, ${r.updated} updated.`, "success"); reload(); }
     catch (e: any) { toast(e?.message ?? "Couldn't sync.", "error"); } finally { setSyncing(false); }
   }
   const dayLabel = (d: Date, i: number) => (i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(d));

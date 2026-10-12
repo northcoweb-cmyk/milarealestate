@@ -61,9 +61,12 @@ export function extractFromHtml(html: string, baseUrl: string): ListingExtract {
 
 export interface PullResult { added: number; host: string; reason?: "blocked" | "robots" | "none" | "error" | "bad_link"; detail?: string; filledCity?: boolean }
 
+/** The most photos pulled from one listing link: the first few are the front and main rooms, and it keeps storage and memory small. */
+export const PHOTO_PULL_LIMIT = 5;
+
 const IMG_TYPES = /^image\/(jpeg|png|webp|gif)$/;
 
-export async function pullListingPhotos(store: Store, userId: string, property: Property, url: string, max = 6): Promise<PullResult> {
+export async function pullListingPhotos(store: Store, userId: string, property: Property, url: string, max = PHOTO_PULL_LIMIT): Promise<PullResult> {
   let u: URL;
   try { u = new URL(url); } catch { return { added: 0, host: "", reason: "bad_link", detail: "That doesn't look like a web link." }; }
   const host = u.hostname.replace(/^www\./, "");
@@ -90,9 +93,15 @@ export async function pullListingPhotos(store: Store, userId: string, property: 
       filledCity = true;
     }
 
+    // never put another house's photos on this property: when the page names its own street number it has to be ours
+    if (num && ex.address?.street) {
+      const pageNum = ex.address.street.match(/^\s*(\d+)/)?.[1];
+      if (pageNum && pageNum !== num) return { added: 0, host, reason: "none", detail: `That page is for a different address (${ex.address.street}), so I didn't add its photos.`, filledCity };
+    }
     const existing = (await store.list("documents", userId)).filter((d) => d.property_id === property.id);
     const seen = new Set(existing.map((d) => (d.extracted as { sha?: string } | null)?.sha).filter(Boolean));
     let pos = (await store.list("property_images", userId)).filter((i) => i.property_id === property.id).length;
+    if (pos >= PHOTO_PULL_LIMIT * 2) return { added: 0, host, reason: "none", detail: `This home already has ${pos} photos. I pull up to ${PHOTO_PULL_LIMIT} per link.`, filledCity };
     let added = 0;
     for (const img of ex.images.slice(0, max * 2)) {
       if (added >= max) break;

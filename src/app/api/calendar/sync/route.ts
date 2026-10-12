@@ -3,8 +3,10 @@ import { getStore } from "@/lib/db/store";
 import { icsRow, syncIcs } from "@/lib/integrations/ics";
 import { GoogleError, gcal, getGoogle } from "@/lib/integrations/google";
 
-// Pull the next 60 days from Google Calendar into Mila so conflict checks see everything.
+// Owner decision (Oct 12): Mila only ADDS to a connected calendar. She does not read it, so nothing from the agent's other calendars is pulled in.
+// Reading is kept behind CALENDAR_PULL=1 in case it is ever wanted back (it is what lets conflict checks see events made elsewhere).
 export const POST = api(async ({ profile }) => {
+  if (process.env.CALENDAR_PULL !== "1") return { added: 0, updated: 0, pushOnly: true };
   const g = await getGoogle(profile.id);
   const ics = await icsRow(profile.id);
   let fromLink = { added: 0, updated: 0, removed: 0 };
