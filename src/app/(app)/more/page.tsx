@@ -8,6 +8,7 @@ import { Avatar, Confirm, PageHeader, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApp } from "@/components/app-context";
 import { InstallSteps, useInstall } from "@/components/install";
+import { PlanBadge } from "@/components/plan-badge";
 
 const Row = ({ href, icon: I, title, sub }: { href: string; icon: any; title: string; sub?: string }) => (
   <Link href={href} className="flex items-center gap-4 px-4 py-3.5 transition hover:bg-white/30 sm:px-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}><I size={20} /></span><span className="min-w-0 flex-1"><span className="block font-semibold leading-tight">{title}</span>{sub && <span className="faint text-[13.5px]">{sub}</span>}</span><ChevronRight size={18} className="text-ink-faint" /></Link>
@@ -27,6 +28,7 @@ export default function MorePage() {
       <Link href="/settings/profile" className="glass-strong mb-7 flex items-center gap-4 p-5"><Avatar name={profile.full_name} size={56} src={profile.settings.brand?.pfp ? `/api/files/${profile.settings.brand.pfp}` : null} /><div className="min-w-0 flex-1"><p className="text-[19px] font-semibold leading-tight">{profile.full_name}</p><p className="muted truncate text-[14.5px]">{profile.email}</p></div><ChevronRight className="text-ink-faint" /></Link>
 
       <Link href="/settings/credits" className="glass mb-7 block p-5" style={{ borderRadius: 26 }}>
+        <div className="mb-3"><PlanBadge /></div>
         <div className="mb-2 flex items-baseline justify-between"><p className="kicker">Mila credits</p><span className="faint text-[13px]">Resets {new Date(credits.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
         <p className="display text-[34px] leading-none">{credits.balance.toLocaleString()} <span className="faint text-[18px]">/ {credits.allowance.toLocaleString()}</span></p>
         <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
