@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getWho, isAuthed } from "@/lib/auth";
 import { sendMail } from "@/lib/mail";
+import { brandedEmail } from "@/lib/email-template";
 import { table, write } from "@/lib/sb";
 
 type Ctx = { ticket_no?: string; email?: string; name?: string; subject?: string; thread?: { dir: "in" | "out"; at: string; text: string; by?: string }[] };
@@ -20,7 +21,9 @@ export async function POST(req: Request) {
   const t = rows?.[0];
   if (!t?.context?.email) return NextResponse.json({ error: "That ticket has no reply email." }, { status: 404 });
   const c = t.context;
-  const sent = await sendMail(c.email!, `Re: [Mila ticket ${c.ticket_no}] ${c.subject ?? "Your message"}`, `${text}\n\n— The Mila team\n\n(Reply to this email to continue. Ticket ${c.ticket_no}.)`);
+  const first = (c.name ?? "").split(" ")[0] || "there";
+  const html = brandedEmail({ preheader: text.slice(0, 90), chip: `Ticket ${c.ticket_no}`, heading: `Hi ${first},`, body: text, note: "Just reply to this email to keep the conversation going. It stays on the same ticket." });
+  const sent = await sendMail(c.email!, `Re: [Mila ticket ${c.ticket_no}] ${c.subject ?? "Your message"}`, `Hi ${first},\n\n${text}\n\n— The Mila team\n\n(Reply to this email to continue. Ticket ${c.ticket_no}.)`, html);
   if (!sent.ok) return NextResponse.json({ error: sent.error ?? "The email didn't send." }, { status: 502 });
   const thread = [...(c.thread ?? []), { dir: "out" as const, at: new Date().toISOString(), text, by: who }];
   const saved = await write("feedback", "PATCH", { filter: `id=eq.${id}`, body: { context: { ...c, thread }, status: "replied" } });

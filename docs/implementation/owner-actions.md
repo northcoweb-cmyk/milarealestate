@@ -15,3 +15,9 @@
 Support email is hello@milarealestate.app. In the **Mila OS** Vercel project add: `RESEND_API_KEY` (same key as the app), `MAIL_FROM` or `SUPPORT_FROM` (e.g. `Mila Support <hello@milarealestate.app>`; the domain must be verified in Resend), optional `SUPPORT_EMAIL`. In the **Mila app** project `SUPPORT_EMAIL` defaults to hello@milarealestate.app.
 - **Reply from Mila OS:** Inbox → Support → open a ticket → write → Send reply (goes out from hello@, reply-to hello@; the thread is saved on the ticket).
 - **See customer replies in Mila OS:** needs one inbound step. Set `INBOUND_SECRET` (16+ random characters) in Mila OS, then point an inbound-email service at `https://<mila os url>/api/inbound?secret=<INBOUND_SECRET>` (Resend inbound on hello@ with the MX records they give you, or Postmark/Cloudflare Email Routing). Until that is set up, replies still arrive in the hello@ mailbox itself; the ticket number in the subject (e.g. M-AB12CD) tells you which ticket.
+
+### Inbound replies + copy to Yahoo (Oct 12)
+Mila OS env: `INBOUND_SECRET` (16+ random chars; "asdfghjklzxcvbn" is 15 and guessable: replace it), `INBOUND_REPLY_TO` (e.g. `support@reply.milarealestate.app`: where customers' replies go), `FORWARD_REPLIES_TO` (`northcoweb@yahoo.com`: every reply is copied there), `MILA_OS_URL` (the Mila OS URL, for the "Reply in Mila OS" button), `RESEND_API_KEY`, `SUPPORT_FROM`.
+Mila app env: `MAIL_REPLY_TO` = the same `INBOUND_REPLY_TO` address so the automatic confirmation emails also route replies back.
+Resend: enable Receiving on a SUBDOMAIN (`reply.milarealestate.app`), add the MX record Resend shows to DNS (a subdomain leaves any existing mail on the main domain alone), then Webhooks → Add → event `email.received` → URL `https://<mila os url>/api/inbound?secret=<INBOUND_SECRET>`.
+Untested end to end: send an email to the reply address and check Mila OS → Support and the Yahoo copy.
