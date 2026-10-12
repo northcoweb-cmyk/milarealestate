@@ -16,7 +16,7 @@ export const POST = api(async ({ profile, req }) => {
   f.set("client_reference_id", profile.id);
   f.set("allow_promotion_codes", "true"); // launch codes (e.g. half off the first month) are created in Stripe, nothing to ship
   f.set("metadata[user_id]", profile.id);
-  let name: string, cents: number;
+  let name: string, cents: number, cfgInterval = "month";
   if (b.kind === "plan") {
     const plan = cfg.plans.find((p) => p.key === b.plan_key);
     if (!plan) throw bad("Unknown plan.");
@@ -24,7 +24,7 @@ export const POST = api(async ({ profile, req }) => {
     if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email admin@milarealestate.app.");
     name = plan.name; cents = Math.round(plan.price_usd * 100);
     f.set("mode", "subscription");
-    f.set("line_items[0][price_data][recurring][interval]", plan.interval === "year" ? "year" : "month");
+    cfgInterval = plan.interval === "year" ? "year" : "month";
     f.set("metadata[kind]", "plan"); f.set("metadata[plan_key]", plan.key);
     f.set("subscription_data[metadata][user_id]", profile.id); f.set("subscription_data[metadata][plan_key]", plan.key);
   } else {
@@ -36,9 +36,16 @@ export const POST = api(async ({ profile, req }) => {
     f.set("metadata[kind]", "pack"); f.set("metadata[credits]", String(n));
   }
   f.set("line_items[0][quantity]", "1");
-  f.set("line_items[0][price_data][currency]", "usd");
-  f.set("line_items[0][price_data][unit_amount]", String(cents));
-  f.set("line_items[0][price_data][product_data][name]", name);
+  // Plans can point at real Stripe Products (own name and statement descriptor "MILA"): set STRIPE_PRICE_<PLAN KEY> to the price id. Without it, an inline price is used.
+  const priceId = b.kind === "plan" ? process.env[`STRIPE_PRICE_${String(b.plan_key).toUpperCase()}`] : undefined;
+  if (priceId && /^price_[A-Za-z0-9]+$/.test(priceId)) f.set("line_items[0][price]", priceId);
+  else {
+    f.set("line_items[0][price_data][currency]", "usd");
+    f.set("line_items[0][price_data][unit_amount]", String(cents));
+    f.set("line_items[0][price_data][product_data][name]", name);
+    if (b.kind === "plan") f.set("line_items[0][price_data][recurring][interval]", cfgInterval);
+  }
+  if (b.kind === "pack" && /^[A-Za-z0-9 ]{2,12}$/.test(process.env.STRIPE_DESCRIPTOR_SUFFIX ?? "")) f.set("payment_intent_data[statement_descriptor_suffix]", process.env.STRIPE_DESCRIPTOR_SUFFIX!);
   const r = await fetch("https://api.stripe.com/v1/checkout/sessions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/x-www-form-urlencoded" }, body: f });
   const d = (await r.json()) as { url?: string; error?: { message: string } };
   if (!r.ok || !d.url) throw bad(d.error?.message ?? "Couldn't start checkout.");
