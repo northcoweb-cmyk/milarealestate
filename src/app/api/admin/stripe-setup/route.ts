@@ -8,7 +8,7 @@ import { isAdmin } from "@/lib/auth";
  * Visit /api/admin/stripe-setup?create=1 while signed in as the owner. Without ?create=1 it only reports what is set.
  */
 export const GET = api(async ({ profile, req }) => {
-  if (!isAdmin(profile)) return Response.json({ error: "Not allowed." }, { status: 403 });
+  if (!isAdmin(profile)) return Response.json({ error: "Not allowed.", signed_in_as: profile.email, admin_emails_set: Boolean((process.env.ADMIN_EMAILS ?? "").trim()), hint: "ADMIN_EMAILS in this deployment must include the signed-in email. Changing it in Vercel only applies after a new deploy." }, { status: 403 });
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw bad("STRIPE_SECRET_KEY isn't set.");
   const existing = process.env.STRIPE_PORTAL_CONFIG;
