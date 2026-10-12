@@ -224,6 +224,61 @@ function Notifications() {
   );
 }
 
+const PLAN_POINTS: Record<string, string[]> = {
+  pro: ["Everything Mila does", "Calendar, follow-ups, posts and emails", "Listing and open house prep", "Cancel any time"],
+  pro_annual: ["Everything in Mila Monthly", "Two months free", "500 bonus credits at signup", "Credits still arrive every month"],
+  team: ["Your logo and look", "Shared pipeline", "Invite links for every agent", "Set up around your CRM and MLS"],
+};
+function PlanCards({ plans, currentName, billingConfigured, onBuy }: { plans: CreditsData["plans"]; currentName: string | null; billingConfigured: boolean; onBuy: (key: string) => void }) {
+  const order = ["pro", "pro_annual", "team"];
+  const list = [...plans].sort((a, b) => (order.indexOf(a.key) + 1 || 9) - (order.indexOf(b.key) + 1 || 9));
+  return (
+    <div className="grid items-stretch gap-5 md:grid-cols-3">
+      {list.map((p) => {
+        const team = p.key === "team", annual = (p as { interval?: string }).interval === "year", current = currentName === p.name;
+        const bonus = (p as { bonus_credits?: number }).bonus_credits;
+        const accent = annual ? "linear-gradient(160deg, #22c55e 0%, #0ea5e9 100%)" : team ? "linear-gradient(160deg, #f59e0b 0%, #ef4444 100%)" : "linear-gradient(160deg, var(--accent), var(--accent-2))";
+        return (
+          <div key={p.key} className="relative flex flex-col overflow-hidden" style={{ borderRadius: 28, padding: 2, background: current ? accent : "color-mix(in srgb, var(--ink) 8%, transparent)", boxShadow: current ? "0 18px 40px -18px rgba(80,60,200,.45)" : "none" }}>
+            <div className="glass-strong flex h-full flex-col gap-5 p-6" style={{ borderRadius: 26 }}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[13px] font-bold uppercase tracking-[.14em]" style={{ background: accent, WebkitBackgroundClip: "text", color: "transparent" }}>{team ? "Team" : annual ? "Annual" : "Monthly"}</p>
+                {current ? <span className="rounded-full px-2.5 py-1 text-[11.5px] font-bold text-white" style={{ background: accent }}>Your plan</span> : annual ? <span className="rounded-full px-2.5 py-1 text-[11.5px] font-bold" style={{ background: "#dcfce7", color: "#15803d" }}>Best value</span> : null}
+              </div>
+              <div>
+                {team ? <p className="display text-[44px] leading-none">Custom</p> : <p className="display text-[48px] leading-none">${p.price_usd}<span className="faint ml-1 text-[17px]">{annual ? "/year" : "/month"}</span></p>}
+                <p className="muted mt-2 text-[14px]">{team ? "Built around your team" : annual ? `About $${(p.price_usd / 12).toFixed(2)}/month · save $${49 * 12 - p.price_usd}` : `${p.credits.toLocaleString()} credits every month`}</p>
+              </div>
+              {!team && <div className="rounded-2xl px-4 py-3" style={{ background: "color-mix(in srgb, var(--accent) 9%, transparent)" }}><p className="text-[15px] font-semibold">{p.credits.toLocaleString()} credits / month</p>{annual && bonus ? <p className="text-[13px]" style={{ color: "#15803d" }}>+ {bonus} bonus credits to start</p> : <p className="faint text-[13px]">Credits reset each month</p>}</div>}
+              <ul className="flex-1 space-y-2.5">{(PLAN_POINTS[p.key] ?? []).map((t) => <li key={t} className="flex gap-2.5 text-[14.5px]"><Check size={17} className="mt-0.5 shrink-0" style={{ color: annual ? "#16a34a" : "var(--accent)" }} /><span>{t}</span></li>)}</ul>
+              {team ? <a className="btn btn-primary w-full" href={`mailto:admin@milarealestate.app?subject=${encodeURIComponent("Mila Team plan")}&body=${encodeURIComponent("Hi Mila team,\n\nWe're interested in the Team plan.\n\nTeam / brokerage name:\nNumber of agents:\nCRM we use today:\nMLS / market:\nBest way to reach us:\n")}`}>Contact us</a>
+                : <button className="btn btn-primary w-full" disabled={!billingConfigured || current} onClick={() => onBuy(p.key)}>{current ? "Current plan" : billingConfigured ? (annual ? "Choose annual" : "Choose monthly") : "Opens at launch"}</button>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BillingCard({ planName, used, toast }: { planName: string; used: number; toast: (m: string, t?: "success" | "error") => void }) {
+  const { profile } = useApp(); const email = profile.email;
+  const [st, setSt] = useState<{ active?: boolean; canceling?: boolean; date?: string | null; interval?: string | null } | null>(null);
+  useEffect(() => { jfetch<{ active?: boolean; canceling?: boolean; date?: string | null; interval?: string | null }>("/api/billing/status").then(setSt).catch(() => setSt({})); }, []);
+  const when = st?.date ? new Date(st.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
+  const mail = `mailto:admin@milarealestate.app?subject=${encodeURIComponent("Billing question or refund request")}&body=${encodeURIComponent(`Hi Mila team,\n\nMy account: ${email ?? ""}\nPlan: ${planName}\nCredits used this period: ${used}\n\nWhat happened and what I'm asking for:\n\n`)}`;
+  return (
+    <Card title="Billing" sub="Cancel any time. No contracts, no lock-in.">
+      {when && <p className="mb-3 text-[15px] font-semibold" style={{ color: st?.canceling ? "var(--danger)" : "var(--ink)" }}>{st?.canceling ? `Canceled. You keep full access until ${when}, and you won't be charged again.` : `Your plan renews on ${when}${st?.interval === "year" ? " (billed yearly)" : ""}.`}</p>}
+      <div className="flex flex-wrap items-center gap-3">
+        <button className="btn" onClick={async () => { try { const r = await jfetch<{ url: string }>("/api/billing/portal", { method: "POST", json: {} }); window.location.assign(r.url); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't open billing.", "error"); } }}>Manage or cancel subscription</button>
+        <a className="faint text-[13.5px] underline" href={mail}>Billing help or refund question</a>
+      </div>
+      <p className="faint mt-2 text-[12.5px]">Refunds are reviewed by a person. They aren't available once 100 or more credits have been used.</p>
+    </Card>
+  );
+}
+
 interface CreditsData { creditPrice?: number; trial?: { daysLeft: number; day: number; expired: boolean } | null; balance: number; allowance: number; spentThisPeriod: number; resetsAt: string; status: string; plan: { name: string } | null; history: { id: string; at: string; label: string; credits: number }[]; packs: { credits: number; price_usd: number }[]; plans: { key: string; name: string; price_usd: number; credits: number; blurb: string }[]; billingConfigured: boolean }
 const OP: Record<string, string> = { "turn:open_house": "Open house workflow", "turn:new_contact": "New contact", "turn:priorities": "Follow-up priorities", "turn:market": "Market research", "turn:draft_email": "Email draft", "turn:social_post": "Social post", "turn:batch_followups": "Follow-up drafts", "turn:signin_paste": "Sign-in sheet", "turn:move_event": "Calendar change", "turn:reminder": "Reminder", "turn:general": "Question", "market_research": "Market research", "contact_import": "Contact import", "image_extraction": "Photo reading", "document_extraction": "Document reading" };
 function Credits() {
@@ -252,9 +307,9 @@ function Credits() {
       </Card>
       <div className="mb-3"><PlanBadge /></div>
       <Card title="Plans" sub={data.trial ? "No card needed for your trial. Pick a plan whenever you are ready — every plan includes the full Mila." : "Every plan includes the full Mila — plans differ by monthly credits."}>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{data.plans.map((p) => p.key === "team" ? <div key={p.key} className="glass p-5" style={{ borderRadius: 24 }}><p className="font-semibold">Mila Team</p><p className="display text-[40px] leading-tight">Custom</p><p className="font-semibold">Built around your team</p><p className="muted mt-1 text-[14px]">Your logo, shared pipeline, invite links for every agent, and your team&apos;s own CRM and MLS connections.</p><a className="btn btn-primary btn-sm mt-4" href={`mailto:admin@milarealestate.app?subject=${encodeURIComponent("Mila Team plan")}&body=${encodeURIComponent("Hi Mila team,\n\nWe're interested in the Team plan.\n\nTeam / brokerage name:\nNumber of agents:\nCRM we use today:\nMLS / market:\nBest way to reach us:\n")}`}>Contact us</a></div> : <div key={p.key} className="glass p-5" style={{ borderRadius: 24 }}><p className="font-semibold">{p.name}</p><p className="display text-[40px] leading-tight">${p.price_usd}<span className="faint text-[16px]">{(p as { interval?: string }).interval === "year" ? "/yr" : "/mo"}</span></p>{(p as { interval?: string }).interval === "year" && <p className="font-semibold" style={{ color: "var(--ok)" }}>Save ${49 * 12 - p.price_usd} · about ${(p.price_usd / 12).toFixed(2)}/mo{(p as { bonus_credits?: number }).bonus_credits ? ` · +${(p as { bonus_credits?: number }).bonus_credits} bonus credits` : ""}</p>}<p className="font-semibold">{p.credits.toLocaleString()} Mila credits / month</p><p className="muted mt-1 text-[14px]">{p.blurb}</p><button className="btn btn-primary btn-sm mt-4" disabled={!data.billingConfigured} onClick={() => buy({ kind: "plan", plan_key: p.key })}>{data.plan?.name === p.name && data.status === "active" ? "Current plan" : data.billingConfigured ? "Choose plan" : "Opens at launch"}</button></div>)}</div>
+        <PlanCards plans={data.plans} currentName={data.status === "active" ? data.plan?.name ?? null : null} billingConfigured={data.billingConfigured} onBuy={(k) => buy({ kind: "plan", plan_key: k })} />
       </Card>
-      {data.billingConfigured && data.status === "active" && <Card title="Billing" sub="Cancel any time. No contracts, no lock-in."><div className="flex flex-wrap gap-2"><button className="btn" onClick={async () => { try { const r = await jfetch<{ url: string }>("/api/billing/portal", { method: "POST", json: {} }); window.location.assign(r.url); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't open billing.", "error"); } }}>Manage or cancel subscription</button><button className="btn btn-quiet" onClick={async () => { const reason = window.prompt("Request a refund. Tell us what went wrong (optional). A person reviews every request."); if (reason === null) return; try { const r = await jfetch<{ message: string }>("/api/billing/refund-request", { method: "POST", json: { reason } }); toast(r.message, "success"); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't send that.", "error"); } }}>Request a refund</button></div></Card>}
+      {data.billingConfigured && data.status === "active" && <BillingCard planName={data.plan?.name ?? "Mila"} used={data.spentThisPeriod} toast={toast} />}
       <Card title="Usage history">
         {data.history.length ? <ul className="divide-y" style={{ borderColor: "var(--line)" }}>{data.history.filter((h) => h.credits > 0).slice(0, 25).map((h) => <li key={h.id} className="flex items-center justify-between py-2.5 text-[14.5px]"><span>{OP[h.label] ?? h.label.replace(/^turn:/, "").replace(/_/g, " ")}<span className="faint ml-2 text-[12.5px]">{new Date(h.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></span><span className="font-semibold">−{h.credits}</span></li>)}</ul> : <p className="muted">No usage yet.</p>}
       </Card>
