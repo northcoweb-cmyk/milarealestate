@@ -16,6 +16,7 @@ export const POST = api(async ({ profile, req }) => {
   f.set("client_reference_id", profile.id);
   f.set("allow_promotion_codes", "true"); // launch codes (e.g. half off the first month) are created in Stripe, nothing to ship
   f.set("metadata[user_id]", profile.id);
+  f.set("custom_text[submit][message]", "You're buying Mila, your AI operations manager for real estate. Billed by NorthCo Designs. Cancel any time in Settings → Credits.");
   let name: string, cents: number, cfgInterval = "month";
   if (b.kind === "plan") {
     const plan = cfg.plans.find((p) => p.key === b.plan_key);
@@ -26,7 +27,7 @@ export const POST = api(async ({ profile, req }) => {
     f.set("mode", "subscription");
     cfgInterval = plan.interval === "year" ? "year" : "month";
     f.set("metadata[kind]", "plan"); f.set("metadata[plan_key]", plan.key);
-    f.set("subscription_data[metadata][user_id]", profile.id); f.set("subscription_data[metadata][plan_key]", plan.key);
+    f.set("subscription_data[description]", `Mila: ${plan.name}`); f.set("subscription_data[metadata][user_id]", profile.id); f.set("subscription_data[metadata][plan_key]", plan.key);
   } else {
     const n = Math.round(Number(b.credits));
     if (!Number.isFinite(n) || n < 100 || n > 5000) throw bad("Choose between 100 and 5,000 credits.");

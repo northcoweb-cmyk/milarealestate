@@ -9,6 +9,7 @@ export const POST = api(async ({ profile }) => {
   if (!sub?.stripe_customer_id) throw bad("There's no paid subscription to manage yet.");
   const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
   const f = new URLSearchParams({ customer: sub.stripe_customer_id, return_url: `${base}/settings/credits` });
+  if (/^bpc_[A-Za-z0-9]+$/.test(process.env.STRIPE_PORTAL_CONFIG ?? "")) f.set("configuration", process.env.STRIPE_PORTAL_CONFIG!); // Mila's own portal, separate from the account's default
   const r = await fetch("https://api.stripe.com/v1/billing_portal/sessions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/x-www-form-urlencoded" }, body: f });
   const d = (await r.json()) as { url?: string; error?: { message: string } };
   if (!r.ok || !d.url) throw bad(d.error?.message ?? "Couldn't open billing.");
