@@ -1,6 +1,7 @@
 "use client";
 
 import { PlanBadge } from "@/components/plan-badge";
+import { SupportForm } from "@/components/support-form";
 
 import { ServiceLogo } from "@/components/brand-logos";
 import Link from "next/link";
@@ -16,7 +17,7 @@ import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { PlaceInput, type PickedPlace } from "@/components/place-input";
 
-const TITLES: Record<string, string> = { profile: "Profile", business: "Business", connections: "Calendar & contacts", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
+const TITLES: Record<string, string> = { support: "Help & support", profile: "Profile", business: "Business", connections: "Calendar & contacts", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
 
 export default function SettingsPage() { return <Suspense><Inner /></Suspense>; }
 
@@ -27,6 +28,7 @@ function Inner() {
     <Page>
       <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <h1 className="h1 mb-6">{TITLES[section]}</h1>
+      {section === "support" && <SupportForm />}
       {section === "profile" && <Profile />}
       {section === "business" && <Business />}
       {section === "connections" && <Connections />}
@@ -261,18 +263,16 @@ function PlanCards({ plans, currentName, billingConfigured, onBuy }: { plans: Cr
   );
 }
 
-function BillingCard({ planName, used, toast }: { planName: string; used: number; toast: (m: string, t?: "success" | "error") => void }) {
-  const { profile } = useApp(); const email = profile.email;
+function BillingCard({ toast }: { planName?: string; used?: number; toast: (m: string, t?: "success" | "error") => void }) {
   const [st, setSt] = useState<{ active?: boolean; canceling?: boolean; date?: string | null; interval?: string | null } | null>(null);
   useEffect(() => { jfetch<{ active?: boolean; canceling?: boolean; date?: string | null; interval?: string | null }>("/api/billing/status").then(setSt).catch(() => setSt({})); }, []);
   const when = st?.date ? new Date(st.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
-  const mail = `mailto:admin@milarealestate.app?subject=${encodeURIComponent("Billing question or refund request")}&body=${encodeURIComponent(`Hi Mila team,\n\nMy account: ${email ?? ""}\nPlan: ${planName}\nCredits used this period: ${used}\n\nWhat happened and what I'm asking for:\n\n`)}`;
   return (
     <Card title="Billing" sub="Cancel any time. No contracts, no lock-in.">
       {when && <p className="mb-3 text-[15px] font-semibold" style={{ color: st?.canceling ? "var(--danger)" : "var(--ink)" }}>{st?.canceling ? `Canceled. You keep full access until ${when}, and you won't be charged again.` : `Your plan renews on ${when}${st?.interval === "year" ? " (billed yearly)" : ""}.`}</p>}
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn" onClick={async () => { try { const r = await jfetch<{ url: string }>("/api/billing/portal", { method: "POST", json: {} }); window.location.assign(r.url); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't open billing.", "error"); } }}>Manage or cancel subscription</button>
-        <a className="faint text-[13.5px] underline" href={mail}>Billing help or refund question</a>
+        <a className="faint text-[13.5px] underline" href="/settings/support?topic=refund">Billing help or refund question</a>
       </div>
       <p className="faint mt-2 text-[12.5px]">Refunds are reviewed by a person. They aren't available once 100 or more credits have been used.</p>
     </Card>

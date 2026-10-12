@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export const NAV = [["/", "Overview"], ["/waitlist", "Waitlist"], ["/users", "Users"], ["/funnel", "Funnel"], ["/errors", "Errors"], ["/feedback", "Feedback"], ["/social", "Social"], ["/spend", "AI spend"], ["/invites", "Invites"], ["/launch", "Launch"]] as const;
+export const NAV = [["/", "Overview"], ["/waitlist", "Waitlist"], ["/users", "Users"], ["/funnel", "Funnel"], ["/errors", "Errors"], ["/feedback", "Feedback"], ["/support", "Support"], ["/social", "Social"], ["/spend", "AI spend"], ["/invites", "Invites"], ["/launch", "Launch"]] as const;
 
 export function Nav({ who }: { who?: "ryan" | "sarah" | null }) {
   const path = usePathname();
