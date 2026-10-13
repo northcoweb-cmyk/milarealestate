@@ -1,0 +1,33 @@
+name: AI tester
+# Run it from GitHub: Actions → AI tester → Run workflow. Needs the repo secret OPENAI_API_KEY (Settings → Secrets and variables → Actions).
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "chicago, openhouse, messy, oof, seller, confused, or all"
+        default: "chicago"
+      turns:
+        description: "Messages per scenario"
+        default: "14"
+      max_usd:
+        description: "Stop when estimated cost passes this (USD)"
+        default: "0.60"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Run the AI tester
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node --import tsx tests/eval/live-tester.mts --scenario=${{ inputs.scenario }} --turns=${{ inputs.turns }} --max-usd=${{ inputs.max_usd }}
+      - name: Show the report
+        if: always()
+        run: cat tests/eval/live-report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ai-tester-report, path: tests/eval/live-report.md }
