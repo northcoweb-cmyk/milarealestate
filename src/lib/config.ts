@@ -25,6 +25,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     workflow_open_house: 4,
     workflow_default: 2,
     voice_transcription: 1,
+    voice_speech: 1, // one spoken reply (about a cent of speech)
   },
   // ai_budget_usd is the hard monthly ceiling on what a subscriber may cost us in AI (about a quarter of the price at most).
   plans: [

@@ -1,5 +1,6 @@
 "use client";
 
+import { cleanForSpeech } from "@/lib/voice";
 import { FeedbackRow } from "@/components/feedback-row";
 import { keyboardUp, pinTo, useVisualViewport } from "./use-visual-viewport";
 import { useScrollLock } from "./use-scroll-lock";
@@ -165,22 +166,33 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   // spoken replies: the device's own voice reads Mila's text answer aloud. Nothing is recorded or stored, and speaking never approves anything.
   const [readAloud, setReadAloud] = useState(false);
   const spoken = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  /** Mila's own voice from the server; if it isn't available (not set up, allowance reached, offline) the device voice reads it instead. */
+  async function speakWithMila(text: string) {
+    try {
+      const r = await fetch("/api/voice/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
+      if (!r.ok) throw new Error("fallback");
+      const url = URL.createObjectURL(await r.blob());
+      const a = new Audio(url); audioRef.current = a; a.onended = () => URL.revokeObjectURL(url);
+      await a.play();
+    } catch { try { window.speechSynthesis.speak(new SpeechSynthesisUtterance(text)); } catch { /* no voice available */ } }
+  }
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
   useEffect(() => { try { setReadAloud(localStorage.getItem("mila_read_aloud") === "1"); } catch { /* private mode */ } }, []);
   useEffect(() => { if (!loaded) return; const last = [...messages].reverse().find((m) => m.role === "mila"); if (spoken.current === null) spoken.current = last?.id ?? ""; }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!canSpeak) return;
-    if (!readAloud || !isOpen) { window.speechSynthesis.cancel(); return; }
+    if (!readAloud || !isOpen) { window.speechSynthesis.cancel(); audioRef.current?.pause(); return; }
     if (busy) return;
     const last = [...messages].reverse().find((m) => m.role === "mila");
     if (!last || last.id.startsWith("tmp") || spoken.current === last.id) return;
     spoken.current = last.id;
-    const text = (last.content ?? "").replace(/[*_#`>]/g, "").replace(/\s+/g, " ").trim().slice(0, 600);
+    const text = cleanForSpeech(last.content ?? "");
     if (!text) return;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    window.speechSynthesis.cancel(); audioRef.current?.pause();
+    void speakWithMila(text);
   }, [messages, busy, readAloud, isOpen, canSpeak]);
-  const toggleReadAloud = () => { const n = !readAloud; setReadAloud(n); try { localStorage.setItem("mila_read_aloud", n ? "1" : "0"); } catch { /* ignore */ } if (!n && canSpeak) window.speechSynthesis.cancel(); };
+  const toggleReadAloud = () => { const n = !readAloud; setReadAloud(n); try { localStorage.setItem("mila_read_aloud", n ? "1" : "0"); } catch { /* ignore */ } if (!n) { audioRef.current?.pause(); if (canSpeak) window.speechSynthesis.cancel(); } };
   async function openChat(id: string) {
     if (!id) { await newChat(); return; } // the open chat was deleted: start a fresh one
     const r = await jfetch<{ conversationId: string; messages: Message[] }>(`/api/messages?conversationId=${encodeURIComponent(id)}&limit=100`);
