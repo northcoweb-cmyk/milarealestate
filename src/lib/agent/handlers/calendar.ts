@@ -562,8 +562,15 @@ export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut
   }
   if (!out.result.ok) return reply(`I couldn't block that: ${out.result.message}`);
   const when = d2 ? `${fmtDay(first, ctx.tz)} – ${fmtDay(last, ctx.tz)}` : fmtDay(first, ctx.tz);
+  // a heads-up the evening before (5 PM), so the agent gets the "what to handle before you go" list as a notification
+  try {
+    const eve = partsIn(addDays(startOfDay(first, ctx.tz), -1, ctx.tz), ctx.tz);
+    const at = zonedToUtc(eve.y, eve.m, eve.d, 17, 0, ctx.tz);
+    if (at.getTime() > ctx.now.getTime()) await invoke(ctx, "create_reminder", { title: `You're out of office starting ${fmtDay(first, ctx.tz)}. Ask me "what do I need to do before I leave?" to wrap up.`, remind_at: at.toISOString(), internal: true });
+  } catch { /* the block itself is saved; the heads-up is a bonus */ }
+  const goBlock = { type: "choice" as const, title: "Before you go", buttons: [{ label: "What do I need to do before I leave?", style: "secondary" as const, action: { type: "prompt" as const, text: "What do I need to do before I leave?" } }] };
   const heldAs = allDay ? ` (I don't have an all-day event type, so this holds ${fmtTime(first, ctx.tz)} to ${fmtTime(last, ctx.tz)})` : "";
-  if (!clash.length) return reply(`Blocked ${when} as ${what ? `“${what}”` : "out of office"}${heldAs}. Nothing else is booked then.`, [eventCard(ctx, (out.result as any).data.event)]);
+  if (!clash.length) return reply(`Blocked ${when} as ${what ? `“${what}”` : "out of office"}${heldAs}. Nothing else is booked then. I'll nudge you the evening before.`, [eventCard(ctx, (out.result as any).data.event), goBlock]);
   return reply(`Blocked ${when} as ${what ? `“${what}”` : "out of office"}${heldAs}. Heads up — you already have ${plural(clash.length, "thing")} on those days. Want me to move them?`, [
     ...clash.slice(0, 4).map((e) => eventCard(ctx, e, "Conflicts with time off")),
     { type: "choice", title: "Fix the conflicts", buttons: [{ label: `Push all ${clash.length} to the first day back`, style: "primary" as const, action: { type: "shift_events", eventIds: clash.map((e) => e.id), after: last.toISOString() } }, ...clash.slice(0, 4).map((e) => ({ label: `Move ${e.title}`, style: "secondary" as const, action: { type: "move_pick", eventId: e.id, text: "move to", declared: false } }))] },

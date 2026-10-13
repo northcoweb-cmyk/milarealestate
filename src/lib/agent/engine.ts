@@ -30,6 +30,7 @@ import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
+import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
 import { listingLinkHandler } from "./handlers/photos";
 import { reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
@@ -451,6 +452,9 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "update_listing": return updateListingHandler(ctx, text);
     case "agenda": return agendaHandler(ctx, text);
     case "undo": return undoHandler(ctx);
+    case "client_lost": return clientLostHandler(ctx, text);
+    case "deactivate_contact": return deactivateContactHandler(ctx, text);
+    case "pre_departure": return preDepartureHandler(ctx);
     case "oh_recap": return openHouseRecapHandler(ctx, text, weekOverviewHandler);
     case "open_house": return openHouseHandler(ctx, text);
     case "move_event": return moveEventHandler(ctx, text, declared);

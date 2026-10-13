@@ -15,6 +15,7 @@ import { TOOLS, invoke, logContactEvent } from "../tools";
 import { askBack } from "./ask";
 import { sharePhotosBlock, wantsPhotos } from "./photos";
 import { mentionedContacts } from "./contacts";
+import { upcomingWith } from "./lifecycle";
 import { type HandlerOut, reply } from "./types";
 
 const TX_NOTE = "Transaction milestone";
@@ -208,6 +209,11 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   let body = (pron ? stripped.slice(pron[0].length) : stripped.replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+(?!I\\b|I\'|a\\b)\\p{Lu}\\p{L}+)?\\s*`, "iu"), "")).replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
   if (!body) body = "just checking in — do you have a few minutes to talk?";
   body = body.replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);
+  // "text Maya to confirm tomorrow's showings": say which showings, when and where
+  if (c && /\bconfirm\w*\b/i.test(body)) {
+    const evs = (await upcomingWith(ctx, c)).filter((e) => e.kind === "showing" || /showing|tour/i.test(e.title)).slice(0, 4);
+    if (evs.length) body = `confirming ${evs.length === 1 ? "our showing" : "our showings"}: ${evs.map((e) => `${fmtDay(e.start_at, ctx.tz)} at ${fmtTime(e.start_at, ctx.tz)}, ${(e.location || e.title.split("—").pop() || "").trim()}`).join("; ")}. Reply here if anything changes`;
+  }
   const me = ctx.profile.full_name.split(/\s+/)[0];
   const msg = warmText(first, body, me);
   const phone = c?.phone?.replace(/[^\d+]/g, "") ?? "";

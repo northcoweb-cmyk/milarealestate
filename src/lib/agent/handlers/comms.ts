@@ -1,7 +1,8 @@
 import { parseTipRequest } from "../../content/templates";
 import { sharePhotosBlock, wantsPhotos } from "./photos";
 import { classifyProperty } from "../../property-kind";
-import { fmtDay, fmtRange } from "../../time";
+import { fmtDay, fmtRange, fmtTime } from "../../time";
+import { upcomingWith } from "./lifecycle";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, SocialSlide } from "../../types";
 import { type Ctx, firstName, fullMoney } from "../context";
 import { openHouseSocial, signature, verifiedFacts } from "../comms";
@@ -211,8 +212,11 @@ export async function draftEmailHandler(ctx: Ctx, text: string): Promise<Handler
   const topic = after ? after[2].trim() : /\b(?:about|regarding|saying|to say|that)\b/i.test(brief) ? brief.replace(/^.*?\b(?:about|regarding|saying|to say|that)\b\s*/i, "").trim() || brief : gave ? gave[1].trim() : brief;
   const ai = await llmDraftEmail(ctx, text, c.name, facts);
   const hasTopic = !!topic && topic !== text && topic !== brief;
-  const subject = ai?.subject ?? `Following up${hasTopic ? ` — ${topic.slice(0, 50)}` : ""}`;
-  const body = ai?.body ?? `Hi ${firstName(c.name)},\n\n${hasTopic ? `I wanted to follow up ${after ? after[1].toLowerCase() === "following" ? "following" : after[1].toLowerCase() : "about"} ${topic.replace(/[.!?]+$/, "")}.` : "I wanted to follow up."} Let me know a good time to talk.\n\n${signature(ctx.profile)}`;
+  // "email Maya the details for the apartments": her booked showings, with day, time and place, are the details
+  const mine = /\b(details|schedule|itinerary|showings?|tours?|apartments?|units?|properties|homes|addresses)\b/i.test(brief) ? (await upcomingWith(ctx, c)).filter((e) => e.kind === "showing" || /showing|tour/i.test(e.title)).slice(0, 6) : [];
+  const lines = mine.map((e) => `• ${fmtDay(e.start_at, ctx.tz)} at ${fmtTime(e.start_at, ctx.tz)}: ${(e.location || e.title.split("—").pop() || "").trim()}`);
+  const subject = ai?.subject ?? (lines.length ? `Your showing schedule` : `Following up${hasTopic ? ` — ${topic.slice(0, 50)}` : ""}`);
+  const body = (!ai?.body && lines.length) ? `Hi ${firstName(c.name)},\n\nHere is your showing schedule:\n\n${lines.join("\n")}\n\nLet me know if any time needs to change, and tell me what you think of each place.\n\n${signature(ctx.profile)}` : ai?.body ?? `Hi ${firstName(c.name)},\n\n${hasTopic ? `I wanted to follow up ${after ? after[1].toLowerCase() === "following" ? "following" : after[1].toLowerCase() : "about"} ${topic.replace(/[.!?]+$/, "")}.` : "I wanted to follow up."} Let me know a good time to talk.\n\n${signature(ctx.profile)}`;
   const d = ((await TOOLS.draft_email.run(ctx, { contact_id: c.id, subject, body })) as any).data.draft as EmailDraft;
   const out = await invoke(ctx, "send_email", { draftId: d.id });
   const blocks: Block[] = [{ type: "draft_email", draftId: d.id, to: `${c.name}${c.email ? ` <${c.email}>` : ""}`, subject, body, status: "Draft", buttons: out.status === "needs_approval" ? [{ label: "Edit", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Open in email app", style: "primary", approvalId: out.approval.id }] : undefined }];

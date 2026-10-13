@@ -800,10 +800,10 @@ test("P. one run-on message with several jobs does all of them", async () => {
     const a = await fresh(r);
     const d = notToday(a, r), d2 = pick(r, [0, 1, 2, 3, 4, 5, 6].filter((x) => x !== d && x !== partsIn(a.now, a.tz).dow));
     const forms: [string, (bad: (c: boolean, w: string) => void) => Promise<void>][] = [
-      [`showing at 12 Oak St ${DOW[d]} at 10am; remind me to call Dana ${DOW[d2]} at 9am`, async (bad) => { bad((await evs(a, "showing")).length === 1, "showing missing"); bad((await store.list("reminders", a.id)).length === 1, "reminder missing"); }],
+      [`showing at 12 Oak St ${DOW[d]} at 10am; remind me to call Dana ${DOW[d2]} at 9am`, async (bad) => { bad((await evs(a, "showing")).length === 1, "showing missing"); bad((await store.list("reminders", a.id)).filter((x: any) => !/^You're out of office starting/.test(x.title)).length === 1, "reminder missing"); }],
       [`new buyer named Priya Shah looking for 3 bed around 500k and schedule a call with her ${DOW[d]} at 2pm`, async (bad) => { bad((await store.list("contacts", a.id)).some((c: any) => c.name === "Priya Shah"), "buyer missing"); bad((await evs(a, "call")).length === 1, "call missing"); }],
       [`lunch with Dana ${DOW[d]} at noon and a meeting ${DOW[d2]} at 3pm`, async (bad) => { bad((await evs(a)).length === 2, `${(await evs(a)).length} events`); }],
-      [`I'm out of town ${DOW[d2]} and remind me to cancel the lawn guy ${DOW[d]} at 8am`, async (bad) => { bad((await evs(a)).some((e: any) => e.title === "Out of office"), "time off missing"); bad((await store.list("reminders", a.id)).length === 1, "reminder missing"); }],
+      [`I'm out of town ${DOW[d2]} and remind me to cancel the lawn guy ${DOW[d]} at 8am`, async (bad) => { bad((await evs(a)).some((e: any) => e.title === "Out of office"), "time off missing"); bad((await store.list("reminders", a.id)).filter((x: any) => !/^You're out of office starting/.test(x.title)).length === 1, "reminder missing"); }],
     ];
     const [msg, check] = forms[i % forms.length];
     await scenario(`P${i} "${msg}"`, a, async (bad) => { await say(a, msg); await check(bad); });
