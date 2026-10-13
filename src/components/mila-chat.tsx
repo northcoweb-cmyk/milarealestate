@@ -167,30 +167,72 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   const [readAloud, setReadAloud] = useState(false);
   const spoken = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  /** Mila's own voice from the server; if it isn't available (not set up, allowance reached, offline) the device voice reads it instead. */
-  async function speakWithMila(text: string) {
+  /** Mila's own voice from the server; if it isn't available (not set up, allowance reached, offline) the device voice reads it instead (a woman's voice when the device has one). */
+  function deviceSpeak(text: string): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        const voices = window.speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
+        const she = voices.find((v) => /samantha|karen|victoria|allison|ava|serena|moira|tessa|fiona|zira|aria|jenny|hazel|susan|female|woman/i.test(v.name)) ?? voices.find((v) => /google us english/i.test(v.name)) ?? voices.find((v) => !/\b(male|daniel|alex|fred|david|mark|george|james|guy|thomas|oliver|arthur|rishi)\b/i.test(v.name));
+        if (she) u.voice = she;
+        u.rate = 1; u.pitch = 1.05;
+        u.onend = () => resolve(); u.onerror = () => resolve();
+        window.speechSynthesis.speak(u);
+      } catch { resolve(); }
+    });
+  }
+  async function speakWithMila(text: string): Promise<void> {
     try {
       const r = await fetch("/api/voice/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
       if (!r.ok) throw new Error("fallback");
       const url = URL.createObjectURL(await r.blob());
-      const a = new Audio(url); audioRef.current = a; a.onended = () => URL.revokeObjectURL(url);
-      await a.play();
-    } catch { try { window.speechSynthesis.speak(new SpeechSynthesisUtterance(text)); } catch { /* no voice available */ } }
+      const a = new Audio(url); audioRef.current = a;
+      await new Promise<void>((resolve, reject) => { a.onended = () => { URL.revokeObjectURL(url); resolve(); }; a.onerror = () => reject(new Error("audio")); a.play().catch(reject); });
+    } catch { await deviceSpeak(text); }
   }
   const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
+  // Talk mode: hands-free conversation. Mila listens, answers out loud, then listens again. Everything said is written into the chat like any other message.
+  const [talk, setTalk] = useState(false);
+  const talkRef = useRef(false);
+  const heard = useRef<{ stop: () => void } | null>(null);
+  const silent = useRef(0);
+  const canTalk = typeof window !== "undefined" && !!((window as unknown as Record<string, unknown>).SpeechRecognition || (window as unknown as Record<string, unknown>).webkitSpeechRecognition);
+  const stopTalk = (say?: string) => { talkRef.current = false; setTalk(false); heard.current?.stop(); heard.current = null; audioRef.current?.pause(); try { window.speechSynthesis.cancel(); } catch { /* none */ } if (say) toast(say, "info"); };
+  function listenOnce() {
+    if (!talkRef.current) return;
+    const w = window as unknown as Record<string, new () => { lang: string; interimResults: boolean; continuous: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void; onend: () => void; onerror: (e: { error: string }) => void; start: () => void; stop: () => void }>;
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR(); r.lang = navigator.language || "en-US"; r.interimResults = false; r.continuous = false;
+    let got = "";
+    r.onresult = (e) => { for (let i = 0; i < e.results.length; i++) if (e.results[i].isFinal) got += e.results[i][0].transcript + " "; };
+    r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") stopTalk("Microphone access is blocked. Allow it in your browser settings to talk to Mila."); };
+    r.onend = () => {
+      heard.current = null;
+      if (!talkRef.current) return;
+      const text = got.trim();
+      if (!text) { silent.current += 1; if (silent.current >= 3) { stopTalk("I stopped listening because I didn't hear anything. Tap Talk to start again."); return; } setTimeout(listenOnce, 300); return; }
+      silent.current = 0;
+      if (/^(stop|end|goodbye|bye|that'?s all|stop talking|cancel voice)\b/i.test(text)) { stopTalk("Talk mode off."); return; }
+      void ask(text); // her reply is spoken by the read-aloud effect, which then calls listenOnce again
+    };
+    heard.current = r; try { r.start(); } catch { /* already running */ }
+  }
+  const startTalk = () => { silent.current = 0; talkRef.current = true; setTalk(true); setReadAloud(true); try { localStorage.setItem("mila_read_aloud", "1"); } catch { /* ignore */ } listenOnce(); };
   useEffect(() => { try { setReadAloud(localStorage.getItem("mila_read_aloud") === "1"); } catch { /* private mode */ } }, []);
   useEffect(() => { if (!loaded) return; const last = [...messages].reverse().find((m) => m.role === "mila"); if (spoken.current === null) spoken.current = last?.id ?? ""; }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!canSpeak) return;
+    if (!isOpen && talkRef.current) stopTalk();
     if (!readAloud || !isOpen) { window.speechSynthesis.cancel(); audioRef.current?.pause(); return; }
     if (busy) return;
     const last = [...messages].reverse().find((m) => m.role === "mila");
     if (!last || last.id.startsWith("tmp") || spoken.current === last.id) return;
     spoken.current = last.id;
     const text = cleanForSpeech(last.content ?? "");
-    if (!text) return;
+    if (!text) { if (talkRef.current) listenOnce(); return; }
     window.speechSynthesis.cancel(); audioRef.current?.pause();
-    void speakWithMila(text);
+    void speakWithMila(text).then(() => { if (talkRef.current) listenOnce(); });
   }, [messages, busy, readAloud, isOpen, canSpeak]);
   const toggleReadAloud = () => { const n = !readAloud; setReadAloud(n); try { localStorage.setItem("mila_read_aloud", n ? "1" : "0"); } catch { /* ignore */ } if (!n) { audioRef.current?.pause(); if (canSpeak) window.speechSynthesis.cancel(); } };
   async function openChat(id: string) {
@@ -227,7 +269,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
               initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: "spring", damping: 30, stiffness: 340 }}>
               <div className="flex items-center justify-between px-5 pb-2 pt-4" style={keyboardUp(vvBox) ? { paddingTop: "max(env(safe-area-inset-top), 14px)" } : undefined}>
                 <p className="display text-[28px]">Mila</p>
-                <div className="flex gap-2">{canSpeak && <button className="chip" onClick={toggleReadAloud} aria-pressed={readAloud} aria-label={readAloud ? "Stop reading replies aloud" : "Read replies aloud"} title={readAloud ? "Stop reading replies aloud" : "Read replies aloud"}>{readAloud ? <Volume2 size={15} /> : <VolumeX size={15} />}</button>}<button className="chip" onClick={() => setHistoryOpen(true)} disabled={busy} aria-label="Past chats"><History size={15} />Chats</button><button className="chip" onClick={newChat} disabled={busy}><Plus size={15} />New chat</button><button className="btn btn-quiet btn-sm !px-2" onClick={() => setOpen(false)} aria-label="Close"><X size={20} /></button></div>
+                <div className="flex gap-2">{canTalk && <button className="chip" onClick={() => (talk ? stopTalk() : startTalk())} aria-pressed={talk} aria-label={talk ? "Stop talking to Mila" : "Talk to Mila"} title={talk ? "Stop talking to Mila" : "Talk to Mila"} style={talk ? { background: "var(--accent)", color: "#fff" } : undefined}>{talk ? "Listening… tap to stop" : "Talk"}</button>}{canSpeak && <button className="chip" onClick={toggleReadAloud} aria-pressed={readAloud} aria-label={readAloud ? "Stop reading replies aloud" : "Read replies aloud"} title={readAloud ? "Stop reading replies aloud" : "Read replies aloud"}>{readAloud ? <Volume2 size={15} /> : <VolumeX size={15} />}</button>}<button className="chip" onClick={() => setHistoryOpen(true)} disabled={busy} aria-label="Past chats"><History size={15} />Chats</button><button className="chip" onClick={newChat} disabled={busy}><Plus size={15} />New chat</button><button className="btn btn-quiet btn-sm !px-2" onClick={() => setOpen(false)} aria-label="Close"><X size={20} /></button></div>
               </div>
               <div ref={scroller} className="no-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-4" aria-live="polite">
                 {messages.length === 0 && !busy && <EmptyChat onPick={(t) => run({ message: t }, t)} />}
