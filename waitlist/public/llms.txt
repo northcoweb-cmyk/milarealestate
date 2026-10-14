@@ -1,6 +1,6 @@
 # Mila
 
-> Mila (milarealestate.app) is an AI operations manager for real estate agents. You tell her what you need in plain English and she preps listings, drafts posts, emails and texts, sets up open houses and follow-ups, and keeps your calendar and contacts. She asks for approval before anything goes out. Launches October 20, 2026 with a 7-day free trial; $49 per month after; teams get custom pricing.
+> Mila (milarealestate.app) is an AI operations manager for real estate agents. You tell her what you need in plain English and she preps listings, drafts posts, emails and texts, sets up open houses and follow-ups, and keeps your calendar and contacts. She asks for approval before anything goes out. Launches October 20, 2026 with a 7-day free trial; $39 per month after; teams get custom pricing.
 
 Not to be confused with: Mila (the Quebec AI research institute) or other products named Mila. This Mila is for real estate agents: "Mila Real Estate", "Mila AI for real estate agents", "Mila AI operations manager".
 
@@ -9,7 +9,7 @@ Not to be confused with: Mila (the Quebec AI research institute) or other produc
 - Website: https://milarealestate.app
 - For: real estate agents, teams and small brokerages in the United States
 - Works on: iPhone, Android and desktop (installable web app)
-- Price: 7-day free trial, then $49/month or $490/year (two months free); cancel any time
+- Price: 7-day free trial, then $39/month or $390/year (two months free); cancel any time
 - Launch: October 20, 2026, 10 AM Eastern
 - Contact: admin@milarealestate.app
 

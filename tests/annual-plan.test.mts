@@ -8,6 +8,8 @@ test("annual plan: $490/yr, 2 months free, same monthly credits, pro limits, bon
   const p = DEFAULT_CONFIG.plans.find((x) => x.key === "pro_annual")!;
   const monthly = DEFAULT_CONFIG.plans.find((x) => x.key === "pro")!;
   assert.equal(p.interval, "year");
+  assert.equal(p.price_usd, 390);
+  assert.equal(monthly.price_usd, 39);
   assert.equal(p.price_usd, monthly.price_usd * 10);
   assert.equal(p.credits, monthly.credits);
   assert.ok(p.ai_budget_usd! <= monthly.ai_budget_usd!, "annual AI ceiling is no higher than monthly");

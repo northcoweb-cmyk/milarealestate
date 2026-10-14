@@ -26,7 +26,7 @@ LAUNCH AND TRIAL
 - Mila launches on October 20, 2026 at 10 AM Eastern.
 - People on the waitlist get an email that morning with a personal link. They use the same email address they joined with, create a password, and set up their profile.
 - Every new account starts with a 7-day free trial. No credit card is needed to start.
-- Pricing: Mila is $49 per month after a 7-day free trial, or $490 per year (two months free plus 500 bonus credits); cancel any time. Teams and brokerages get custom pricing (contact support). Do not state credit amounts or discounts; they are not final.
+- Pricing: Mila is $39 per month after a 7-day free trial, or $390 per year (two months free plus 500 bonus credits); cancel any time. Teams and brokerages get custom pricing (contact support). Do not state credit amounts or discounts; they are not final.
 
 WAITLIST
 - To join, enter a first name and email in the form at the top of this page. It is free and does not commit anyone to anything.

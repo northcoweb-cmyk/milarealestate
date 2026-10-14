@@ -4,29 +4,33 @@ import { grantCredits } from "./credits";
 import type { Profile } from "./types";
 
 /**
- * Referral rewards are a small share of what the friend paid, one time per friend:
- *   monthly plan: 4.5% of the plan's credits (1,400)    = 63 credits  (about $2.20 at the $49 price, at most about $0.63 of AI cost)
- *   annual plan:  3.5% of a year of credits (16,800)    = 588 credits (about $17 at the $490 price, at most about $5.90 of AI cost)
- * Both people get the same amount. If the friend paid less than list price (a partial discount code), the reward shrinks in proportion; a free checkout pays nothing.
- * Credits cost us at most about 1 cent of AI each (plan AI ceiling / plan credits), so even the maximum of 15 rewarded friends costs a small fraction of what those friends pay.
+ * Referral rewards, one time per friend, credits that never expire:
+ *   monthly plan ($39):  referrer 200 credits, friend 100 bonus credits
+ *   annual plan ($390):  referrer 550 credits, friend 400 bonus credits
+ * They scale down if the friend paid less than list price (a partial discount code); a free checkout pays nothing.
+ * One credit costs us at most about 1 cent of AI (plan AI ceiling / plan credits), so worst case a monthly referral costs about $3 against a $39 first payment
+ * (200 + 100 credits) and an annual one about $9.50 against $390. Provisional: revisit when real usage shows the true cost per credit.
  */
-export const REFERRER_PERCENT_MONTHLY = 0.045;
-export const REFERRER_PERCENT_ANNUAL = 0.035;
+export const REFERRER_CREDITS = { monthly: 200, annual: 550 } as const;
+export const FRIEND_CREDITS = { monthly: 100, annual: 400 } as const;
 /** The reward is released only after the friend has stayed subscribed this long, so refunds and chargebacks can't be farmed. */
 export const HOLD_DAYS = 14;
 export const MAX_REWARDED_REFERRALS = 15;
 export const MAX_REWARDS_PER_30_DAYS = 5;
 
 type PlanLike = { key: string; price_usd: number; credits: number; interval?: "month" | "year" };
-/** Credits for one referral given the plan and what was actually paid. */
+const scaleFor = (plan: PlanLike, paidCents: number) => Math.min(1, paidCents / Math.max(1, plan.price_usd * 100));
+/** Credits the REFERRER earns for one referral given the plan and what was actually paid. */
 export function rewardCredits(plan: PlanLike | undefined, paidCents: number): number {
   if (!plan || paidCents <= 0) return 0;
-  const yearly = plan.interval === "year";
-  const credits = plan.credits * (yearly ? 12 : 1);
-  const pct = yearly ? REFERRER_PERCENT_ANNUAL : REFERRER_PERCENT_MONTHLY;
-  const scale = Math.min(1, paidCents / Math.max(1, plan.price_usd * 100));
-  return Math.round(credits * pct * scale);
+  return Math.round(REFERRER_CREDITS[plan.interval === "year" ? "annual" : "monthly"] * scaleFor(plan, paidCents));
 }
+/** Credits the FRIEND gets as a welcome bonus on their first paid plan. */
+export function friendBonusCredits(plan: PlanLike | undefined, paidCents: number): number {
+  if (!plan || paidCents <= 0) return 0;
+  return Math.round(FRIEND_CREDITS[plan.interval === "year" ? "annual" : "monthly"] * scaleFor(plan, paidCents));
+}
+
 const norm = (email: string) => { const [l, d] = email.trim().toLowerCase().split("@"); const base = (l ?? "").split("+")[0]; const dom = d === "googlemail.com" ? "gmail.com" : d; return `${dom === "gmail.com" ? base.replace(/\./g, "") : base}@${dom}`; };
 const netHash = (ip: string) => createHash("sha256").update(`mila-net:${ip}`).digest("hex").slice(0, 12);
 
@@ -80,7 +84,7 @@ export async function rewardReferral(refereeId: string, amountTotalCents: number
   if (!referrer) return { started: false };
   const sameNet = !!r.signup_net && r.signup_net === referrer.settings.referral?.signup_net;
   const plan = (await store.getConfig()).plans.find((p) => p.key === planKey);
-  const credits = rewardCredits(plan, amountTotalCents);
+  const credits = friendBonusCredits(plan, amountTotalCents);
   await store.update("profiles", refereeId, refereeId, { settings: { ...referee.settings, referral: { ...r, paid_at: new Date().toISOString(), plan_key: planKey ?? undefined, paid_cents: amountTotalCents, status: sameNet ? "review" : "pending" } } } as never);
   if (!sameNet && credits > 0) await grantCredits(refereeId, credits, "grant", "Welcome bonus: you joined through a friend's invite");
   return { started: true };
@@ -137,7 +141,7 @@ export async function referralSummary(p: Profile) {
   const monthlyPlan = cfgPlans.find((pl) => pl.key === "pro"), annualPlan = cfgPlans.find((pl) => pl.key === "pro_annual");
   const label = (x: Profile) => { const s = x.settings.referral?.status; if (s === "rewarded") return "rewarded"; if (s === "pending") { const left = Math.max(0, Math.ceil((HOLD_DAYS * 86_400_000 - (Date.now() - new Date(x.settings.referral!.paid_at!).getTime())) / 86_400_000)); return `pending:${left}`; } if (s === "review") return "review"; if (s === "void") return "void"; return "signed_up"; };
   return {
-    code, link: referralLink(code), earnedCredits: earned, pendingCredits, monthlyReward: rewardCredits(monthlyPlan, (monthlyPlan?.price_usd ?? 0) * 100), annualReward: rewardCredits(annualPlan, (annualPlan?.price_usd ?? 0) * 100), rewardedCount: fresh.settings.referral?.rewarded_count ?? 0, full: (fresh.settings.referral?.rewarded_count ?? 0) >= MAX_REWARDED_REFERRALS, holdDays: HOLD_DAYS, cap: MAX_REWARDED_REFERRALS,
+    code, link: referralLink(code), earnedCredits: earned, pendingCredits, monthlyReward: rewardCredits(monthlyPlan, (monthlyPlan?.price_usd ?? 0) * 100), annualReward: rewardCredits(annualPlan, (annualPlan?.price_usd ?? 0) * 100), friendMonthly: friendBonusCredits(monthlyPlan, (monthlyPlan?.price_usd ?? 0) * 100), friendAnnual: friendBonusCredits(annualPlan, (annualPlan?.price_usd ?? 0) * 100), rewardedCount: fresh.settings.referral?.rewarded_count ?? 0, full: (fresh.settings.referral?.rewarded_count ?? 0) >= MAX_REWARDED_REFERRALS, holdDays: HOLD_DAYS, cap: MAX_REWARDED_REFERRALS,
     referred: all.map((x) => { const [f, ...r] = x.full_name.split(/\s+/); return { name: `${f}${r.length ? ` ${r[r.length - 1][0]}.` : ""}`, state: label(x), at: x.created_at }; }).sort((a, b) => b.at.localeCompare(a.at)),
   };
 }

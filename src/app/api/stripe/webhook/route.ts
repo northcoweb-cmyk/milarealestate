@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db/store";
-import { grantCredits, getBalance } from "@/lib/credits";
+import { grantCredits, planRefillAmount } from "@/lib/credits";
 import { applyCheckoutSession } from "@/lib/billing/apply-checkout";
 
 function verify(payload: string, header: string, secret: string) {
@@ -35,11 +35,11 @@ export async function POST(req: Request) {
   if (event.type === "invoice.paid" && o.billing_reason === "subscription_cycle") {
     const sub = (await store.list("subscriptions", uid))[0];
     if (sub) {
+      const refill = await planRefillAmount(uid, sub); // computed from the period that is ending
       const start = new Date();
       await store.update("subscriptions", uid, sub.id, { period_start: start.toISOString(), period_end: new Date(start.getTime() + 30 * 86_400_000).toISOString(), status: "active" });
-      const bal = await getBalance(uid);
-      // monthly reset: allowance replaces the old balance (purchased packs are kept via max())
-      await grantCredits(uid, Math.max(sub.credits_per_period - bal, 0), "reset", `Monthly reset (${event.id})`);
+      // monthly reset: the plan credits that were spent come back; unused plan credits don't stack; extras (top-ups, bonuses, referrals) are untouched
+      if (refill > 0) await grantCredits(uid, refill, "reset", `Monthly reset (${event.id})`);
     }
   }
   if (event.type === "invoice.payment_failed") {

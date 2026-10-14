@@ -5,7 +5,7 @@ import { Check, Copy, Share2 } from "lucide-react";
 import { useApp } from "@/components/app-context";
 import { jfetch } from "@/components/ui";
 
-type Summary = { code: string; link: string; earnedCredits: number; pendingCredits: number; monthlyReward: number; annualReward: number; holdDays: number; cap: number; rewardedCount: number; full: boolean; referred: { name: string; state: string; at: string }[] };
+type Summary = { code: string; link: string; earnedCredits: number; pendingCredits: number; monthlyReward: number; annualReward: number; friendMonthly: number; friendAnnual: number; holdDays: number; cap: number; rewardedCount: number; full: boolean; referred: { name: string; state: string; at: string }[] };
 
 const stateLabel = (s: string): [string, string] => s === "rewarded" ? ["Reward earned", "#15803d"] : s.startsWith("pending:") ? [`Subscribed · reward in ${s.split(":")[1]} day${s.split(":")[1] === "1" ? "" : "s"}`, "#b45309"] : s === "review" ? ["Under review", "#b45309"] : s === "void" ? ["Cancelled before the reward", "#b91c1c"] : ["Signed up · no plan yet", "#6b6785"];
 
@@ -33,7 +33,7 @@ export function ReferralPanel() {
       ) : (
         <div className="space-y-4 p-6" style={{ borderRadius: 28, background: "linear-gradient(150deg, rgba(143,180,255,.30), rgba(166,140,255,.32) 55%, rgba(255,201,168,.36))", border: "1px solid var(--line)" }}>
           <p className="display text-[32px] leading-tight">Invite an agent. You both get credits.</p>
-          <p className="text-[15px]" style={{ color: INK }}>When someone joins with your link or code and subscribes, you each get <b>{s.monthlyReward} credits</b> (<b>{s.annualReward}</b> if they choose the annual plan), one time, after they've stayed subscribed for {s.holdDays} days. They also get 7 free days to try Mila.</p>
+          <p className="text-[15px]" style={{ color: INK }}>When someone joins with your link or code and subscribes, <b>you earn {s.monthlyReward} credits</b> for each friend on the monthly plan (<b>{s.annualReward}</b> for the annual plan). <b>They get {s.friendMonthly} bonus credits</b> ({s.friendAnnual} on annual) plus 7 free days. One time per friend, and you earn for every friend, up to {s.cap}. Credits you earn never expire.</p>
           <div style={box}><p className="text-[11.5px] font-bold uppercase tracking-wider" style={{ color: "#6b6785" }}>Your link</p><p className="break-all text-[16px] font-bold" style={{ color: INK }}>{s.link}</p></div>
           <button className="btn w-full" onClick={() => copy("link")}>{copied === "link" ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy link</>}</button>
           <div style={box}><p className="text-[11.5px] font-bold uppercase tracking-wider" style={{ color: "#6b6785" }}>Your code</p><p className="text-[30px] font-extrabold tracking-[.25em]" style={{ color: INK }}>{s.code}</p></div>

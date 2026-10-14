@@ -1,7 +1,7 @@
 import type { AppConfig } from "./types";
 
 /**
- * New paid users see ONE plan ($49 a month) plus the Team inquiry. Older plans stay in the config so existing subscribers keep
+ * New paid users see ONE plan ($39 a month) plus the Team inquiry. Older plans stay in the config so existing subscribers keep
  * their entitlements, billing and Stripe subscriptions exactly as they are; they just aren't offered to anyone new.
  */
 export const LEGACY_PLAN_KEYS = ["solo"] as const;

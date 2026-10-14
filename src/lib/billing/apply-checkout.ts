@@ -1,5 +1,5 @@
 import { getStore } from "../db/store";
-import { getBalance, grantCredits } from "../credits";
+import { creditBuckets, grantCredits } from "../credits";
 import { rewardReferral } from "../referral";
 
 /**
@@ -20,10 +20,10 @@ export async function applyCheckoutSession(uid: string, o: { id: string; custome
     const plan = cfg.plans.find((p) => p.key === md.plan_key);
     const sub = (await store.list("subscriptions", uid))[0];
     if (plan && sub) {
+      const prev = await creditBuckets(uid, sub); // extras (top-ups, bonuses, referral credits) are kept; the old plan's unused credits are replaced
       const start = new Date();
       await store.update("subscriptions", uid, sub.id, { plan_key: plan.key, status: "active", credits_per_period: plan.credits, period_start: start.toISOString(), period_end: new Date(start.getTime() + 30 * 86_400_000).toISOString(), stripe_customer_id: o.customer ?? null, stripe_subscription_id: o.subscription ?? null });
-      const bal = await getBalance(uid);
-      await grantCredits(uid, plan.credits - bal, "reset", `Plan started: ${plan.name} (${tag})`); // replaces the trial/dev balance with the plan allowance
+      await grantCredits(uid, plan.credits - prev.plan, "reset", `Plan started: ${plan.name} (${tag})`); // the plan allowance replaces the old plan credits; extras stay
       credits = plan.credits;
       await rewardReferral(uid, o.amount_total, plan.key).catch(() => null); // a friend who invited them is thanked once, only for a real (non-free) payment
       if (plan.bonus_credits) { await grantCredits(uid, plan.bonus_credits, "grant", `Annual perk: ${plan.bonus_credits} bonus credits (${tag}:bonus)`); credits += plan.bonus_credits; }

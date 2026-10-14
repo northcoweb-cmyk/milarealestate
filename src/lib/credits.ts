@@ -54,11 +54,30 @@ export async function refillAnnual(userId: string) {
     if (!r.ok) return;
     const d = (await r.json()) as { status?: string };
     if (d.status !== "active" && d.status !== "trialing") { if (d.status === "canceled") await store.update("subscriptions", userId, sub.id, { status: "canceled" }); return; }
+    const refill = await planRefillAmount(userId, sub); // before the new period starts
     const start = new Date();
     await store.update("subscriptions", userId, sub.id, { period_start: start.toISOString(), period_end: new Date(start.getTime() + 30 * 86_400_000).toISOString() });
-    const bal = await getBalance(userId);
-    await grantCredits(userId, Math.max(sub.credits_per_period - bal, 0), "reset", `Monthly refill (annual plan) ${start.toISOString().slice(0, 7)}`);
+    if (refill > 0) await grantCredits(userId, refill, "reset", `Monthly refill (annual plan) ${start.toISOString().slice(0, 7)}`);
   } catch { /* try again on the next request */ }
+}
+
+/**
+ * Two kinds of credits share one balance. PLAN credits (the monthly allowance) are spent first and don't roll over. EXTRA credits (top-up packs,
+ * referral rewards and bonuses) are spent only after the plan credits run out and never expire.
+ * Because plan credits go first, everything above what's left of this period's allowance is extras.
+ */
+export async function planCreditsSpent(userId: string, periodStart: string): Promise<number> {
+  return (await getStore().list("credit_transactions", userId)).filter((t) => t.kind === "spend" && t.created_at >= periodStart).reduce((n, t) => n - t.delta, 0);
+}
+export async function creditBuckets(userId: string, sub: { credits_per_period: number; period_start: string } | undefined) {
+  const balance = await getBalance(userId);
+  if (!sub) return { balance, plan: balance, extra: 0 };
+  const plan = Math.min(balance, Math.max(0, sub.credits_per_period - (await planCreditsSpent(userId, sub.period_start))));
+  return { balance, plan, extra: Math.max(0, balance - plan) };
+}
+/** At a monthly reset: refill exactly the plan credits that were spent this period (unused ones simply carry nothing extra), so extras are untouched. */
+export async function planRefillAmount(userId: string, sub: { credits_per_period: number; period_start: string }): Promise<number> {
+  return Math.min(sub.credits_per_period, await planCreditsSpent(userId, sub.period_start));
 }
 
 export async function ensureCredits(userId: string, needed: number) {
@@ -161,9 +180,10 @@ export async function creditSummary(userId: string) {
   const periodStart = sub.period_start;
   const spentThisPeriod = tx.filter((t) => t.kind === "spend" && t.created_at >= periodStart).reduce((n, t) => n - t.delta, 0);
   const balance = tx.reduce((n, t) => n + t.delta, 0);
+  const planLeft = Math.min(balance, Math.max(0, sub.credits_per_period - spentThisPeriod));
   const history = [...usage].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 40);
   const trial = sub.status === "trial" ? { endsAt: sub.period_end, daysLeft: Math.max(0, Math.ceil((new Date(sub.period_end).getTime() - Date.now()) / 86_400_000)), day: Math.min(7, Math.max(1, Math.floor((Date.now() - new Date(sub.period_start).getTime()) / 86_400_000) + 1)), expired: new Date(sub.period_end).getTime() < Date.now() } : null;
-  return { balance, trial, allowance: sub.credits_per_period, spentThisPeriod, resetsAt: sub.period_end, status: sub.status, plan: cfg.plans.find((p) => p.key === sub.plan_key) ?? null, history, packs: cfg.packs, creditPrice: cfg.credit_price_usd ?? 0.05, plans: visiblePlans(cfg, sub.plan_key) };
+  return { balance, planCredits: planLeft, extraCredits: Math.max(0, balance - planLeft), trial, allowance: sub.credits_per_period, spentThisPeriod, resetsAt: sub.period_end, status: sub.status, plan: cfg.plans.find((p) => p.key === sub.plan_key) ?? null, history, packs: cfg.packs, creditPrice: cfg.credit_price_usd ?? 0.05, plans: visiblePlans(cfg, sub.plan_key) };
 }
 
 /** Owner-level margin report: credits, real AI cost, and revenue per user. */

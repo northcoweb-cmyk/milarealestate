@@ -235,6 +235,7 @@ const PLAN_POINTS: Record<string, string[]> = {
 };
 function PlanCards({ plans, currentName, billingConfigured, onBuy }: { plans: CreditsData["plans"]; currentName: string | null; billingConfigured: boolean; onBuy: (key: string) => void }) {
   const order = ["pro", "pro_annual", "team"];
+  const monthlyPrice = plans.find((x) => x.key === "pro")?.price_usd ?? 39;
   const list = [...plans].sort((a, b) => (order.indexOf(a.key) + 1 || 9) - (order.indexOf(b.key) + 1 || 9));
   return (
     <div className="grid items-stretch gap-5 md:grid-cols-3">
@@ -251,7 +252,7 @@ function PlanCards({ plans, currentName, billingConfigured, onBuy }: { plans: Cr
               </div>
               <div>
                 {team ? <p className="display text-[44px] leading-none">Custom</p> : <p className="display text-[48px] leading-none">${p.price_usd}<span className="faint ml-1 text-[17px]">{annual ? "/year" : "/month"}</span></p>}
-                <p className="muted mt-2 text-[14px]">{team ? "Built around your team" : annual ? `About $${(p.price_usd / 12).toFixed(2)}/month · save $${49 * 12 - p.price_usd}` : `${p.credits.toLocaleString()} credits every month`}</p>
+                <p className="muted mt-2 text-[14px]">{team ? "Built around your team" : annual ? `About $${(p.price_usd / 12).toFixed(2)}/month · save $${monthlyPrice * 12 - p.price_usd}` : `${p.credits.toLocaleString()} credits every month`}</p>
               </div>
               {!team && <div className="rounded-2xl px-4 py-3" style={{ background: "color-mix(in srgb, var(--accent) 9%, transparent)" }}><p className="text-[15px] font-semibold">{p.credits.toLocaleString()} credits / month</p>{annual && bonus ? <p className="text-[13px]" style={{ color: "#15803d" }}>+ {bonus} bonus credits to start</p> : <p className="faint text-[13px]">Credits reset each month</p>}</div>}
               <ul className="flex-1 space-y-2.5">{(PLAN_POINTS[p.key] ?? []).map((t) => <li key={t} className="flex gap-2.5 text-[14.5px]"><Check size={17} className="mt-0.5 shrink-0" style={{ color: annual ? "#16a34a" : "var(--accent)" }} /><span>{t}</span></li>)}</ul>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { jfetch } from "@/components/ui";
 
-export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"; localAllowed: boolean }) {
+export function WelcomeForm({ mode, localAllowed, codeRequired = true }: { mode: "supabase" | "local"; localAllowed: boolean; codeRequired?: boolean }) {
   const [signIn, setSignIn] = useState(false);
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [code, setCode] = useState("");
   const [ref, setRef] = useState("");
@@ -36,12 +36,12 @@ export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"
       <div><label className="lbl" htmlFor="e">Email</label><input id="e" type="email" className="field" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@brokerage.com" required /></div>
       {mode === "supabase" && <div><label className="lbl" htmlFor="p">Password</label><input id="p" type="password" className="field" autoComplete={signIn ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required /></div>}
       {!signIn && <div><label className="lbl" htmlFor="r">Referral code (optional)</label><input id="r" className="field" autoComplete="off" value={ref} onChange={(e) => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12); setRef(v); try { sessionStorage.setItem("mila_ref", v); } catch { /* ignore */ } }} placeholder="A friend's code" /></div>}
-      {!signIn && <div><label className="lbl" htmlFor="c">Access code</label><input id="c" className="field" inputMode="numeric" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.replace(/\s/g, "").slice(0, 32))} placeholder="Ask for an invite code" required /><p className="faint mt-1.5 text-[12.5px]">Mila is invite-only right now. Already have an account? Use “Sign in” below.</p></div>}
+      {!signIn && codeRequired && <div><label className="lbl" htmlFor="c">Access code</label><input id="c" className="field" inputMode="numeric" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.replace(/\s/g, "").slice(0, 32))} placeholder="Ask for an invite code" required /><p className="faint mt-1.5 text-[12.5px]">Mila is invite-only right now. Already have an account? Use “Sign in” below.</p></div>}
       {mode === "supabase" && (
         <div className="space-y-2">
           <a className="btn w-full" href="/api/auth/oauth/start?provider=google" onClick={() => { try { sessionStorage.setItem("mila_invite", code); } catch { /* ignore */ } }}>Continue with Google</a>
           <a className="btn w-full" href="/api/auth/oauth/start?provider=microsoft" onClick={() => { try { sessionStorage.setItem("mila_invite", code); } catch { /* ignore */ } }}>Continue with Microsoft</a>
-          <p className="faint text-center text-[12.5px]">New here? Enter your access code first. This only signs you in; calendar and email stay separate in Settings.</p>
+          <p className="faint text-center text-[12.5px]">{codeRequired ? "New here? Enter your access code first. " : ""}This only signs you in; calendar and email stay separate in Settings.</p>
         </div>
       )}
       {error && <p role="alert" className="text-[14.5px]" style={{ color: "var(--danger)" }}>{error}</p>}

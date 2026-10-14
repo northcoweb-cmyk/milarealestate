@@ -17,7 +17,7 @@ import { Faq } from "@/components/faq";
 const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-20T10:00:00-04:00";
 
 const PLANS = [
-  { name: "Mila", price: "$49", per: "/month", blurb: "For the agent who wants their day handled.", hot: true, cta: "join", points: ["Calendar, follow-ups, posts and emails", "Listing and open house posts with your photos", "Market and property research", "Monthly credits included", "7-day free trial, cancel any time", "Annual option: $490/year, two months free plus 500 bonus credits"] },
+  { name: "Mila", price: "$39", per: "/month", blurb: "For the agent who wants their day handled.", hot: true, cta: "join", points: ["Calendar, follow-ups, posts and emails", "Listing and open house posts with your photos", "Market and property research", "Monthly credits included", "7-day free trial, cancel any time", "Annual option: $390/year, two months free plus 500 bonus credits"] },
   { name: "Team", price: "Custom", per: "", blurb: "For teams and small brokerages.", hot: false, cta: "contact", points: ["Your team's logo and look", "Shared pipeline", "Invite links for every agent", "Set up around your CRM and MLS"] },
 ];
 

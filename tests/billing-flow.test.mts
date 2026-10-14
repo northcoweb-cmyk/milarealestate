@@ -13,7 +13,7 @@ async function trialUser(daysAgoStart: number) {
   const row = { plan_key: "trial", status: "trial" as const, credits_per_period: 100, period_start: start.toISOString(), period_end: new Date(start.getTime() + 7 * 86_400_000).toISOString(), stripe_customer_id: null, stripe_subscription_id: null };
   const existing = (await store.list("subscriptions", u.id))[0];
   if (existing) await store.update("subscriptions", u.id, existing.id, row); else await store.insert("subscriptions", u.id, row);
-  for (const t of await store.list("credit_transactions", u.id)) await store.delete?.("credit_transactions", u.id, t.id);
+  const have = await getBalance(u.id); if (have) await store.insert("credit_transactions", u.id, { kind: "adjust", delta: -have, balance_after: 0, reason: "test reset", usage_id: null });
   await store.insert("credit_transactions", u.id, { kind: "grant", delta: 100, balance_after: 100, reason: "7-day free trial", usage_id: null });
   return u;
 }
@@ -25,7 +25,7 @@ test("trial: works during the 7 days, locks after, and a purchase unlocks it", a
   await assert.rejects(() => ensureCredits(ended.id, 1), TrialEnded);
   const r = await applyCheckoutSession(ended.id, { id: "cs_test_unlock1", customer: "cus_1", subscription: "sub_1", metadata: { kind: "plan", plan_key: "pro" } });
   assert.equal(r.applied, true);
-  assert.equal(await getBalance(ended.id), 1400);
+  assert.equal(await getBalance(ended.id), 1200);
   await ensureCredits(ended.id, 1); // no longer locked
 });
 
@@ -42,7 +42,7 @@ test("annual plan: monthly allowance plus the one-time perk, applied once", asyn
   const u = await trialUser(1);
   const s = { id: "cs_test_annual1", customer: "cus_2", subscription: "sub_2", metadata: { kind: "plan", plan_key: "pro_annual" } };
   await applyCheckoutSession(u.id, s); await applyCheckoutSession(u.id, s);
-  assert.equal(await getBalance(u.id), 1400 + 500);
+  assert.equal(await getBalance(u.id), 1200 + 500);
 });
 
 test("a turn that used a lot of AI costs more credits than a small one", async () => {
@@ -54,4 +54,21 @@ test("a turn that used a lot of AI costs more credits than a small one", async (
   assert.equal(creditsForAiCost(takeTurnAiCost(u.id)), 5);
   assert.equal(AI_USD_PER_CREDIT, 0.01);
   assert.equal(takeTurnAiCost(u.id), 0, "reading resets it");
+});
+
+test("extras (top-ups, bonuses) survive the monthly reset; unused plan credits don't stack", async () => {
+  const { creditBuckets, planRefillAmount, grantCredits, recordUsage } = await import("../src/lib/credits.ts");
+  const u = await trialUser(1);
+  await applyCheckoutSession(u.id, { id: "cs_test_extras1", customer: "c", subscription: "s", amount_total: 3900, metadata: { kind: "plan", plan_key: "pro" } });
+  await applyCheckoutSession(u.id, { id: "cs_test_pack_x", metadata: { kind: "pack", credits: "500" } }); // 500 extra
+  const sub = (await store.list("subscriptions", u.id))[0];
+  let b = await creditBuckets(u.id, sub);
+  assert.deepEqual([b.plan, b.extra], [1200, 500]);
+  await recordUsage({ userId: u.id, operation: "x", creditKey: "chat_simple", creditsOverride: 300 }); // plan credits go first
+  b = await creditBuckets(u.id, sub);
+  assert.deepEqual([b.plan, b.extra], [900, 500]);
+  assert.equal(await planRefillAmount(u.id, sub), 300, "only what was spent comes back");
+  await grantCredits(u.id, await planRefillAmount(u.id, sub), "reset", "Monthly reset (test)");
+  const b2 = await creditBuckets(u.id, { ...sub, period_start: new Date(Date.now() + 1000).toISOString() });
+  assert.equal(b2.balance, 1700, "back to the allowance plus the untouched extras");
 });

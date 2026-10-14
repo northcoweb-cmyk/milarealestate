@@ -6,7 +6,7 @@ const key = () => process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const H = (extra: Record<string, string> = {}) => ({ apikey: key(), Authorization: `Bearer ${key()}`, "content-type": "application/json", ...extra });
 
 export const smtpConfigured = () => !!process.env.SMTP_HOST && !!process.env.SMTP_USER && !!process.env.SMTP_PASS;
-export const appUrl = () => (process.env.MILA_APP_URL || "https://milarealestate.vercel.app").replace(/\/+$/, "");
+export const appUrl = () => (process.env.MILA_APP_URL || "https://app.milarealestate.app").replace(/\/+$/, "");
 
 export interface Entry { id: string; email: string; name: string | null; invite_token: string | null; invited_at: string | null; claimed_at: string | null }
 
@@ -51,7 +51,7 @@ export async function sendInvite(e: Entry): Promise<void> {
   const m = inviteEmail(e.name, link);
   const port = Number(process.env.SMTP_PORT || 465);
   const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }, connectionTimeout: 8000, socketTimeout: 12000 });
-  await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.MAIL_REPLY_TO || (process.env.SMTP_USER?.includes("@") ? process.env.SMTP_USER : undefined), to: e.email, subject: m.subject, html: m.html, text: m.text });
+  await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.MAIL_REPLY_TO || "noreply@milarealestate.app", to: e.email, subject: m.subject, html: m.html, text: m.text });
   const done = await rest(`waitlist?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", body: JSON.stringify({ invited_at: new Date().toISOString(), status: "invited" }) });
   if (!done.ok) throw new Error(`mark ${done.status}`);
 }
@@ -84,7 +84,7 @@ export function inviteEmail(name: string | null, link: string) {
 ${btn(link, "Open Mila")}
 <p style="margin:0 0 12px;font-size:14.5px;line-height:1.55;color:#33305a">Use the same email you joined with. Your <b>7-day free trial</b> starts when you finish setup. No card needed.</p>
 <p style="margin:0 0 4px;font-size:12.5px;color:#6b6890">Button not working? Paste this into your browser:</p>
-<p style="margin:0 0 16px;font-size:12px;color:#6b6890;word-break:break-all">${link}</p>`, "This link is personal to you. Reply to this email if anything goes wrong.");
+<p style="margin:0 0 16px;font-size:12px;color:#6b6890;word-break:break-all">${link}</p>`, "This link is personal to you. This is an automated email, so please don't reply. If the link doesn't work, write to hello@milarealestate.app.");
   return { subject, html, text };
 }
 

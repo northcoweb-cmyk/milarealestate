@@ -33,6 +33,7 @@ export default function MorePage() {
         <div className="mb-3"><PlanBadge /></div>
         <div className="mb-2 flex items-baseline justify-between"><p className="kicker">Mila credits</p><span className="faint text-[13px]">Resets {new Date(credits.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
         <p className="display text-[34px] leading-none">{credits.balance.toLocaleString()} <span className="faint text-[18px]">/ {credits.allowance.toLocaleString()}</span></p>
+        {(credits.extraCredits ?? 0) > 0 && <p className="faint mt-2 text-[12.5px]">{(credits.planCredits ?? 0).toLocaleString()} plan credits + {(credits.extraCredits ?? 0).toLocaleString()} bonus and top-up credits that never expire</p>}
         <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
       </Link>
 

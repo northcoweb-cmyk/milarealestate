@@ -4,6 +4,7 @@ import { authMode, createProfile, setSupabaseSession } from "@/lib/auth";
 import { getStore } from "@/lib/db/store";
 import { onSignup } from "@/lib/referral";
 import { trialAdmissionOpen } from "@/lib/ai/budget";
+import { seatsLeft } from "@/lib/seats";
 import { logError } from "@/lib/server/errors";
 import { clientIp, hit } from "@/lib/server/rate-limit";
 import { codeLocked, codeMatches, recordBadCode, requiredCode } from "@/lib/access-code";
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
       if (codeLocked(ip)) return NextResponse.json({ error: "Too many wrong codes from this connection. Try again in 30 minutes, or join the waitlist for an invite." }, { status: 429 });
       if (!codeMatches(code)) { recordBadCode(ip); return NextResponse.json({ error: "New accounts need an access code. Mila is invite-only for now.", needCode: true }, { status: 403 }); }
     }
+    { const room = await seatsLeft(); if (!room.open) return NextResponse.json({ error: "Mila is full for the launch group right now. You're still on the list, and we'll email you when more seats open." }, { status: 503 }); }
     const seat = await trialAdmissionOpen();
     if (!seat.open) {
       await logError({ source: "api", level: "warn", message: "Trial admissions paused (oauth sign-up)", route: "POST /api/auth/oauth/session" });

@@ -22,7 +22,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 const LD = [
   { "@context": "https://schema.org", "@type": "Organization", name: "Mila", alternateName: ["Mila Real Estate", "Mila AI"], url: SITE, logo: `${SITE}/icon.png`, email: "admin@milarealestate.app", description: "Mila is an AI operations manager for real estate agents." },
   { "@context": "https://schema.org", "@type": "WebSite", name: "Mila Real Estate", alternateName: "Mila", url: SITE },
-  { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Mila", applicationCategory: "BusinessApplication", operatingSystem: "iOS, Android, Web", description: "AI operations manager for real estate agents: listings, posts, emails, calendar and follow-ups, with approval before anything is sent.", url: SITE, offers: { "@type": "Offer", price: "49", priceCurrency: "USD", description: "7-day free trial, then $49 per month. Cancel any time." } },
+  { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Mila", applicationCategory: "BusinessApplication", operatingSystem: "iOS, Android, Web", description: "AI operations manager for real estate agents: listings, posts, emails, calendar and follow-ups, with approval before anything is sent.", url: SITE, offers: { "@type": "Offer", price: "39", priceCurrency: "USD", description: "7-day free trial, then $39 per month. Cancel any time." } },
   { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: FAQ_DATA.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) },
 ];
 
