@@ -15,8 +15,8 @@ export interface TierLimits {
 
 export const DEFAULT_TIER_LIMITS: Record<Tier, TierLimits> = {
   free: { listingSearches: 2, photoEnrichments: 3, savedListings: 10, aiMessages: 50 }, // trial and unpaid: a taste of the paid data, a few cents each
-  starter: { listingSearches: 40, photoEnrichments: 40, savedListings: 50, aiMessages: 500 },
-  pro: { listingSearches: 80, photoEnrichments: 80, savedListings: 500, aiMessages: 3000 }, // sized so the $39 plan stays under 60% cost even if every limit is used
+  starter: { listingSearches: 5000, photoEnrichments: 5000, savedListings: 50, aiMessages: 500 },
+  pro: { listingSearches: 5000, photoEnrichments: 5000, savedListings: 500, aiMessages: 3000 }, // paid plans pay per pull through credits (data cost is added to each turn); these are only a runaway fuse
 };
 
 /** Subscription plan_key (app_config.plans) -> tier. Unknown paid plans count as "starter" so nobody is silently locked out. */

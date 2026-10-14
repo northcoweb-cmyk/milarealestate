@@ -1,19 +1,26 @@
 // The pricing guard: even if a subscriber maxes out EVERY paid limit, the plan must still make money.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CONFIG } from "../src/lib/config.ts";
-import { DEFAULT_TIER_LIMITS, PLAN_TIER } from "../src/lib/media/limits.ts";
+import { DEFAULT_CONFIG } from "../src/lib/config";
+import { AI_USD_PER_CREDIT, takeTurnAiCost } from "../src/lib/credits";
+import { trackApi } from "../src/lib/media/usage";
 
-const DATA_COST = 0.074;       // RentCast, per request (override: MILA_RENTCAST_COST_PER_REQUEST)
-const PHOTO_COST = 0.05;       // generous allowance per enriched home
 const STRIPE = (price: number) => price * 0.029 + 0.3;
 
-test("worst case (AI budget fully spent + every paid data limit used) stays under 60% of the price", () => {
-  for (const plan of DEFAULT_CONFIG.plans.filter((p) => p.key !== "team")) {
-    const lim = DEFAULT_TIER_LIMITS[PLAN_TIER[plan.key]];
-    const worst = plan.ai_budget_usd + lim.listingSearches * DATA_COST + lim.photoEnrichments * PHOTO_COST + STRIPE(plan.price_usd);
-    assert.ok(worst <= plan.price_usd * 0.6, `${plan.name}: worst case $${worst.toFixed(2)} vs price $${plan.price_usd}`);
+test("worst case (every plan credit spent at the metered rate of $0.01 of cost per credit) stays under 60% of the price", () => {
+  // data pulls (listing data, photos) are added to each turn's cost and billed in credits, so there are no per-plan pull caps
+  for (const plan of DEFAULT_CONFIG.plans.filter((p) => p.key !== "team" && p.key !== "solo")) {
+    const monthlyPrice = plan.price_usd / (plan.interval === "year" ? 12 : 1);
+    const worst = plan.credits * AI_USD_PER_CREDIT + STRIPE(plan.price_usd) / (plan.interval === "year" ? 12 : 1);
+    assert.ok(worst <= monthlyPrice * 0.6, `${plan.name}: worst case $${worst.toFixed(2)} vs monthly price $${monthlyPrice.toFixed(2)}`);
   }
+});
+
+test("a paid data pull adds its cost to the turn so the agent pays for it in credits", async () => {
+  takeTurnAiCost("econ-u1");
+  await trackApi({ userId: "econ-u1", provider: "rentcast", endpoint: "listings", success: true, estCostUsd: 0.074, units: 1 });
+  const got = takeTurnAiCost("econ-u1");
+  assert.ok(Math.abs(got - 0.074) < 1e-9, `got ${got}`);
 });
 
 test("top-up credits always cost more per credit than any plan", () => {

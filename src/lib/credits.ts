@@ -117,9 +117,12 @@ export interface UsageInput {
 
 /** What one credit is worth in AI cost: a plan's AI ceiling divided by its credits (about 1 cent). A turn that uses more AI than that costs more credits. */
 export const AI_USD_PER_CREDIT = 0.01;
-const turnAiCost = new Map<string, number>();
+// on globalThis so every copy of this module (route bundles, tests) shares one per-turn tally
+const turnAiCost: Map<string, number> = ((globalThis as { __milaTurnCost?: Map<string, number> }).__milaTurnCost ??= new Map());
 /** The AI cost recorded for this user since the last call, then reset. The agent calls it once per turn to price the turn by what it really used. */
 export function takeTurnAiCost(userId: string): number { const v = turnAiCost.get(userId) ?? 0; turnAiCost.delete(userId); return v; }
+/** Add third-party data cost (listing data, photo provider) to this turn so the agent pays for what they pull, at the same rate as AI. */
+export function addTurnCost(userId: string, usd: number) { if (usd > 0) turnAiCost.set(userId, (turnAiCost.get(userId) ?? 0) + usd); }
 export const creditsForAiCost = (usd: number) => Math.ceil(Math.max(0, usd) / AI_USD_PER_CREDIT - 1e-9);
 
 export async function recordUsage(u: UsageInput): Promise<{ usage: UsageRow; credits: number }> {

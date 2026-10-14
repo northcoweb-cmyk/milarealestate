@@ -1,5 +1,6 @@
 import { getStore } from "../db/store";
 import type { ApiUsage } from "../types";
+import { addTurnCost } from "../credits";
 
 export type ApiProvider = "zillapi" | "rapidapi" | "rentcast" | "google_places";
 export const PHOTO_PROVIDERS = ["zillapi", "rapidapi"];
@@ -10,6 +11,7 @@ export interface TrackInput { userId: string; provider: ApiProvider | string; en
 
 /** One row per third-party call (including failed ones, which usually cost nothing). Never throws. */
 export async function trackApi(i: TrackInput): Promise<void> {
+  if (i.success && (i.estCostUsd ?? 0) > 0) addTurnCost(i.userId, i.estCostUsd ?? 0); // the agent's credits pay for the data they pull, even if logging fails
   try {
     await getStore().insert("api_usage", i.userId, { provider: i.provider, endpoint: i.endpoint.slice(0, 80), success: i.success, est_cost_usd: +(i.estCostUsd ?? 0).toFixed(5), units: i.units ?? 0, property_id: i.propertyId ?? null, detail: i.detail ? i.detail.slice(0, 200) : null });
     globalCache = null;
