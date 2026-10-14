@@ -60,20 +60,6 @@ export async function onSignup(newProfile: Profile, code: string | null | undefi
   return !!referredBy;
 }
 
-/** An existing account enters a code later: only if nobody referred them yet, the account is new, and nothing has been paid. */
-export async function applyCode(p: Profile, code: string): Promise<{ ok: boolean; message: string }> {
-  if (p.settings.referral?.referred_by) return { ok: false, message: "A referral code is already on your account." };
-  if (p.settings.referral?.paid_at) return { ok: false, message: "Codes can only be added before your first plan payment." };
-  if (Date.now() - new Date(p.created_at).getTime() > 14 * 86_400_000) return { ok: false, message: "Codes can only be added in your first 14 days." };
-  const sub = (await getStore().list("subscriptions", p.id))[0];
-  if (sub && sub.status === "active") return { ok: false, message: "Codes can only be added before you subscribe." };
-  const ref = await findReferrer(code);
-  if (!ref) return { ok: false, message: "That code isn't valid. Check it and try again." };
-  if (ref.id === p.id || norm(ref.email) === norm(p.email)) return { ok: false, message: "You can't use your own code." };
-  await getStore().update("profiles", p.id, p.id, { settings: { ...p.settings, referral: { ...(p.settings.referral ?? {}), referred_by: ref.id } } } as never);
-  return { ok: true, message: `Done. ${ref.full_name.split(/\s+/)[0]} will be thanked when you subscribe, and you'll get a bonus too.` };
-}
-
 /** First name of the person who owns a code (for the invite page). Nothing else is exposed. */
 export async function referrerFirstName(code: string): Promise<string | null> {
   const r = await findReferrer(code);
@@ -152,7 +138,6 @@ export async function referralSummary(p: Profile) {
   const label = (x: Profile) => { const s = x.settings.referral?.status; if (s === "rewarded") return "rewarded"; if (s === "pending") { const left = Math.max(0, Math.ceil((HOLD_DAYS * 86_400_000 - (Date.now() - new Date(x.settings.referral!.paid_at!).getTime())) / 86_400_000)); return `pending:${left}`; } if (s === "review") return "review"; if (s === "void") return "void"; return "signed_up"; };
   return {
     code, link: referralLink(code), earnedCredits: earned, pendingCredits, monthlyReward: rewardCredits(monthlyPlan, (monthlyPlan?.price_usd ?? 0) * 100), annualReward: rewardCredits(annualPlan, (annualPlan?.price_usd ?? 0) * 100), rewardedCount: fresh.settings.referral?.rewarded_count ?? 0, full: (fresh.settings.referral?.rewarded_count ?? 0) >= MAX_REWARDED_REFERRALS, holdDays: HOLD_DAYS, cap: MAX_REWARDED_REFERRALS,
-    haveReferrer: !!fresh.settings.referral?.referred_by, canEnterCode: !fresh.settings.referral?.referred_by && !fresh.settings.referral?.paid_at,
     referred: all.map((x) => { const [f, ...r] = x.full_name.split(/\s+/); return { name: `${f}${r.length ? ` ${r[r.length - 1][0]}.` : ""}`, state: label(x), at: x.created_at }; }).sort((a, b) => b.at.localeCompare(a.at)),
   };
 }

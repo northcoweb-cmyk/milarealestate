@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { newAgent, store } from "./qa/harness.mts";
 import { applyCheckoutSession } from "../src/lib/billing/apply-checkout.ts";
-import { ensureReferralCode, onSignup, settleReferrals, applyCode, referralSummary, HOLD_DAYS, rewardCredits, MAX_REWARDED_REFERRALS, MAX_REWARDS_PER_30_DAYS } from "../src/lib/referral.ts";
+import { ensureReferralCode, onSignup, settleReferrals, referralSummary, HOLD_DAYS, rewardCredits, MAX_REWARDED_REFERRALS, MAX_REWARDS_PER_30_DAYS } from "../src/lib/referral.ts";
 import { getBalance } from "../src/lib/credits.ts";
 import { DEFAULT_CONFIG } from "../src/lib/config.ts";
 const PRO = DEFAULT_CONFIG.plans.find((p) => p.key === "pro")!, ANNUAL = DEFAULT_CONFIG.plans.find((p) => p.key === "pro_annual")!;
@@ -82,14 +82,6 @@ test("at most 5 rewards in 30 days, the rest wait", async () => {
   assert.equal(sum.referred.filter((x) => x.state.startsWith("pending")).length, 2, "the other two are still pending");
 });
 
-test("a new account can add a code before paying, once, but not its own and not after subscribing", async () => {
-  const ref = await fresh(), me = await fresh();
-  const code = await ensureReferralCode(await prof(ref.id));
-  assert.equal((await applyCode(await prof(me.id), "NOPE1234")).ok, false);
-  assert.equal((await applyCode(await prof(ref.id), code)).ok, false, "own code");
-  assert.equal((await applyCode(await prof(me.id), code)).ok, true);
-  assert.equal((await applyCode(await prof(me.id), code)).ok, false, "only once");
-});
 
 test("after 15 rewarded friends the program shows as full and stops paying", async () => {
   const ref = await fresh(); const code = await ensureReferralCode(await prof(ref.id));
