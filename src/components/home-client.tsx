@@ -26,7 +26,7 @@ const SUGGESTIONS = [
 const SHORT = ["Get me ready to list", "Set up an open house", "Who should I follow up with?", "What am I missing?", "Add a new buyer"];
 
 export function HomeClient({ data }: { data: HomeData }) {
-  const { toast } = useApp();
+  const { toast, referralsFull } = useApp();
   const { ask, open, hasHistory, turns } = useMila();
   // Read synchronously on the client (server snapshot = "seen"), so the how-it-works card is there on the first paint instead of popping in and shoving the page down.
   const helpSeen = useSyncExternalStore(subscribeHelp, readHelp, () => true);
@@ -42,7 +42,7 @@ export function HomeClient({ data }: { data: HomeData }) {
           <div className="no-scrollbar -mx-4 mt-4 flex w-[calc(100%+2rem)] gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:w-full lg:flex-wrap lg:justify-center lg:overflow-visible lg:px-0">
             {SHORT.map((s, i) => <button key={s} className="chip" onClick={() => ask(SUGGESTIONS[i])}>{s}</button>)}
           </div>
-          <Link href="/settings/referrals" className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold text-white shadow-lg transition hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#6d5ae6,#8fa4ff)" }}>🎁 Invite an agent, earn credits</Link>
+          {!referralsFull && <Link href="/refer" className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold text-white shadow-lg transition hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#6d5ae6,#8fa4ff)" }}>🎁 Invite an agent, earn credits</Link>}
           {hasHistory && <button className="chip mt-3" onClick={open}><Sparkles size={15} />Continue where we left off</button>}
         </div>
       </section>

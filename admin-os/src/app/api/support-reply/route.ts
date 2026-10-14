@@ -22,8 +22,8 @@ export async function POST(req: Request) {
   if (!t?.context?.email) return NextResponse.json({ error: "That ticket has no reply email." }, { status: 404 });
   const c = t.context;
   const first = (c.name ?? "").split(" ")[0] || "there";
-  const html = brandedEmail({ preheader: text.slice(0, 90), chip: `Ticket ${c.ticket_no}`, heading: `Hi ${first},`, body: text, note: "Just reply to this email to keep the conversation going. It stays on the same ticket." });
-  const sent = await sendMail(c.email!, `Re: [Mila ticket ${c.ticket_no}] ${c.subject ?? "Your message"}`, `Hi ${first},\n\n${text}\n\n— The Mila team\n\n(Reply to this email to continue. Ticket ${c.ticket_no}.)`, html);
+  const html = brandedEmail({ preheader: text.slice(0, 90), chip: `Ticket ${c.ticket_no}`, heading: `Hi ${first},`, body: text, note: "To answer, open Help & support in Mila. Your ticket and our reply are there.", button: { label: "View your ticket", href: `${(process.env.NEXT_PUBLIC_APP_URL || "https://app.milarealestate.app").replace(/\/$/, "")}/settings/support` } });
+  const sent = await sendMail(c.email!, `Re: [Mila ticket ${c.ticket_no}] ${c.subject ?? "Your message"}`, `Hi ${first},\n\n${text}\n\n— The Mila team\n\nTo answer, open Help & support in Mila (ticket ${c.ticket_no}). Please don't reply to this email.`, html);
   if (!sent.ok) return NextResponse.json({ error: sent.error ?? "The email didn't send." }, { status: 502 });
   const thread = [...(c.thread ?? []), { dir: "out" as const, at: new Date().toISOString(), text, by: who }];
   const saved = await write("feedback", "PATCH", { filter: `id=eq.${id}`, body: { context: { ...c, thread }, status: "replied" } });

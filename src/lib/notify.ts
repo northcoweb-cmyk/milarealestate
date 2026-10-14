@@ -13,7 +13,7 @@ export async function sendEmailNotification(to: string, subject: string, text: s
   if (!process.env.RESEND_API_KEY) return false;
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST", headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ from: process.env.MAIL_FROM || process.env.EMAIL_FROM || "Mila <mila@example.com>", reply_to: process.env.MAIL_REPLY_TO || undefined, to, subject, text, html }),
+    body: JSON.stringify({ from: process.env.MAIL_FROM || process.env.EMAIL_FROM || "Mila <noreply@milarealestate.app>", reply_to: process.env.MAIL_REPLY_TO || "noreply@milarealestate.app", to, subject, text, html }),
   });
   return r.ok;
 }

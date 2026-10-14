@@ -13,9 +13,9 @@ export function cleanFrom(v?: string): string | null {
 export async function sendMail(to: string, subject: string, text: string, html?: string, replyTo?: string): Promise<{ ok: boolean; error?: string }> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { ok: false, error: "RESEND_API_KEY isn't set in the Mila OS project." };
-  const from = cleanFrom(process.env.SUPPORT_FROM || process.env.MAIL_FROM) ?? `Mila Support <${SUPPORT_EMAIL()}>`;
+  const from = cleanFrom(process.env.NOREPLY_FROM) ?? "Mila <noreply@milarealestate.app>"; // nobody is meant to reply; the thread continues inside the app
   try {
-    const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ from, reply_to: replyTo || process.env.INBOUND_REPLY_TO || SUPPORT_EMAIL(), to, subject, text, html }) });
+    const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ from, reply_to: replyTo || "noreply@milarealestate.app", to, subject, text, html }) });
     if (!r.ok) { const j = (await r.json().catch(() => ({}))) as { message?: string; name?: string }; return { ok: false, error: `Email service said ${r.status}${j.message ? `: ${j.message}` : ""}` }; }
     return { ok: true };
   } catch { return { ok: false, error: "Couldn't reach the email service." }; }

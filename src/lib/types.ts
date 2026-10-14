@@ -50,7 +50,7 @@ export interface ProfileSettings {
   workflows?: { email_contacts: boolean };
   /** Public-facing identity used on social posts: license credentials, phones, email, team, profile photo. */
   /** Referral program: this person's own code, who referred them, and whether that referral's reward was already paid. */
-  referral?: { code?: string; referred_by?: string; signup_net?: string; status?: "pending" | "rewarded" | "review" | "void"; paid_at?: string; plan_key?: string; rewarded?: boolean };
+  referral?: { code?: string; referred_by?: string; signup_net?: string; status?: "pending" | "rewarded" | "review" | "void"; paid_at?: string; plan_key?: string; paid_cents?: number; rewarded_count?: number; rewarded?: boolean };
   brand?: { credentials: string; license: string; cell: string; office: string; email: string; team: string; pfp: string | null };
 }
 

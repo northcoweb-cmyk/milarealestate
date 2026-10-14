@@ -2,8 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { newAgent, store } from "./qa/harness.mts";
 import { applyCheckoutSession } from "../src/lib/billing/apply-checkout.ts";
-import { ensureReferralCode, onSignup, settleReferrals, applyCode, referralSummary, HOLD_DAYS, REFERRER_CREDITS_MONTHLY, REFERRER_CREDITS_ANNUAL, REFEREE_CREDITS, MAX_REWARDS_PER_30_DAYS } from "../src/lib/referral.ts";
+import { ensureReferralCode, onSignup, settleReferrals, applyCode, referralSummary, HOLD_DAYS, rewardCredits, MAX_REWARDED_REFERRALS, MAX_REWARDS_PER_30_DAYS } from "../src/lib/referral.ts";
 import { getBalance } from "../src/lib/credits.ts";
+import { DEFAULT_CONFIG } from "../src/lib/config.ts";
+const PRO = DEFAULT_CONFIG.plans.find((p) => p.key === "pro")!, ANNUAL = DEFAULT_CONFIG.plans.find((p) => p.key === "pro_annual")!;
+const MONTHLY = rewardCredits(PRO, 4900), YEARLY = rewardCredits(ANNUAL, 49000);
 
 const NOW = new Date("2026-10-14T14:00:00Z");
 const prof = (id: string) => store.get("profiles", id, id);
@@ -19,15 +22,20 @@ test("fair and held: friend gets a bonus now, the referrer is paid only after th
   assert.equal(await onSignup(await prof(friend.id), code, "1.1.1.1"), true);
   const refBefore = await getBalance(ref.id);
   await pay(friend.id);
-  assert.equal(await getBalance(friend.id), 1400 + REFEREE_CREDITS);
+  assert.equal(await getBalance(friend.id), 1400 + MONTHLY);
   assert.equal(await getBalance(ref.id), refBefore, "nothing yet for the referrer");
   assert.deepEqual(await settleReferrals(), { rewarded: 0, voided: 0 }, "still inside the hold");
   await ageReferral(friend.id, HOLD_DAYS + 1);
   const r = await settleReferrals();
   assert.equal(r.rewarded, 1);
-  assert.equal(await getBalance(ref.id), refBefore + REFERRER_CREDITS_MONTHLY);
+  assert.equal(await getBalance(ref.id), refBefore + MONTHLY);
   assert.deepEqual(await settleReferrals(), { rewarded: 0, voided: 0 }, "never paid twice");
-  assert.ok(REFERRER_CREDITS_MONTHLY <= 300 && REFERRER_CREDITS_ANNUAL <= 700, "reward stays a fraction of a month's credits");
+  assert.equal(MONTHLY, 63); assert.equal(YEARLY, 588);
+  assert.ok(MONTHLY / PRO.credits >= 0.04 && MONTHLY / PRO.credits <= 0.05, "monthly reward is 4-5% of the plan's credits");
+  assert.ok(YEARLY / (ANNUAL.credits * 12) >= 0.03 && YEARLY / (ANNUAL.credits * 12) <= 0.04, "annual reward is 3-4% of a year of credits");
+  assert.equal(rewardCredits(PRO, 2450), Math.round(MONTHLY / 2), "a half-price promo code halves the reward");
+  assert.equal(rewardCredits(PRO, 0), 0);
+  assert.equal(MAX_REWARDED_REFERRALS, 15);
 });
 
 test("an annual referral earns the annual reward; a friend who cancels inside the hold voids it", async () => {
@@ -40,7 +48,7 @@ test("an annual referral earns the annual reward; a friend who cancels inside th
   const sb = (await store.list("subscriptions", b.id))[0]; await store.update("subscriptions", b.id, sb.id, { status: "canceled" });
   const r = await settleReferrals();
   assert.deepEqual(r, { rewarded: 1, voided: 1 });
-  assert.equal(await getBalance(ref.id), before + REFERRER_CREDITS_ANNUAL);
+  assert.equal(await getBalance(ref.id), before + YEARLY);
 });
 
 test("free (100% off) checkouts never start a reward", async () => {
@@ -81,4 +89,14 @@ test("a new account can add a code before paying, once, but not its own and not 
   assert.equal((await applyCode(await prof(ref.id), code)).ok, false, "own code");
   assert.equal((await applyCode(await prof(me.id), code)).ok, true);
   assert.equal((await applyCode(await prof(me.id), code)).ok, false, "only once");
+});
+
+test("after 15 rewarded friends the program shows as full and stops paying", async () => {
+  const ref = await fresh(); const code = await ensureReferralCode(await prof(ref.id));
+  const p0 = await prof(ref.id);
+  await store.update("profiles", ref.id, ref.id, { settings: { ...p0.settings, referral: { ...p0.settings.referral, rewarded_count: 14 } } });
+  const k = await fresh(); await onSignup(await prof(k.id), code, "20.0.0.1"); await pay(k.id); await ageReferral(k.id, 20);
+  await settleReferrals();
+  const sum = await referralSummary(await prof(ref.id));
+  assert.equal(sum.rewardedCount, 15); assert.equal(sum.full, true);
 });

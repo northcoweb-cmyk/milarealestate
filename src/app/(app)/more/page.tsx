@@ -16,7 +16,7 @@ const Row = ({ href, icon: I, title, sub }: { href: string; icon: any; title: st
 const Group = ({ title, children }: { title: string; children: React.ReactNode }) => (<section className="mb-7"><p className="kicker mb-2.5 px-2">{title}</p><div className="glass divide-y overflow-hidden" style={{ borderColor: "var(--line)" }}>{children}</div></section>);
 
 export default function MorePage() {
-  const { profile, credits, admin, toast } = useApp();
+  const { profile, credits, admin, toast, referralsFull } = useApp();
   const router = useRouter();
   const [clearing, setClearing] = useState(false);
   const install = useInstall();
@@ -27,7 +27,7 @@ export default function MorePage() {
 <div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
       <Link href="/settings/profile" className="glass-strong mb-7 flex items-center gap-4 p-5"><Avatar name={profile.full_name} size={56} src={profile.settings.brand?.pfp ? `/api/files/${profile.settings.brand.pfp}` : null} /><div className="min-w-0 flex-1"><p className="text-[19px] font-semibold leading-tight">{profile.full_name}</p><p className="muted truncate text-[14.5px]">{profile.email}</p></div><ChevronRight className="text-ink-faint" /></Link>
 
-      <Link href="/settings/referrals" className="mb-7 flex items-center justify-between gap-3 p-5 text-white" style={{ borderRadius: 26, background: "linear-gradient(135deg,#6d5ae6 0%,#8fa4ff 60%,#ffb98c 130%)", boxShadow: "0 14px 34px -16px rgba(80,60,200,.6)" }}><span><span className="block text-[18px] font-bold">🎁 Refer an agent, earn credits</span><span className="block text-[13.5px] opacity-90">Share your link or code. Track every invite.</span></span><span aria-hidden className="text-2xl">→</span></Link>
+      {!referralsFull && <Link href="/refer" className="mb-7 flex items-center justify-between gap-3 p-5 text-white" style={{ borderRadius: 26, background: "linear-gradient(135deg,#6d5ae6 0%,#8fa4ff 60%,#ffb98c 130%)", boxShadow: "0 14px 34px -16px rgba(80,60,200,.6)" }}><span><span className="block text-[18px] font-bold">🎁 Refer an agent, earn credits</span><span className="block text-[13.5px] opacity-90">Share your link or code. Track every invite.</span></span><span aria-hidden className="text-2xl">→</span></Link>}
 
       <Link href="/settings/credits" className="glass mb-7 block p-5" style={{ borderRadius: 26 }}>
         <div className="mb-3"><PlanBadge /></div>
@@ -55,7 +55,7 @@ export default function MorePage() {
         <Row href="/settings/mila" icon={SlidersHorizontal} title="Mila" sub="Autonomy: what Mila can do on her own" />
         <Row href="/settings/notifications" icon={Bell} title="Notifications" />
         <Row href="/settings/credits" icon={CreditCard} title="Credits & billing" />
-        <Row href="/settings/referrals" icon={Smartphone} title="Refer a friend" sub="Invite agents, earn credits when they subscribe" />
+        <Row href="/refer" icon={Smartphone} title="Invite & earn" sub="Your link, your code, and your invites" />
         <Row href="/settings/support" icon={Bell} title="Help & support" sub="Send us a ticket, we reply in 48 to 72 hours" />
         <Row href="/settings/appearance" icon={Palette} title="Appearance" />
         <Row href="/settings/privacy" icon={Shield} title="Privacy" />
