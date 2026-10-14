@@ -4,7 +4,7 @@ import { AuthError, authMode, createProfile, localSignIn, setSupabaseSession } f
 import { trialAdmissionOpen } from "@/lib/ai/budget";
 import { logError } from "@/lib/server/errors";
 import { getStore } from "@/lib/db/store";
-import { recordReferral } from "@/lib/referral";
+import { onSignup } from "@/lib/referral";
 import { clientIp, hit } from "@/lib/server/rate-limit";
 import { codeLocked, codeMatches, recordBadCode, requiredCode } from "@/lib/access-code";
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: exists ? "You already have a Mila account with this email. Sign in instead." : "Couldn't create your account." }, { status: exists ? 409 : 400 });
       }
       const madeProfile = await createProfile({ id: u.id, email, full_name: name });
-      await recordReferral(madeProfile, ref).catch(() => false);
+      await onSignup(madeProfile, ref, ip).catch(() => false);
       const r = await fetch(`${base}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: anon, "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
       const d = await r.json();
       if (!r.ok) return NextResponse.json({ error: "Your account was created. Sign in with your email and password." }, { status: 400 });

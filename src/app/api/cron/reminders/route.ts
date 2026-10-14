@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db/store";
 import { bearerMatches } from "@/lib/server/bearer";
 import { sendEmailNotification } from "@/lib/notify";
+import { settleReferrals } from "@/lib/referral";
 
 // Scheduled (e.g. Vercel Cron) delivery for reminders when the app isn't open. Protect with CRON_SECRET.
 export async function GET(req: Request) {
@@ -19,5 +20,6 @@ export async function GET(req: Request) {
       if (p && p.settings.notifications.channels.email && (await sendEmailNotification(p.email, `Reminder: ${r.title}`, r.title))) emailed++;
     }
   }
-  return NextResponse.json({ delivered, emailed });
+  const referrals = await settleReferrals().catch(() => null); // the daily run also releases referral rewards whose hold is over
+  return NextResponse.json({ delivered, emailed, referrals });
 }

@@ -3,12 +3,24 @@ import { getStore } from "./db/store";
 import { grantCredits } from "./credits";
 import type { Profile } from "./types";
 
-/** Credits a referrer earns when someone they referred pays for a plan, and what the new customer gets too. Provisional until real usage shows the cost per credit. */
-export const REFERRER_CREDITS = 500;
-export const REFEREE_CREDITS = 200;
+/**
+ * Referral rewards are sized to what a referral is worth, not a round number.
+ * One credit costs us at most about 1 cent of AI (plan AI ceiling / plan credits), and a plan's credits are worth far more to the customer than that.
+ *   monthly plan ($49 first payment):  referrer 300 credits  = at most about $3 of AI, under 6% of the first payment
+ *   annual plan  ($490 up front):      referrer 700 credits  = at most about $7 of AI, about 1.4% of the payment
+ * The friend gets a small welcome bonus. Provisional: revisit when real usage shows the true cost per credit.
+ */
+export const REFERRER_CREDITS_MONTHLY = 300;
+export const REFERRER_CREDITS_ANNUAL = 700;
+export const REFEREE_CREDITS = 100;
+/** The reward is released only after the friend has stayed subscribed this long, so refunds and chargebacks can't be farmed. */
+export const HOLD_DAYS = 14;
 export const MAX_REWARDED_REFERRALS = 20;
+export const MAX_REWARDS_PER_30_DAYS = 5;
+export const referrerCreditsFor = (planKey?: string | null) => (planKey === "pro_annual" ? REFERRER_CREDITS_ANNUAL : REFERRER_CREDITS_MONTHLY);
 
-const norm = (email: string) => { const [l, d] = email.trim().toLowerCase().split("@"); const base = (l ?? "").split("+")[0]; return `${/^(gmail|googlemail)\.com$/.test(d ?? "") ? base.replace(/\./g, "") : base}@${d === "googlemail.com" ? "gmail.com" : d}`; };
+const norm = (email: string) => { const [l, d] = email.trim().toLowerCase().split("@"); const base = (l ?? "").split("+")[0]; const dom = d === "googlemail.com" ? "gmail.com" : d; return `${dom === "gmail.com" ? base.replace(/\./g, "") : base}@${dom}`; };
+const netHash = (ip: string) => createHash("sha256").update(`mila-net:${ip}`).digest("hex").slice(0, 12);
 
 /** The person's own code (stored on their profile the first time it is needed). */
 export async function ensureReferralCode(p: Profile): Promise<string> {
@@ -21,48 +33,109 @@ export async function ensureReferralCode(p: Profile): Promise<string> {
 export const referralLink = (code: string) => `${(process.env.NEXT_PUBLIC_APP_URL || "https://app.milarealestate.app").replace(/\/$/, "")}/welcome?ref=${encodeURIComponent(code)}`;
 
 export async function findReferrer(code: string): Promise<Profile | null> {
-  if (!/^[A-Z0-9]{6,12}$/.test(code)) return null;
-  return (await getStore().listAll("profiles")).find((p) => p.settings?.referral?.code === code && !p.is_demo) ?? null;
+  const c = String(code ?? "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{6,12}$/.test(c)) return null;
+  return (await getStore().listAll("profiles")).find((p) => p.settings?.referral?.code === c && !p.is_demo) ?? null;
 }
 
-/** At sign-up: remember who sent this person. Self-referrals (same account or the same inbox through dots/+tags) are ignored. */
-export async function recordReferral(newProfile: Profile, code: string | null | undefined): Promise<boolean> {
+/** At sign-up (always called): remember the network the account came from and, if a code was used, who referred them. Self-referrals are ignored. */
+export async function onSignup(newProfile: Profile, code: string | null | undefined, ip?: string): Promise<boolean> {
+  const store = getStore();
+  const base = { ...(newProfile.settings.referral ?? {}), ...(ip ? { signup_net: netHash(ip) } : {}) };
+  let referredBy: string | undefined;
   const c = String(code ?? "").trim().toUpperCase();
-  if (!c) return false;
-  const ref = await findReferrer(c);
-  if (!ref || ref.id === newProfile.id || norm(ref.email) === norm(newProfile.email)) return false;
-  await getStore().update("profiles", newProfile.id, newProfile.id, { settings: { ...newProfile.settings, referral: { ...(newProfile.settings.referral ?? {}), referred_by: ref.id } } } as never);
-  return true;
+  if (c) {
+    const ref = await findReferrer(c);
+    if (ref && ref.id !== newProfile.id && norm(ref.email) !== norm(newProfile.email)) referredBy = ref.id;
+  }
+  await store.update("profiles", newProfile.id, newProfile.id, { settings: { ...newProfile.settings, referral: { ...base, ...(referredBy ? { referred_by: referredBy } : {}) } } } as never);
+  return !!referredBy;
+}
+
+/** An existing account enters a code later: only if nobody referred them yet, the account is new, and nothing has been paid. */
+export async function applyCode(p: Profile, code: string): Promise<{ ok: boolean; message: string }> {
+  if (p.settings.referral?.referred_by) return { ok: false, message: "A referral code is already on your account." };
+  if (p.settings.referral?.paid_at) return { ok: false, message: "Codes can only be added before your first plan payment." };
+  if (Date.now() - new Date(p.created_at).getTime() > 14 * 86_400_000) return { ok: false, message: "Codes can only be added in your first 14 days." };
+  const sub = (await getStore().list("subscriptions", p.id))[0];
+  if (sub && sub.status === "active") return { ok: false, message: "Codes can only be added before you subscribe." };
+  const ref = await findReferrer(code);
+  if (!ref) return { ok: false, message: "That code isn't valid. Check it and try again." };
+  if (ref.id === p.id || norm(ref.email) === norm(p.email)) return { ok: false, message: "You can't use your own code." };
+  await getStore().update("profiles", p.id, p.id, { settings: { ...p.settings, referral: { ...(p.settings.referral ?? {}), referred_by: ref.id } } } as never);
+  return { ok: true, message: `Done. ${ref.full_name.split(/\s+/)[0]} will be thanked when you subscribe, and you'll get ${REFEREE_CREDITS} bonus credits.` };
+}
+
+/** First name of the person who owns a code (for the invite page). Nothing else is exposed. */
+export async function referrerFirstName(code: string): Promise<string | null> {
+  const r = await findReferrer(code);
+  return r ? r.full_name.split(/\s+/)[0] || null : null;
 }
 
 /**
- * When a referred person's first PAID plan checkout completes: the referrer gets REFERRER_CREDITS and the new customer gets REFEREE_CREDITS, once.
- * Free checkouts (a 100% promo code, $0 total) never pay out. Idempotent: the referee's id is the key.
+ * A referred person's first PAID plan checkout (never a free or 100%-off one): start the hold, give the friend their welcome bonus.
+ * Same-network sign-ups (the referrer and friend came from one connection) go to review instead of paying out automatically.
  */
-export async function rewardReferral(refereeId: string, amountTotalCents: number | null | undefined): Promise<{ rewarded: boolean }> {
-  if (!amountTotalCents || amountTotalCents <= 0) return { rewarded: false };
+export async function rewardReferral(refereeId: string, amountTotalCents: number | null | undefined, planKey?: string | null): Promise<{ started: boolean }> {
+  if (!amountTotalCents || amountTotalCents <= 0) return { started: false };
   const store = getStore();
   const referee = await store.get("profiles", refereeId, refereeId);
-  const by = referee?.settings.referral?.referred_by;
-  if (!referee || !by || referee.settings.referral?.rewarded) return { rewarded: false };
-  const referrer = await store.get("profiles", by, by);
-  if (!referrer) return { rewarded: false };
-  const tag = `ref:${refereeId}`;
-  const already = (await store.list("credit_transactions", by)).filter((t) => t.reason.startsWith("Referral reward"));
-  if (already.some((t) => t.reason.includes(tag))) return { rewarded: false };
-  if (already.length < MAX_REWARDED_REFERRALS) await grantCredits(by, REFERRER_CREDITS, "grant", `Referral reward: ${referee.full_name.split(/\s+/)[0]} joined and subscribed (${tag})`);
-  await grantCredits(refereeId, REFEREE_CREDITS, "grant", "Welcome bonus: you joined through a friend's invite");
-  await store.update("profiles", refereeId, refereeId, { settings: { ...referee.settings, referral: { ...referee.settings.referral, rewarded: true } } } as never);
-  return { rewarded: true };
+  const r = referee?.settings.referral;
+  if (!referee || !r?.referred_by || r.status || r.paid_at) return { started: false };
+  const referrer = await store.get("profiles", r.referred_by, r.referred_by);
+  if (!referrer) return { started: false };
+  const sameNet = !!r.signup_net && r.signup_net === referrer.settings.referral?.signup_net;
+  await store.update("profiles", refereeId, refereeId, { settings: { ...referee.settings, referral: { ...r, paid_at: new Date().toISOString(), plan_key: planKey ?? undefined, status: sameNet ? "review" : "pending" } } } as never);
+  if (!sameNet) await grantCredits(refereeId, REFEREE_CREDITS, "grant", "Welcome bonus: you joined through a friend's invite");
+  return { started: true };
 }
 
-/** What the referrer sees: first name + last initial, whether they signed up or have paid. */
+async function stillSubscribed(refereeId: string): Promise<boolean> {
+  const sub = (await getStore().list("subscriptions", refereeId))[0];
+  if (!sub || sub.status !== "active") return false;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key || !sub.stripe_subscription_id) return true;
+  try {
+    const x = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(sub.stripe_subscription_id)}`, { headers: { Authorization: `Bearer ${key}` } });
+    if (!x.ok) return true; // can't tell: try again next time rather than voiding
+    const d = (await x.json()) as { status?: string };
+    return d.status === "active" || d.status === "trialing";
+  } catch { return true; }
+}
+
+/** Release the held rewards that are due (after HOLD_DAYS, still subscribed, within the caps). Pass a referrer id to settle only theirs. */
+export async function settleReferrals(onlyReferrer?: string): Promise<{ rewarded: number; voided: number }> {
+  const store = getStore();
+  let rewarded = 0, voided = 0;
+  const profiles = await store.listAll("profiles");
+  const due = profiles.filter((p) => p.settings?.referral?.status === "pending" && p.settings.referral.paid_at && Date.now() - new Date(p.settings.referral.paid_at).getTime() >= HOLD_DAYS * 86_400_000 && (!onlyReferrer || p.settings.referral.referred_by === onlyReferrer));
+  for (const f of due) {
+    const r = f.settings.referral!;
+    const by = r.referred_by!;
+    if (!(await stillSubscribed(f.id))) { await store.update("profiles", f.id, f.id, { settings: { ...f.settings, referral: { ...r, status: "void" } } } as never); voided++; continue; }
+    const earned = (await store.list("credit_transactions", by)).filter((t) => t.reason.startsWith("Referral reward"));
+    const recent = earned.filter((t) => Date.now() - new Date(t.created_at).getTime() < 30 * 86_400_000).length;
+    if (earned.length >= MAX_REWARDED_REFERRALS || recent >= MAX_REWARDS_PER_30_DAYS) continue; // stays pending; released when a slot opens
+    if (earned.some((t) => t.reason.includes(`ref:${f.id}`))) { await store.update("profiles", f.id, f.id, { settings: { ...f.settings, referral: { ...r, status: "rewarded" } } } as never); continue; }
+    await grantCredits(by, referrerCreditsFor(r.plan_key), "grant", `Referral reward: ${f.full_name.split(/\s+/)[0]} joined and stayed subscribed (ref:${f.id})`);
+    await store.update("profiles", f.id, f.id, { settings: { ...f.settings, referral: { ...r, status: "rewarded" } } } as never);
+    rewarded++;
+  }
+  return { rewarded, voided };
+}
+
+/** What the referrer sees: first name + last initial, and where each invite stands. */
 export async function referralSummary(p: Profile) {
+  await settleReferrals(p.id).catch(() => null);
   const code = await ensureReferralCode(p);
+  const fresh = (await getStore().get("profiles", p.id, p.id)) ?? p;
   const all = (await getStore().listAll("profiles")).filter((x) => x.settings?.referral?.referred_by === p.id);
   const earned = (await getStore().list("credit_transactions", p.id)).filter((t) => t.reason.startsWith("Referral reward")).reduce((n, t) => n + t.delta, 0);
+  const pendingCredits = all.filter((x) => x.settings.referral?.status === "pending").reduce((n, x) => n + referrerCreditsFor(x.settings.referral?.plan_key), 0);
+  const label = (x: Profile) => { const s = x.settings.referral?.status; if (s === "rewarded") return "rewarded"; if (s === "pending") { const left = Math.max(0, Math.ceil((HOLD_DAYS * 86_400_000 - (Date.now() - new Date(x.settings.referral!.paid_at!).getTime())) / 86_400_000)); return `pending:${left}`; } if (s === "review") return "review"; if (s === "void") return "void"; return "signed_up"; };
   return {
-    code, link: referralLink(code), earnedCredits: earned, perReferral: REFERRER_CREDITS, friendBonus: REFEREE_CREDITS, cap: MAX_REWARDED_REFERRALS,
-    referred: all.map((x) => { const [f, ...r] = x.full_name.split(/\s+/); return { name: `${f}${r.length ? ` ${r[r.length - 1][0]}.` : ""}`, status: x.settings.referral?.rewarded ? "paid" : "signed up", at: x.created_at }; }).sort((a, b) => b.at.localeCompare(a.at)),
+    code, link: referralLink(code), earnedCredits: earned, pendingCredits, monthlyReward: REFERRER_CREDITS_MONTHLY, annualReward: REFERRER_CREDITS_ANNUAL, friendBonus: REFEREE_CREDITS, holdDays: HOLD_DAYS, cap: MAX_REWARDED_REFERRALS,
+    haveReferrer: !!fresh.settings.referral?.referred_by, canEnterCode: !fresh.settings.referral?.referred_by && !fresh.settings.referral?.paid_at,
+    referred: all.map((x) => { const [f, ...r] = x.full_name.split(/\s+/); return { name: `${f}${r.length ? ` ${r[r.length - 1][0]}.` : ""}`, state: label(x), at: x.created_at }; }).sort((a, b) => b.at.localeCompare(a.at)),
   };
 }

@@ -25,7 +25,7 @@ export async function applyCheckoutSession(uid: string, o: { id: string; custome
       const bal = await getBalance(uid);
       await grantCredits(uid, plan.credits - bal, "reset", `Plan started: ${plan.name} (${tag})`); // replaces the trial/dev balance with the plan allowance
       credits = plan.credits;
-      await rewardReferral(uid, o.amount_total).catch(() => null); // a friend who invited them is thanked once, only for a real (non-free) payment
+      await rewardReferral(uid, o.amount_total, plan.key).catch(() => null); // a friend who invited them is thanked once, only for a real (non-free) payment
       if (plan.bonus_credits) { await grantCredits(uid, plan.bonus_credits, "grant", `Annual perk: ${plan.bonus_credits} bonus credits (${tag}:bonus)`); credits += plan.bonus_credits; }
     }
   }

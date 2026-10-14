@@ -8,6 +8,8 @@ export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [code, setCode] = useState("");
   const [ref, setRef] = useState("");
   useEffect(() => { try { const q = new URLSearchParams(window.location.search).get("ref"); if (q) sessionStorage.setItem("mila_ref", q.toUpperCase().slice(0, 12)); setRef(sessionStorage.getItem("mila_ref") ?? ""); } catch { /* private mode */ } }, []);
+  const [inviter, setInviter] = useState<string | null>(null);
+  useEffect(() => { if (!ref) return; fetch(`/api/referral/lookup?code=${encodeURIComponent(ref)}`).then((r) => r.json()).then((j) => setInviter(j.valid ? j.name : null)).catch(() => setInviter(null)); }, [ref]);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [info, setInfo] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -29,9 +31,11 @@ export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"
   return (
     <form onSubmit={submit} className="glass-strong space-y-4 p-6" style={{ borderRadius: 32 }}>
       <h1 className="h2 text-center">{signIn ? "Welcome back" : "Create your account"}</h1>
+      {!signIn && inviter && <p className="rounded-2xl px-4 py-3 text-center text-[14.5px] font-semibold" style={{ background: "color-mix(in srgb, var(--accent) 12%, transparent)" }}>🎉 {inviter} invited you. You'll get bonus credits when you subscribe.</p>}
       {!signIn && <div><label className="lbl" htmlFor="n">Your name</label><input id="n" className="field" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Sarah Carter" required /></div>}
       <div><label className="lbl" htmlFor="e">Email</label><input id="e" type="email" className="field" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@brokerage.com" required /></div>
       {mode === "supabase" && <div><label className="lbl" htmlFor="p">Password</label><input id="p" type="password" className="field" autoComplete={signIn ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required /></div>}
+      {!signIn && <div><label className="lbl" htmlFor="r">Referral code (optional)</label><input id="r" className="field" autoComplete="off" value={ref} onChange={(e) => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12); setRef(v); try { sessionStorage.setItem("mila_ref", v); } catch { /* ignore */ } }} placeholder="A friend's code" /></div>}
       {!signIn && <div><label className="lbl" htmlFor="c">Access code</label><input id="c" className="field" inputMode="numeric" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.replace(/\s/g, "").slice(0, 32))} placeholder="Ask for an invite code" required /><p className="faint mt-1.5 text-[12.5px]">Mila is invite-only right now. Already have an account? Use “Sign in” below.</p></div>}
       {mode === "supabase" && (
         <div className="space-y-2">

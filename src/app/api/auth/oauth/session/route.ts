@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseUrl } from "@/lib/supabase-url";
 import { authMode, createProfile, setSupabaseSession } from "@/lib/auth";
 import { getStore } from "@/lib/db/store";
-import { recordReferral } from "@/lib/referral";
+import { onSignup } from "@/lib/referral";
 import { trialAdmissionOpen } from "@/lib/ai/budget";
 import { logError } from "@/lib/server/errors";
 import { clientIp, hit } from "@/lib/server/rate-limit";
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Mila is full for free trials right now. You're still on the list, and we'll email you when a seat opens." }, { status: 503 });
     }
     const created = await createProfile({ id: u.id, email: u.email, full_name: u.user_metadata?.full_name || u.user_metadata?.name || u.email.split("@")[0] });
-    await recordReferral(created, ref).catch(() => false);
+    await onSignup(created, ref, ip).catch(() => false);
   }
   await setSupabaseSession(access_token, refresh_token, Number(expires_in) || 3600);
   return NextResponse.json({ ok: true, onboarded: existing ? (existing as { onboarded?: boolean }).onboarded !== false : false });
