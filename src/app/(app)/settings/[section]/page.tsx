@@ -2,6 +2,7 @@
 
 import { PlanBadge } from "@/components/plan-badge";
 import { SupportForm } from "@/components/support-form";
+import { ReferralPanel } from "@/components/referral-panel";
 
 import { ServiceLogo } from "@/components/brand-logos";
 import Link from "next/link";
@@ -17,7 +18,7 @@ import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { PlaceInput, type PickedPlace } from "@/components/place-input";
 
-const TITLES: Record<string, string> = { support: "Help & support", profile: "Profile", business: "Business", connections: "Calendar & contacts", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
+const TITLES: Record<string, string> = { referrals: "Refer a friend", support: "Help & support", profile: "Profile", business: "Business", connections: "Calendar & contacts", mila: "Mila", notifications: "Notifications", credits: "Credits & billing", appearance: "Appearance", privacy: "Privacy", security: "Security" };
 
 export default function SettingsPage() { return <Suspense><Inner /></Suspense>; }
 
@@ -29,6 +30,7 @@ function Inner() {
       <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <h1 className="h1 mb-6">{TITLES[section]}</h1>
       {section === "support" && <SupportForm />}
+      {section === "referrals" && <ReferralPanel />}
       {section === "profile" && <Profile />}
       {section === "business" && <Business />}
       {section === "connections" && <Connections />}

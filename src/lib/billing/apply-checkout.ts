@@ -1,11 +1,12 @@
 import { getStore } from "../db/store";
 import { getBalance, grantCredits } from "../credits";
+import { rewardReferral } from "../referral";
 
 /**
  * Applies one completed Stripe Checkout session: credit packs add their credits, a plan starts the subscription and its monthly credits (plus the annual perk).
  * Called by the webhook AND by the return page, whichever arrives first, so credits show up instantly. The session id is the idempotency key, so it can never apply twice.
  */
-export async function applyCheckoutSession(uid: string, o: { id: string; customer?: string | null; subscription?: string | null; metadata?: Record<string, string> | null }): Promise<{ applied: boolean; credits: number }> {
+export async function applyCheckoutSession(uid: string, o: { id: string; customer?: string | null; subscription?: string | null; amount_total?: number | null; metadata?: Record<string, string> | null }): Promise<{ applied: boolean; credits: number }> {
   const store = getStore();
   const tag = `cs:${o.id}`;
   if ((await store.list("credit_transactions", uid)).some((t) => t.reason.includes(tag))) return { applied: false, credits: 0 };
@@ -24,6 +25,7 @@ export async function applyCheckoutSession(uid: string, o: { id: string; custome
       const bal = await getBalance(uid);
       await grantCredits(uid, plan.credits - bal, "reset", `Plan started: ${plan.name} (${tag})`); // replaces the trial/dev balance with the plan allowance
       credits = plan.credits;
+      await rewardReferral(uid, o.amount_total).catch(() => null); // a friend who invited them is thanked once, only for a real (non-free) payment
       if (plan.bonus_credits) { await grantCredits(uid, plan.bonus_credits, "grant", `Annual perk: ${plan.bonus_credits} bonus credits (${tag}:bonus)`); credits += plan.bonus_credits; }
     }
   }

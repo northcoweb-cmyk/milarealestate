@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseUrl } from "@/lib/supabase-url";
 import { authMode, createProfile, setSupabaseSession } from "@/lib/auth";
 import { getStore } from "@/lib/db/store";
+import { recordReferral } from "@/lib/referral";
 import { trialAdmissionOpen } from "@/lib/ai/budget";
 import { logError } from "@/lib/server/errors";
 import { clientIp, hit } from "@/lib/server/rate-limit";
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
   const ip = clientIp(req);
   if (!hit(`oauth:${ip}`, 20, 10 * 60_000)) return NextResponse.json({ error: "Too many attempts. Try again in a few minutes." }, { status: 429 });
   if (authMode() !== "supabase") return NextResponse.json({ error: "Sign-in isn't configured on this server." }, { status: 403 });
-  const { access_token, refresh_token, expires_in, code } = (await req.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: number; code?: string };
+  const { access_token, refresh_token, expires_in, code, ref } = (await req.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: number; code?: string; ref?: string };
   if (!access_token || !refresh_token) return NextResponse.json({ error: "Sign-in didn't finish. Try again." }, { status: 400 });
   const r = await fetch(`${supabaseUrl()}/auth/v1/user`, { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, Authorization: `Bearer ${access_token}` } });
   if (!r.ok) return NextResponse.json({ error: "Sign-in didn't finish. Try again." }, { status: 401 });
@@ -33,7 +34,8 @@ export async function POST(req: Request) {
       await logError({ source: "api", level: "warn", message: "Trial admissions paused (oauth sign-up)", route: "POST /api/auth/oauth/session" });
       return NextResponse.json({ error: "Mila is full for free trials right now. You're still on the list, and we'll email you when a seat opens." }, { status: 503 });
     }
-    await createProfile({ id: u.id, email: u.email, full_name: u.user_metadata?.full_name || u.user_metadata?.name || u.email.split("@")[0] });
+    const created = await createProfile({ id: u.id, email: u.email, full_name: u.user_metadata?.full_name || u.user_metadata?.name || u.email.split("@")[0] });
+    await recordReferral(created, ref).catch(() => false);
   }
   await setSupabaseSession(access_token, refresh_token, Number(expires_in) || 3600);
   return NextResponse.json({ ok: true, onboarded: existing ? (existing as { onboarded?: boolean }).onboarded !== false : false });

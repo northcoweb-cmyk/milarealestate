@@ -49,6 +49,8 @@ export interface ProfileSettings {
   /** Optional automations. Emailing contacts about listings/open houses is OFF unless asked for. */
   workflows?: { email_contacts: boolean };
   /** Public-facing identity used on social posts: license credentials, phones, email, team, profile photo. */
+  /** Referral program: this person's own code, who referred them, and whether that referral's reward was already paid. */
+  referral?: { code?: string; referred_by?: string; rewarded?: boolean };
   brand?: { credentials: string; license: string; cell: string; office: string; email: string; team: string; pfp: string | null };
 }
 

@@ -12,7 +12,7 @@ export const POST = api(async ({ profile, req }) => {
   if (!id) throw bad("Missing checkout session.");
   const r = await fetch(`https://api.stripe.com/v1/checkout/sessions/${id}`, { headers: { Authorization: `Bearer ${key}` } });
   if (!r.ok) throw bad("Couldn't confirm that payment yet. Your credits will appear in a moment.");
-  const s = (await r.json()) as { id: string; status?: string; payment_status?: string; client_reference_id?: string; customer?: string | null; subscription?: string | null; metadata?: Record<string, string> };
+  const s = (await r.json()) as { id: string; status?: string; payment_status?: string; client_reference_id?: string; customer?: string | null; subscription?: string | null; amount_total?: number | null; metadata?: Record<string, string> };
   if (s.client_reference_id !== profile.id) throw bad("That checkout belongs to a different account.");
   if (s.status !== "complete" || !["paid", "no_payment_required"].includes(s.payment_status ?? "")) return { applied: false, pending: true };
   const out = await applyCheckoutSession(profile.id, s);

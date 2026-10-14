@@ -53,6 +53,7 @@ export default function MorePage() {
         <Row href="/settings/mila" icon={SlidersHorizontal} title="Mila" sub="Autonomy: what Mila can do on her own" />
         <Row href="/settings/notifications" icon={Bell} title="Notifications" />
         <Row href="/settings/credits" icon={CreditCard} title="Credits & billing" />
+        <Row href="/settings/referrals" icon={Smartphone} title="Refer a friend" sub="Invite agents, earn credits when they subscribe" />
         <Row href="/settings/support" icon={Bell} title="Help & support" sub="Send us a ticket, we reply in 48 to 72 hours" />
         <Row href="/settings/appearance" icon={Palette} title="Appearance" />
         <Row href="/settings/privacy" icon={Shield} title="Privacy" />

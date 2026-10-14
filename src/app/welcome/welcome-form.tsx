@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { jfetch } from "@/components/ui";
 
 export function WelcomeForm({ mode, localAllowed }: { mode: "supabase" | "local"; localAllowed: boolean }) {
   const [signIn, setSignIn] = useState(false);
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [code, setCode] = useState("");
+  const [ref, setRef] = useState("");
+  useEffect(() => { try { const q = new URLSearchParams(window.location.search).get("ref"); if (q) sessionStorage.setItem("mila_ref", q.toUpperCase().slice(0, 12)); setRef(sessionStorage.getItem("mila_ref") ?? ""); } catch { /* private mode */ } }, []);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [info, setInfo] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError(null); setInfo(null);
     try {
-      const r = await jfetch<{ onboarded?: boolean; confirm?: boolean; message?: string }>(signIn ? "/api/auth/login" : "/api/auth/signup", { method: "POST", json: { name, email, password, code } });
+      const r = await jfetch<{ onboarded?: boolean; confirm?: boolean; message?: string }>(signIn ? "/api/auth/login" : "/api/auth/signup", { method: "POST", json: { name, email, password, code, ref } });
       if (r.confirm) { setInfo(r.message ?? "Check your email."); return; }
       // full page load: the client router cache may still hold the signed-out redirect to /welcome
       window.location.replace(signIn || r.onboarded ? "/" : "/onboarding"); return;
