@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
-import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, getBalance, recordUsage, takeTurnAiCost } from "../credits";
+import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
 import { aiAvailable } from "../ai/provider";
 import type { ActionButton, Block, PendingQuestion, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
 import { greetingFor } from "./debrief";
@@ -126,8 +126,9 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   // Charge once per turn, based on what actually happened.
   const key = out.creditKey ?? (intent === "smalltalk" ? "smalltalk" : "chat_simple");
   // a short answer costs the normal amount; a big conversation that used more AI costs more credits, so heavy use is paid for fairly
-  const base = await creditCost(key), byCost = creditsForAiCost(takeTurnAiCost(ctx.userId));
+  const base = await creditCost(key), byCost = creditsForAiCost(takeTurnAiCost(ctx.userId), await usdPerCredit(ctx.userId));
   await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: key === "smalltalk" ? base : Math.max(base, byCost) });
+  if (limited === "user_month" || limited === "user_day") await exhaustTrialCredits(ctx.userId); // a trial that hit its allowance is out of credits too
   await persistState(ctx);
   const milaMessage = await appendMila(ctx, out.text, out.blocks);
   return { conversationId: ctx.conversationId, userMessage, milaMessage, balance: await getBalance(ctx.userId) };

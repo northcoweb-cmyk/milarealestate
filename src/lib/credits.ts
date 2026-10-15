@@ -130,7 +130,27 @@ const turnAiCost: Map<string, number> = ((globalThis as { __milaTurnCost?: Map<s
 export function takeTurnAiCost(userId: string): number { const v = turnAiCost.get(userId) ?? 0; turnAiCost.delete(userId); return v; }
 /** Add third-party data cost (listing data, photo provider) to this turn so the agent pays for what they pull, at the same rate as AI. */
 export function addTurnCost(userId: string, usd: number) { if (usd > 0) turnAiCost.set(userId, (turnAiCost.get(userId) ?? 0) + usd); }
-export const creditsForAiCost = (usd: number) => Math.ceil(Math.max(0, usd) / AI_USD_PER_CREDIT - 1e-9);
+export const creditsForAiCost = (usd: number, perCredit = AI_USD_PER_CREDIT) => Math.ceil(Math.max(0, usd) / perCredit - 1e-9);
+
+/** What one credit is worth in cost for this person. A free trial is sized so its credits and its dollar cap run out together: 100 credits = the trial's AI allowance ($0.50), so $0.005 each. */
+export async function usdPerCredit(userId: string): Promise<number> {
+  if (await isTesterId(userId)) return AI_USD_PER_CREDIT;
+  const store = getStore();
+  const sub = (await store.list("subscriptions", userId))[0];
+  if (sub?.status !== "trial") return AI_USD_PER_CREDIT;
+  const t = (await store.getConfig()).trial ?? DEFAULT_CONFIG.trial!;
+  return Math.min(AI_USD_PER_CREDIT, t.ai_budget_usd / Math.max(1, t.credits));
+}
+
+/** The trial's AI allowance is used up: the credits go to zero too, so the screen says "out of credits" instead of leaving credits that don't work. */
+export async function exhaustTrialCredits(userId: string): Promise<void> {
+  if (await isTesterId(userId)) return;
+  const store = getStore();
+  const sub = (await store.list("subscriptions", userId))[0];
+  if (sub?.status !== "trial") return;
+  const bal = await getBalance(userId);
+  if (bal > 0) await store.insert("credit_transactions", userId, { kind: "adjust", delta: -bal, balance_after: 0, reason: "Trial allowance used", usage_id: null });
+}
 
 export async function recordUsage(u: UsageInput): Promise<{ usage: UsageRow; credits: number }> {
   const store = getStore();

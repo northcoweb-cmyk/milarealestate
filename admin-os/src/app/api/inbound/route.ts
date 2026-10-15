@@ -34,6 +34,8 @@ export async function POST(req: Request) {
   const fromAddr = String(d.from ?? d.From ?? "unknown sender");
   // nothing is lost: mail to this address that isn't a ticket reply is passed on to the owner's inbox
   const passOn = async (why: string) => { if (copyTo && (text || subject)) await sendMail(copyTo, `[Mila inbox] ${subject || "(no subject)"}`, `From: ${fromAddr}\nSubject: ${subject}\n\n${text || "(empty)"}`, brandedEmail({ preheader: subject, chip: "Mila inbox", heading: subject || "New email", body: text || "(empty message)", quote: { label: "From", text: fromAddr }, note: why }), fromAddr.match(/[^\s<>]+@[^\s<>]+/)?.[0]); };
+  // Mila's own notifications (e.g. "new ticket" alerts sent by the app to support@) are not customer mail: copy them to the owner's inbox, never turn them into tickets or thread replies
+  if (/(^|[<\s])noreply@milarealestate\.app/i.test(fromAddr)) { await passOn("An automatic notification from Mila."); return NextResponse.json({ ok: true, ignored: "own notification" }); }
   // a brand-new email to support@ becomes its own ticket (so it shows up in Mila OS → Support and can be answered from there)
   if (!no && text && supportRepliesOn()) {
     const addr = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.exec(String(d.from ?? d.From ?? ""))?.[0]?.toLowerCase();
