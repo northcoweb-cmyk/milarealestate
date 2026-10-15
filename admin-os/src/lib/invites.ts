@@ -73,10 +73,22 @@ export async function nextAnnounceBatch(n: number): Promise<Entry[]> {
   if (!r.ok) throw new Error("Run 0013_waitlist_announced.sql in the Supabase SQL editor first, then try again.");
   return (await r.json()) as Entry[];
 }
+/** Sends one countdown email. Real sends first CLAIM the person (announced_at set only if still empty), then send, and give the claim back if the send fails, so nobody can ever get it twice and a failure is never silent. */
 export async function sendAnnounce(design: DesignId, e: { id?: string; email: string; name: string | null }, mark = true): Promise<void> {
   const m = announceEmail(design, e.name, daysLeft());
-  await mailer().sendMail({ from: FROM(), replyTo: NOREPLY(), to: e.email, subject: m.subject, html: m.html, text: m.text });
-  if (mark && e.id) { const d = await rest(`waitlist?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", body: JSON.stringify({ announced_at: new Date().toISOString() }) }); if (!d.ok) throw new Error(`mark ${d.status}`); }
+  const claim = mark && !!e.id;
+  const id = encodeURIComponent(e.id ?? "");
+  if (claim) {
+    const c = await rest(`waitlist?id=eq.${id}&announced_at=is.null`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ announced_at: new Date().toISOString() }) });
+    if (!c.ok) throw new Error(`could not mark as sent (${c.status}): ${(await c.text()).slice(0, 160)}`);
+    if (((await c.json().catch(() => [])) as unknown[]).length === 0) throw new Error("already emailed or changed by another click; skipped");
+  }
+  try {
+    await mailer().sendMail({ from: FROM(), replyTo: NOREPLY(), to: e.email, subject: m.subject, html: m.html, text: m.text });
+  } catch (err) {
+    if (claim) await rest(`waitlist?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ announced_at: null }) }).catch(() => {});
+    throw new Error(`email not sent: ${err instanceof Error ? err.message : "failed"}`);
+  }
 }
 
 export async function sendTest(email: string) { await sendInvite(await ensureTestEntry(email)); }

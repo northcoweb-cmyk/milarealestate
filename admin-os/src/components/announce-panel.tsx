@@ -32,7 +32,7 @@ export function AnnouncePanel({ designs, days, pending, sent, ready, defaultEmai
         setMsg({ ok: true, text: `Sending… ${total} sent so far, ${d.remaining ?? 0} to go.`, extra: failedAll.length ? failedAll : undefined });
         if (!d.remaining || !d.sent) break; // finished, or nothing went through this round (stop instead of looping)
       }
-      setMsg({ ok: true, text: `Done. ${total} sent.`, extra: failedAll.length ? failedAll : undefined });
+      setMsg(failedAll.length ? { ok: false, text: `${total} sent, ${failedAll.length} did not go through. The reason is below; send me a screenshot of it.`, extra: failedAll } : { ok: true, text: `Done. ${total} sent.` });
     } catch { setMsg({ ok: false, text: "Network error. Check the numbers above, then click again to continue where it stopped." }); }
     setBusy(null);
   }
