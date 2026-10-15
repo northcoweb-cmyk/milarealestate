@@ -14,6 +14,7 @@ import { syncLabel } from "@/lib/calendar-sync";
 import { eventEmoji } from "@/lib/emoji";
 import { addDays, fmtRange, fmtTime, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
 import { EventPhotoCard } from "@/components/event-card";
+import { ServiceLogo } from "@/components/brand-logos";
 
 interface Person { name: string; phone: string | null; email: string | null; type: string }
 interface Place { address: string; city: string | null; state: string | null; list_price: number | null; beds: number | null; baths: number | null; sqft: number | null; verified: boolean }
@@ -221,10 +222,12 @@ function CalendarSync({ data, googleReady }: { data: Data | null; googleReady: b
     <div className="glass mt-8 space-y-4 p-5" style={{ borderRadius: 24 }}>
       <div><p className="font-semibold">📅 Get Mila's events on your phone</p><p className="muted text-[14px]">Every showing, open house and appointment Mila adds shows up in your own calendar, with the client, phone, address and notes inside. Pick the one you use.</p></div>
       <div className="flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--line)" }}>
+        <ServiceLogo id="apple_calendar" size={36} />
         <p className="min-w-0 flex-1 text-[15px]"><b>Apple Calendar</b><span className="faint block text-[13.5px]">iPhone, iPad and Mac. Tap once, then Subscribe. New and changed events update by themselves.</span></p>
         <button className="btn btn-primary btn-sm" onClick={addApple} disabled={busy}>{busy ? "Opening…" : "Add to Apple Calendar"}</button>
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--line)" }}>
+        <ServiceLogo id="google_calendar" size={36} />
         <p className="min-w-0 flex-1 text-[15px]"><b>Google Calendar</b><span className="faint block text-[13.5px]">{google ? `Connected${data?.google.account ? ` as ${data.google.account}` : ""}. Mila adds each event the moment she makes it.` : googleReady ? "Connect once and approve on Google's screen. Mila adds events for you from then on." : "Not available yet."}</span></p>
         {!google && googleReady && <a className="btn btn-primary btn-sm" href="/api/integrations/google/start?services=calendar">Connect Google</a>}
         {!google && googleReady && <p className="faint w-full text-[12.5px]">Google may say Mila is not verified yet. Tap <b>Advanced</b>, then <b>Go to Mila</b>.</p>}

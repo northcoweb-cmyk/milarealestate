@@ -15,6 +15,7 @@ test("one event becomes a valid calendar file with exact UTC time, location, not
   assert.match(ics, /LOCATION:12 Oak St\\, Austin\\, TX/);
   assert.match(ics.replace(/\r\n /g, ""), /DESCRIPTION:Showing with Sam Lee \(buyer\)\\nPhone: 555-0100\\n\\nAdded by Mila/);
   assert.match(ics, /TRIGGER:-PT30M/);
+  assert.match(ics, /TRIGGER:-P1D/); // a reminder a day before
   assert.match(ics, /UID:e1@milarealestate\.app/);
   assert.ok(ics.endsWith("END:VCALENDAR\r\n"));
 });

@@ -17,7 +17,7 @@ Not doing (decided): Supabase/Google/Vercel upgrades (the 23rd, only if needed),
 - [x] 6c. Two buttons on one reply ("Do it" and "Continue it"): one button per Mila reply, plus the follow-up cards when needed.
 - [x] 6d. Chat panel cut off at the bottom on desktop.
 - [x] 6e. To-do keeps tasks for things that already happened (post for an open house from a week ago); add a way to mark off by hand ("I did this").
-- [ ] 6f. Calendar settings: Apple logo next to Apple, Google logo next to Google; confirm the calendar connection saves; remind people a day before anything that goes on the calendar.
+- [x] 6f. Calendar settings: Apple logo next to Apple, Google logo next to Google; confirm the calendar connection saves; remind people a day before anything that goes on the calendar.
 - [ ] 6g. "Mila is just talking when she gives a response, change that out": need to know what it should be instead (asked below).
 
 ## You (evening)

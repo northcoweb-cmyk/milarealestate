@@ -29,7 +29,7 @@ export function buildIcs(items: IcsItem[], opts: { name?: string; feed?: boolean
     if (ev.location) L.push(`LOCATION:${esc(ev.location)}`);
     if (description) L.push(`DESCRIPTION:${esc(description)}`);
     L.push(`STATUS:${ev.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`, "TRANSP:OPAQUE");
-    if (ev.status !== "cancelled") L.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(ev.title)}`, "TRIGGER:-PT30M", "END:VALARM");
+    if (ev.status !== "cancelled") L.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:Tomorrow: ${esc(ev.title)}`, "TRIGGER:-P1D", "END:VALARM", "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(ev.title)}`, "TRIGGER:-PT30M", "END:VALARM"); // a day before, and 30 minutes before
     L.push("END:VEVENT");
   }
   L.push("END:VCALENDAR");
