@@ -509,22 +509,36 @@ async function marketHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
 }
 
 /** A long how-to or script answer becomes a tidy card (one step per row, copy button) instead of a wall of text. */
-function adviceCard(ask: string, answer: string, who?: { name: string; phone?: string | null }): { lead: string; block: Block } | null {
-  const paras = answer.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+export function adviceCard(ask: string, answer: string, who?: { name: string; phone?: string | null }): { lead: string; block: Block } | null {
+  const BULLET = /^\s*(?:[-•*]|\d{1,2}[.)]|\p{Extended_Pictographic}\uFE0F?)\s*/u;
+  const rawParas = answer.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+  // a paragraph that is really a bulleted or emoji-checked list becomes one row per line, not one blob
+  const paras = rawParas.flatMap((x) => { const lines = x.split(/\n/).map((l) => l.trim()).filter(Boolean); return lines.length >= 3 && lines.filter((l) => BULLET.test(l)).length >= lines.length - 1 ? lines : [x]; });
   if (answer.length < 380 || paras.length < 3) return null;
   const script = /\b(script|what (?:do|should|can) i say|negotiat|talking points)\b/i.test(ask);
-  const lead = paras[0].length <= 220 ? paras[0] : script ? "Here's a script you can use." : "Here's the short version.";
-  const rest = paras[0].length <= 220 ? paras.slice(1) : paras;
+  const lead = paras[0].length <= 220 && paras[0] === rawParas[0] && !/^\s*(?:[-•*]|\d{1,2}[.)])\s/.test(paras[0]) ? paras[0] : script ? "Here's a script you can use." : "Here's the short version.";
+  const rest = lead === paras[0] ? paras.slice(1) : paras;
+  const clean = (t: string) => t.replace(/\*\*/g, "").replace(BULLET, "").replace(/^[-•*]\s+/gm, "• ").trim();
   const steps = rest.slice(0, 8).map((x) => {
-    const m = /^(?:\*\*([^*]{2,60})\*\*[:\s-]*|(#{1,4}\s*)?([A-Z][^.\n]{2,50}):\s*)([\s\S]*)$/.exec(x);
-    const clean = (t: string) => t.replace(/\*\*/g, "").replace(/^[-•*]\s+/gm, "• ").trim();
+    const m = /^(?:\*\*([^*]{2,60})\*\*[:\s-]*|(#{1,4}\s*)?([A-Z][^.\n]{2,50}):\s*)([\s\S]*)$/.exec(x.replace(BULLET, ""));
     return m && (m[1] || m[3]) && m[4].trim() ? { heading: (m[1] ?? m[3]).trim(), body: clean(m[4]) } : { body: clean(x) };
   });
+  const first = who?.name.split(" ")[0];
   const buttons: ActionButton[] = who && script ? [
-    { label: `✉️ Make it an email to ${who.name.split(" ")[0]}`, style: "secondary", action: { type: "prompt", text: `Draft an email to ${who.name}: ${ask}` } },
-    ...(who.phone ? [{ label: `💬 Make it a text to ${who.name.split(" ")[0]}`, style: "secondary" as const, action: { type: "prompt" as const, text: `Draft a text to ${who.name}: ${ask}` } }] : []),
+    { label: `✉️ Make it an email to ${first}`, style: "secondary", action: { type: "prompt", text: `Draft an email to ${who.name}: ${ask}` } },
+    ...(who.phone ? [{ label: `💬 Make it a text to ${first}`, style: "secondary" as const, action: { type: "prompt" as const, text: `Draft a text to ${who.name}: ${ask}` } }] : []),
   ] : [];
-  return { lead, block: { type: "advice", title: script ? "Your script" : "How it works", kicker: script ? "Say it" : "Good to know", steps, copy: rest.join("\n\n").replace(/\*\*/g, ""), buttons } };
+  // an open-house how-to: show what Mila can actually do about it
+  const addr = /\b\d{1,6}\s+(?:[NSEW]\.?\s+)?[A-Z][\w.'-]*(?:\s+[A-Z][\w.'-]*){0,3}\s+(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Lane|Ln|Court|Ct|Way|Blvd|Boulevard|Place|Pl|Circle|Cir|Trail|Terrace)\b\.?/.exec(`${ask} ${answer}`)?.[0];
+  if (!script && /\bopen house/i.test(ask)) {
+    const at = addr ? ` for ${addr}` : "";
+    buttons.push(
+      { label: "🏠 Prep the property for me", style: "primary", action: { type: "prompt", text: addr ? `Prep me for the open house at ${addr}` : "Prep me for my open house" } },
+      { label: "📣 Make the open house post", style: "secondary", action: { type: "prompt", text: `Make an open house post${at}` } },
+      { label: "✉️ Draft the invite email", style: "secondary", action: { type: "prompt", text: `Draft an open house invite email${at}` } },
+    );
+  }
+  return { lead, block: { type: "advice", title: script ? "Your script" : /\bopen house/i.test(ask) ? "Open house checklist" : "How it works", kicker: script ? "Say it" : "Good to know", steps, copy: rest.map(clean).join("\n\n"), buttons } };
 }
 
 async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
@@ -539,7 +553,7 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const ai = await llmChat(ctx, text, await recentHistory(ctx), extra);
   if (ai) {
     const card = adviceCard(text, ai.text, known[0]);
-    if (card) return reply(card.lead, [card.block, ...(ai.suggestions.length ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+    if (card) return reply(card.lead, [card.block, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   }
   if (ai) return reply(ai.text, ai.suggestions.length ? [{ type: "choice", title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   await logError({ source: "unhandled", level: "info", message: text.slice(0, 300), userId: ctx.userId, email: ctx.profile.email });
