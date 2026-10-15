@@ -5,6 +5,7 @@ import type { Ctx } from "./context";
 import { knowledgeFor } from "./learn";
 import { logError } from "../server/errors";
 import { INTENTS, type Detected, type Intent } from "./intents";
+import { finishEmailBody } from "../signature";
 
 /**
  * Optional AI layer. Used only when the rules engine can't classify a
@@ -88,7 +89,7 @@ export async function llmDraftEmail(ctx: Ctx, instruction: string, recipient: st
     ctx.usage.aiCalls++;
     await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: "email_draft", creditKey: "email_generation", creditsOverride: 0, tier: "fast", provider: r.info.provider, model: r.info.model, inputUnits: r.usage.inputTokens, outputUnits: r.usage.outputTokens, estCostUsd: estimateCost(r.info, r.usage.inputTokens, r.usage.outputTokens) });
     const j = r.json as { subject?: string; body?: string } | undefined;
-    return j?.subject && j?.body ? { subject: j.subject, body: j.body } : null;
+    return j?.subject && j?.body ? { subject: j.subject, body: finishEmailBody(j.body, ctx.profile) } : null;
   } catch {
     return null;
   }

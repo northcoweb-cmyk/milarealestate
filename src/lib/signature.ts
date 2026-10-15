@@ -31,3 +31,23 @@ export function withSignature(caption: string, sig: string, limit = 2200): strin
   const fitted = body.length > room ? body.slice(0, Math.max(0, room - 1)).replace(/\s+\S*$/, "") + "…" : body;
   return `${fitted}\n\n${sig}`;
 }
+
+const CLOSING = /^(warmly|warm regards|best|best regards|kind regards|regards|sincerely|thanks|thank you|cheers|talk soon|all the best|take care|with appreciation|looking forward)[,!.]?$/i;
+/**
+ * Ends an email with exactly one closing and one signature block (name, role, brokerage). The writing model often adds its own
+ * "Warmly, Name" and the app adds the signature too; this keeps the closing word and removes every repeated name or brokerage line.
+ */
+export function finishEmailBody(body: string, p: Pick<Profile, "full_name" | "brokerage" | "role">): string {
+  const mine = new Set([p.full_name, p.brokerage, p.role].filter(Boolean).map((x) => String(x).trim().toLowerCase()));
+  const sig = [p.full_name, p.role && p.role !== "Agent" ? p.role : null, p.brokerage].filter(Boolean).join("\n");
+  const lines = body.replace(/\s+$/, "").split("\n");
+  let closing = "Best,";
+  const tail = Math.max(0, lines.length - 8);
+  let cut = lines.length;
+  for (let i = lines.length - 1; i >= tail; i--) {
+    const t = lines[i].trim();
+    if (CLOSING.test(t)) { closing = t.endsWith(",") ? t : t.replace(/[!.]$/, "") + ","; cut = i; break; }
+  }
+  if (cut === lines.length) { while (cut > 0 && (!lines[cut - 1].trim() || mine.has(lines[cut - 1].trim().toLowerCase()))) cut--; }
+  return `${lines.slice(0, cut).join("\n").replace(/\s+$/, "")}\n\n${closing}\n${sig}`;
+}

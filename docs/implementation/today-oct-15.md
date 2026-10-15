@@ -11,6 +11,15 @@ Not doing (decided): Supabase/Google/Vercel upgrades (the 23rd, only if needed),
 - [x] 5. **Site bug sweep:** every page on phone and desktop, in light and dark. Fix what is broken, one page at a time.
 - [ ] 6. **Feature gaps from the chat:** anything you asked for that is not built yet (list it here as we find it).
 
+## Step 6 list (from your screenshots, in the order I'm doing them)
+- [x] 6a. Draft email/text signs off with your name twice ("Warmly, Admin Tester / Keller Williams / Admin Tester").
+- [x] 6b. "Automatic posting isn't available yet" still shows on approvals; remove that wording everywhere.
+- [x] 6c. Two buttons on one reply ("Do it" and "Continue it"): one button per Mila reply, plus the follow-up cards when needed.
+- [ ] 6d. Chat panel cut off at the bottom on desktop.
+- [ ] 6e. To-do keeps tasks for things that already happened (post for an open house from a week ago); add a way to mark off by hand ("I did this").
+- [ ] 6f. Calendar settings: Apple logo next to Apple, Google logo next to Google; confirm the calendar connection saves; remind people a day before anything that goes on the calendar.
+- [ ] 6g. "Mila is just talking when she gives a response, change that out": need to know what it should be instead (asked below).
+
 ## You (evening)
 - [ ] 7. Run the question list on Mila, then admin -> Feedback -> "Copy today's reports for Claude" and paste it. Every bad reply becomes a test first.
 

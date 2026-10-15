@@ -323,7 +323,9 @@ export function buildScenarios(): Scenario[] {
       { say: `I have an open house at ${pick(r, ADDRS)} ${sunday} ${t[0]}`, allow: { overlap: true } },
       (a, prev) => ({ act: { type: "approve_run", runId: blocks(prev, "workflow")[0]?.runId ?? "none" }, allow: { overlap: true }, check: async (res) => {
         const ap: any[] = await store.list("approvals", a.id);
-        if (ap.some((x) => x.status === "executed" && /send_email|publish/.test(x.payload.tool))) return "a send/publish approval was executed without Gmail/social connected";
+        if (ap.some((x) => x.status === "executed" && /send_email/.test(x.payload.tool))) return "a send approval was executed without Gmail connected";
+        // approving a post only marks it Ready to post (Mila never posts for the agent); it must never become "published"
+        if ((await store.list("social_posts", a.id)).some((x: any) => x.status === "published" || x.status === "scheduled")) return "a post was marked published/scheduled without any posting connection";
         if (!blocks(prev, "workflow").length) return; // conflict path
         if (!/Done|couldn.t|approved|already/i.test(res.milaMessage.content + text(res))) return `unclear result of approve-all: ${res.milaMessage.content.slice(0, 100)}`;
       } }),

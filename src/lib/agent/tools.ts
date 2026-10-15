@@ -462,7 +462,7 @@ export const TOOLS: Record<string, ToolDef> = {
     },
     run: async (ctx, a) => {
       await ctx.store.update("social_posts", ctx.userId, a.postId, { status: "approved_unpublished" });
-      return fail("coming_soon", "Approved. Automatic posting isn't available yet — copy the caption and slides to post it yourself.", "meta");
+      return ok({ postId: a.postId, ready: true }); // Mila prepares the post; the agent posts it. Approving marks it Ready to post in Content.
     },
   },
 
@@ -676,7 +676,7 @@ async function decideApprovalOnce(ctx: Ctx, id: string, decision: "approve" | "r
     const u = (await ctx.store.update("approvals", ctx.userId, id, { status: "executed", decided_at: nowIso(), executed_at: nowIso(), result: r.data as any, error: null, blocked_integration: null }))!;
     if (task) await ctx.store.update("tasks", ctx.userId, task.id, { status: "done", completed_at: nowIso() });
     const followUp = await postExecute(ctx, a, r.data);
-    const sent = a.payload.tool.startsWith("send_email") ? `Sent ${plural((r.data as any).sent ?? 1, "email")}.` : a.payload.tool === "shift_calendar_events" ? `Moved ${plural((r.data as any).moved ?? 0, "event")}.` : a.payload.tool === "replace_calendar_event" ? `Replaced ${(r.data as any).original?.title} with ${(r.data as any).event?.title}.` : "Done.";
+    const sent = a.payload.tool.startsWith("send_email") ? `Sent ${plural((r.data as any).sent ?? 1, "email")}.` : a.payload.tool === "shift_calendar_events" ? `Moved ${plural((r.data as any).moved ?? 0, "event")}.` : a.payload.tool === "replace_calendar_event" ? `Replaced ${(r.data as any).original?.title} with ${(r.data as any).event?.title}.` : a.payload.tool === "publish_social_post" ? "Approved. It's marked Ready to post in Content: copy the caption and slides from there." : "Done.";
     return { approval: u, result: r, followUp, message: (r.data as any)?.syncNote ? `${sent} Note: ${(r.data as any).syncNote}` : sent };
   }
 

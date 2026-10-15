@@ -363,7 +363,9 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   } else ctx.state.clarify_streak = null;
   // still-open questions from earlier stay visible after the new request is handled
   const reminder: Block[] = [];
-  if (ctx.state.parked?.length && !ctx.state.pending && !answering) {
+  // one set of buttons per reply: if this answer already offers something to press, the old question waits for a quieter moment
+  const pressable = outs.some((o) => o.blocks.some((b) => b.type === "questions" || (("buttons" in b) && Array.isArray((b as { buttons?: unknown[] }).buttons) && ((b as { buttons?: unknown[] }).buttons?.length ?? 0) > 0)));
+  if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable) {
     const p0 = ctx.state.parked[0];
     reminder.push({ type: "choice", title: `Still open: ${p0.label}`, body: ASK_BY_MISSING[p0.missing] ?? "I still need one detail to finish that.", buttons: [{ label: "Continue it", style: "primary", action: { type: "resume_parked", index: 0 } }, { label: "Drop it", style: "quiet", action: { type: "drop_parked", index: 0 } }] });
   }
