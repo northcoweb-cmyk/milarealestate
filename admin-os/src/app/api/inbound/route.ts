@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { same } from "@/lib/auth";
 import { table, write } from "@/lib/sb";
-import { sendMail } from "@/lib/mail";
+import { sendMail, supportRepliesOn } from "@/lib/mail";
 import { brandedEmail } from "@/lib/email-template";
 
 type Ctx = { ticket_no?: string; thread?: { dir: "in" | "out"; at: string; text: string; by?: string }[] };
@@ -34,6 +34,21 @@ export async function POST(req: Request) {
   const fromAddr = String(d.from ?? d.From ?? "unknown sender");
   // nothing is lost: mail to this address that isn't a ticket reply is passed on to the owner's inbox
   const passOn = async (why: string) => { if (copyTo && (text || subject)) await sendMail(copyTo, `[Mila inbox] ${subject || "(no subject)"}`, `From: ${fromAddr}\nSubject: ${subject}\n\n${text || "(empty)"}`, brandedEmail({ preheader: subject, chip: "Mila inbox", heading: subject || "New email", body: text || "(empty message)", quote: { label: "From", text: fromAddr }, note: why }), fromAddr.match(/[^\s<>]+@[^\s<>]+/)?.[0]); };
+  // a brand-new email to support@ becomes its own ticket (so it shows up in Mila OS → Support and can be answered from there)
+  if (!no && text && supportRepliesOn()) {
+    const addr = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.exec(String(d.from ?? d.From ?? ""))?.[0]?.toLowerCase();
+    if (addr && !/^(noreply|no-reply|mailer-daemon|postmaster)@/.test(addr)) {
+      const prof = await table<{ id: string; full_name: string }>("profiles", { select: "id,full_name", filter: `email=eq.${encodeURIComponent(addr)}` });
+      const ticketNo = `M-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+      const nameGuess = prof?.[0]?.full_name || String(d.from ?? d.From ?? "").replace(/<[^>]*>/g, "").replace(/["']/g, "").trim() || addr;
+      const context = { kind: "support_ticket", ticket_no: ticketNo, name: nameGuess, email: addr, topic: "email", topic_label: "Email", subject: subject.slice(0, 140) || "Email to support", user_email: addr, source: "email", created: new Date().toISOString(), thread: [] as unknown[] };
+      const made = await write("feedback", "POST", { body: { user_id: prof?.[0]?.id ?? "00000000-0000-0000-0000-000000000000", kind: "bug", target: "support", note: text, category: "support_ticket", context, status: "open" } });
+      if (made) {
+        if (copyTo) await sendMail(copyTo, `[Mila ${ticketNo}] New email from ${addr}`, `${addr} emailed support:\n\n${text}\n\nReply in Mila OS → Inbox → Support.`, brandedEmail({ preheader: text.slice(0, 90), chip: `Ticket ${ticketNo}`, heading: "New email to support", body: `${addr} wrote:\n\n${text}`, note: "Reply in Mila OS → Inbox → Support." }));
+        return NextResponse.json({ ok: true, ticket: ticketNo });
+      }
+    }
+  }
   if (!no || !text) { await passOn("This email wasn't a reply to a support ticket, so it was passed on to you."); return NextResponse.json({ ok: true, passedOn: Boolean(copyTo) }); }
   const rows = await table<{ id: string; context: Ctx | null }>("feedback", { select: "id,context", filter: `category=eq.support_ticket&context->>ticket_no=eq.${encodeURIComponent(no)}` });
   const t = rows?.[0];

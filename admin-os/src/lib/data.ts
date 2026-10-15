@@ -9,14 +9,17 @@ export const ago = (iso: string | null | undefined, now = Date.now()) => {
   const s = Math.max(0, (now - new Date(iso).getTime()) / 1000);
   return s < 90 ? "just now" : s < 5400 ? `${Math.round(s / 60)}m ago` : s < 129600 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
 };
-export const usd = (n: number) => (n < 1 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`);
+export const usd = (n: number): string => (n < 0 ? `-${usd(-n)}` : n < 1 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`);
+/** Money that is revenue or profit: always whole cents, minus sign in front. */
+export const usd2 = (n: number): string => `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`;
 
 interface Profile { id: string; email: string; full_name: string; created_at: string; onboarded: boolean; is_demo: boolean; brokerage: string | null; location: string | null }
-interface Sub { user_id: string; plan_key: string; status: string; period_start: string; period_end: string; stripe_subscription_id: string | null }
+interface Sub { user_id: string; plan_key: string; status: string; period_start: string; period_end: string; stripe_subscription_id: string | null; credits_per_period?: number }
 interface Msg { user_id: string; role: string; created_at: string }
 interface Use { user_id: string; operation: string; model: string; est_cost_usd: number; credits: number; created_at: string }
 interface Err { id: string; level: string; source: string; message: string; stack: string | null; route: string | null; user_email: string | null; status: string; created_at: string }
 interface ApiU { user_id?: string; provider: string; endpoint: string; success: boolean; est_cost_usd: number; created_at: string }
+interface Ctx { user_id: string; kind: string; delta: number; reason: string; created_at: string }
 interface Wait { id: string; email: string; name: string | null; source: string | null; created_at: string; status?: string | null; invited_at?: string | null; claimed_at?: string | null }
 
 const isTest = (email: string, demo: boolean) => demo || /@(test|example|demo)\.(dev|com|test)$/i.test(email) || /^qa\d+@/i.test(email);
@@ -27,17 +30,18 @@ export async function buildReport() {
   const now = Date.now();
   const since60 = new Date(now - 60 * DAY).toISOString();
   const since30 = new Date(now - 30 * DAY).toISOString();
-  const [profiles, subs, msgs, usage, errs, apiU, wait] = await Promise.all([
+  const [profiles, subs, msgs, usage, errs, apiU, wait, ledger] = await Promise.all([
     table<Profile>("profiles", { select: "id,email,full_name,created_at,onboarded,is_demo,brokerage,location", order: "created_at.desc" }),
-    table<Sub>("subscriptions", { select: "user_id,plan_key,status,period_start,period_end,stripe_subscription_id" }),
+    table<Sub>("subscriptions", { select: "user_id,plan_key,status,period_start,period_end,stripe_subscription_id,credits_per_period" }),
     table<Msg>("messages", { select: "user_id,role,created_at", filter: `created_at=gte.${since60}` }),
     table<Use>("usage", { select: "user_id,operation,model,est_cost_usd,credits,created_at", filter: `created_at=gte.${since60}` }),
     table<Err>("error_logs", { select: "id,level,source,message,stack,route,user_email,status,created_at", filter: `created_at=gte.${since30}`, order: "created_at.desc", max: 5000 }),
     table<ApiU>("api_usage", { select: "user_id,provider,endpoint,success,est_cost_usd,created_at", filter: `created_at=gte.${since30}` }),
     (async () => (await table<Wait>("waitlist", { select: "id,email,name,source,created_at,status,invited_at,claimed_at", order: "created_at.desc" })) ?? (await table<Wait>("waitlist", { select: "id,email,name,source,created_at,status", order: "created_at.desc" })))(),
+    table<Ctx>("credit_transactions", { select: "user_id,kind,delta,reason,created_at", max: 50000 }),
   ]);
-  const missing = [["profiles", profiles], ["subscriptions", subs], ["messages", msgs], ["usage", usage], ["error_logs", errs], ["api_usage", apiU], ["waitlist", wait]].filter(([, v]) => v === null).map(([k]) => k as string);
-  const P = profiles ?? [], S = subs ?? [], M = msgs ?? [], U = usage ?? [], E = errs ?? [], A = apiU ?? [], W = wait ?? [];
+  const missing = [["profiles", profiles], ["subscriptions", subs], ["messages", msgs], ["usage", usage], ["error_logs", errs], ["api_usage", apiU], ["waitlist", wait], ["credit_transactions", ledger]].filter(([, v]) => v === null).map(([k]) => k as string);
+  const P = profiles ?? [], S = subs ?? [], M = msgs ?? [], U = usage ?? [], E = errs ?? [], A = apiU ?? [], W = wait ?? [], L = ledger ?? [];
 
   const real = P.filter((p) => !isTest(p.email, p.is_demo));
   const realIds = new Set(real.map((p) => p.id));
@@ -104,6 +108,24 @@ export async function buildReport() {
     const cost = (costOf.get(id) ?? 0) + (apiCostOf.get(id) ?? 0), revenue = paid ? PRICE[s!.plan_key] ?? 0 : 0;
     return { email: emailOf.get(id) ?? id.slice(0, 8), cost, ai: costOf.get(id) ?? 0, data: apiCostOf.get(id) ?? 0, turns: turnsOf.get(id) ?? 0, plan: s?.plan_key ?? "", paid, revenue, margin: revenue - cost };
   }).sort((a, b) => b.cost - a.cost).slice(0, 25);
+  // one row per real account: where their credits stand, what they have cost, what they have paid, and what is left over
+  const POOL: Record<string, number> = { solo: 29, pro: 39, pro_annual: 390, team: 299 }; // what the plan itself costs the customer at purchase
+  const feeOf = (amount: number) => (amount > 0 ? amount * 0.029 + 0.3 : 0);
+  const customers = real.map((p) => {
+    const s = subOf(p.id); const paid = !!s && s.status === "active" && !!s.stripe_subscription_id;
+    const mine = L.filter((t) => t.user_id === p.id);
+    const balance = mine.reduce((n, t) => n + t.delta, 0);
+    const since = s ? new Date(s.period_start).getTime() : 0;
+    const usedPeriod = -mine.filter((t) => t.delta < 0 && new Date(t.created_at).getTime() >= since).reduce((n, t) => n + t.delta, 0);
+    const usedTotal = -mine.filter((t) => t.delta < 0).reduce((n, t) => n + t.delta, 0);
+    const packCredits = mine.filter((t) => t.kind === "purchase" && /credit pack/i.test(t.reason)).reduce((n, t) => n + t.delta, 0);
+    const paidPlan = paid ? POOL[s!.plan_key] ?? 0 : 0, paidPacks = packCredits * 0.05; // every pack sells at $0.05 a credit
+    const revenue = paidPlan + paidPacks, ai = costOf.get(p.id) ?? 0, data = apiCostOf.get(p.id) ?? 0, cost = ai + data;
+    const profit = revenue - cost - feeOf(paidPlan) - (paidPacks ? feeOf(paidPacks) : 0);
+    const state = paid ? "paid" : s?.status === "trial" ? (new Date(s.period_end).getTime() < now ? "trial ended" : "trial") : s?.status ?? "none";
+    return { id: p.id, email: p.email, name: p.full_name, plan: s?.plan_key ?? "", state, trialDay: s?.status === "trial" ? Math.min(7, Math.max(1, Math.floor((now - new Date(s.period_start).getTime()) / DAY) + 1)) : null, balance, allowance: s?.credits_per_period ?? 0, usedPeriod, usedTotal, ai, data, cost, revenue, profit, last: lastActive.get(p.id) ?? null };
+  }).sort((a, b) => (a.state === "paid" ? 0 : 1) - (b.state === "paid" ? 0 : 1) || b.cost - a.cost);
+
   // profit over the last 30 days, across EVERY account: what paying users bring in vs what everyone (including free trials and testers) costs
   const realCost = (id: string) => (costOf.get(id) ?? 0) + (apiCostOf.get(id) ?? 0);
   const payingIds = real.filter((p) => { const s = subOf(p.id); return !!s && s.status === "active" && !!s.stripe_subscription_id; }).map((p) => p.id);
@@ -141,7 +163,7 @@ export async function buildReport() {
     ],
     waitToAccount: { joined, of: W.length },
     users, funnel, errors, wait: W,
-    profit,
+    profit, customers,
     spend: { byOp: [...byOp.entries()].map(([op, v]) => ({ op, ...v })).sort((a, b) => b.cost - a.cost).slice(0, 15), byModel: [...byModel.entries()].map(([model, v]) => ({ model, ...v })).sort((a, b) => b.cost - a.cost), byUser, api: [...apiBy.entries()].map(([provider, v]) => ({ provider, ...v })).sort((a, b) => b.cost - a.cost) },
     waitSources: Object.entries(W.reduce<Record<string, number>>((m, w) => { const k = w.source || "direct"; m[k] = (m[k] ?? 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]),
   };

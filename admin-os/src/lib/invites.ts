@@ -107,7 +107,7 @@ export function inviteEmail(name: string | null, link: string) {
 ${btn(link, "Open Mila")}
 <p style="margin:0 0 12px;font-size:14.5px;line-height:1.55;color:#33305a">Use the same email you joined with. Your <b>7-day free trial</b> starts when you finish setup. No card needed.</p>
 <p style="margin:0 0 4px;font-size:12.5px;color:#6b6890">Button not working? Paste this into your browser:</p>
-<p style="margin:0 0 16px;font-size:12px;color:#6b6890;word-break:break-all">${link}</p>`, "This link is personal to you. This is an automated email, so please don't reply. If the link doesn't work, write to hello@milarealestate.app.");
+<p style="margin:0 0 16px;font-size:12px;color:#6b6890;word-break:break-all">${link}</p>`, `This link is personal to you. This is an automated email, so please don't reply. If the link doesn't work, write to ${process.env.SUPPORT_EMAIL || "hello@milarealestate.app"}.`);
   return { subject, html, text };
 }
 

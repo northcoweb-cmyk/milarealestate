@@ -10,6 +10,7 @@ import { Building2, CalendarDays, Gauge, Home, Megaphone, Menu, Users } from "lu
 import { useApp } from "./app-context";
 import { peekApi, putApi } from "./use-api";
 import { NavTracker } from "./back-button";
+import { TrialEndedPopup } from "./trial-ended-popup";
 import clsx from "clsx";
 
 const NAV = [
@@ -58,6 +59,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
   return (
     <>
       <NavTracker />
+      <TrialEndedPopup />
       <InstallPopup />
       {/* desktop rail */}
       <nav aria-label="Primary" className="glass fixed bottom-5 left-5 top-5 z-40 hidden w-[92px] flex-col items-center py-6 lg:flex" style={{ borderRadius: 32 }}>

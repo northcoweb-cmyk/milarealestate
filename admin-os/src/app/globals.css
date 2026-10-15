@@ -20,6 +20,8 @@ h1 { font: 400 clamp(32px, 6vw, 46px)/1.05 var(--serif); letter-spacing: -.02em;
 .grid { display: grid; gap: 12px; }
 .g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .g2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .g3 { grid-template-columns: 1fr; } }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px; min-width: 0; }
 .stat .eyebrow, .eyebrow { font: 600 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
 .num { font: 400 40px/1.1 var(--serif); letter-spacing: -.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
