@@ -28,6 +28,7 @@ export function TrialEndedPopup() {
         <p className="muted mt-2 text-[15.5px] leading-snug">Everything you added is safe and still here to look at. Choose a plan to pick up where you left off and have Mila working for you again.</p>
         <Link href="/settings/credits" onClick={close} className="btn btn-primary mt-6 w-full">Choose a plan</Link>
         <button type="button" onClick={close} className="btn btn-quiet mt-2 w-full">Not now</button>
+        <p className="faint mt-3 text-[13px]">Questions? <a className="underline" href="mailto:support@milarealestate.app">support@milarealestate.app</a></p>
       </div>
     </div>
   );

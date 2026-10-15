@@ -27,7 +27,7 @@ export function brandedEmail(o: { preheader?: string; heading: string; body: str
     <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#ffffff;">Mila</div>
     <div style="font-size:13px;line-height:1.6;color:#b9b6d3;margin-top:6px;">Mila drafts, schedules and follows up for real estate agents, and asks before anything goes out.</div>
     <div style="font-size:13px;line-height:1.8;margin-top:14px;"><a href="${site}" style="color:#c9bbff;text-decoration:none;">milarealestate.app</a> &nbsp;·&nbsp; <a href="${site}/privacy" style="color:#c9bbff;text-decoration:none;">Privacy</a> &nbsp;·&nbsp; <a href="${site}/terms" style="color:#c9bbff;text-decoration:none;">Terms</a></div>
-    <div style="font-size:12px;line-height:1.6;color:#8d8aa8;margin-top:14px;">This is an automated message, so please don't reply to this email: replies aren't monitored. To reach us, open Help &amp; support inside Mila (we reply within 48 to 72 hours). Mila is a product of NorthCo Designs.</div>
+    <div style="font-size:12px;line-height:1.6;color:#8d8aa8;margin-top:14px;">This is an automated message, so please don't reply to this email: replies aren't monitored. To reach us, open Help &amp; support inside Mila or email <a href="mailto:${support}" style="color:#b9a8ff;">${support}</a> (we reply within 48 to 72 hours). Mila is a product of NorthCo Designs.</div>
   </td></tr>
  </table>
 </td></tr></table></body></html>`;

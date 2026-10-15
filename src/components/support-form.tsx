@@ -53,7 +53,7 @@ export function SupportForm() {
   return (
     <div className="space-y-6">
       <form onSubmit={send} className="glass-strong space-y-4 p-5 sm:p-6" style={{ borderRadius: 26 }}>
-        <p className="muted text-[14.5px]">A person reads every ticket. <b>Replies usually take 48 to 72 hours.</b></p>
+        <p className="muted text-[14.5px]">A person reads every ticket. <b>Replies usually take 48 to 72 hours.</b> You can also email <a className="underline" href="mailto:support@milarealestate.app">support@milarealestate.app</a>.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="lbl" htmlFor="s-name">Your name</label><input id="s-name" className="field" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required /></div>
           <div><label className="lbl" htmlFor="s-email">Email for our reply</label><input id="s-email" type="email" className="field" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></div>
