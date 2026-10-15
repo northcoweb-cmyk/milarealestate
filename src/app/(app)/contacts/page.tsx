@@ -46,7 +46,7 @@ export default function ContactsPage() {
           <Avatar name={c.name} seed={c.id} size={44} ring="var(--ink-faint)" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[16px] font-semibold leading-tight">{c.name}</p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1"><TypeBadge type={c.type} label={TYPE_LABEL[c.type]} emoji={contactEmoji(c.type)} /><span className="faint text-[12.5px]">{st.emoji} {st.label}</span></div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1"><TypeBadge type={c.type} label={TYPE_LABEL[c.type]} emoji={contactEmoji(c.type)} /><span className="faint text-[12.5px]">{st.emoji} {st.label}</span>{(!c.email || !c.phone) && <span className="text-[12.5px] font-semibold" style={{ color: "var(--warn)" }}>Add {[!c.email && "email", !c.phone && "phone"].filter(Boolean).join(" + ")}</span>}</div>
           </div>
         </Link>
         <button onClick={() => setMoving(c)} className="btn btn-quiet shrink-0 !min-h-[44px] !min-w-[44px] !px-2.5" aria-label={`${c.name}: ${st.label}. Change stage`}><ArrowRightLeft size={18} /></button>

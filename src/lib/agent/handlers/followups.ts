@@ -54,7 +54,7 @@ export async function handleAttachments(ctx: Ctx, docs: DocumentRow[], text: str
     const body = d.text_content ?? "";
     if (!body) return reply("I can only save text-based documents (text or text PDFs) as fillable templates right now.");
     await ctx.store.insert("document_templates", ctx.userId, { name: d.name.replace(/\.[^.]+$/, ""), kind, body, variables: extractVariables(body), document_id: d.id, is_default: true });
-    return reply(`Saved “${d.name}” as your default ${label(kind).toLowerCase()} template. I only fill in {{VARIABLE}} fields — I never rewrite the wording.`, [], "smalltalk");
+    return reply(`Saved “${d.name}” as your default ${label(kind).toLowerCase()} template. I only fill in the blanks (like names, dates and addresses) and never rewrite your wording.`, [], "smalltalk");
   }
   if (!sheetish && docs.every((d) => d.kind !== "csv" && d.kind !== "spreadsheet")) {
     const d = docs[0];

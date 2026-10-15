@@ -11,13 +11,14 @@ import { kindForProperty, type PropertyKind } from "./property-kind";
  *   archived        — set aside by the agent
  * The agent can override the stage by hand (stored as a "Stage" memory), and that always wins.
  */
-export type Stage = "upcoming" | "active" | "under_contract" | "sold" | "archived";
+export type Stage = "upcoming" | "active" | "under_contract" | "sold" | "done" | "archived";
 export type Group = "upcoming" | "current" | "past";
 export const STAGES: { key: Stage; label: string; group: Group; blurb: string }[] = [
   { key: "upcoming", label: "Upcoming", group: "upcoming", blurb: "Getting ready — not on the market yet" },
   { key: "active", label: "Live", group: "current", blurb: "On the market / open houses and showings" },
   { key: "under_contract", label: "Under contract", group: "current", blurb: "Offer accepted, heading to closing" },
   { key: "sold", label: "Sold", group: "past", blurb: "Closed" },
+  { key: "done", label: "Past", group: "past", blurb: "The showing or open house already happened" },
   { key: "archived", label: "Archived", group: "past", blurb: "Set aside" },
 ];
 export const STAGE_KEY = "Stage";
@@ -48,7 +49,9 @@ export function buildCard(p: Property, mems: Memory[], events: CalendarEvent[], 
   const future = ev.filter((e) => new Date(e.end_at).getTime() > t).sort((a, b) => a.start_at.localeCompare(b.start_at));
   const next = future.find((e) => e.notes !== "Transaction milestone" || e.kind === "closing") ?? future[0] ?? null;
   const closing = future.find((e) => e.kind === "closing") ?? null;
-  const recentShowing = ev.some((e) => (e.kind === "open_house" || e.kind === "showing") && new Date(e.start_at).getTime() > t - 30 * 86_400_000);
+  const isShowing = (e: CalendarEvent) => e.kind === "open_house" || e.kind === "showing";
+  const showingsAhead = ev.some((e) => isShowing(e) && new Date(e.end_at).getTime() > t);
+  const showingsDone = ev.some((e) => isShowing(e) && new Date(e.end_at).getTime() <= t);
   const soldPrice = /^Sold/i.test(txn) ? Number(/\$([\d,]+)/.exec(txn)?.[1]?.replace(/,/g, "")) || null : null;
 
   let stage: Stage;
@@ -56,7 +59,8 @@ export function buildCard(p: Property, mems: Memory[], events: CalendarEvent[], 
   if (isStage(manual)) { stage = manual; isManual = true; }
   else if (/^Sold/i.test(txn)) stage = "sold";
   else if (/^Under contract/i.test(txn)) stage = "under_contract";
-  else if (x?.list_status === "Active" || recentShowing) stage = "active";
+  else if (x?.list_status === "Active" || showingsAhead) stage = "active"; // live now, or an open house / showing is on the calendar
+  else if (showingsDone) stage = "done"; // the open house / showing already happened and nothing is booked: it moves to Past
   else stage = "upcoming";
 
   const photo = images[0]?.url ?? null;
@@ -71,7 +75,7 @@ export function buildCard(p: Property, mems: Memory[], events: CalendarEvent[], 
   };
 }
 
-const rank: Record<Stage, number> = { under_contract: 0, active: 1, upcoming: 2, sold: 3, archived: 4 };
+const rank: Record<Stage, number> = { under_contract: 0, active: 1, upcoming: 2, sold: 3, done: 4, archived: 5 };
 /** Most important first: closing soonest, then live, then prepping; within a group, whatever is next on the calendar comes first. */
 export function sortCards(cards: PropertyCardInfo[]): PropertyCardInfo[] {
   return [...cards].sort((a, b) => rank[a.stage] - rank[b.stage] || (a.next?.start_at ?? "9") .localeCompare(b.next?.start_at ?? "9") || b.created_at.localeCompare(a.created_at));

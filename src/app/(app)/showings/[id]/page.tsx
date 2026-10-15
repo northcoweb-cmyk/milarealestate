@@ -4,7 +4,7 @@ import { useScrollLock } from "@/components/use-scroll-lock";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Camera, ChevronDown, Copy, Film, Flag, ImagePlus, Share2, StickyNote, Trash2, X } from "lucide-react";
+import { Camera, ChevronDown, Copy, Film, Flag, ImagePlus, Share2, StickyNote, Trash2, X } from "lucide-react";
 import { Confirm, Skeleton, CheckDot, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApi } from "@/components/use-api";
@@ -113,8 +113,7 @@ function Sheet0({ id, initial }: { id: string; initial: Detail }) {
 
   return (
     <Page>
-      <div className="mb-3 flex items-center justify-between">
-        <Link href={prop ? `/properties/${prop.id}` : "/showings"} className="btn btn-quiet btn-sm !pl-2"><ArrowLeft size={18} />Back</Link>
+      <div className="mb-3 flex items-center justify-end">
         <span className="faint text-[12.5px]" aria-live="polite">{save === "saved" ? "Saved ✓" : save === "saving" ? "Saving…" : "Offline — will sync"}</span>
       </div>
       <h1 className="h1">Showing sheet</h1>

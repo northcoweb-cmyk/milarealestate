@@ -68,6 +68,11 @@ function TasksInner() {
   const blocked = approvals.filter((a) => a.status === "approved" && a.blocked_integration);
   return (
     <Page>
+      <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0">
+        <Link href="/done" className="chip shrink-0">✅ Completed</Link>
+        <Link href="/workflows" className="chip shrink-0">⚡ Workflows</Link>
+        <Link href="/memory" className="chip shrink-0">🧠 What Mila remembers</Link>
+      </div>
       <PageHeader title="To-do" sub={waiting.length ? `${waiting.length} waiting for your approval` : "Everything on your plate, and what Mila is handling"} />
       {data && (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="What needs you">

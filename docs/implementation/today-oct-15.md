@@ -39,14 +39,14 @@ Not doing (decided): Supabase/Google/Vercel upgrades (the 23rd, only if needed),
 - [x] 7.07 Reviewing an Instagram post goes straight to the editor in Content.
 - [x] 7.08 To-do: tasks marked off by time, plus an obvious end-of-day "what did you do today" check-off.
 - [x] 7.09 Home: "Start with these 5 - 32 things are ready for you:" shows nothing under it; fix, and add drag-to-reorder for the high-priority items.
-- [ ] 7.10 Contacts: an easy way to add missing email/phone etc.
-- [ ] 7.11 Properties: finished showings/open houses go to Past; counts on every filter are correct; only upcoming ones in Upcoming.
-- [ ] 7.12 Onboarding: the second area field prefills like the first.
-- [ ] 7.13 Calendar: month view (1st to last day, only that month), click through months; remove Out of office from Calendar and put it clearly in More.
-- [ ] 7.14 Fix the confusing "Fix the conflicts - push all 1 to the first day back" text.
-- [ ] 7.15 More page: move property things (showing sheets etc.) to where they belong.
-- [ ] 7.16 Code-looking text ({{VARIABLES}}) shown to users: fix.
-- [ ] 7.17 Two Back buttons on some pages: one only.
+- [x] 7.10 Contacts: an easy way to add missing email/phone etc.
+- [x] 7.11 Properties: finished showings/open houses go to Past; counts on every filter are correct; only upcoming ones in Upcoming.
+- [x] 7.12 Onboarding: the second area field prefills like the first.
+- [x] 7.13 Calendar: month view (1st to last day, only that month), click through months; remove Out of office from Calendar and put it clearly in More.
+- [x] 7.14 Fix the confusing "Fix the conflicts - push all 1 to the first day back" text.
+- [x] 7.15 More page: move property things (showing sheets etc.) to where they belong.
+- [x] 7.16 Code-looking text ({{VARIABLES}}) shown to users: fix.
+- [x] 7.17 Two Back buttons on some pages: one only.
 - [ ] 7.18 Notifications: remove SMS, make email work, choose channels in onboarding, known limits for browser/home-screen notifications.
 - [ ] 7.19 Appearance tab: sky, animated clouds, motion toggles actually work.
 - [ ] 7.20 Delete my data: wipe all memory and activity, then ask if they also want the account deleted.

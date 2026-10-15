@@ -40,7 +40,7 @@ test("photo: an uploaded photo beats street view; no city/state means no street 
 test("ordering: closing soonest first, then live, then prepping, then sold", () => {
   const cards = [buildCard(prop("a"), [mem("a", "Transaction", "Sold $1 · x")], [], [], now), buildCard(prop("b"), [], [], [], now), buildCard(prop("c"), [], [ev("c", "open_house", "2026-10-11T17:00:00Z")], [], now), buildCard(prop("d"), [mem("d", "Transaction", "Under contract · x")], [], [], now)];
   assert.deepEqual(sortCards(cards).map((c) => c.id), ["d", "c", "b", "a"]);
-  assert.equal(STAGES.length, 5);
+  assert.equal(STAGES.length, 6); // upcoming, live, under contract, sold, past (the showing already happened), archived
 });
 
 test("on-market vs off-market: only a live listing is 'on'; prepping, under contract, sold and archived are 'off'", () => {
@@ -48,4 +48,11 @@ test("on-market vs off-market: only a live listing is 'on'; prepping, under cont
   assert.equal(buildCard(prop("m2"), [], [], [], now).market, "off");
   assert.equal(buildCard(prop("m3"), [mem("m3", "Transaction", "Under contract · x")], [], [], now).market, "off");
   assert.equal(buildCard(prop("m4"), [mem("m4", "Transaction", "Sold $600,000 · closed Monday")], [], [], now).market, "off");
+});
+
+test("a showing or open house that already happened moves the home to Past, unless another one is still ahead", () => {
+  const done = buildCard(prop("p1"), [], [ev("p1", "open_house", "2026-10-01T17:00:00Z")], [], now);
+  assert.deepEqual([done.stage, done.group], ["done", "past"]);
+  const again = buildCard(prop("p2"), [], [ev("p2", "open_house", "2026-10-01T17:00:00Z"), ev("p2", "open_house", "2026-10-11T17:00:00Z")], [], now);
+  assert.deepEqual([again.stage, again.group], ["active", "current"]);
 });

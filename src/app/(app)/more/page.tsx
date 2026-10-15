@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mail, Brain, Building2, ChevronRight, ClipboardCheck, CreditCard, FileText, FolderOpen, Home as HomeIcon, ListChecks, LogOut, Palette, Plug, Shield, Bell, SlidersHorizontal, User, Workflow, Lock, Gauge, Smartphone } from "lucide-react";
+import { Mail, Brain, Building2, ChevronRight, ClipboardCheck, CreditCard, FileText, FolderOpen, Home as HomeIcon, ListChecks, LogOut, Palette, Plug, Shield, Bell, SlidersHorizontal, User, Workflow, Lock, Gauge, Smartphone, Plane } from "lucide-react";
 import { useState } from "react";
 import { Avatar, Confirm, PageHeader, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApp } from "@/components/app-context";
 import { InstallSteps, useInstall } from "@/components/install";
 import { ProfileCard } from "@/components/ui/profile-card";
+import { OutOfOffice } from "@/components/out-of-office";
 
 const Row = ({ href, icon: I, title, sub }: { href: string; icon: any; title: string; sub?: string }) => (
   <Link href={href} className="flex items-center gap-4 px-4 py-3.5 transition hover:bg-white/30 sm:px-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}><I size={20} /></span><span className="min-w-0 flex-1"><span className="block font-semibold leading-tight">{title}</span>{sub && <span className="faint text-[13.5px]">{sub}</span>}</span><ChevronRight size={18} className="text-ink-faint" /></Link>
@@ -19,6 +20,7 @@ export default function MorePage() {
   const { profile, credits, admin, toast, referralsFull } = useApp();
   const router = useRouter();
   const [clearing, setClearing] = useState(false);
+  const [ooo, setOoo] = useState(false);
   const install = useInstall();
   const pct = Math.min(100, Math.round((credits.balance / Math.max(credits.allowance, 1)) * 100));
   return (
@@ -32,6 +34,12 @@ export default function MorePage() {
 
 
 </div>
+<button type="button" onClick={() => setOoo(true)} className="glass mb-7 flex w-full items-center gap-4 p-4 text-left sm:p-5" style={{ borderRadius: 24 }}>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" style={{ background: "color-mix(in srgb, var(--accent) 16%, transparent)", color: "var(--accent)" }}><Plane size={22} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-[17px] font-semibold">Going out of office?</span><span className="muted block text-[14px]">Tell Mila the days. She blocks them, moves what&apos;s already booked, and reminds you the evening before.</span></span>
+        <ChevronRight size={18} className="shrink-0 text-ink-faint" aria-hidden />
+      </button>
+      <OutOfOffice open={ooo} onClose={() => setOoo(false)} />
 <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
       <Group title="Mila's workspace">
         <Row href="/contacts?view=messages" icon={Mail} title="Messages & follow-ups" sub="Every email and text, and who is due a nudge" />

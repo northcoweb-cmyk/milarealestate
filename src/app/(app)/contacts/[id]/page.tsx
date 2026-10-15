@@ -21,6 +21,7 @@ export default function ContactPage() {
   const router = useRouter();
   const { toast } = useApp();
   const { data, loading, reload } = useApi<Detail>(`/api/contacts/${id}`);
+  const [miss, setMiss] = useState<{ email: string; phone: string }>({ email: "", phone: "" });
   const [edit, setEdit] = useState(false); const [del, setDel] = useState(false); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false);
   if (loading && !data) return <Page><Skeleton className="mb-4 h-28" /><Skeleton className="h-64" /></Page>;
   if (!data) return <Page><p className="muted">That contact couldn't be found.</p><Link className="btn mt-4" href="/contacts">Back to contacts</Link></Page>;
@@ -41,6 +42,25 @@ export default function ContactPage() {
           <Link className="btn btn-primary btn-sm" href={`/?ask=${encodeURIComponent(`Draft a follow-up email to ${c.name}`)}`}><Sparkles size={16} />Ask Mila</Link>
         </div>
       </div>
+
+      {(!c.email || !c.phone) && (
+        <form className="glass mb-5 p-5" style={{ borderRadius: 24 }} onSubmit={async (e) => {
+          e.preventDefault();
+          const p: Record<string, string> = {};
+          if (!c.email && miss.email.trim()) p.email = miss.email.trim();
+          if (!c.phone && miss.phone.trim()) p.phone = miss.phone.trim();
+          if (!Object.keys(p).length) return;
+          await patch(p); setMiss({ email: "", phone: "" }); toast("Saved.", "success");
+        }}>
+          <p className="kicker mb-1">Missing info</p>
+          <p className="muted mb-3 text-[14px]">Add {[!c.email && "an email", !c.phone && "a phone number"].filter(Boolean).join(" and ")} so Mila can reach {c.name.split(" ")[0]}.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {!c.email && <input className="field" type="email" inputMode="email" autoComplete="off" placeholder="Email" aria-label="Email" value={miss.email} onChange={(e) => setMiss((m) => ({ ...m, email: e.target.value }))} />}
+            {!c.phone && <input className="field" type="tel" inputMode="tel" autoComplete="off" placeholder="Phone" aria-label="Phone" value={miss.phone} onChange={(e) => setMiss((m) => ({ ...m, phone: e.target.value }))} />}
+          </div>
+          <button className="btn btn-primary btn-sm mt-3" disabled={!miss.email.trim() && !miss.phone.trim()}>Save</button>
+        </form>
+      )}
 
       {(() => {
         const todo = [c.next_action, ...data.tasks.map((t) => t.title)].filter((x, i, a): x is string => !!x && a.indexOf(x) === i);

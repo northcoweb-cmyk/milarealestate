@@ -573,7 +573,7 @@ export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut
   if (!clash.length) return reply(`Blocked ${when} as ${what ? `“${what}”` : "out of office"}${heldAs}. Nothing else is booked then. I'll nudge you the evening before.`, [eventCard(ctx, (out.result as any).data.event), goBlock]);
   return reply(`Blocked ${when} as ${what ? `“${what}”` : "out of office"}${heldAs}. Heads up — you already have ${plural(clash.length, "thing")} on those days. Want me to move them?`, [
     ...clash.slice(0, 4).map((e) => eventCard(ctx, e, "Conflicts with time off")),
-    { type: "choice", title: "Fix the conflicts", buttons: [{ label: `Push all ${clash.length} to the first day back`, style: "primary" as const, action: { type: "shift_events", eventIds: clash.map((e) => e.id), after: last.toISOString() } }, ...clash.slice(0, 4).map((e) => ({ label: `Move ${e.title}`, style: "secondary" as const, action: { type: "move_pick", eventId: e.id, text: "move to", declared: false } }))] },
+    { type: "choice", title: "What about what's already booked?", buttons: [{ label: clash.length === 1 ? "Move it to the day I'm back" : `Move all ${clash.length} to the day I'm back`, style: "primary" as const, action: { type: "shift_events", eventIds: clash.map((e) => e.id), after: last.toISOString() } }, ...clash.slice(0, 4).map((e) => ({ label: `Pick a new time for ${e.title}`, style: "secondary" as const, action: { type: "move_pick", eventId: e.id, text: "move to", declared: false } }))] },
   ]);
 }
 

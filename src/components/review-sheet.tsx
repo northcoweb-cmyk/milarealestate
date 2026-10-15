@@ -74,7 +74,7 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
               {draft.stale && <p className="mb-2 text-[13.5px]" style={{ color: "var(--warn)" }}>⚠ {draft.stale_reason}. Ask Mila to update it.</p>}
               <label className="lbl">Subject</label><input className="field mb-3" disabled={!pending} value={cur.subject} onChange={(e) => setEdits({ ...edits, [draft.id]: { ...cur, subject: e.target.value } })} />
               <label className="lbl">Message</label><textarea className="field min-h-[220px] leading-relaxed" disabled={!pending} value={cur.body} onChange={(e) => setEdits({ ...edits, [draft.id]: { ...cur, body: e.target.value } })} />
-              <p className="faint mt-1 text-[12.5px]">“{"{{first_name}}"}” becomes their first name{total > 1 && d.drafts.length === 1 ? " (or “there” when it goes to several people at once)" : ""}.</p>
+              <p className="faint mt-1 text-[12.5px]">Each person&apos;s first name is filled in automatically{total > 1 && d.drafts.length === 1 ? " (or “there” when it goes to several people at once)" : ""}.</p>
             </div>
           )}
 

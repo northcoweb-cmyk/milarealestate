@@ -16,7 +16,7 @@ const whenOf = (iso: string, tz: string) => new Intl.DateTimeFormat("en-US", { t
 const dayOf = (iso: string, tz: string) => new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(iso));
 const KIND: Record<string, string> = { open_house: "Open house", showing: "Showing", closing: "Closing", meeting: "Meeting", call: "Call", other: "Deadline", lunch: "Meeting" };
 
-const DOT: Record<Stage, string> = { active: "var(--ok)", under_contract: "var(--warn)", upcoming: "var(--ink-faint)", sold: "var(--accent)", archived: "var(--ink-faint)" };
+const DOT: Record<Stage, string> = { active: "var(--ok)", under_contract: "var(--warn)", upcoming: "var(--ink-faint)", sold: "var(--accent)", done: "var(--ink-faint)", archived: "var(--ink-faint)" };
 
 export function PropertyCard({ p, photo, onChanged }: { p: PropertyCardInfo; photo?: string | null; onChanged: () => void }) {
   const { profile } = useApp();
@@ -39,6 +39,7 @@ export function PropertyCard({ p, photo, onChanged }: { p: PropertyCardInfo; pho
     p.stage === "sold" ? <><Check size={15} aria-hidden /> Closed{p.sold_note ? ` · ${p.sold_note.replace(/^closed\s*/i, "")}` : ""}</> :
     p.stage === "under_contract" ? <><FileSignature size={15} aria-hidden /> {p.closing_at ? `Closing ${dayOf(p.closing_at, tz)}${daysToClose != null ? ` · ${daysToClose === 0 ? "today" : `${daysToClose}d`}` : ""}` : "Under contract"}</> :
     p.next ? <><CalendarClock size={15} aria-hidden /> {KIND[p.next.kind] ?? p.next.title.split(" — ")[0]} · {whenOf(p.next.start_at, tz)}</> :
+    p.stage === "done" ? <><Check size={15} aria-hidden /> Showing finished</> :
     p.stage === "archived" ? <>Archived</> :
     <><Sparkles size={15} aria-hidden /> {p.stage === "active" ? "Live — nothing scheduled" : "Nothing scheduled yet"}</>;
 

@@ -83,7 +83,7 @@ export async function preDepartureHandler(ctx: Ctx): Promise<HandlerOut> {
   return reply(`Before you're out (${when}), here's what I'd handle:\n${items.map((x, i) => `${i + 1}. ${x}`).join("\n")}`, [
     ...during.slice(0, 4).map((e) => eventCard(ctx, e, "Booked while you're away")),
     { type: "choice", title: "Want me to…", buttons: [
-      ...(during.length ? [{ label: `Push ${during.length === 1 ? "it" : `all ${during.length}`} to the first day back`, style: "primary" as const, action: { type: "shift_events", eventIds: during.map((e) => e.id), after: w.end.toISOString() } as never }] : []),
+      ...(during.length ? [{ label: during.length === 1 ? "Move it to the day I'm back" : `Move all ${during.length} to the day I'm back`, style: "primary" as const, action: { type: "shift_events", eventIds: during.map((e) => e.id), after: w.end.toISOString() } as never }] : []),
       { label: "Draft my out-of-office email", style: "secondary" as const, action: { type: "prompt" as const, text: `Draft an out-of-office email for ${when}` } },
       { label: "What's still open", style: "secondary" as const, action: { type: "prompt" as const, text: "What are my priorities?" } },
     ] },

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { CalendarPlus, ChevronRight, ClipboardCheck, MapPin, Plane, Plus } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, Plus } from "lucide-react";
 import type { CalendarEvent } from "@/lib/types";
 import { Empty, PageHeader, Sheet, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -24,40 +24,57 @@ const KIND_COLOR: Record<string, string> = { open_house: "#111111", showing: "#4
 export default function CalendarPage() {
   const { profile, toast, capabilities } = useApp();
   const tz = profile.timezone;
-  const today = useMemo(() => startOfDay(new Date(), tz), [tz]);
-  const [sel, setSel] = useState(0);
+  const nowParts = useMemo(() => partsIn(new Date(), tz), [tz]);
+  const [view, setView] = useState<{ y: number; m: number }>({ y: nowParts.y, m: nowParts.m }); // the month on screen
+  const [selDay, setSelDay] = useState(nowParts.d); // the day of that month that is open
   const [adding, setAdding] = useState(false);
-  const [ooo, setOoo] = useState(false);
   const [openEv, setOpenEv] = useState<CalendarEvent | null>(null);
-  const from = today.toISOString(), to = addDays(today, 60, tz).toISOString();
+  const monthStart = zonedToUtc(view.y, view.m, 1, 0, 0, tz);
+  const nextM = view.m === 12 ? { y: view.y + 1, m: 1 } : { y: view.y, m: view.m + 1 };
+  const monthEnd = zonedToUtc(nextM.y, nextM.m, 1, 0, 0, tz);
+  const from = monthStart.toISOString(), to = monthEnd.toISOString();
   const { data, loading, reload } = useApi<Data>(`/api/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-  const days = useMemo(() => Array.from({ length: 21 }, (_, i) => addDays(today, i, tz)), [today, tz]);
+  const daysInMonth = new Date(Date.UTC(view.y, view.m, 0)).getUTCDate();
+  const lead = new Date(Date.UTC(view.y, view.m - 1, 1)).getUTCDay(); // blank tiles before the 1st so every date sits under its weekday
+  const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => zonedToUtc(view.y, view.m, i + 1, 12, 0, tz)), [view, daysInMonth, tz]);
+  const isNow = view.y === nowParts.y && view.m === nowParts.m;
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const go = (delta: number) => { const t = new Date(Date.UTC(view.y, view.m - 1 + delta, 1)); const y = t.getUTCFullYear(), m = t.getUTCMonth() + 1; setView({ y, m }); setSelDay(y === nowParts.y && m === nowParts.m ? nowParts.d : 1); };
+  const goToday = () => { setView({ y: nowParts.y, m: nowParts.m }); setSelDay(nowParts.d); };
   const key = (d: Date) => { const p = partsIn(d, tz); return `${p.y}-${p.m}-${p.d}`; };
   const byDay = useMemo(() => { const m = new Map<string, CalendarEvent[]>(); for (const e of data?.events ?? []) { const k = key(new Date(e.start_at)); m.set(k, [...(m.get(k) ?? []), e]); } return m; }, [data, tz]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dayEvents = byDay.get(key(days[sel])) ?? [];
-  const dayReminders = (data?.reminders ?? []).filter((r) => key(new Date(r.remind_at)) === key(days[sel]));
+  const selDate = days[Math.min(selDay, daysInMonth) - 1];
+  const dayEvents = byDay.get(key(selDate)) ?? [];
+  const dayReminders = (data?.reminders ?? []).filter((r) => key(new Date(r.remind_at)) === key(selDate));
   const overlaps = (e: CalendarEvent) => dayEvents.some((o) => o.id !== e.id && new Date(o.start_at) < new Date(e.end_at) && new Date(e.start_at) < new Date(o.end_at));
 
-  const dayLabel = (d: Date, i: number) => (i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(d));
+  const isToday = isNow && selDay === nowParts.d, isTomorrow = isNow && selDay === nowParts.d + 1;
+  const dayLabel = (d: Date) => (isToday ? "Today" : isTomorrow ? "Tomorrow" : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(d));
 
   return (
     <Page wide>
-      <PageHeader title="Calendar" sub={data?.google.connected ? `Google Calendar · ${data.google.account ?? "connected"}` : "Mila's calendar"} right={<div className="flex gap-2"><button className="btn" onClick={() => setOoo(true)}><Plane size={18} />Out of office</button><button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button></div>} />
+      <PageHeader title="Calendar" sub={data?.google.connected ? `Google Calendar · ${data.google.account ?? "connected"}` : "Mila's calendar"} right={<div className="flex gap-2"><button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button></div>} />
       <div>
       <div className="min-w-0">
-      <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-7 lg:overflow-visible lg:px-0 lg:pb-0" role="tablist" aria-label="Days">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button className="btn btn-quiet !min-h-[44px] !min-w-[44px] !px-2" onClick={() => go(-1)} aria-label="Previous month"><ChevronLeft size={22} /></button>
+        <div className="flex items-center gap-2"><h2 className="display text-[26px] leading-none">{MONTHS[view.m - 1]} {view.y}</h2>{!(isNow && selDay === nowParts.d) && <button className="chip !min-h-[34px] text-[13px]" onClick={goToday}>Today</button>}</div>
+        <button className="btn btn-quiet !min-h-[44px] !min-w-[44px] !px-2" onClick={() => go(1)} aria-label="Next month"><ChevronRight size={22} /></button>
+      </div>
+      <div className="mb-1 grid grid-cols-7 gap-1.5 text-center sm:gap-2" aria-hidden>{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => <span key={w} className="faint text-[11px] font-bold uppercase tracking-wider">{w}</span>)}</div>
+      <div className="mb-5 grid grid-cols-7 gap-1.5 sm:gap-2" role="grid" aria-label={`${MONTHS[view.m - 1]} ${view.y}`}>
+        {Array.from({ length: lead }, (_, i) => <span key={"b" + i} aria-hidden />)}
         {days.map((d, i) => {
-          const n = byDay.get(key(d))?.length ?? 0; const p = partsIn(d, tz);
+          const n = byDay.get(key(d))?.length ?? 0; const on = selDay === i + 1; const todayTile = isNow && nowParts.d === i + 1;
           return (
-            <button key={i} role="tab" aria-selected={sel === i} onClick={() => setSel(i)} className="glass flex min-h-[44px] w-[62px] shrink-0 flex-col items-center py-3 transition lg:w-auto lg:py-2.5" style={{ borderRadius: 22, ...(sel === i ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)", borderColor: "transparent" } : {}) }}>
-              <span className="text-[11.5px] font-bold uppercase tracking-wider opacity-80">{new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(d)}</span>
-              <span className="display text-[28px] leading-tight">{p.d}</span>
-              <span className="mt-0.5 h-1.5 w-1.5 rounded-full" style={{ background: n ? (sel === i ? "var(--accent-ink)" : "var(--accent)") : "transparent" }} />
+            <button key={i} role="gridcell" aria-selected={on} aria-label={new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(d) + (n ? `, ${n} event${n === 1 ? "" : "s"}` : "")} onClick={() => setSelDay(i + 1)} className="glass flex min-h-[48px] flex-col items-center justify-center py-1.5 transition sm:min-h-[56px]" style={{ borderRadius: 16, ...(on ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)" } : todayTile ? { boxShadow: "inset 0 0 0 2px var(--accent)" } : {}) }}>
+              <span className="display text-[20px] leading-none sm:text-[24px]">{i + 1}</span>
+              <span className="mt-1 h-1.5 w-1.5 rounded-full" style={{ background: n ? (on ? "var(--accent-ink)" : "var(--accent)") : "transparent" }} />
             </button>
           );
         })}
       </div>
-      <h2 className="h2 mb-3">{dayLabel(days[sel], sel)}</h2>
+      <h2 className="h2 mb-3">{dayLabel(selDate)}</h2>
       {loading && !data ? <Skeleton className="h-40" /> : dayEvents.length ? (
         <ul className="space-y-3">
           {dayEvents.map((e) => (
@@ -88,38 +105,8 @@ export default function CalendarPage() {
       </div>
       </div>
       {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} />}
-      <OutOfOffice open={ooo} onClose={() => setOoo(false)} defaultDay={days[sel]} />
-      <AddEvent open={adding} onClose={() => setAdding(false)} defaultDay={days[sel]} onDone={reload} />
+      <AddEvent open={adding} onClose={() => setAdding(false)} defaultDay={selDate} onDone={reload} />
     </Page>
-  );
-}
-
-/** Pick the days and Mila does the rest through her normal time-off flow: blocks them so nothing new gets booked, warns about anything already there, offers to move it, and reminds you the evening before to wrap things up. */
-function OutOfOffice({ open, onClose, defaultDay }: { open: boolean; onClose: () => void; defaultDay: Date }) {
-  const { profile } = useApp();
-  const router = useRouter();
-  const tz = profile.timezone;
-  const p = partsIn(defaultDay, tz);
-  const iso = `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
-  const [from, setFrom] = useState(iso); const [to, setTo] = useState("");
-  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const say = (v: string) => { const [, m, d] = v.split("-").map(Number); return `${MON[m - 1]} ${d}`; };
-  const go = () => {
-    const range = to && to > from ? `${say(from)} through ${say(to)}` : say(from);
-    onClose();
-    router.push(`/?ask=${encodeURIComponent(`I'm out of office ${range}`)}`);
-  };
-  return (
-    <Sheet open={open} onClose={onClose} title="✈️ Out of office">
-      <div className="space-y-4">
-        <p className="muted text-[14.5px]">Mila blocks the time so nothing new gets booked, flags anything already on your calendar and offers to move it, and reminds you the evening before to wrap things up.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="lbl" htmlFor="ooo-from">First day off</label><input id="ooo-from" type="date" className="field" value={from} onChange={(e) => { setFrom(e.target.value); if (to && to < e.target.value) setTo(""); }} /></div>
-          <div><label className="lbl" htmlFor="ooo-to">Back to work after (optional)</label><input id="ooo-to" type="date" className="field" min={from} value={to} onChange={(e) => setTo(e.target.value)} /></div>
-        </div>
-        <button className="btn btn-primary w-full" disabled={!from} onClick={go}>Set out of office</button>
-      </div>
-    </Sheet>
   );
 }
 

@@ -82,7 +82,7 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
             <h1 className="h1 mb-1">Where do you work?</h1><p className="muted mb-6">I use this for market updates and local context.</p>
             <div className="space-y-4">
               <div><label className="lbl" htmlFor="lc">Your city & state</label><PlaceInput id="lc" mode="city" value={f.location} onChange={(v) => set("location", v)} onPick={(pl) => { setPicked(pl); setPickedText(pl.cityState ?? pl.address ?? ""); }} placeholder="Start typing your city…" verified={locVerified} />{placesOn && !locVerified && f.location.trim().length > 1 && <p className="faint mt-1.5 px-1 text-[12.5px]">Pick your city from the list so Mila knows it's real.</p>}</div>
-              <div><label className="lbl" htmlFor="pm">Primary market <span className="faint">(optional)</span></label><input id="pm" className="field" value={f.primary_market} onChange={(e) => set("primary_market", e.target.value)} placeholder="Montgomery County, MD" /></div>
+              <div><label className="lbl" htmlFor="pm">Primary market <span className="faint">(optional)</span></label><PlaceInput id="pm" mode="city" value={f.primary_market} onChange={(v) => set("primary_market", v)} onPick={(pl) => set("primary_market", pl.cityState ?? pl.address ?? "")} placeholder="Montgomery County, MD" /></div>
               <div className="glass p-4" style={{ borderRadius: 20 }}>
                 <p className="font-semibold">Let the sky match your day</p>
                 <p className="muted mb-3 text-[14px]">Mila's background follows your real sunrise and sunset. An approximate location is enough — or skip it and I'll use your time zone.</p>

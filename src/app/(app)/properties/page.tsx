@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useApp } from "@/components/app-context";
 import { useMemo, useState } from "react";
-import { Building2, Plus, Search } from "lucide-react";
+import { Building2, ClipboardCheck, FileText, FolderOpen, Plus, Search } from "lucide-react";
 import type { PropertyCardInfo, Group } from "@/lib/property-stage";
 import { Empty, PageHeader, Skeleton } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -60,6 +60,11 @@ export default function PropertiesPage() {
         <Empty title="No properties yet" body="Tell Mila about a listing — “New listing at 12 Oak St, $650k, 3 bed 2 bath” — or ask her to prep any address, and it shows up here with its photo and numbers." action={<button className="btn btn-primary" onClick={() => mila.open()}>Tell Mila</button>} />
       ) : (
         <>
+          <div className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0" aria-label="Property tools">
+            <Link href="/showings" className="chip shrink-0"><ClipboardCheck size={15} aria-hidden /> Showing sheets</Link>
+            <Link href="/documents" className="chip shrink-0"><FolderOpen size={15} aria-hidden /> Documents</Link>
+            <Link href="/templates" className="chip shrink-0"><FileText size={15} aria-hidden /> Templates</Link>
+          </div>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0" role="tablist" aria-label="Show">
               {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={"chip shrink-0 " + (tab === k ? "is-selected" : "")} onClick={() => setPicked(k)}>{l} · {counts[k]}</button>)}
