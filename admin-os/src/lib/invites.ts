@@ -69,9 +69,10 @@ export async function announceCounts(): Promise<{ total: number; announced: numb
   return { total: rows.length, announced: rows.filter((x) => x.announced_at).length, pending: rows.filter((x) => !x.announced_at).length };
 }
 export async function nextAnnounceBatch(n: number): Promise<Entry[]> {
-  const r = await rest(`waitlist?select=id,email,name,invite_token,invited_at,claimed_at&announced_at=is.null&claimed_at=is.null&source=neq.test&order=created_at.asc&limit=${n}`);
+  // The test-row filter runs here, not in the query: a database "source != test" silently drops people whose source is empty, which is how the count said 2 while nobody was picked.
+  const r = await rest(`waitlist?select=id,email,name,invite_token,invited_at,claimed_at,source&announced_at=is.null&claimed_at=is.null&order=created_at.asc&limit=1000`);
   if (!r.ok) throw new Error("Run 0013_waitlist_announced.sql in the Supabase SQL editor first, then try again.");
-  return (await r.json()) as Entry[];
+  return ((await r.json()) as (Entry & { source: string | null })[]).filter((x) => x.source !== "test").slice(0, n);
 }
 /** Sends one countdown email. Real sends first CLAIM the person (announced_at set only if still empty), then send, and give the claim back if the send fails, so nobody can ever get it twice and a failure is never silent. */
 export async function sendAnnounce(design: DesignId, e: { id?: string; email: string; name: string | null }, mark = true): Promise<void> {
