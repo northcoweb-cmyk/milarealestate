@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { peekApi, putApi } from "./use-api";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { motion } from "motion/react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { PromptInput } from "./ui/ai-chat-input";
@@ -27,7 +27,8 @@ const SHORT = ["Get me ready to list", "Set up an open house", "Who should I fol
 
 export function HomeClient({ data }: { data: HomeData }) {
   const { toast, referralsFull } = useApp();
-  const { ask, open, hasHistory, turns } = useMila();
+  const { ask, askOrb, orbActive, open, hasHistory, turns } = useMila();
+  const promptBox = useRef<HTMLDivElement>(null);
   // Read synchronously on the client (server snapshot = "seen"), so the how-it-works card is there on the first paint instead of popping in and shoving the page down.
   const helpSeen = useSyncExternalStore(subscribeHelp, readHelp, () => true);
   const dismissHelp = () => { try { localStorage.setItem("mila.help.seen", "1"); } catch { /* ignore */ } helpListeners.forEach((l) => l()); };
@@ -38,7 +39,7 @@ export function HomeClient({ data }: { data: HomeData }) {
         <div className="flex flex-col items-center pt-6 text-center xl:pt-0">
           <p className="kicker mb-4">{data.dateLine}</p>
           <h1 className="display text-[clamp(38px,9vw,64px)]">{data.greeting}</h1>
-          <div className="mt-6 w-full max-w-2xl"><PromptInput onSubmit={(t, f) => ask(t, f)} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>
+          <div ref={promptBox} className="mt-6 w-full max-w-2xl" style={{ opacity: orbActive ? 0 : 1, transition: orbActive ? "none" : "opacity .35s" }}><PromptInput onSubmit={(t, f) => { const r = promptBox.current?.getBoundingClientRect(); if (f.length || !r || !r.width) return ask(t, f); return askOrb(t, { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, h: r.height, r: 28 }); }} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>
           <div className="no-scrollbar -mx-4 mt-4 flex w-[calc(100%+2rem)] gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:w-full lg:flex-wrap lg:justify-center lg:overflow-visible lg:px-0">
             {SHORT.map((s, i) => <button key={s} className="chip" onClick={() => ask(SUGGESTIONS[i])}>{s}</button>)}
           </div>

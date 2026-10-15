@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Brain, Building2, ChevronRight, ClipboardCheck, CreditCard, FileText, FolderOpen, Home as HomeIcon, ListChecks, LogOut, Palette, Plug, Shield, Bell, SlidersHorizontal, User, Workflow, Lock, Gauge, Smartphone } from "lucide-react";
+import { Mail, Brain, Building2, ChevronRight, ClipboardCheck, CreditCard, FileText, FolderOpen, Home as HomeIcon, ListChecks, LogOut, Palette, Plug, Shield, Bell, SlidersHorizontal, User, Workflow, Lock, Gauge, Smartphone } from "lucide-react";
 import { useState } from "react";
 import { Avatar, Confirm, PageHeader, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -34,6 +34,7 @@ export default function MorePage() {
 </div>
 <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
       <Group title="Mila's workspace">
+        <Row href="/contacts?view=messages" icon={Mail} title="Messages & follow-ups" sub="Every email and text, and who is due a nudge" />
         <Row href="/showings" icon={ClipboardCheck} title="Showing sheets" sub="Checklist, notes, photos and video" />
         <Row href="/done" icon={ListChecks} title="Completed" sub="Everything finished, in order" />
         <Row href="/tasks" icon={ListChecks} title="To-do & approvals" sub="Overdue, due today, and what needs your OK" />

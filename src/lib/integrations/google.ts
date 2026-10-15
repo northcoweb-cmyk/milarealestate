@@ -55,7 +55,8 @@ export async function saveConnection(userId: string, tokens: Tokens, scopes: str
   const email = await accountEmail(tokens.access_token);
   const prev = existing?.token_encrypted ? (JSON.parse(decrypt(existing.token_encrypted)) as Tokens) : null;
   const merged: Tokens = { ...tokens, refresh_token: tokens.refresh_token ?? prev?.refresh_token };
-  const data = { provider: "google" as const, status: "connected" as const, account_label: email, scopes, token_encrypted: encrypt(JSON.stringify(merged)), error: null, connected_at: new Date().toISOString() };
+  const allScopes = [...new Set([...(existing?.scopes ?? []), ...scopes])]; // connecting Calendar must not drop an earlier Contacts or Sheets connection
+  const data = { provider: "google" as const, status: "connected" as const, account_label: email, scopes: allScopes, token_encrypted: encrypt(JSON.stringify(merged)), error: null, connected_at: new Date().toISOString() };
   return existing ? store.update("integrations", userId, existing.id, data) : store.insert("integrations", userId, data);
 }
 

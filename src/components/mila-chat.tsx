@@ -15,11 +15,16 @@ import { PromptInput } from "./ui/ai-chat-input";
 import { useApp } from "./app-context";
 import { Confirm, jfetch } from "./ui";
 import { Orb } from "./orb";
+import { ThinkingOrb, type OrbOrigin } from "./ui/thinking-orb";
 
 interface Attachment { id: string; name: string; kind: string }
 interface MilaCtx {
   /** Send something to Mila (opens the chat). Returns false if an upload failed so the caller can keep its draft. */
   ask: (text: string, files?: File[]) => Promise<boolean>;
+  /** Like ask, but the question flies out of the input as an orb while Mila works, then the chat opens with the answer. Returns false if she is already busy. */
+  askOrb: (text: string, origin: OrbOrigin) => boolean;
+  /** True while the thinking orb is showing, so the input it came from can step aside. */
+  orbActive: boolean;
   open: () => void;
   isOpen: boolean;
   busy: boolean;
@@ -80,8 +85,9 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(id);
   }, [messages, steps, isOpen, busy]);
 
-  const run = useCallback(async (payload: { message?: string; action?: unknown; attachmentIds?: string[] }, userText?: string, files?: Attachment[]) => {
-    setOpen(true); setBusy(true); setSteps(["Understanding request"]);
+  const run = useCallback(async (payload: { message?: string; action?: unknown; attachmentIds?: string[] }, userText?: string, files?: Attachment[], quiet = false) => {
+    if (!quiet) setOpen(true);
+    setBusy(true); setSteps(["Understanding request"]);
     if (userText || files?.length) setMessages((m) => [...m, { id: "tmp-" + Date.now(), user_id: "", created_at: new Date().toISOString(), updated_at: "", conversation_id: convId ?? "", role: "user", content: userText ?? "", blocks: [], attachments: (files ?? []).map((f) => ({ ...f })) }]);
     try {
       const res = await fetch("/api/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...payload, conversationId: convId, tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })() }) });
@@ -129,6 +135,13 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
     void run({ message: text, attachmentIds: docs.map((d) => d.id) }, text, docs);
     return true;
   }, [run, toast]);
+
+  const [orb, setOrb] = useState<{ text: string; origin: OrbOrigin } | null>(null);
+  const askOrb = useCallback((text: string, origin: OrbOrigin): boolean => {
+    if (busyRef.current) return false;
+    setOrb({ text, origin });
+    return true;
+  }, []);
 
   // Any "Ask Mila" link anywhere in the app (href="/?ask=…") opens the chat in place instead of navigating.
   useEffect(() => {
@@ -245,12 +258,15 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
     setConvId(r.conversationId); setMessages([]);
   }
 
-  const value = useMemo<MilaCtx>(() => ({ ask, open: () => setOpen(true), isOpen, busy, hasHistory: loaded && messages.length > 0, turns }), [ask, isOpen, busy, loaded, messages.length, turns]);
+  const value = useMemo<MilaCtx>(() => ({ ask, askOrb, orbActive: !!orb, open: () => setOpen(true), isOpen, busy, hasHistory: loaded && messages.length > 0, turns }), [ask, askOrb, orb, isOpen, busy, loaded, messages.length, turns]);
   const showFab = !isOpen && path !== "/" && !path.startsWith("/onboarding") && !path.startsWith("/showings/"); // the sheet has its own controls
 
   return (
     <Ctx.Provider value={value}>
       {children}
+      {orb && <ThinkingOrb key={orb.text + orb.origin.cx} text={orb.text} origin={orb.origin} speed={1.7} minThinkMs={1000}
+        onSubmit={() => run({ message: orb.text }, orb.text, [], true)}
+        onDone={() => { setOpen(true); setTimeout(() => setOrb(null), 480); }} />}
 
       <AnimatePresence>
         {showFab && (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, Plus, Search } from "lucide-react";
 import type { Contact } from "@/lib/types";
 import { CONTACT_TYPES } from "@/lib/types";
@@ -20,6 +20,7 @@ export default function ContactsPage() {
   const [q, setQ] = useState(""); const [type, setType] = useState("all"); const [stage, setStage] = useState("all"); const [adding, setAdding] = useState(false);
   const [moving, setMoving] = useState<Contact | null>(null);
   const [view, setView] = useState<"people" | "messages" | "followups">("people");
+  useEffect(() => { const v = new URLSearchParams(window.location.search).get("view"); if (v === "messages" || v === "followups") setView(v); }, []);
   const all = data?.contacts ?? [];
   const searched = useMemo(() => {
     const s = q.trim().toLowerCase();
