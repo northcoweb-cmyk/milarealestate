@@ -63,13 +63,13 @@ const FROM = () => process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`;
 const NOREPLY = () => process.env.MAIL_REPLY_TO || "noreply@milarealestate.app";
 
 export async function announceCounts(): Promise<{ total: number; announced: number; pending: number } | null> {
-  const r = await rest("waitlist?select=announced_at,source&limit=20000");
+  const r = await rest("waitlist?select=announced_at,source,claimed_at&limit=20000");
   if (!r.ok) return null; // the column isn't there until 0013 is run
-  const rows = ((await r.json()) as { announced_at: string | null; source: string | null }[]).filter((x) => x.source !== "test");
+  const rows = ((await r.json()) as { announced_at: string | null; source: string | null; claimed_at: string | null }[]).filter((x) => x.source !== "test" && !x.claimed_at);
   return { total: rows.length, announced: rows.filter((x) => x.announced_at).length, pending: rows.filter((x) => !x.announced_at).length };
 }
 export async function nextAnnounceBatch(n: number): Promise<Entry[]> {
-  const r = await rest(`waitlist?select=id,email,name,invite_token,invited_at,claimed_at&announced_at=is.null&source=neq.test&order=created_at.asc&limit=${n}`);
+  const r = await rest(`waitlist?select=id,email,name,invite_token,invited_at,claimed_at&announced_at=is.null&claimed_at=is.null&source=neq.test&order=created_at.asc&limit=${n}`);
   if (!r.ok) throw new Error("Run 0013_waitlist_announced.sql in the Supabase SQL editor first, then try again.");
   return (await r.json()) as Entry[];
 }
