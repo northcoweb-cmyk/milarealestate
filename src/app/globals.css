@@ -278,8 +278,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .mo-field { flex: 1; min-width: 0; font-size: 17px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mo-send { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: #fff; background: linear-gradient(135deg, #8fb4ff, #7b63e8); }
 .mo-send svg { width: 20px; height: 20px; }
-.mo-orb { left: 50%; top: 50%; width: 160px; height: 160px; margin: -80px 0 0 -80px; pointer-events: none; }
-.mo-status { position: absolute; left: 0; top: 74px; height: 24px; width: 260px; margin-left: -130px; transform: translateY(var(--sTy, 6px)); opacity: var(--sOp, 0); text-align: center; color: var(--ink, #14122b); font-size: 15px; font-weight: 600; letter-spacing: .01em; pointer-events: none; }
+.mo-orb { left: 50%; top: 50%; width: 160px; height: 160px; margin: -80px 0 0 -80px; pointer-events: none; transform: scale(.82); }
+.mo-status { position: absolute; left: 0; top: 62px; height: 24px; width: 260px; margin-left: -130px; transform: translateY(var(--sTy, 6px)); opacity: var(--sOp, 0); text-align: center; color: var(--ink, #14122b); font-size: 15px; font-weight: 600; letter-spacing: .01em; pointer-events: none; }
 .mo-lab { position: absolute; left: 0; right: 0; top: 0; display: inline-flex; justify-content: center; align-items: center; gap: 4px; }
 .mo-lab.mo-in { animation: mo-in .35s cubic-bezier(.22, 1, .36, 1) both; }
 .mo-lab.mo-out { animation: mo-out .25s cubic-bezier(.4, 0, 1, 1) both; }

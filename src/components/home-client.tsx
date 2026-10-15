@@ -40,11 +40,11 @@ export function HomeClient({ data }: { data: HomeData }) {
           <p className="kicker mb-4">{data.dateLine}</p>
           <h1 className="display text-[clamp(38px,9vw,64px)]">{data.greeting}</h1>
           <div ref={promptBox} className="mt-6 w-full max-w-2xl" style={{ opacity: orbActive ? 0 : 1, transition: orbActive ? "none" : "opacity .35s" }}><PromptInput onSubmit={(t, f) => { const r = promptBox.current?.getBoundingClientRect(); if (f.length || !r || !r.width) return ask(t, f); return askOrb(t, { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, h: r.height, r: 28 }); }} size="lg" placeholder="What do you need to get done?" onError={(m) => toast(m, "error")} /></div>
-          <div className="no-scrollbar -mx-4 mt-4 flex w-[calc(100%+2rem)] gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:w-full lg:flex-wrap lg:justify-center lg:overflow-visible lg:px-0">
+          <div style={{ opacity: orbActive ? 0 : 1, transition: "opacity .25s", pointerEvents: orbActive ? "none" : undefined }} className="no-scrollbar -mx-4 mt-4 flex w-[calc(100%+2rem)] gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:w-full lg:flex-wrap lg:justify-center lg:overflow-visible lg:px-0">
             {SHORT.map((s, i) => <button key={s} className="chip" onClick={() => ask(SUGGESTIONS[i])}>{s}</button>)}
           </div>
-          {!referralsFull && <Link href="/refer" className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold text-white shadow-lg transition hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#6d5ae6,#8fa4ff)" }}>🎁 Invite an agent, earn credits</Link>}
-          {hasHistory && <button className="chip mt-3" onClick={open}><Sparkles size={15} />Continue where we left off</button>}
+          {!referralsFull && <Link href="/refer" className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold text-white shadow-lg transition hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#6d5ae6,#8fa4ff)", opacity: orbActive ? 0 : 1, pointerEvents: orbActive ? "none" : undefined, transition: "opacity .25s" }}>🎁 Invite an agent, earn credits</Link>}
+          {hasHistory && <button style={{ opacity: orbActive ? 0 : 1, transition: "opacity .25s", pointerEvents: orbActive ? "none" : undefined }} className="chip mt-3" onClick={open}><Sparkles size={15} />Continue where we left off</button>}
         </div>
       </section>
 
