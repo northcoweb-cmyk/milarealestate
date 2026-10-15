@@ -52,14 +52,14 @@ test("every admin route checks isAdmin", () => {
 
 test("every API route (except the known public ones) uses the api() wrapper or authenticates itself", () => {
   const root = path.join(process.cwd(), "src/app/api");
-  const publicOk = new Set(["health", "version", "auth/login", "auth/signup", "auth/claim", "auth/oauth/start", "auth/oauth/session", "auth/oauth/google/callback", "auth/demo", "auth/logout", "errors", "stripe/webhook", "cron/reminders", "cron/daily-summary", "cron/referrals", "referral/lookup", "agent", "integrations/google/callback", "integrations/google/start", "integrations/microsoft/callback", "integrations/microsoft/start"]);
+  const publicOk = new Set(["health", "version", "auth/login", "auth/signup", "auth/claim", "auth/oauth/start", "auth/oauth/session", "auth/oauth/google/callback", "calendar/feed/[token]", "auth/demo", "auth/logout", "errors", "stripe/webhook", "cron/reminders", "cron/daily-summary", "cron/referrals", "referral/lookup", "agent", "integrations/google/callback", "integrations/google/start"]);
   for (const f of fs.readdirSync(root, { recursive: true }).map(String).filter((x) => x.endsWith("route.ts"))) {
     const name = f.replace(/[\\/]route\.ts$/, "").replace(/\\/g, "/");
     const src = fs.readFileSync(path.join(root, f), "utf8");
     if (publicOk.has(name)) continue;
     assert.match(src, /= api(<[^>]*>)?\(/, `${name} must use api()`);
   }
-  for (const n of ["agent", "integrations/google/start", "integrations/google/callback", "integrations/microsoft/start", "integrations/microsoft/callback"]) assert.match(fs.readFileSync(path.join(root, n, "route.ts"), "utf8"), /getProfile\(\)|getUserId\(\)/, `${n} authenticates`);
+  for (const n of ["agent", "integrations/google/start", "integrations/google/callback"]) assert.match(fs.readFileSync(path.join(root, n, "route.ts"), "utf8"), /getProfile\(\)|getUserId\(\)/, `${n} authenticates`);
   for (const c of ["cron/reminders", "cron/daily-summary"]) assert.match(fs.readFileSync(path.join(root, c, "route.ts"), "utf8"), /CRON_SECRET/);
 });
 

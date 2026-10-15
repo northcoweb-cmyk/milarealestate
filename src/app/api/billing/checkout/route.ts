@@ -16,13 +16,13 @@ export const POST = api(async ({ profile, req }) => {
   f.set("client_reference_id", profile.id);
   f.set("allow_promotion_codes", "true"); // launch codes (e.g. half off the first month) are created in Stripe, nothing to ship
   f.set("metadata[user_id]", profile.id);
-  f.set("custom_text[submit][message]", "You're buying Mila, your AI operations manager for real estate. Billed by NorthCo Designs. Cancel any time in Settings → Credits.");
+  f.set("custom_text[submit][message]", "You're buying Mila, your AI operations manager for real estate. Billed by NorthCo Designs. By subscribing you agree to the Terms at milarealestate.app/terms, including that payments are non-refundable once 100 or more credits are used. Cancel any time in Settings → Credits.");
   let name: string, cents: number, cfgInterval = "month";
   if (b.kind === "plan") {
     const plan = cfg.plans.find((p) => p.key === b.plan_key);
     if (!plan) throw bad("Unknown plan.");
     if (isLegacyPlan(plan.key) && (await ctx_subKey(profile.id)) !== plan.key) throw bad("That plan is no longer offered. Choose the current Mila plan.");
-    if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email admin@milarealestate.app.");
+    if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email hello@milarealestate.app.");
     name = plan.name; cents = Math.round(plan.price_usd * 100);
     f.set("mode", "subscription");
     cfgInterval = plan.interval === "year" ? "year" : "month";

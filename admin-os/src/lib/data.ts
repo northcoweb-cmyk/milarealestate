@@ -95,7 +95,8 @@ export async function buildReport() {
   for (const u of U) { const k = u.operation.replace(/^turn:/, "").replace(/_/g, " "); const o = byOp.get(k) ?? { calls: 0, cost: 0 }; o.calls++; o.cost += Number(u.est_cost_usd || 0); byOp.set(k, o); }
   const emailOf = new Map(P.map((p) => [p.id, p.email]));
   // per-user economics: AI cost + paid data lookups (RentCast etc.) against what they pay. Trials and testers show $0 revenue on purpose.
-  const PRICE: Record<string, number> = { solo: 29, pro: 49 };
+  // monthly-equivalent price of each plan (annual = $390 / 12); keep in step with the app's plans in src/lib/config.ts
+  const PRICE: Record<string, number> = { solo: 29, pro: 39, pro_annual: 32.5, team: 299 };
   const apiCostOf = new Map<string, number>();
   for (const a of A) if (a.user_id) apiCostOf.set(a.user_id, (apiCostOf.get(a.user_id) ?? 0) + Number(a.est_cost_usd || 0));
   const byUser = [...new Set([...costOf.keys(), ...apiCostOf.keys()])].map((id) => {
@@ -103,6 +104,14 @@ export async function buildReport() {
     const cost = (costOf.get(id) ?? 0) + (apiCostOf.get(id) ?? 0), revenue = paid ? PRICE[s!.plan_key] ?? 0 : 0;
     return { email: emailOf.get(id) ?? id.slice(0, 8), cost, ai: costOf.get(id) ?? 0, data: apiCostOf.get(id) ?? 0, turns: turnsOf.get(id) ?? 0, plan: s?.plan_key ?? "", paid, revenue, margin: revenue - cost };
   }).sort((a, b) => b.cost - a.cost).slice(0, 25);
+  // profit over the last 30 days, across EVERY account: what paying users bring in vs what everyone (including free trials and testers) costs
+  const realCost = (id: string) => (costOf.get(id) ?? 0) + (apiCostOf.get(id) ?? 0);
+  const payingIds = real.filter((p) => { const s = subOf(p.id); return !!s && s.status === "active" && !!s.stripe_subscription_id; }).map((p) => p.id);
+  const mrr = payingIds.reduce((n, id) => n + (PRICE[subOf(id)!.plan_key] ?? 0), 0);
+  const costPaying = payingIds.reduce((n, id) => n + realCost(id), 0);
+  const costAll = [...new Set([...costOf.keys(), ...apiCostOf.keys()])].reduce((n, id) => n + realCost(id), 0);
+  const fees = mrr * 0.029 + payingIds.length * 0.3;
+  const profit = { mrr, paying: payingIds.length, costPaying, costFree: Math.max(0, costAll - costPaying), fees, gross: mrr - costAll - fees, margin: mrr > 0 ? (mrr - costAll - fees) / mrr : null, arpu: payingIds.length ? mrr / payingIds.length : 0, costPerPaying: payingIds.length ? costPaying / payingIds.length : 0 };
   const apiBy = new Map<string, { calls: number; failed: number; cost: number }>();
   for (const a of A) { const m = apiBy.get(a.provider) ?? { calls: 0, failed: 0, cost: 0 }; m.calls++; if (!a.success) m.failed++; m.cost += Number(a.est_cost_usd || 0); apiBy.set(a.provider, m); }
 
@@ -132,6 +141,7 @@ export async function buildReport() {
     ],
     waitToAccount: { joined, of: W.length },
     users, funnel, errors, wait: W,
+    profit,
     spend: { byOp: [...byOp.entries()].map(([op, v]) => ({ op, ...v })).sort((a, b) => b.cost - a.cost).slice(0, 15), byModel: [...byModel.entries()].map(([model, v]) => ({ model, ...v })).sort((a, b) => b.cost - a.cost), byUser, api: [...apiBy.entries()].map(([provider, v]) => ({ provider, ...v })).sort((a, b) => b.cost - a.cost) },
     waitSources: Object.entries(W.reduce<Record<string, number>>((m, w) => { const k = w.source || "direct"; m[k] = (m[k] ?? 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]),
   };

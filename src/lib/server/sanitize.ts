@@ -42,7 +42,7 @@ export function classifyProblem(note: string, category: string): ProblemClass {
   const t = note.toLowerCase();
   if (/\b(charge|charged|bill|billing|refund|subscription|credit card|payment|credits?)\b/.test(t)) return "billing";
   if (/\b(privacy|someone else'?s|another (?:user|agent)|wrong account|leak|saw (?:a )?(?:stranger|someone))\b/.test(t)) return "privacy_security";
-  if (/\b(sync|google calendar|outlook|apple calendar|didn'?t (?:show|appear) (?:up )?in (?:my )?(?:google|calendar))\b/.test(t)) return "integration_sync";
+  if (/\b(sync|google calendar|apple calendar|didn'?t (?:show|appear) (?:up )?in (?:my )?(?:google|calendar))\b/.test(t)) return "integration_sync";
   if (/\b(sent|never sent|approve|approval|says (?:sent|done)|said it (?:sent|was done))\b/.test(t)) return "approval_status";
   if (/\b(slow|laggy|lag|took forever|loading|spinner|timeout)\b/.test(t)) return "performance_cost";
   if (/\b(wrong (?:person|client|house|property|address|time|date)|duplicate|twice|two (?:events|copies)|still (?:there|on my calendar)|deleted|lost)\b/.test(t)) return "execution_data_integrity";

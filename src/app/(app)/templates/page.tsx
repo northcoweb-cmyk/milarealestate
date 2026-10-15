@@ -18,7 +18,6 @@ export default function TemplatesPage() {
   const [del, setDel] = useState<DocumentTemplate | null>(null);
   return (
     <Page>
-      <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <PageHeader title="Templates" sub="Upload your own forms and wording. Mila only fills in {{VARIABLES}} — she never rewrites legal language." right={<button className="btn btn-primary" onClick={() => setF({ name: "", kind: "buyer_document", body: "", is_default: false })}><Plus size={18} />New</button>} />
       {loading && !data ? <Skeleton className="h-48" /> : !data?.templates.length ? <Empty title="No templates yet" body="Add your buyer agreement, listing paperwork, follow-up emails or checklists. Use {{CLIENT_NAME}}, {{DATE}}, {{PROPERTY_ADDRESS}} where details change." /> : (
         <ul className="space-y-3">{data.templates.map((t) => (

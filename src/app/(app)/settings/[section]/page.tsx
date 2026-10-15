@@ -27,7 +27,6 @@ function Inner() {
   if (!TITLES[section]) return <Page><p className="muted">That setting doesn't exist.</p><Link href="/more" className="btn mt-4">Back</Link></Page>;
   return (
     <Page>
-      <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <h1 className="h1 mb-6">{TITLES[section]}</h1>
       {section === "support" && <SupportForm />}
       {section === "referrals" && <ReferralPanel />}
@@ -154,10 +153,10 @@ function Connections() {
   const params = useSearchParams(); const { toast } = useApp(); const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => { const e = params.get("error"), c = params.get("connected"); if (c) toast("Connected.", "success"); if (e) toast({ denied: "Access wasn't granted.", state: "That sign-in expired. Try again.", exchange: "That didn't work. Try again.", not_configured: "This isn't available right now." }[e] ?? "Couldn't connect.", "error"); }, [params, toast]);
   const label = (s: string) => ({ connected: ["Connected", "ok"], not_configured: ["Coming soon", "neutral"], disconnected: ["Not connected", "neutral"], error: ["Needs attention", "danger"], coming_soon: ["Coming soon", "neutral"] }[s] as [string, any]);
-  const SHOWN = ["google_gmail", "outlook", "google_calendar", "apple_calendar", "google_contacts", "google_sheets", "mls"];
-  const NAME: Record<string, string> = { google_gmail: "Gmail", outlook: "Outlook", google_calendar: "Google Calendar", apple_calendar: "Apple Calendar", google_contacts: "Google Contacts", google_sheets: "Google Sheets", mls: "MLS" };
-  const startHref = (i: Integration) => (i.id === "apple_calendar" ? "/calendar" : i.id === "outlook" ? "/api/integrations/microsoft/start" : `/api/integrations/google/start?services=${i.services?.join(",") ?? "gmail"}`);
-  async function off(i: Integration) { setBusy(i.id); try { if (i.id === "apple_calendar") await jfetch("/api/calendar/link", { method: "DELETE" }); else await jfetch(i.id === "outlook" ? "/api/integrations/microsoft/disconnect" : "/api/integrations/google/disconnect", { method: "POST" }); await reload(); toast("Disconnected.", "success"); } finally { setBusy(null); } }
+  const SHOWN = ["google_gmail", "google_calendar", "apple_calendar", "google_contacts", "google_sheets", "mls"];
+  const NAME: Record<string, string> = { google_gmail: "Gmail", google_calendar: "Google Calendar", apple_calendar: "Apple Calendar", google_contacts: "Google Contacts", google_sheets: "Google Sheets", mls: "MLS" };
+  const startHref = (i: Integration) => (i.id === "apple_calendar" ? "/calendar" : `/api/integrations/google/start?services=${i.services?.join(",") ?? "gmail"}`);
+  async function off(i: Integration) { setBusy(i.id); try { await jfetch("/api/integrations/google/disconnect", { method: "POST" }); await reload(); toast("Disconnected.", "success"); } finally { setBusy(null); } }
   if (loading) return <Skeleton className="h-96" />;
   return (
     <div className="space-y-3">
@@ -166,7 +165,7 @@ function Connections() {
         <div key={i.id} className="glass flex items-center gap-4 p-4 sm:p-5" style={{ borderRadius: 24 }}>
           <ServiceLogo id={i.id} />
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{NAME[i.id] ?? i.name}</p><Pill tone={tone}>{t}</Pill></div><p className="muted text-[14px]">{i.status === "connected" && i.detail ? i.detail : i.description}</p>{i.id === "mls" && <p className="faint mt-1 text-[13px]">{i.detail}</p>}</div>
-          {live && <a className="btn btn-primary btn-sm" href={startHref(i)}>{i.status === "error" ? "Reconnect" : "Connect"}</a>}
+          {live && <a className="btn btn-primary btn-sm" href={startHref(i)}>{i.status === "error" ? "Reconnect" : i.id === "apple_calendar" ? "Set up" : "Connect"}</a>}
           {i.status === "connected" && i.id !== "mls" && <button className="btn btn-sm" disabled={busy === i.id} onClick={() => off(i)}>Disconnect</button>}
         </div>); })}
       <p className="faint px-2 pt-2 text-[13px]">You can disconnect any time.</p>
@@ -256,7 +255,7 @@ function PlanCards({ plans, currentName, billingConfigured, onBuy }: { plans: Cr
               </div>
               {!team && <div className="rounded-2xl px-4 py-3" style={{ background: "color-mix(in srgb, var(--accent) 9%, transparent)" }}><p className="text-[15px] font-semibold">{p.credits.toLocaleString()} credits / month</p>{annual && bonus ? <p className="text-[13px]" style={{ color: "#15803d" }}>+ {bonus} bonus credits to start</p> : <p className="faint text-[13px]">Credits reset each month</p>}</div>}
               <ul className="flex-1 space-y-2.5">{(PLAN_POINTS[p.key] ?? []).map((t) => <li key={t} className="flex gap-2.5 text-[14.5px]"><Check size={17} className="mt-0.5 shrink-0" style={{ color: annual ? "#16a34a" : "var(--accent)" }} /><span>{t}</span></li>)}</ul>
-              {team ? <a className="btn btn-primary w-full" href={`mailto:admin@milarealestate.app?subject=${encodeURIComponent("Mila Team plan")}&body=${encodeURIComponent("Hi Mila team,\n\nWe're interested in the Team plan.\n\nTeam / brokerage name:\nNumber of agents:\nCRM we use today:\nMLS / market:\nBest way to reach us:\n")}`}>Contact us</a>
+              {team ? <a className="btn btn-primary w-full" href={`mailto:hello@milarealestate.app?subject=${encodeURIComponent("Mila Team plan")}&body=${encodeURIComponent("Hi Mila team,\n\nWe're interested in the Team plan.\n\nTeam / brokerage name:\nNumber of agents:\nCRM we use today:\nMLS / market:\nBest way to reach us:\n")}`}>Contact us</a>
                 : <button className="btn btn-primary w-full" disabled={!billingConfigured || current} onClick={() => onBuy(p.key)}>{current ? "Current plan" : billingConfigured ? (annual ? "Choose annual" : "Choose monthly") : "Opens at launch"}</button>}
             </div>
           </div>

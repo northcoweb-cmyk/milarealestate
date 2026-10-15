@@ -10,7 +10,7 @@ import { clientIp, hit } from "@/lib/server/rate-limit";
 import { codeLocked, codeMatches, recordBadCode, requiredCode } from "@/lib/access-code";
 
 /**
- * Finishes a Google / Microsoft sign-in. The token is checked with the auth service first; existing accounts just sign in.
+ * Finishes a Google sign-in. The token is checked with the auth service first; existing accounts just sign in.
  * A NEW account goes through the same invite-code and trial-seat gates as email sign-up.
  */
 export async function POST(req: Request) {

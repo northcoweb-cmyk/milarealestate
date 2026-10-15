@@ -23,12 +23,22 @@ function TasksInner() {
   const params = useSearchParams();
   const { toast } = useApp();
   const [kind, setKind] = useState<TaskKind | "all">("all");
+  const [bucket, setBucket] = useState<"all" | "overdue" | "today" | "week">("all");
   const [review, setReview] = useState<string | null>(null);
   const [fading, setFading] = useState<string[]>([]);
   useEffect(() => { const a = params.get("approval"); if (a) setReview(a); }, [params]);
 
   const approvals = useMemo(() => (data?.approvals ?? []), [data]);
-  const open = useMemo(() => (data?.open ?? []).filter((t) => (kind === "all" || t.kind === kind)), [data, kind]);
+  const { profile } = useApp();
+  const [nowMs] = useState(() => Date.now());
+  const buckets = useMemo(() => {
+    const tz = profile.timezone, day = (d: Date | string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(d));
+    const today = day(new Date(nowMs)), weekEnd = day(new Date(nowMs + 7 * 86_400_000));
+    const mine = (data?.open ?? []).filter((t) => t.kind !== "approval");
+    const of = (t: Task) => { if (!t.due_at) return null; const d = day(t.due_at); return d < today ? "overdue" : d === today ? "today" : d <= weekEnd ? "week" : null; };
+    return { of, overdue: mine.filter((t) => of(t) === "overdue").length, today: mine.filter((t) => of(t) === "today").length, week: mine.filter((t) => of(t) === "week").length };
+  }, [data, profile.timezone, nowMs]);
+  const open = useMemo(() => (data?.open ?? []).filter((t) => (kind === "all" || t.kind === kind) && (bucket === "all" || buckets.of(t) === bucket)), [data, kind, bucket, buckets]);
   const apTask = (a: Approval) => data?.open.find((t) => t.approval_id === a.id);
 
   async function complete(t: Task, dismiss = false) {
@@ -44,7 +54,21 @@ function TasksInner() {
   const blocked = approvals.filter((a) => a.status === "approved" && a.blocked_integration);
   return (
     <Page>
-      <PageHeader title="Tasks" sub={waiting.length ? `${waiting.length} waiting for your approval` : "Everything Mila is handling or needs from you"} />
+      <PageHeader title="To-do" sub={waiting.length ? `${waiting.length} waiting for your approval` : "Everything on your plate, and what Mila is handling"} />
+      {data && (
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4" role="group" aria-label="What needs you">
+          {([["approvals", "Waiting on you", waiting.length, "var(--accent)"], ["overdue", "Overdue", buckets.overdue, "var(--danger)"], ["today", "Due today", buckets.today, "var(--warn)"], ["week", "This week", buckets.week, "var(--ink-soft)"]] as const).map(([k, label, n, color]) => {
+            const on = k === "approvals" ? kind === "approval" && bucket === "all" : bucket === k;
+            return (
+              <button key={k} type="button" aria-pressed={on} onClick={() => { if (k === "approvals") { setKind(on ? "all" : "approval"); setBucket("all"); } else { setBucket(on ? "all" : k); setKind("all"); } }} className="glass p-4 text-left transition active:scale-[.98]" style={{ borderRadius: 22, ...(on ? { outline: `2px solid ${color}`, outlineOffset: -2 } : {}) }}>
+                <p className="display text-[30px] leading-none" style={{ color: n ? color : undefined }}>{n}</p>
+                <p className="faint mt-1.5 text-[12.5px] font-semibold uppercase tracking-wider">{label}</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {data && waiting.length + buckets.overdue + buckets.today === 0 && <p className="mb-5 rounded-2xl px-4 py-3 text-[15px] font-semibold" style={{ background: "color-mix(in srgb, var(--ok) 14%, transparent)", color: "var(--ok)" }}>✅ You're on top of everything. Nothing overdue or due today.</p>}
       <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">{KINDS.map((k) => <button key={k.v} className="chip shrink-0" style={kind === k.v ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setKind(k.v)}>{k.l}</button>)}</div>
       {loading && !data ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24" />)}</div> : (
         <>

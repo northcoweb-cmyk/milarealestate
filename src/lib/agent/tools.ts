@@ -1,4 +1,4 @@
-import { outlook, outlookConnected } from "../integrations/microsoft";
+import { eventDescription } from "../calendar-details";
 import { buildSignature, withSignature } from "../signature";
 import { capHashtags, MAX_HASHTAGS } from "../content/templates";
 import { createHash, randomUUID } from "node:crypto";
@@ -243,7 +243,7 @@ export const TOOLS: Record<string, ToolDef> = {
       const google = await getGoogle(ctx.userId);
       if (google?.hasScope("calendar")) {
         try {
-          const ge = await gcal.insert(ctx.userId, { summary: a.title, location: a.location, description: a.notes, start: a.start_at, end: a.end_at, tz: ctx.tz });
+          const ge = await gcal.insert(ctx.userId, { summary: a.title, location: a.location, description: await eventDescription(ctx.userId, { kind: a.kind ?? "other", notes: a.notes, contact_id: a.contact_id, property_id: a.property_id }), start: a.start_at, end: a.end_at, tz: ctx.tz });
           ext = ge.id; syncedAt = nowIso();
         } catch (e) { syncNote = googleSyncNote(e); }
       }
@@ -516,12 +516,11 @@ function googleFail(e: unknown): ToolResult<never> {
 async function sendDrafts(ctx: Ctx, draftIds: string[]): Promise<ToolResult> {
   const google = await getGoogle(ctx.userId);
   const viaGmail = !!google?.hasScope("gmail");
-  const viaOutlook = !viaGmail && (await outlookConnected(ctx.userId)); // whichever mailbox the agent connected sends the email
   const all = (await Promise.all(draftIds.map((id) => ctx.store.get("email_drafts", ctx.userId, id)))).filter(Boolean) as EmailDraft[];
   if (!all.length) return fail("not_found", "I couldn't find those drafts.");
   const drafts = all.filter((d) => d.status !== "sent"); // an approval can never send the same draft twice
   if (!drafts.length) return fail("invalid", "That email was already sent, so I didn't send it again.");
-  if (!viaGmail && !viaOutlook) {
+  if (!viaGmail) {
     for (const d of drafts) await ctx.store.update("email_drafts", ctx.userId, d.id, { status: "approved_unsent" });
     return fail("not_connected", "Nothing was sent. Open the email in your email app to send it.", "google");
   }
@@ -536,7 +535,7 @@ async function sendDrafts(ctx: Ctx, draftIds: string[]): Promise<ToolResult> {
       seen.add(t.email.toLowerCase());
       const body = d.body.replaceAll("{{first_name}}", t.name ? firstName(t.name) : "there");
       try {
-        const r = viaGmail ? await gmail.send(ctx.userId, [t.email], d.subject, body) : await outlook.send(ctx.userId, [t.email], d.subject, body);
+        const r = await gmail.send(ctx.userId, [t.email], d.subject, body);
         sent++;
         await ctx.store.insert("emails", ctx.userId, { contact_id: t.id, direction: "out", subject: d.subject, snippet: body.slice(0, 160), external_id: r.id ?? null, occurred_at: nowIso() });
         if (t.id) {

@@ -49,6 +49,7 @@ export function WelcomeForm({ mode, localAllowed, codeRequired = true }: { mode:
       {error && <p role="alert" className="text-[14.5px]" style={{ color: "var(--danger)" }}>{error}</p>}
       {info && <p className="text-[14.5px]" style={{ color: "var(--ok)" }}>{info}</p>}
       <button className="btn btn-primary w-full" disabled={busy}>{busy ? "One moment…" : signIn ? "Sign in" : "Get started"}</button>
+      {!signIn && <p className="faint text-center text-[12.5px]">By continuing you agree to our <a className="underline" href="https://milarealestate.app/terms" target="_blank" rel="noreferrer">Terms</a> and <a className="underline" href="https://milarealestate.app/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.</p>}
       <button type="button" className="btn btn-quiet w-full" onClick={() => { setSignIn(!signIn); setError(null); }}>{signIn ? "New here? Create an account" : "Already have an account? Sign in"}</button>
       {mode === "local" && (
         <>

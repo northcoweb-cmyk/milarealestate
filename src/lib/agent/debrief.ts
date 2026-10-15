@@ -44,10 +44,10 @@ export async function buildDebrief(ctx: Ctx) {
 export async function coverageNote(ctx: Ctx): Promise<{ text: string; calendars: string[]; email: string[] } | null> {
   const rows = (await ctx.store.list("integrations", ctx.userId)).filter((i) => i.status === "connected");
   const has = (p: string, scope?: string) => rows.some((r) => r.provider === p && (!scope || r.scopes.some((s) => s.includes(scope))));
-  const calendars = ["Mila's own calendar", ...(has("google", "calendar") ? ["Google Calendar"] : []), ...(has("outlook") ? ["Outlook"] : []), ...(has("ics") ? ["your calendar link"] : [])];
-  const email = [...(has("google", "gmail") ? ["Gmail"] : []), ...(has("outlook") ? ["Outlook mail"] : [])];
+  const calendars = ["Mila's own calendar", ...(has("google", "calendar") ? ["Google Calendar"] : [])];
+  const email = [...(has("google", "gmail") ? ["Gmail"] : [])];
   const missing: string[] = [];
-  if (calendars.length === 1) missing.push("Google Calendar, Outlook and calendar links aren't connected, so I only see what's in Mila's own calendar");
+  if (calendars.length === 1) missing.push("Google Calendar isn't connected, so I only see what's in Mila's own calendar");
   if (!email.length) missing.push("no email account is connected, so replies sitting in your inbox aren't part of this");
   if (!missing.length) return null;
   return { text: `This plan is built from Mila only: ${missing.join(", and ")}. Anything booked or received elsewhere won't show up here.`, calendars, email };

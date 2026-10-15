@@ -20,7 +20,6 @@ export default function WorkflowsPage() {
   }
   return (
     <Page wide>
-      <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <PageHeader title="Workflows" sub="What Mila does for each kind of request. Edit any of them to match how you work." />
       {loading && !data ? <Skeleton className="h-64" /> : (
         <>

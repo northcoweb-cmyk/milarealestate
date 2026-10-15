@@ -19,7 +19,7 @@ const LEVELS = [
 ];
 const BIZ = [["buyer", "Buyers"], ["seller", "Sellers"], ["rental", "Rentals"], ["commercial", "Commercial"], ["investor", "Investors"], ["mixed", "A mix"]];
 
-export function OnboardingFlow({ name, googleConfigured, microsoftConfigured = false, allowSample = true }: { name: string; googleConfigured: boolean; microsoftConfigured?: boolean; allowSample?: boolean }) {
+export function OnboardingFlow({ name, googleConfigured, allowSample = true }: { name: string; googleConfigured: boolean; allowSample?: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const SCREENS = [0, 1, 4, 5]; // the short first run: essentials, an optional connection, then straight to work (career level and focus are in Settings)
@@ -99,8 +99,8 @@ export function OnboardingFlow({ name, googleConfigured, microsoftConfigured = f
           {screen === 4 && <>
             <h1 className="h1 mb-1">Connect your tools</h1><p className="muted mb-5">Optional — you can do this later in More → Settings.</p>
             <div className="space-y-3">
-              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">Mila adds your appointments to your calendar. She never reads it.</p></div>{googleConfigured ? <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : <span className="faint text-[13px]">Coming soon</span>}</div>
-              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Outlook Calendar</p><p className="muted text-[14px]">Same: your events go onto your Outlook calendar.</p></div>{microsoftConfigured ? <a className="btn btn-sm" href="/api/integrations/microsoft/start">Connect</a> : <span className="faint text-[13px]">Coming soon</span>}</div>
+              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">Mila adds your appointments to your Google calendar, with the client, address and notes inside. She never reads it.</p></div>{googleConfigured ? <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : <span className="faint text-[13px]">Coming soon</span>}</div>
+              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Apple Calendar</p><p className="muted text-[14px]">One tap later on the Calendar screen: Mila's events show up on your iPhone, with the client and address inside.</p></div></div>
               {allowSample && <label className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Start with sample contacts</p><p className="muted text-[14px]">Fictional people and appointments so you can try Mila right away. Remove them any time.</p></div><input type="checkbox" className="h-5 w-5" checked={sample} onChange={(e) => setSample(e.target.checked)} /></label>}
               <p className="faint px-1 text-[13.5px]">Have a list already? After setup, just tell Mila “import my contacts” or attach a spreadsheet.</p>
             </div>

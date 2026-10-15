@@ -22,7 +22,6 @@ export default function DocumentsPage() {
   const Icon = ({ k }: { k: string }) => (k === "image" ? <ImageIcon size={20} /> : k === "csv" || k === "spreadsheet" ? <FileSpreadsheet size={20} /> : <FileText size={20} />);
   return (
     <Page>
-      <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <input ref={ref} type="file" multiple hidden accept="image/*,application/pdf,.csv,.tsv,.xlsx,.xls,.txt,.md" onChange={(e) => upload(e.target.files)} />
       <PageHeader title="Documents" sub="Files you've shared with Mila. They stay private to you." right={<button className="btn btn-primary" onClick={() => ref.current?.click()} disabled={busy}><Plus size={18} />{busy ? "Uploading…" : "Upload"}</button>} />
       {loading && !data ? <Skeleton className="h-48" /> : !data?.documents.length ? <Empty title="No documents yet" body="Upload a sign-in sheet, a buyer agreement or a spreadsheet — or attach files right in the chat." /> : (

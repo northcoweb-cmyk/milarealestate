@@ -9,10 +9,19 @@ export default async function Spend() {
   const r = await load();
   if (!r) return <Shell title="AI spend"><NoKeys /></Shell>;
   const k = r.kpis;
+  const pr = r.profit;
   const cap = Number(process.env.MILA_DAILY_AI_BUDGET_USD || 40);
   return (
     <Shell title="AI spend" lead="What the AI and photo lookups cost, per day, model and user.">
       <Missing tables={r.missing.filter((m) => ["usage", "api_usage"].includes(m))} />
+      <Section title="Profit (last 30 days)">
+        <div className="grid g4">
+          <Stat label="Monthly revenue" value={usd(pr.mrr)} sub={`${pr.paying} paying · avg ${usd(pr.arpu)} each`} />
+          <Stat label="Cost: paying users" value={usd(pr.costPaying)} sub={pr.paying ? `${usd(pr.costPerPaying)} per paying user` : "no paying users yet"} />
+          <Stat label="Cost: free trials & tests" value={usd(pr.costFree)} sub="the price of acquiring users" />
+          <Stat label="Gross profit" value={usd(pr.gross)} sub={pr.margin === null ? "after AI, data and payment fees" : `${Math.round(pr.margin * 100)}% margin after AI, data and fees (${usd(pr.fees)})`} tone={pr.margin !== null && pr.margin < 0.4 ? "warn" : undefined} />
+        </div>
+      </Section>
       <div className="grid g4">
         <Stat label="Today" value={usd(k.aiToday)} sub={`daily cap ${usd(cap)}`} tone={k.aiToday > cap * 0.7 ? "warn" : undefined} />
         <Stat label="Last 30 days" value={usd(k.ai30d)} />

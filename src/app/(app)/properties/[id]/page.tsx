@@ -74,7 +74,6 @@ function PropertyDetail({ id }: { id: string }) {
   const addrComplete = !!((p.city && p.state) || p.zip);
   return (
     <Page wide>
-      <Link href="/properties/all" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />Properties</Link>
       <PageHeader title={p.address} sub={p.is_demo ? "Fictional demo property" : undefined} right={<button className="btn btn-quiet btn-sm" onClick={() => setDelOpen(true)}><Trash2 size={16} />Delete</button>} />
       <DeletePropertyConfirm id={p.id} address={p.address} open={delOpen} onClose={() => setDelOpen(false)} onDeleted={() => window.location.assign("/properties/all")} />
       <PropertyHero id={id} address={p.address} own={data.images} lookup={!!addrComplete} busy={busy} onUpload={upload} onRemove={(imageId) => jfetch(`/api/properties/${id}/images?imageId=${imageId}`, { method: "DELETE" }).then(reload)} />

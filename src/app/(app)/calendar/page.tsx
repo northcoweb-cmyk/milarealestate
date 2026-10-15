@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronRight, ClipboardCheck, MapPin, Plus, RefreshCw } from "lucide-react";
+import { CalendarPlus, ChevronRight, ClipboardCheck, MapPin, Plane, Plus } from "lucide-react";
 import type { CalendarEvent } from "@/lib/types";
 import { Empty, PageHeader, Sheet, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -26,8 +26,8 @@ export default function CalendarPage() {
   const today = useMemo(() => startOfDay(new Date(), tz), [tz]);
   const [sel, setSel] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [ooo, setOoo] = useState(false);
   const [openEv, setOpenEv] = useState<CalendarEvent | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const from = today.toISOString(), to = addDays(today, 60, tz).toISOString();
   const { data, loading, reload } = useApi<Data>(`/api/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
   const days = useMemo(() => Array.from({ length: 21 }, (_, i) => addDays(today, i, tz)), [today, tz]);
@@ -37,16 +37,11 @@ export default function CalendarPage() {
   const dayReminders = (data?.reminders ?? []).filter((r) => key(new Date(r.remind_at)) === key(days[sel]));
   const overlaps = (e: CalendarEvent) => dayEvents.some((o) => o.id !== e.id && new Date(o.start_at) < new Date(e.end_at) && new Date(e.start_at) < new Date(o.end_at));
 
-  async function sync() {
-    setSyncing(true);
-    try { const r = await jfetch<{ added: number; updated: number; pushOnly?: boolean }>("/api/calendar/sync", { method: "POST" }); toast(r.pushOnly ? "Mila adds your events to your connected calendar. She doesn't read it." : `Synced — ${r.added} new, ${r.updated} updated.`, "success"); reload(); }
-    catch (e: any) { toast(e?.message ?? "Couldn't sync.", "error"); } finally { setSyncing(false); }
-  }
   const dayLabel = (d: Date, i: number) => (i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(d));
 
   return (
     <Page wide>
-      <PageHeader title="Calendar" sub={data?.google.connected ? `Google Calendar · ${data.google.account ?? "connected"}` : "Mila's calendar"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
+      <PageHeader title="Calendar" sub={data?.google.connected ? `Google Calendar · ${data.google.account ?? "connected"}` : "Mila's calendar"} right={<div className="flex gap-2"><button className="btn" onClick={() => setOoo(true)}><Plane size={18} />Out of office</button><button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button></div>} />
       <div>
       <div className="min-w-0">
       <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-7 lg:overflow-visible lg:px-0 lg:pb-0" role="tablist" aria-label="Days">
@@ -88,12 +83,42 @@ export default function CalendarPage() {
           ))}</ul>
         </div>
       )}
-      <CalendarSync data={data} googleReady={!!capabilities.google} syncing={syncing} sync={sync} reload={reload} />
+      <CalendarSync data={data} googleReady={!!capabilities.google} />
       </div>
       </div>
       {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} />}
+      <OutOfOffice open={ooo} onClose={() => setOoo(false)} defaultDay={days[sel]} />
       <AddEvent open={adding} onClose={() => setAdding(false)} defaultDay={days[sel]} onDone={reload} />
     </Page>
+  );
+}
+
+/** Pick the days and Mila does the rest through her normal time-off flow: blocks them so nothing new gets booked, warns about anything already there, offers to move it, and reminds you the evening before to wrap things up. */
+function OutOfOffice({ open, onClose, defaultDay }: { open: boolean; onClose: () => void; defaultDay: Date }) {
+  const { profile } = useApp();
+  const router = useRouter();
+  const tz = profile.timezone;
+  const p = partsIn(defaultDay, tz);
+  const iso = `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
+  const [from, setFrom] = useState(iso); const [to, setTo] = useState("");
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const say = (v: string) => { const [, m, d] = v.split("-").map(Number); return `${MON[m - 1]} ${d}`; };
+  const go = () => {
+    const range = to && to > from ? `${say(from)} through ${say(to)}` : say(from);
+    onClose();
+    router.push(`/?ask=${encodeURIComponent(`I'm out of office ${range}`)}`);
+  };
+  return (
+    <Sheet open={open} onClose={onClose} title="✈️ Out of office">
+      <div className="space-y-4">
+        <p className="muted text-[14.5px]">Mila blocks the time so nothing new gets booked, flags anything already on your calendar and offers to move it, and reminds you the evening before to wrap things up.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="lbl" htmlFor="ooo-from">First day off</label><input id="ooo-from" type="date" className="field" value={from} onChange={(e) => { setFrom(e.target.value); if (to && to < e.target.value) setTo(""); }} /></div>
+          <div><label className="lbl" htmlFor="ooo-to">Back to work after (optional)</label><input id="ooo-to" type="date" className="field" min={from} value={to} onChange={(e) => setTo(e.target.value)} /></div>
+        </div>
+        <button className="btn btn-primary w-full" disabled={!from} onClick={go}>Set out of office</button>
+      </div>
+    </Sheet>
   );
 }
 
@@ -168,6 +193,7 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {e.property_id && (e.kind === "showing" || e.kind === "open_house") && <button className="btn btn-primary btn-sm" disabled={starting} onClick={startSheet}><ClipboardCheck size={16} />{starting ? "Opening…" : "Showing sheet"}</button>}
+          <a className="btn btn-sm" href={`/api/calendar/event/${e.id}/ics`}><CalendarPlus size={16} />Add to my calendar</a>
           {person && <Link className="btn btn-sm" href={ask(`Draft a confirmation message to ${person.name} for ${e.title}`)}>Message {person.name.split(" ")[0]}</Link>}
           <Link className="btn btn-sm" href={ask(`Move ${e.title} to a different time`)}>Reschedule</Link>
         </div>
@@ -176,40 +202,33 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
   );
 }
 
-/** One place to bring in an existing calendar: Google (connect), or Apple Calendar / Outlook / any calendar by its share link. */
-function CalendarSync({ data, googleReady, syncing, sync, reload }: { data: Data | null; googleReady: boolean; syncing: boolean; sync: () => void; reload: () => void }) {
+/** Put Mila's events on the agent's own calendar: Google by connecting once, Apple (and any calendar app) by subscribing with one tap. Mila only ever writes to it. */
+function CalendarSync({ data, googleReady }: { data: Data | null; googleReady: boolean }) {
   const { toast } = useApp();
-  const [open, setOpen] = useState(false); const [url, setUrl] = useState(""); const [busy, setBusy] = useState(false);
-  const google = !!data?.google.connected, linked = !!data?.link?.connected;
-  async function save() {
+  const [busy, setBusy] = useState(false);
+  const google = !!data?.google.connected;
+  async function link() { return jfetch<{ https: string; webcal: string }>("/api/calendar/feed-link"); }
+  async function addApple() {
     setBusy(true);
-    try { const r = await jfetch<{ added: number; updated: number }>("/api/calendar/link", { method: "POST", json: { url } }); toast(`Connected. ${r.added} events brought in.`, "success"); setUrl(""); setOpen(false); reload(); }
-    catch (e: any) { toast(e?.message ?? "Couldn't connect that calendar.", "error"); } finally { setBusy(false); }
+    try { const l = await link(); window.location.href = l.webcal; }
+    catch (e: any) { toast(e?.message ?? "Couldn't make your calendar link.", "error"); } finally { setBusy(false); }
   }
-  async function unlink() { setBusy(true); try { await jfetch("/api/calendar/link", { method: "DELETE" }); toast("Calendar disconnected.", "success"); reload(); } catch { toast("Couldn't disconnect.", "error"); } finally { setBusy(false); } }
+  async function copy() {
+    try { const l = await link(); await navigator.clipboard.writeText(l.https); toast("Link copied. Paste it into any calendar app's “subscribe” option.", "success"); }
+    catch { toast("Couldn't copy the link.", "error"); }
+  }
   return (
     <div className="glass mt-8 space-y-4 p-5" style={{ borderRadius: 24 }}>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1"><p className="font-semibold">📅 Sync your calendar</p><p className="muted text-[14px]">Your Mila calendar works on its own. Connect another calendar if you want Mila to see those appointments too, so she can warn you before double-booking. {google || linked ? "Tap Sync to refresh." : ""}</p></div>
-        {(google || linked) && <button className="btn btn-primary btn-sm" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} />Sync now</button>}
+      <div><p className="font-semibold">📅 Get Mila's events on your phone</p><p className="muted text-[14px]">Every showing, open house and appointment Mila adds shows up in your own calendar, with the client, phone, address and notes inside. Pick the one you use.</p></div>
+      <div className="flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--line)" }}>
+        <p className="min-w-0 flex-1 text-[15px]"><b>Apple Calendar</b><span className="faint block text-[13.5px]">iPhone, iPad and Mac. Tap once, then Subscribe. New and changed events update by themselves.</span></p>
+        <button className="btn btn-primary btn-sm" onClick={addApple} disabled={busy}>{busy ? "Opening…" : "Add to Apple Calendar"}</button>
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--line)" }}>
-        <p className="min-w-0 flex-1 text-[15px]"><b>Google Calendar</b><span className="faint block text-[13.5px]">{google ? `Connected${data?.google.account ? ` as ${data.google.account}` : ""}. Mila adds the events she creates to it.` : googleReady ? "Connect, then approve access on Google's screen and choose a calendar." : "Not available yet."}</span></p>
-        {!google && googleReady && <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a>}
+        <p className="min-w-0 flex-1 text-[15px]"><b>Google Calendar</b><span className="faint block text-[13.5px]">{google ? `Connected${data?.google.account ? ` as ${data.google.account}` : ""}. Mila adds each event the moment she makes it.` : googleReady ? "Connect once and approve on Google's screen. Mila adds events for you from then on." : "Not available yet."}</span></p>
+        {!google && googleReady && <a className="btn btn-primary btn-sm" href="/api/integrations/google/start?services=calendar">Connect Google</a>}
       </div>
-      <div className="border-t pt-3" style={{ borderColor: "var(--line)" }}>
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="min-w-0 flex-1 text-[15px]"><b>Apple Calendar, Outlook or any calendar link</b><span className="faint block text-[13.5px]">{linked ? `Connected (${data?.link?.host}). Read-only: Mila never changes it.` : "Paste its share link. No password needed."}</span></p>
-          {linked ? <button className="btn btn-sm" onClick={unlink} disabled={busy}>Disconnect</button> : <button className="btn btn-sm" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "Add link"}</button>}
-        </div>
-        {open && !linked && (
-          <div className="mt-3 space-y-2">
-            <input className="field w-full" inputMode="url" placeholder="webcal://… or https://… calendar link" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Calendar link" />
-            <button className="btn btn-primary btn-sm" disabled={busy || !url.trim()} onClick={save}>{busy ? "Connecting…" : "Connect and sync"}</button>
-            <div className="faint space-y-1 text-[13px]"><p><b>Apple Calendar:</b> open Calendar, right-click (or touch and hold) the calendar, choose Share Calendar, turn on Public Calendar, copy the link.</p><p><b>Outlook:</b> Settings, Calendar, Shared calendars, Publish a calendar, copy the ICS link.</p><p><b>Google:</b> Settings, your calendar, Integrate calendar, copy the secret address in iCal format.</p></div>
-          </div>
-        )}
-      </div>
+      <p className="faint border-t pt-3 text-[13px]" style={{ borderColor: "var(--line)" }}>Another calendar app (Outlook, Fantastical…)? <button className="font-semibold text-accent" onClick={copy}>Copy your calendar link</button>. You can also tap any event and choose “Add to my calendar”.</p>
     </div>
   );
 }

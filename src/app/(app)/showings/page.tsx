@@ -18,7 +18,6 @@ export default function ShowingSheetsPage() {
   const day = (iso: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(iso));
   return (
     <Page>
-      <Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link>
       <PageHeader title="Showing sheets" sub="Check things off, add notes, photos and video during a showing." right={<button className="btn btn-primary btn-sm" onClick={() => setPicking(true)}><Plus size={16} />New</button>} />
       {loading && !data ? <div className="space-y-3"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>
         : !data?.sheets.length ? <Empty title="No showing sheets yet" body="Start one when you walk a home. It lists everything worth checking and saves your notes, photos and videos." action={<button className="btn btn-primary" onClick={() => setPicking(true)}>Start a showing sheet</button>} />

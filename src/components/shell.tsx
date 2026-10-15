@@ -8,6 +8,8 @@ import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { Building2, CalendarDays, Gauge, Home, Megaphone, Menu, Users } from "lucide-react";
 import { useApp } from "./app-context";
+import { peekApi, putApi } from "./use-api";
+import { NavTracker } from "./back-button";
 import clsx from "clsx";
 
 const NAV = [
@@ -31,6 +33,14 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
   const path = usePathname();
   const { admin } = useApp();
   useEffect(() => { window.scrollTo(0, 0); }, [path]);
+  // Warm each tab's data once the screen is idle, so the first tap on a tab paints from memory instead of waiting on the network.
+  useEffect(() => {
+    const urls = ["/api/tasks", "/api/contacts", "/api/properties?view=cards", "/api/content?status=drafts"];
+    const ric = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    const run = () => { urls.forEach((u, i) => { if (peekApi(u)) return; setTimeout(() => { fetch(u).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && !peekApi(u)) putApi(u, j); }).catch(() => {}); }, i * 250); }); };
+    const id = ric ? ric(run, { timeout: 4000 }) : (setTimeout(run, 1500) as unknown as number);
+    return () => { if (!ric) clearTimeout(id); };
+  }, []);
   const [nav, setNav] = useState({ path, prev: path });
   if (nav.path !== path) setNav({ path, prev: nav.path }); // remember where we came from (set during render, per React docs)
   const dir = direction(nav.prev, nav.path);
@@ -47,6 +57,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
   }, [tapped]);
   return (
     <>
+      <NavTracker />
       <InstallPopup />
       {/* desktop rail */}
       <nav aria-label="Primary" className="glass fixed bottom-5 left-5 top-5 z-40 hidden w-[92px] flex-col items-center py-6 lg:flex" style={{ borderRadius: 32 }}>
@@ -55,7 +66,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
           {NAV.map((n) => {
             const active = n.match(shown);
             return (
-              <Link key={n.href} href={n.href} onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className={clsx("relative flex w-[68px] flex-col items-center gap-1 rounded-2xl py-3 text-[11.5px] font-semibold transition-colors", active ? "" : "text-ink-soft hover:bg-white/30")} style={active ? { color: "var(--accent-ink)" } : undefined}>
+              <Link key={n.href} href={n.href} prefetch onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className={clsx("relative flex w-[68px] flex-col items-center gap-1 rounded-2xl py-3 text-[11.5px] font-semibold transition-colors", active ? "" : "text-ink-soft hover:bg-white/30")} style={active ? { color: "var(--accent-ink)" } : undefined}>
                 {active && <motion.span layoutId="rail-pill" className="absolute inset-0 rounded-2xl" style={{ background: "linear-gradient(135deg,var(--accent),var(--accent-2))" }} transition={{ type: "spring", stiffness: 520, damping: 40 }} />}
                 <n.icon size={22} strokeWidth={active ? 2.3 : 1.9} className="relative" />
                 <span className="relative">{n.label}</span>
@@ -76,7 +87,7 @@ export function Shell({ children, approvals }: { children: React.ReactNode; appr
           {NAV.map((n) => {
             const active = n.match(shown);
             return (
-              <Link key={n.href} href={n.href} scroll={false} onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className="relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-full px-0.5 py-2 text-[10px] font-semibold tracking-tight transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
+              <Link key={n.href} href={n.href} prefetch scroll={false} onPointerDown={() => setTapped({ href: n.href, from: path })} onPointerCancel={() => setTapped(null)} aria-current={active ? "page" : undefined} className="relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-full px-0.5 py-2 text-[10px] font-semibold tracking-tight transition-colors" style={{ color: active ? "var(--accent-ink)" : "var(--ink-soft)" }}>
                 {active && <motion.span layoutId="tab-pill" className="absolute inset-0 rounded-full" style={{ background: "linear-gradient(135deg,var(--accent),var(--accent-2))" }} transition={{ type: "spring", stiffness: 520, damping: 40 }} />}
                 <n.icon size={21} strokeWidth={active ? 2.3 : 1.9} className="relative" />
                 <span className="relative">{"short" in n && n.short ? <><span className="min-[380px]:hidden">{n.short}</span><span className="hidden min-[380px]:inline">{n.label}</span></> : n.label}</span>

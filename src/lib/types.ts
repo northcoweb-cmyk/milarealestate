@@ -582,7 +582,7 @@ export interface Subscription extends Row {
 }
 
 export interface Integration extends Row {
-  provider: "google" | "outlook" | "twilio" | "meta" | "mls" | "ics";
+  provider: "google" | "twilio" | "meta" | "mls" | "ics";
   status: "connected" | "error" | "revoked";
   account_label: string | null;
   scopes: string[];

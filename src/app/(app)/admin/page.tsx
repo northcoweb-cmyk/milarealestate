@@ -28,7 +28,6 @@ export default function AdminPage() {
   if (!admin) return <Page><p className="muted">This page is for the business owner.</p></Page>;
   return (
     <Page wide>
-      <div className="lg:hidden"><Link href="/more" className="btn btn-quiet btn-sm mb-3 !pl-2"><ArrowLeft size={18} />More</Link></div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="h1">Owner dashboard</h1><p className="muted mt-1.5 text-[14.5px]">{data ? `Updated ${ago(data.generatedAt)}` : "Accounts, usage, errors and what needs fixing."}</p></div>
         <div className="flex items-center gap-2">

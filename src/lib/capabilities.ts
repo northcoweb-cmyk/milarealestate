@@ -1,6 +1,5 @@
 import { aiAvailable } from "./ai/provider";
 import { googleConfigured } from "./integrations/google";
-import { microsoftConfigured } from "./integrations/microsoft";
 import { rentcastConfigured } from "./listing-data/rentcast";
 import { zillapiKey } from "./media/providers/zillapi";
 
@@ -16,13 +15,12 @@ export type CapabilityState = "live" | "internal_only" | "credentials_required" 
 export interface Capability { key: string; label: string; state: CapabilityState; note: string }
 
 export function capabilityRegistry(): Capability[] {
-  const google = googleConfigured(), ms = microsoftConfigured();
+  const google = googleConfigured();
   return [
     { key: "calendar_internal", label: "Mila calendar", state: "live", note: "Works on its own, with no outside calendar." },
-    { key: "calendar_google", label: "Google Calendar", state: google ? "live" : "credentials_required", note: google ? "Connect, approve access on Google's screen, choose a calendar. Mila adds the events she creates and reads availability." : "Google keys are not configured on this deployment." },
-    { key: "calendar_microsoft", label: "Outlook calendar", state: ms ? "live" : "credentials_required", note: ms ? "Connect and approve on Microsoft's screen." : "Microsoft keys are not configured on this deployment." },
-    { key: "calendar_link", label: "Apple or any calendar by share link", state: "live", note: "Read-only: Mila reads it to avoid double-booking and never writes to it." },
-    { key: "email_mailbox", label: "Email from your own mailbox", state: google || ms ? "live" : "credentials_required", note: "Needs the person to connect Gmail or Outlook. Gmail sending needs Google's app review." },
+    { key: "calendar_google", label: "Google Calendar", state: google ? "live" : "credentials_required", note: google ? "Connect, approve access on Google's screen, choose a calendar. Mila adds the events she creates, with the client, address and notes inside." : "Google keys are not configured on this deployment." },
+    { key: "calendar_apple", label: "Apple Calendar (and any calendar app)", state: "live", note: "One tap subscribes the calendar app to Mila's events, or add a single event as a file. Mila writes to it; she never reads it." },
+    { key: "email_mailbox", label: "Email from your own mailbox", state: google ? "live" : "credentials_required", note: "Needs the person to connect Gmail. Gmail sending needs Google's app review." },
     { key: "email_handoff", label: "Email drafts opened in your mail app", state: "live", note: "Mila prepares it; you press send in your own app. Mila reports it as handed off, never as sent." },
     { key: "sms_handoff", label: "Text drafts opened in Messages", state: "live", note: "Mila prepares it; you press send. You tell Mila whether you sent it." },
     { key: "sms_sending", label: "Texting from a Mila number", state: "unsupported", note: "Not built. Carrier registration is required first." },

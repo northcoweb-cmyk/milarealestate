@@ -4,6 +4,7 @@ import { Bars, Missing, Section, Stat } from "@/components/ui";
 import { ago, fmt } from "@/lib/data";
 import { NoKeys, load } from "@/lib/page";
 import { GrantButton } from "@/components/grant-button";
+import { DeleteWaitlistButton } from "@/components/delete-waitlist-button";
 
 const STATUS: Record<string, string> = { waiting: "On the list", queued: "Queued", invited: "Access granted", joined: "Has account" };
 
@@ -26,7 +27,7 @@ export default async function Waitlist() {
       </div>
       <Section title="People">
         <div className="tw"><table><thead><tr><th>Email</th><th>Name</th><th>Source</th><th>Status</th><th>Joined</th><th></th></tr></thead><tbody>
-          {r.wait.slice(0, 300).map((w) => <tr key={w.id}><td>{w.email}</td><td>{w.name ?? <span className="mute">—</span>}</td><td>{w.source ?? "direct"}</td><td>{w.claimed_at ? STATUS.joined : STATUS[w.status ?? "waiting"] ?? w.status}</td><td title={fmt(w.created_at)}>{ago(w.created_at, r.now)}</td><td>{!w.claimed_at && <GrantButton id={w.id} email={w.email} />}</td></tr>)}
+          {r.wait.slice(0, 300).map((w) => <tr key={w.id}><td>{w.email}</td><td>{w.name ?? <span className="mute">—</span>}</td><td>{w.source ?? "direct"}</td><td>{w.claimed_at ? STATUS.joined : STATUS[w.status ?? "waiting"] ?? w.status}</td><td title={fmt(w.created_at)}>{ago(w.created_at, r.now)}</td><td style={{ whiteSpace: "nowrap" }}>{!w.claimed_at && <GrantButton id={w.id} email={w.email} />} <DeleteWaitlistButton id={w.id} email={w.email} /></td></tr>)}
           {!r.wait.length && <tr><td colSpan={6} className="mute">Empty for now. Once the waitlist page is live, signups land here instantly.</td></tr>}
         </tbody></table></div>
         <p className="mute" style={{ marginTop: 10, fontSize: 13 }}>Showing the latest 300. <Link href="/api/waitlist-csv" style={{ textDecoration: "underline" }}>Download everyone</Link>.</p>

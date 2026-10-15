@@ -24,10 +24,10 @@ export default function MorePage() {
   return (
     <Page wide>
       <PageHeader title="More" />
-<div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
+<div className="lg:grid lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:gap-x-6">
       <Link href="/settings/profile" className="glass-strong mb-7 flex items-center gap-4 p-5"><Avatar name={profile.full_name} size={56} src={profile.settings.brand?.pfp ? `/api/files/${profile.settings.brand.pfp}` : null} /><div className="min-w-0 flex-1"><p className="text-[19px] font-semibold leading-tight">{profile.full_name}</p><p className="muted truncate text-[14.5px]">{profile.email}</p></div><ChevronRight className="text-ink-faint" /></Link>
 
-      {!referralsFull && <Link href="/refer" className="mb-7 flex items-center justify-between gap-3 p-5 text-white" style={{ borderRadius: 26, background: "linear-gradient(135deg,#6d5ae6 0%,#8fa4ff 60%,#ffb98c 130%)", boxShadow: "0 14px 34px -16px rgba(80,60,200,.6)" }}><span><span className="block text-[18px] font-bold">🎁 Refer an agent, earn credits</span><span className="block text-[13.5px] opacity-90">Share your link or code. Track every invite.</span></span><span aria-hidden className="text-2xl">→</span></Link>}
+      {!referralsFull && <Link href="/refer" className="mb-7 flex flex-col justify-between gap-6 p-6 text-white lg:col-start-2 lg:row-span-2 lg:row-start-1" style={{ borderRadius: 26, background: "linear-gradient(135deg,#6d5ae6 0%,#8fa4ff 60%,#ffb98c 130%)", boxShadow: "0 14px 34px -16px rgba(80,60,200,.6)" }}><span><span className="block text-[22px] font-bold leading-tight">🎁 Refer an agent, earn credits</span><span className="mt-2 block text-[14.5px] leading-snug text-white/90">Earn 200 credits for every friend who subscribes (550 for an annual plan). They get bonus credits too.</span></span><span className="flex items-center justify-between rounded-2xl bg-white/20 px-4 py-3 text-[14.5px] font-semibold">Get your link and code<span aria-hidden>→</span></span></Link>}
 
       <Link href="/settings/credits" className="glass mb-7 block p-5" style={{ borderRadius: 26 }}>
         <div className="mb-3"><PlanBadge /></div>
@@ -42,7 +42,7 @@ export default function MorePage() {
       <Group title="Mila's workspace">
         <Row href="/showings" icon={ClipboardCheck} title="Showing sheets" sub="Checklist, notes, photos and video" />
         <Row href="/done" icon={ListChecks} title="Completed" sub="Everything finished, in order" />
-        <Row href="/tasks" icon={ListChecks} title="Tasks & approvals" sub="Everything Mila prepared for you" />
+        <Row href="/tasks" icon={ListChecks} title="To-do & approvals" sub="Overdue, due today, and what needs your OK" />
         <Row href="/memory" icon={Brain} title="Memory" sub="What Mila remembers — view, edit, delete" />
         <Row href="/workflows" icon={Workflow} title="Workflows" sub="Open house, new buyer, and more" />
         <Row href="/templates" icon={FileText} title="Templates" sub="Documents, emails and checklists" />
@@ -52,7 +52,7 @@ export default function MorePage() {
       <Group title="Settings">
         <Row href="/settings/profile" icon={User} title="Profile" />
         <Row href="/settings/business" icon={Building2} title="Business" />
-        <Row href="/settings/connections" icon={Plug} title="Connections" sub="Gmail, Outlook and your calendar" />
+        <Row href="/settings/connections" icon={Plug} title="Connections" sub="Gmail and your calendar" />
         <Row href="/settings/mila" icon={SlidersHorizontal} title="Mila" sub="Autonomy: what Mila can do on her own" />
         <Row href="/settings/notifications" icon={Bell} title="Notifications" />
         <Row href="/settings/credits" icon={CreditCard} title="Credits & billing" />

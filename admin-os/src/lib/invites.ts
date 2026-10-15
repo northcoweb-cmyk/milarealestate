@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import nodemailer from "nodemailer";
+import { announceEmail, daysLeft, type DesignId } from "./announce";
 
 const base = () => (process.env.SUPABASE_URL ?? "").trim().replace(/\/(rest|auth|storage)(\/v1.*)?\/*$/i, "").replace(/\/+$/, "");
 const key = () => process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -54,6 +55,28 @@ export async function sendInvite(e: Entry): Promise<void> {
   await t.sendMail({ from: process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`, replyTo: process.env.MAIL_REPLY_TO || "noreply@milarealestate.app", to: e.email, subject: m.subject, html: m.html, text: m.text });
   const done = await rest(`waitlist?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", body: JSON.stringify({ invited_at: new Date().toISOString(), status: "invited" }) });
   if (!done.ok) throw new Error(`mark ${done.status}`);
+}
+
+// ---- launch-countdown email (separate from the access invite): one design, addressed by sign-up name, sent in small batches
+const mailer = () => { const port = Number(process.env.SMTP_PORT || 465); return nodemailer.createTransport({ host: process.env.SMTP_HOST, port, secure: port === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }, connectionTimeout: 8000, socketTimeout: 12000 }); };
+const FROM = () => process.env.MAIL_FROM || `Mila <${process.env.SMTP_USER}>`;
+const NOREPLY = () => process.env.MAIL_REPLY_TO || "noreply@milarealestate.app";
+
+export async function announceCounts(): Promise<{ total: number; announced: number; pending: number } | null> {
+  const r = await rest("waitlist?select=announced_at,source&limit=20000");
+  if (!r.ok) return null; // the column isn't there until 0013 is run
+  const rows = ((await r.json()) as { announced_at: string | null; source: string | null }[]).filter((x) => x.source !== "test");
+  return { total: rows.length, announced: rows.filter((x) => x.announced_at).length, pending: rows.filter((x) => !x.announced_at).length };
+}
+export async function nextAnnounceBatch(n: number): Promise<Entry[]> {
+  const r = await rest(`waitlist?select=id,email,name,invite_token,invited_at,claimed_at&announced_at=is.null&source=neq.test&order=created_at.asc&limit=${n}`);
+  if (!r.ok) throw new Error("Run 0013_waitlist_announced.sql in the Supabase SQL editor first, then try again.");
+  return (await r.json()) as Entry[];
+}
+export async function sendAnnounce(design: DesignId, e: { id?: string; email: string; name: string | null }, mark = true): Promise<void> {
+  const m = announceEmail(design, e.name, daysLeft());
+  await mailer().sendMail({ from: FROM(), replyTo: NOREPLY(), to: e.email, subject: m.subject, html: m.html, text: m.text });
+  if (mark && e.id) { const d = await rest(`waitlist?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", body: JSON.stringify({ announced_at: new Date().toISOString() }) }); if (!d.ok) throw new Error(`mark ${d.status}`); }
 }
 
 export async function sendTest(email: string) { await sendInvite(await ensureTestEntry(email)); }
