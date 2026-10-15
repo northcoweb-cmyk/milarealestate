@@ -8,7 +8,7 @@ import { Avatar, Confirm, PageHeader, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApp } from "@/components/app-context";
 import { InstallSteps, useInstall } from "@/components/install";
-import { PlanBadge } from "@/components/plan-badge";
+import { ProfileCard } from "@/components/ui/profile-card";
 
 const Row = ({ href, icon: I, title, sub }: { href: string; icon: any; title: string; sub?: string }) => (
   <Link href={href} className="flex items-center gap-4 px-4 py-3.5 transition hover:bg-white/30 sm:px-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}><I size={20} /></span><span className="min-w-0 flex-1"><span className="block font-semibold leading-tight">{title}</span>{sub && <span className="faint text-[13.5px]">{sub}</span>}</span><ChevronRight size={18} className="text-ink-faint" /></Link>
@@ -25,17 +25,11 @@ export default function MorePage() {
     <Page wide>
       <PageHeader title="More" />
 <div className="lg:grid lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:gap-x-6">
-      <Link href="/settings/profile" className="glass-strong mb-7 flex items-center gap-4 p-5"><Avatar name={profile.full_name} size={56} src={profile.settings.brand?.pfp ? `/api/files/${profile.settings.brand.pfp}` : null} /><div className="min-w-0 flex-1"><p className="text-[19px] font-semibold leading-tight">{profile.full_name}</p><p className="muted truncate text-[14.5px]">{profile.email}</p></div><ChevronRight className="text-ink-faint" /></Link>
+      <ProfileCard className="mb-7 !mx-0 !max-w-none" />
 
       {!referralsFull && <Link href="/refer" className="mb-7 flex flex-col justify-between gap-6 p-6 text-white lg:col-start-2 lg:row-span-2 lg:row-start-1" style={{ borderRadius: 26, background: "linear-gradient(135deg,#6d5ae6 0%,#8fa4ff 60%,#ffb98c 130%)", boxShadow: "0 14px 34px -16px rgba(80,60,200,.6)" }}><span><span className="block text-[22px] font-bold leading-tight">🎁 Refer an agent, earn credits</span><span className="mt-2 block text-[14.5px] leading-snug text-white/90">Earn 200 credits for every friend who subscribes (550 for an annual plan). They get bonus credits too.</span></span><span className="flex items-center justify-between rounded-2xl bg-white/20 px-4 py-3 text-[14.5px] font-semibold">Get your link and code<span aria-hidden>→</span></span></Link>}
 
-      <Link href="/settings/credits" className="glass mb-7 block p-5" style={{ borderRadius: 26 }}>
-        <div className="mb-3"><PlanBadge /></div>
-        <div className="mb-2 flex items-baseline justify-between"><p className="kicker">Mila credits</p><span className="faint text-[13px]">Resets {new Date(credits.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
-        <p className="display text-[34px] leading-none">{credits.balance.toLocaleString()} <span className="faint text-[18px]">/ {credits.allowance.toLocaleString()}</span></p>
-        {(credits.extraCredits ?? 0) > 0 && <p className="faint mt-2 text-[12.5px]">{(credits.planCredits ?? 0).toLocaleString()} plan credits + {(credits.extraCredits ?? 0).toLocaleString()} bonus and top-up credits that never expire</p>}
-        <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 9%, transparent)" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} /></div>
-      </Link>
+
 
 </div>
 <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Clock, CreditCard, Gift, LifeBuoy, Zap } from "lucide-react";
+import { Clock, CreditCard, UserRound, Zap } from "lucide-react";
 import { Avatar } from "@/components/ui";
 import { useApp } from "@/components/app-context";
 import { tierOf, type Tier } from "@/components/plan-badge";
@@ -22,7 +22,7 @@ const LOOK: Record<Tier, { strip: string; ink: string; dot: string; status: stri
 };
 
 export function ProfileCard({ className = "" }: { className?: string }) {
-  const { profile, credits, referralsFull } = useApp();
+  const { profile, credits } = useApp();
   const tier = tierOf(credits, false);
   const look = LOOK[tier];
   const [time, setTime] = useState("");
@@ -45,14 +45,13 @@ export function ProfileCard({ className = "" }: { className?: string }) {
           <span className="flex items-center gap-2"><i className="inline-block h-2.5 w-2.5 animate-pulse rounded-full" style={{ background: look.dot }} />{look.status}</span>
           <span className="flex items-center gap-1.5 tabular-nums opacity-80"><Clock size={14} aria-hidden />{time}</span>
         </div>
-        <div className="flex items-center gap-4">
+        <Link href="/settings/profile" aria-label="Edit your profile" className="flex items-center gap-4">
           <Avatar name={profile.full_name} size={52} src={profile.settings.brand?.pfp ? `/api/files/${profile.settings.brand.pfp}` : null} ring="rgba(255,255,255,.14)" />
           <div className="min-w-0 text-left"><p className="truncate text-[19px] font-semibold tracking-tight">{profile.full_name}</p><p className="truncate text-[13.5px] text-white/60">{role}</p></div>
-        </div>
+        </Link>
         <div className="mt-4 grid grid-cols-2 gap-2.5">
           <Link href="/settings/credits" className="flex h-11 items-center justify-start gap-2.5 rounded-2xl bg-white/10 px-3.5 text-[14px] font-semibold transition hover:bg-white/15"><CreditCard size={16} aria-hidden />Billing</Link>
-          {referralsFull ? <Link href="/settings/support" className="flex h-11 items-center justify-start gap-2.5 rounded-2xl bg-white/10 px-3.5 text-[14px] font-semibold transition hover:bg-white/15"><LifeBuoy size={16} aria-hidden />Help</Link>
-            : <Link href="/refer" className="flex h-11 items-center justify-start gap-2.5 rounded-2xl bg-white/10 px-3.5 text-[14px] font-semibold transition hover:bg-white/15"><Gift size={16} aria-hidden />Invite &amp; earn</Link>}
+          <Link href="/settings/profile" className="flex h-11 items-center justify-start gap-2.5 rounded-2xl bg-white/10 px-3.5 text-[14px] font-semibold transition hover:bg-white/15"><UserRound size={16} aria-hidden />Profile</Link>
         </div>
         </div>
       </div>
