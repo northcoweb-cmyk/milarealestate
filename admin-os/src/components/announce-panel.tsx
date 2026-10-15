@@ -19,7 +19,7 @@ export function AnnouncePanel({ designs, days, pending, sent, ready, defaultEmai
     return () => { live = false; };
   }, [design, name]);
   async function call(action: "test" | "send") {
-    setBusy(action); setMsg(null);
+    setBusy(action); setMsg({ ok: true, text: action === "send" ? "Starting… sending the first group." : "Sending the test…" });
     try {
       let total = 0; const failedAll: string[] = [];
       for (let round = 0; round < 60; round++) {
@@ -54,11 +54,12 @@ export function AnnouncePanel({ designs, days, pending, sent, ready, defaultEmai
           <input className="field" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Type SEND to enable" aria-label="Type SEND to confirm" autoComplete="off" />
           <button className="btn primary" style={{ marginTop: 10 }} disabled={!smtp || !!busy || !approved || confirm !== "SEND" || left === 0} onClick={() => call("send")}>{busy === "send" ? "Sending… keep this page open" : left === 0 ? "Everyone has it" : `Send to ${left} ${left === 1 ? "person" : "people"}`}</button>
         </>}
+        {msg && <div className={`note ${msg.ok ? "" : "warn"}`} style={{ marginTop: 12 }} role="status" aria-live="polite">{msg.text}{msg.extra && <pre>{msg.extra.join("\n")}</pre>}</div>}
+        {busy === "send" && <p className="mute" style={{ fontSize: 13, marginTop: 8 }}>Working. This sends in small groups, so it takes a minute. Don&apos;t click again, and keep this page open.</p>}
       </div>
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <iframe title="Email preview" srcDoc={html} sandbox="" style={{ width: "100%", height: 760, border: 0, background: "#fff" }} />
       </div>
-      {msg && <div className={`note ${msg.ok ? "" : "warn"}`} style={{ gridColumn: "1 / -1" }} role="status">{msg.text}{msg.extra && <pre>{msg.extra.join("\n")}</pre>}</div>}
       {!smtp && <div className="note warn" style={{ gridColumn: "1 / -1" }}>Email isn&apos;t set up yet. Add SMTP_HOST, SMTP_USER and SMTP_PASS in this project&apos;s Vercel settings, then redeploy.</div>}
     </div>
   );
