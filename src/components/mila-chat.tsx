@@ -285,7 +285,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
         {isOpen && (
           <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" style={pinTo(vvBox)} role="dialog" aria-modal="true" aria-label="Mila">
             <motion.div className="absolute inset-0 touch-none bg-black/45" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)} />
-            <motion.div className="surface relative flex h-[92svh] max-h-full w-full flex-col overflow-hidden sm:h-[86svh] sm:max-w-2xl" style={{ borderRadius: 32, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+            <motion.div className="surface relative flex h-[92svh] max-h-full w-full flex-col overflow-hidden rounded-t-[32px] sm:h-[86svh] sm:max-w-2xl sm:rounded-[32px]"
               initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: "spring", damping: 30, stiffness: 340 }}>
               <div className="flex items-center justify-between px-5 pb-2 pt-4" style={keyboardUp(vvBox) ? { paddingTop: "max(env(safe-area-inset-top), 14px)" } : undefined}>
                 <p className="display text-[28px]">Mila</p>

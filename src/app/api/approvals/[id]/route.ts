@@ -19,12 +19,23 @@ export const GET = api<{ id: string }>(async ({ profile, params }) => {
 });
 
 export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
-  const b = await readJson<{ decision: "approve" | "reject"; edits?: { draftId: string; subject?: string; body?: string }[]; caption?: string; postId?: string }>(req);
-  if (b.decision !== "approve" && b.decision !== "reject") throw bad("Choose approve or reject.");
+  const b = await readJson<{ decision: "approve" | "reject" | "done"; edits?: { draftId: string; subject?: string; body?: string }[]; caption?: string; postId?: string }>(req);
+  if (b.decision !== "approve" && b.decision !== "reject" && b.decision !== "done") throw bad("Choose approve, reject or done.");
   const ctx = await buildCtx(profile);
   // Look the approval up first: edits are only applied to things THIS approval covers, only while it is still undecided, and only on approve.
   const approval = await ctx.store.get("approvals", profile.id, params.id);
   if (!approval) throw notFound("That approval");
+  if (b.decision === "done") {
+    // "I already did this myself": closed without Mila sending or posting anything
+    if (approval.status === "pending" || approval.status === "approved") {
+      const now = new Date().toISOString();
+      const u = await ctx.store.update("approvals", profile.id, approval.id, { status: "executed", decided_at: now, executed_at: now, error: null, blocked_integration: null, result: { manual: true } } as never);
+      const linked = (await ctx.store.list("tasks", profile.id)).filter((t) => t.approval_id === approval.id && t.status === "open");
+      for (const t of linked) await ctx.store.update("tasks", profile.id, t.id, { status: "done", completed_at: now });
+      return { approval: u, message: "Marked as done.", ok: true };
+    }
+    return { approval, message: "That was already handled.", ok: true };
+  }
   if (b.decision === "approve" && approval.status === "pending") {
     const a = approval.payload.args as { draftIds?: string[]; draftId?: string; postId?: string };
     const covered = new Set<string>(a.draftIds ?? (a.draftId ? [a.draftId] : []));

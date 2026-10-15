@@ -1,10 +1,11 @@
 import { api } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { computePriorities } from "@/lib/agent/prioritize";
-import { sweepOverdue } from "@/lib/agent/overdue";
+import { expireStale, sweepOverdue } from "@/lib/agent/overdue";
 
 export const GET = api(async ({ profile }) => {
   const ctx = await buildCtx(profile);
+  await expireStale(ctx); // the post/invite/prep for an event that already happened leaves the list
   const [tasks, approvals, contacts] = await Promise.all([ctx.store.list("tasks", profile.id), ctx.store.list("approvals", profile.id), ctx.store.list("contacts", profile.id)]);
   const { catchUp } = await sweepOverdue(ctx, tasks, contacts); // old unimportant items leave the list; important ones become catch-ups
   const catchIds = new Set(catchUp.map((c) => c.task.id));

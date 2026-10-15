@@ -54,6 +54,9 @@ function TasksInner() {
     try { await jfetch(`/api/tasks/${t.id}`, { method: "PATCH", json: { dismiss } }); await reload(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't update.", "error"); }
     finally { setFading((f) => f.filter((x) => x !== t.id)); }
   }
+  async function markDone(a: Approval) {
+    try { await jfetch(`/api/approvals/${a.id}`, { method: "POST", json: { decision: "done" } }); toast("Marked as done.", "success"); reload(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't update that.", "error"); }
+  }
   async function quickApprove(a: Approval) {
     try { const r = await jfetch<{ message: string; ok: boolean }>(`/api/approvals/${a.id}`, { method: "POST", json: { decision: "approve" } }); toast(r.message, r.ok ? "success" : "info"); reload(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't approve.", "error"); }
   }
@@ -98,7 +101,7 @@ function TasksInner() {
                 {waiting.map((a) => (
                   <div key={a.id} className="glass-strong p-5" style={{ borderRadius: 26 }}>
                     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[17px] font-semibold leading-tight"><span aria-hidden>{approvalEmoji(a.action)} </span>{a.title}</p>{a.summary && <p className="muted mt-0.5 text-[14.5px]">{a.summary}</p>}</div>{a.risk === "high" && <Pill tone="warn">Needs confirmation</Pill>}</div>
-                    <div className="mt-4 flex gap-2.5"><button className="btn btn-sm" onClick={() => setReview(a.id)}>Review</button><button className="btn btn-primary btn-sm" onClick={() => a.risk === "high" ? setReview(a.id) : quickApprove(a)}>{labelFor(a)}</button></div>
+                    <div className="mt-4 flex gap-2.5"><button className="btn btn-sm" onClick={() => setReview(a.id)}>Review</button><button className="btn btn-primary btn-sm" onClick={() => a.risk === "high" ? setReview(a.id) : quickApprove(a)}>{labelFor(a)}</button>{!a.action.startsWith("calendar") && <button className="btn btn-quiet btn-sm" onClick={() => markDone(a)}>I did this</button>}</div>
                   </div>
                 ))}
               </div>
