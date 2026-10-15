@@ -51,6 +51,8 @@ export interface ProfileSettings {
   /** Public-facing identity used on social posts: license credentials, phones, email, team, profile photo. */
   /** Referral program: this person's own code, who referred them, and whether that referral's reward was already paid. */
   referral?: { code?: string; referred_by?: string; signup_net?: string; status?: "pending" | "rewarded" | "review" | "void"; paid_at?: string; plan_key?: string; paid_cents?: number; rewarded_count?: number; rewarded?: boolean };
+  /** The order the person arranged their to-do list in (task ids, first = top). */
+  task_order?: string[];
   brand?: { credentials: string; license: string; cell: string; office: string; email: string; team: string; pfp: string | null };
 }
 
@@ -471,6 +473,7 @@ export type Block =
     }
   | { type: "notice"; tone: "info" | "warn" | "error" | "success"; title: string; body?: string; buttons?: ActionButton[] }
   | { type: "choice"; title: string; body?: string; buttons: ActionButton[] }
+  | { type: "followups"; title?: string; items: { label: string; text: string }[] }
   | { type: "share_photos"; title: string; message: string; photos: { url: string }[]; buttons?: ActionButton[] }
   | { type: "questions"; title: string; contactId?: ID; action?: string; context?: Record<string, string>; submitLabel?: string; fields: { key: string; label: string; placeholder?: string; value?: string }[] }
   | { type: "advice"; title: string; kicker?: string; steps: { heading?: string; body: string }[]; copy?: string; buttons?: ActionButton[] }

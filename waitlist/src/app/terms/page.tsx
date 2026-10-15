@@ -80,7 +80,7 @@ export default function Terms() {
       <p>These Terms and the Privacy Policy are the entire agreement between us about Mila. If a part is found unenforceable, the rest stays in effect. Not enforcing a term is not a waiver of it. You may not assign these Terms without our consent; we may assign them in a merger or sale of the business. We are not responsible for delays or failures caused by events outside our reasonable control.</p>
 
       <h2>Contact</h2>
-      <p>NorthCo Designs &middot; hello@milarealestate.app &middot; or use Help &amp; support inside the Mila app (we reply in 48 to 72 hours).</p>
+      <p>NorthCo Designs &middot; support@milarealestate.app &middot; or use Help &amp; support inside the Mila app (we reply in 48 to 72 hours).</p>
     </Legal>
   );
 }

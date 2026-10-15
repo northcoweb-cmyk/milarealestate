@@ -134,7 +134,7 @@ function EmailsCard({ id }: { id: string }) {
   if (!data) return null;
   const rows = data.live.length ? data.live : data.sent;
   return (
-    <section className="glass mb-5 p-5 sm:p-6" style={{ borderRadius: 26 }}>
+    <section className="glass mt-5 p-5 sm:p-6" style={{ borderRadius: 26 }}>
       <p className="kicker mb-3">Emails{data.source ? ` · from your ${"Gmail"}` : ""}</p>
       {rows.length ? <ul className="space-y-3">{rows.map((m, i) => <li key={i} className="text-[15px]"><p className="font-semibold">{m.fromThem ? "↩︎ They replied: " : "✉️ You sent: "}{m.subject}</p><p className="muted line-clamp-2 text-[14px]">{m.snippet}</p>{m.at && <p className="faint text-[12.5px]">{new Date(m.at).toString() === "Invalid Date" ? m.at : new Date(m.at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>}</li>)}</ul> : <p className="muted text-[14.5px]">No emails with them yet.</p>}
       {data.note && <p className="faint mt-3 text-[13.5px]">{data.note}</p>}

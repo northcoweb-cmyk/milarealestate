@@ -9,9 +9,9 @@ const KEY = "mila_trial_popup";
 
 /** Once a free trial is over, every new visit (each time you sign in or reopen the app) opens with this, pointing straight at the plans. Data stays visible; "Not now" closes it for this visit. */
 export function TrialEndedPopup() {
-  const { credits, tester } = useApp();
+  const { credits } = useApp();
   const path = usePathname();
-  const ended = !tester && credits.status === "trial" && !!credits.trial?.expired;
+  const ended = credits.status === "trial" && !!credits.trial?.expired;
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!ended || path.startsWith("/settings/credits")) return;

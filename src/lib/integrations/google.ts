@@ -162,8 +162,20 @@ export async function googleContacts(userId: string) {
   })).filter((c) => c.name || c.email);
 }
 
-export async function sheetRows(userId: string, urlOrId: string): Promise<string[][]> {
-  const id = /\/d\/([a-zA-Z0-9_-]+)/.exec(urlOrId)?.[1] ?? urlOrId;
-  const d = (await g(userId, `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/A1:Z2000`)) as { values?: string[][] };
+const sheetId = (urlOrId: string) => /\/d\/([a-zA-Z0-9_-]+)/.exec(urlOrId)?.[1] ?? (/^[a-zA-Z0-9_-]{20,}$/.test(urlOrId.trim()) ? urlOrId.trim() : "");
+
+/** The tabs of one spreadsheet (a sign-in sheet workbook often has one tab per open house). */
+export async function sheetTabs(userId: string, urlOrId: string): Promise<{ title: string }[]> {
+  const id = sheetId(urlOrId);
+  if (!id) throw new GoogleError("api", "That doesn't look like a Google Sheets link.");
+  const d = (await g(userId, `https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties.title`)) as { sheets?: { properties: { title: string } }[] };
+  return (d.sheets ?? []).map((x) => ({ title: x.properties.title }));
+}
+
+export async function sheetRows(userId: string, urlOrId: string, tab?: string): Promise<string[][]> {
+  const id = sheetId(urlOrId);
+  if (!id) throw new GoogleError("api", "That doesn't look like a Google Sheets link.");
+  const range = tab ? `${encodeURIComponent(`'${tab.replace(/'/g, "''")}'`)}!A1:Z2000` : "A1:Z2000";
+  const d = (await g(userId, `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${range}`)) as { values?: string[][] };
   return d.values ?? [];
 }

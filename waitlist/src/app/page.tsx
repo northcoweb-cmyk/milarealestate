@@ -147,7 +147,7 @@ export default function Page() {
                   <ul className="mt-6 flex-1 space-y-2.5 text-[15px]">
                     {p.points.map((t) => <li key={t} className="flex gap-2.5"><span aria-hidden className={p.hot ? "text-white" : "text-iris"}>✦</span><span>{t}</span></li>)}
                   </ul>
-                  {p.cta === "join" ? <PlanJoin className={`mt-7 block w-full rounded-full px-6 py-3.5 text-center text-[15.5px] font-semibold transition hover:opacity-90 ${p.hot ? "bg-white text-[#14122b]" : "bg-[#14122b] text-white"}`} /> : <a href="mailto:hello@milarealestate.app?subject=Mila%20Team%20plan" className="mt-7 block rounded-full border border-border px-6 py-3.5 text-center text-[15.5px] font-semibold transition hover:bg-secondary">Contact us</a>}
+                  {p.cta === "join" ? <PlanJoin className={`mt-7 block w-full rounded-full px-6 py-3.5 text-center text-[15.5px] font-semibold transition hover:opacity-90 ${p.hot ? "bg-white text-[#14122b]" : "bg-[#14122b] text-white"}`} /> : <a href="mailto:support@milarealestate.app?subject=Mila%20Team%20plan" className="mt-7 block rounded-full border border-border px-6 py-3.5 text-center text-[15.5px] font-semibold transition hover:bg-secondary">Contact us</a>}
                 </div>
               </Reveal>
             ))}
@@ -190,7 +190,7 @@ export default function Page() {
             </div></div>
           <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[14px]" aria-label="Footer">
             <Link href="/guides" className="hover:text-white">Guides</Link><Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/terms" className="hover:text-white">Terms</Link>
-            <a href="mailto:hello@milarealestate.app" className="hover:text-white">Contact</a>
+            <a href="mailto:support@milarealestate.app" className="hover:text-white">Contact</a>
           </nav>
         </div>
         <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center gap-2 text-[12.5px] text-white/55 sm:flex-row sm:justify-between">

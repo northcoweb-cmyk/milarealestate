@@ -1,5 +1,6 @@
 "use client";
 
+import { FollowUp } from "@/components/ui/follow-up";
 import { wordingFlags } from "@/lib/content/guardrails";
 import { ListingRail } from "./listing-cards";
 import Link from "next/link";
@@ -95,6 +96,9 @@ export function BlockView(p: Props) {
           <Buttons buttons={b.buttons} {...btns} />
         </div>
       );
+    case "followups": {
+      return <FollowUp title={b.title ?? "Next"} items={b.items.map((x, i) => ({ id: String(i), label: x.label }))} onSelect={(it) => { const x = b.items[Number(it.id)]; if (x) p.onAction({ type: "prompt", text: x.text }); }} />;
+    }
     case "choice":
       return (
         <div className="glass-strong p-5" style={{ borderRadius: 26 }}>

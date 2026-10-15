@@ -227,6 +227,7 @@ function CalendarSync({ data, googleReady }: { data: Data | null; googleReady: b
       <div className="flex flex-wrap items-center gap-3 border-t pt-3" style={{ borderColor: "var(--line)" }}>
         <p className="min-w-0 flex-1 text-[15px]"><b>Google Calendar</b><span className="faint block text-[13.5px]">{google ? `Connected${data?.google.account ? ` as ${data.google.account}` : ""}. Mila adds each event the moment she makes it.` : googleReady ? "Connect once and approve on Google's screen. Mila adds events for you from then on." : "Not available yet."}</span></p>
         {!google && googleReady && <a className="btn btn-primary btn-sm" href="/api/integrations/google/start?services=calendar">Connect Google</a>}
+        {!google && googleReady && <p className="faint w-full text-[12.5px]">Google may say Mila is not verified yet. Tap <b>Advanced</b>, then <b>Go to Mila</b>.</p>}
       </div>
       <p className="faint border-t pt-3 text-[13px]" style={{ borderColor: "var(--line)" }}>Another calendar app (Outlook, Fantastical…)? <button className="font-semibold text-accent" onClick={copy}>Copy your calendar link</button>. You can also tap any event and choose “Add to my calendar”.</p>
     </div>

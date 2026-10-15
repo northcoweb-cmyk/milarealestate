@@ -12,12 +12,14 @@ import { useApp } from "@/components/app-context";
 import { AddPeople } from "@/components/add-people";
 import { STAGES, stageOf } from "@/lib/pipeline";
 import { contactEmoji } from "@/lib/emoji";
+import { FollowUpsView, MessagesView } from "@/components/contacts-hub";
 
 export default function ContactsPage() {
   const { data, loading, reload, setData } = useApi<{ contacts: Contact[] }>("/api/contacts");
   const { toast } = useApp();
   const [q, setQ] = useState(""); const [type, setType] = useState("all"); const [stage, setStage] = useState("all"); const [adding, setAdding] = useState(false);
   const [moving, setMoving] = useState<Contact | null>(null);
+  const [view, setView] = useState<"people" | "messages" | "followups">("people");
   const all = data?.contacts ?? [];
   const searched = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -54,6 +56,12 @@ export default function ContactsPage() {
   return (
     <Page wide>
       <PageHeader title="Contacts" sub={data ? `${all.length} people` : "\u00A0"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
+      <div role="tablist" aria-label="Contacts view" className="glass mb-4 flex gap-1 p-1" style={{ borderRadius: 999 }}>
+        {([["people", "People"], ["messages", "Messages"], ["followups", "Follow up"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)} className="min-h-[40px] flex-1 rounded-full px-3 text-[14px] font-semibold transition" style={view === k ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)" } : { color: "var(--ink-soft)" }}>{l}</button>)}
+      </div>
+      {view === "messages" && <MessagesView />}
+      {view === "followups" && <FollowUpsView />}
+      {view === "people" && <>
       <div className="relative mb-4"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" /><input className="field !pl-11" placeholder="Search name, email, area, tag…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search contacts" /></div>
 
       <p className="kicker mb-2">Pipeline</p>
@@ -81,6 +89,7 @@ export default function ContactsPage() {
       ) : (
         <ul className="glass overflow-hidden lg:grid lg:grid-cols-2" style={{ borderColor: "var(--line)", borderRadius: 24 }}>{list.map((c) => <Row key={c.id} c={c} />)}</ul>
       )}
+      </>}
 
       <Sheet open={!!moving} onClose={() => setMoving(null)} title={moving ? `Move ${moving.name.split(" ")[0]}` : ""}>
         <ul className="space-y-1.5">

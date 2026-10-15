@@ -80,9 +80,8 @@ export async function planRefillAmount(userId: string, sub: { credits_per_period
   return Math.min(sub.credits_per_period, await planCreditsSpent(userId, sub.period_start));
 }
 
-/** A finished free trial with no plan: the account is view-only until a plan is bought. Testers are never locked. */
+/** A finished free trial with no plan: the account is view-only until a plan is bought. Everyone is held to this, testers included (extend a tester's trial in Mila OS to keep testing). */
 export async function trialLocked(userId: string): Promise<boolean> {
-  if (await isTesterId(userId)) return false;
   const sub = (await getStore().list("subscriptions", userId))[0];
   return sub?.status === "trial" && new Date(sub.period_end).getTime() < Date.now();
 }
@@ -90,7 +89,9 @@ export async function trialLocked(userId: string): Promise<boolean> {
 export async function ensureCredits(userId: string, needed: number) {
   if (needed <= 0) return;
   await refillAnnual(userId);
-  // test accounts never run dry: top them up when they get low, and the trial clock does not apply to them
+  // a finished trial with no plan locks EVERY account, testers included: nothing paid runs (existing data stays visible)
+  { const s0 = (await getStore().list("subscriptions", userId))[0]; if (s0?.status === "trial" && new Date(s0.period_end).getTime() < Date.now()) throw new TrialEnded(); }
+  // test accounts never run dry on credits: top them up when they get low
   if (await isTesterId(userId)) {
     const bal0 = await getBalance(userId);
     if (bal0 < Math.max(needed, 200)) await grantCredits(userId, TESTER_TOPUP_CREDITS, "grant", "Credit top-up");

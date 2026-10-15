@@ -240,3 +240,13 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 
 /* Native controls follow the black/white palette (no browser-blue checkboxes). */
 input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+
+/* Sortable lists (to-do): one column, a grab handle, the lifted row floats above the rest. */
+.sortable { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; position: relative; }
+.sortable.row { flex-direction: row; }
+.sortable.grid { display: grid; }
+.sortable .item { position: relative; }
+.sortable.moving { user-select: none; -webkit-user-select: none; }
+.sortable .item.lifted { z-index: 30; box-shadow: 0 18px 40px -14px rgba(20, 10, 70, .45); border-radius: 20px; }
+[data-sortable-handle] { touch-action: none; cursor: grab; }
+.sortable .item.active [data-sortable-handle] { cursor: grabbing; }

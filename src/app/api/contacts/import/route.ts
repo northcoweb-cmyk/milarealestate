@@ -1,17 +1,24 @@
 import { api, bad, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { type Candidate, importCandidates, parseDelimited, rowsToCandidates, textToCandidates } from "@/lib/agent/ingest";
-import { getGoogle, googleContacts, sheetRows, GoogleError } from "@/lib/integrations/google";
+import { getGoogle, googleContacts, sheetRows, sheetTabs, GoogleError } from "@/lib/integrations/google";
+import { findDuplicateContact } from "@/lib/agent/tools";
 
 // Import from pasted text, a stored document, Google Contacts or a Google Sheet.
 export const POST = api(async ({ profile, req }) => {
-  const b = await readJson<{ source: "text" | "csv" | "google_contacts" | "google_sheet" | "document" | "manual"; text?: string; url?: string; documentId?: string; force?: Candidate[] }>(req);
+  const b = await readJson<{ source: "text" | "csv" | "google_contacts" | "google_sheet" | "google_sheet_tabs" | "document" | "manual"; text?: string; url?: string; tab?: string; documentId?: string; force?: Candidate[]; preview?: boolean }>(req);
   const ctx = await buildCtx(profile);
   if (typeof b.text === "string" && b.text.length > 1_000_000) throw bad("That's too much text to import at once. Split it up.");
   if (b.force && (!Array.isArray(b.force) || b.force.length > 500)) throw bad("Import up to 500 people at a time.");
   if (b.force?.length) {
     const r = await importCandidates(ctx, b.force, { source: "Import", forceAdd: true });
     return { created: r.created.length, updated: r.updated.length, needsClarification: [], skipped: r.skipped };
+  }
+  if (b.source === "google_sheet_tabs") {
+    try {
+      if (!(await getGoogle(profile.id))) return Response.json({ error: "Google isn't connected yet.", code: "not_connected" }, { status: 409 });
+      return { tabs: await sheetTabs(profile.id, b.url ?? "") };
+    } catch (e) { if (e instanceof GoogleError) return Response.json({ error: e.message, code: e.code }, { status: 409 }); throw e; }
   }
   let cands: Candidate[] = [];
   try {
@@ -23,7 +30,7 @@ export const POST = api(async ({ profile, req }) => {
       cands = (await googleContacts(profile.id)).map((c) => ({ name: c.name ?? null, email: c.email ?? null, phone: c.phone ?? null, notes: null, timeline: null, location: c.location ?? null, type: null, issues: [] }));
     } else if (b.source === "google_sheet") {
       if (!(await getGoogle(profile.id))) return Response.json({ error: "Google isn't connected yet.", code: "not_connected" }, { status: 409 });
-      cands = rowsToCandidates(await sheetRows(profile.id, b.url ?? ""));
+      cands = rowsToCandidates(await sheetRows(profile.id, b.url ?? "", b.tab));
     } else if (b.source === "document") {
       const { candidatesFromDocument } = await import("@/lib/agent/ingest");
       const doc = await ctx.store.get("documents", profile.id, b.documentId ?? "");
@@ -37,6 +44,11 @@ export const POST = api(async ({ profile, req }) => {
     throw e;
   }
   if (!cands.length) throw bad("I couldn't find any people in that.");
+  // preview: nothing is saved. The person sees every row, unticks the ones they don't want, fixes any detail, and only then adds them.
+  if (b.preview) {
+    const rows = await Promise.all(cands.slice(0, 500).map(async (c) => { const dup = await findDuplicateContact(ctx, c); return { ...c, existing: dup ? { id: dup.id, name: dup.name } : null }; }));
+    return { preview: rows, total: cands.length };
+  }
   const res = await importCandidates(ctx, cands, { source: "Import" });
   return { created: res.created.length, updated: res.updated.length, needsClarification: res.needsClarification, skipped: res.skipped };
 });

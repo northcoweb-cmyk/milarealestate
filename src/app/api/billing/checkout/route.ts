@@ -22,7 +22,7 @@ export const POST = api(async ({ profile, req }) => {
     const plan = cfg.plans.find((p) => p.key === b.plan_key);
     if (!plan) throw bad("Unknown plan.");
     if (isLegacyPlan(plan.key) && (await ctx_subKey(profile.id)) !== plan.key) throw bad("That plan is no longer offered. Choose the current Mila plan.");
-    if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email hello@milarealestate.app.");
+    if (plan.key === "team") throw bad("The Team plan is set up with you directly. Email support@milarealestate.app.");
     name = plan.name; cents = Math.round(plan.price_usd * 100);
     f.set("mode", "subscription");
     cfgInterval = plan.interval === "year" ? "year" : "month";

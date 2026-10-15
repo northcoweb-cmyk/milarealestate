@@ -30,6 +30,6 @@ export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
   const c = (r.context ?? {}) as Ctx;
   const thread = [...(c.thread ?? []), { dir: "in" as const, at: new Date().toISOString(), text, by: profile.full_name }];
   await getStore().update("feedback", profile.id, r.id, { context: { ...c, thread }, status: "open" } as never);
-  try { await sendEmailNotification(process.env.SUPPORT_EMAIL || "hello@milarealestate.app", `[Mila ticket ${c.ticket_no}] Follow-up from ${c.name ?? profile.full_name}`, `${c.name ?? profile.full_name} added to ticket ${c.ticket_no} (${c.subject ?? ""}):\n\n${text}\n\nOpen Mila OS → Inbox → Support to reply.`); } catch { /* it is saved on the ticket either way */ }
+  try { await sendEmailNotification(process.env.SUPPORT_EMAIL || "support@milarealestate.app", `[Mila ticket ${c.ticket_no}] Follow-up from ${c.name ?? profile.full_name}`, `${c.name ?? profile.full_name} added to ticket ${c.ticket_no} (${c.subject ?? ""}):\n\n${text}\n\nOpen Mila OS → Inbox → Support to reply.`); } catch { /* it is saved on the ticket either way */ }
   return { ok: true };
 });

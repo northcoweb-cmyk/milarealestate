@@ -42,13 +42,13 @@ export default function Privacy() {
       <p>Mila uses a small number of essential cookies and browser storage to keep you signed in, remember your settings and keep the service secure. We do not use advertising cookies. You can clear them in your browser, but the app will not work while signed out.</p>
 
       <h2>How long we keep it</h2>
-      <p>We keep your account information and the records in your account for as long as your account is open. When you ask us to delete your account, we delete your account data within 30 days; copies in backups are overwritten on a normal cycle after that. We may keep limited billing, tax, fraud-prevention and security records as the law requires.</p>
+      <p>We keep your account information and the records in your account (contacts, properties, calendar, tasks and notes) for as long as your account is open. Message traffic is short-lived: your conversations with Mila, sent and drafted emails and texts, and notifications are kept for about 30 days and then cleared automatically. When you ask us to delete your account, we delete your account data within 30 days; copies in backups are overwritten on a normal cycle after that. We may keep limited billing, tax, fraud-prevention and security records as the law requires.</p>
 
       <h2>Your choices and rights</h2>
       <ul>
         <li>Access, correct or export your information: edit it in the app, or send a Help &amp; support request.</li>
-        <li>Delete your account and data: send a Help &amp; support request from the app, or email hello@milarealestate.app from the address on your account.</li>
-        <li>Leave the waitlist or stop marketing emails: use the link in any email, or write to hello@milarealestate.app.</li>
+        <li>Delete your account and data: send a Help &amp; support request from the app, or email support@milarealestate.app from the address on your account.</li>
+        <li>Leave the waitlist or stop marketing emails: use the link in any email, or write to support@milarealestate.app.</li>
         <li>Residents of California and other states with privacy laws can ask us what we hold, ask us to correct or delete it, and opt out of any sale or sharing for advertising (we do neither). We will not discriminate against you for asking.</li>
       </ul>
 
@@ -65,7 +65,7 @@ export default function Privacy() {
       <p>If we make a meaningful change to this policy, we will update the date above and tell account holders by email or in the app before it takes effect.</p>
 
       <h2>Contact</h2>
-      <p>NorthCo Designs &middot; hello@milarealestate.app &middot; or use Help &amp; support inside the Mila app (we reply in 48 to 72 hours).</p>
+      <p>NorthCo Designs &middot; support@milarealestate.app &middot; or use Help &amp; support inside the Mila app (we reply in 48 to 72 hours).</p>
     </Legal>
   );
 }

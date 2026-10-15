@@ -65,13 +65,28 @@ const ALIASES: Record<string, string[]> = {
   type: ["type", "role", "buyer/seller", "status", "client type"],
 };
 
+/** Which column is which. Exact header names win; real sign-in sheets use wordier headers ("Phone #", "Your name", "Email address"), so a second pass reads them by keyword. */
 function headerMap(header: string[]): Record<string, number> | null {
   const map: Record<string, number> = {};
+  const used = new Set<number>();
   header.forEach((h, i) => {
-    const k = h.toLowerCase().replace(/[_*]/g, " ").trim();
-    for (const [field, names] of Object.entries(ALIASES)) if (names.includes(k) && !(field in map)) map[field] = i;
+    const k = h.toLowerCase().replace(/[_*#:?]/g, " ").replace(/\s+/g, " ").trim();
+    for (const [field, names] of Object.entries(ALIASES)) if (names.includes(k) && !(field in map)) { map[field] = i; used.add(i); break; }
+  });
+  header.forEach((h, i) => {
+    if (used.has(i)) return;
+    const k = h.toLowerCase().replace(/[_*#:?]/g, " ").replace(/\s+/g, " ").trim();
+    if (!k) return;
+    const guess = /e-?mail/.test(k) ? "email" : /\b(phone|mobile|cell|tel|telephone)\b/.test(k) ? "phone" : /\b(first)\b/.test(k) ? "first" : /\b(last|surname)\b/.test(k) ? "last" : /\bname\b/.test(k) ? "name" : /\b(zip|postal|city|neighborhood|town)\b/.test(k) ? "location" : /\b(timeline|timeframe|moving)\b/.test(k) ? "timeline" : null;
+    if (guess && !(guess in map)) { map[guess] = i; used.add(i); }
   });
   return "name" in map || "first" in map || "email" in map ? map : null;
+}
+
+/** The header may not be the first row: sign-in sheets often start with a title ("Open House 12 Oak St"). Look in the first few rows. */
+function findHeader(rows: string[][]): { at: number; map: Record<string, number> } | null {
+  for (let i = 0; i < Math.min(6, rows.length); i++) { const m = headerMap(rows[i]); if (m && (Object.keys(m).length >= 2 || i === 0)) return { at: i, map: m }; }
+  return null;
 }
 
 const typeFrom = (s: string): ContactType | null => {
@@ -87,8 +102,11 @@ const typeFrom = (s: string): ContactType | null => {
 
 export function rowsToCandidates(rows: string[][]): Candidate[] {
   if (!rows.length) return [];
-  const map = headerMap(rows[0]);
-  const body = map ? rows.slice(1) : rows;
+  const found = findHeader(rows);
+  const map = found?.map ?? null;
+  const header = found ? rows[found.at] : [];
+  const body = found ? rows.slice(found.at + 1) : rows;
+  const mapped = new Set(map ? Object.values(map) : []);
   const out: Candidate[] = [];
   for (const r of body) {
     const joined = r.join(" ");
@@ -97,7 +115,10 @@ export function rowsToCandidates(rows: string[][]): Candidate[] {
       const g = (k: string) => (k in map ? (r[map[k]] ?? "").trim() : "");
       const name = g("name") || [g("first"), g("last")].filter(Boolean).join(" ");
       const email = g("email") ? parseEmail(g("email")) ?? g("email") : parseEmail(joined);
-      c = { name: name || null, email: email || null, phone: g("phone") ? parsePhone(g("phone")) ?? g("phone") : null, notes: g("notes") || null, timeline: g("timeline") || parseTimeline(g("notes")), location: g("location") || null, type: typeFrom(g("type")), issues: [], raw: joined };
+      // every other filled-in column (price range, pre-approved, agent, how they heard...) is kept as a note, labelled by its header
+      const extra = r.map((v, i) => (!mapped.has(i) && v.trim() && (header[i] ?? "").trim() ? `${header[i].trim().replace(/[:?]+$/, "")}: ${v.trim()}` : "")).filter(Boolean);
+      const notes = [g("notes"), ...extra].filter(Boolean).join("; ") || null;
+      c = { name: name || null, email: email || null, phone: g("phone") ? parsePhone(g("phone")) ?? g("phone") : null, notes, timeline: g("timeline") || parseTimeline(g("notes")), location: g("location") || null, type: g("type") ? typeFrom(g("type")) : null, issues: [], raw: joined };
     } else c = textLineToCandidate(r.join(", "));
     out.push(validate(c));
   }

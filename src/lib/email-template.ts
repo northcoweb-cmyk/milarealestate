@@ -4,7 +4,7 @@ const para = (t: string) => t.split(/\n{2,}/).map((p) => `<p style="margin:0 0 1
 
 export function brandedEmail(o: { preheader?: string; heading: string; body: string; chip?: string; quote?: { label: string; text: string }; button?: { label: string; href: string }; note?: string }): string {
   const site = process.env.NEXT_PUBLIC_SITE_URL || "https://milarealestate.app";
-  const support = process.env.SUPPORT_EMAIL || "hello@milarealestate.app";
+  const support = process.env.SUPPORT_EMAIL || "support@milarealestate.app";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(o.heading)}</title></head>
 <body style="margin:0;padding:0;background:#f3f0fb;-webkit-text-size-adjust:100%;">
 <span style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${esc(o.preheader ?? o.heading)}</span>

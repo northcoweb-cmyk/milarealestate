@@ -5,9 +5,9 @@ import { useApp } from "@/components/app-context";
 
 /** Only shows when credits are nearly gone (15% or less, or under 25). Dismissible for the session. Never shown on a healthy balance. */
 export function LowCreditsBanner() {
-  const { credits, tester } = useApp();
+  const { credits } = useApp();
   const [hidden, setHidden] = useState(false);
-  const ended = !tester && credits.status === "trial" && !!credits.trial?.expired;
+  const ended = credits.status === "trial" && !!credits.trial?.expired;
   const low = credits.allowance > 0 && (credits.balance <= credits.allowance * 0.15 || credits.balance < 25);
   if (ended) return (
     <div role="status" className="mx-auto mb-3 flex max-w-3xl items-center gap-3 rounded-3xl px-4 py-3 text-[14.5px]" style={{ background: "color-mix(in srgb, #8fb4ff 24%, var(--surface-strong, #fff))", color: "var(--ink, #14122b)" }}>

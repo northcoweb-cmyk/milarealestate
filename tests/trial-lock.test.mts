@@ -10,3 +10,17 @@ test("changes are refused while locked", () => {
 test("buying a plan, signing out, support and deleting the account still work", () => {
   for (const p of ["/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook", "/api/auth/logout", "/api/support", "/api/support/abc", "/api/errors", "/api/privacy/delete"]) assert.ok(writeAllowedWhileLocked("POST", p), p);
 });
+
+import { store } from "./qa/harness.mts";
+import { createProfile } from "../src/lib/auth.ts";
+import { TrialEnded, ensureCredits, trialLocked } from "../src/lib/credits.ts";
+
+for (const email of ["customer-lock@gmail.com", "northcoweb@yahoo.com"]) {
+  test(`an expired trial locks ${email === "northcoweb@yahoo.com" ? "a tester account" : "a customer"} for chat and changes`, async () => {
+    const p = await createProfile({ email: `${Date.now()}-${email}`.replace(/^\d+-northcoweb/, "northcoweb").replace(/^\d+-/, ""), full_name: "Lock Test" }).catch(async () => (await store.findProfileByEmail(email))!);
+    const sub = (await store.list("subscriptions", p.id))[0];
+    await store.update("subscriptions", p.id, sub.id, { plan_key: "trial", status: "trial", period_start: new Date(Date.now() - 9 * 86_400_000).toISOString(), period_end: new Date(Date.now() - 2 * 86_400_000).toISOString() } as never);
+    assert.equal(await trialLocked(p.id), true);
+    await assert.rejects(() => ensureCredits(p.id, 1), TrialEnded);
+  });
+}

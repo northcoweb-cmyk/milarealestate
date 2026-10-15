@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { X } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
+import Sortable from "@/components/ui/sortable";
 import { taskEmoji, approvalEmoji } from "@/lib/emoji";
 import clsx from "clsx";
 import type { Approval, Task, TaskKind, TaskPriority } from "@/lib/types";
@@ -14,7 +15,8 @@ import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { ReviewSheet } from "@/components/review-sheet";
 
-interface Data { open: Task[]; done: Task[]; approvals: Approval[]; contacts: Record<string, { name: string; color: string }> }
+interface CatchItem { id: string; title: string; kind: TaskKind; contact_id: string | null; ago: string; why: string; ask: string }
+interface Data { open: Task[]; done: Task[]; catchUp?: CatchItem[]; approvals: Approval[]; contacts: Record<string, { name: string; color: string }> }
 const PRI: { key: TaskPriority; label: string; dot: string }[] = [{ key: "urgent", label: "Urgent", dot: "var(--danger)" }, { key: "important", label: "Important", dot: "var(--warn)" }, { key: "upcoming", label: "Upcoming", dot: "var(--accent)" }, { key: "low", label: "Low priority", dot: "var(--ink-faint)" }];
 const KINDS: { v: TaskKind | "all"; l: string }[] = [{ v: "all", l: "All" }, { v: "approval", l: "Approvals" }, { v: "follow_up", l: "Follow-ups" }, { v: "reminder", l: "Reminders" }, { v: "task", l: "Tasks" }, { v: "event", l: "Events" }, { v: "document", l: "Documents" }, { v: "communication", l: "Communication" }];
 
@@ -39,6 +41,12 @@ function TasksInner() {
     return { of, overdue: mine.filter((t) => of(t) === "overdue").length, today: mine.filter((t) => of(t) === "today").length, week: mine.filter((t) => of(t) === "week").length };
   }, [data, profile.timezone, nowMs]);
   const open = useMemo(() => (data?.open ?? []).filter((t) => (kind === "all" || t.kind === kind) && (bucket === "all" || buckets.of(t) === bucket)), [data, kind, bucket, buckets]);
+  const filtered = useMemo(() => open.filter((t) => t.kind !== "approval"), [open]);
+  const [mine, setMine] = useState<Task[]>([]);
+  const sig = filtered.map((t) => t.id).join(",");
+  useEffect(() => { setMine(filtered); }, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const canSort = kind === "all" && bucket === "all"; // arranging only makes sense on the whole list
+  async function saveOrder(next: Task[]) { if (!canSort) return; try { await jfetch("/api/tasks/order", { method: "PATCH", json: { ids: next.map((t) => t.id) } }); } catch { toast("Couldn't save that order.", "error"); } }
   const apTask = (a: Approval) => data?.open.find((t) => t.approval_id === a.id);
 
   async function complete(t: Task, dismiss = false) {
@@ -69,6 +77,18 @@ function TasksInner() {
         </div>
       )}
       {data && waiting.length + buckets.overdue + buckets.today === 0 && <p className="mb-5 rounded-2xl px-4 py-3 text-[15px] font-semibold" style={{ background: "color-mix(in srgb, var(--ok) 14%, transparent)", color: "var(--ok)" }}>✅ You're on top of everything. Nothing overdue or due today.</p>}
+      {(data?.catchUp?.length ?? 0) > 0 && (
+        <section className="mb-7" aria-label="Catch up">
+          <p className="kicker mb-3">Catch up · these slipped</p>
+          <ul className="space-y-3">{data!.catchUp!.map((c) => (
+            <li key={c.id} className="glass p-4" style={{ borderRadius: 24, borderLeft: "4px solid var(--warn)" }}>
+              <p className="text-[16px] font-semibold leading-snug"><span aria-hidden>{taskEmoji(c.kind)} </span>{c.title}</p>
+              <p className="muted mt-0.5 text-[14px]">Due {c.ago}. {c.why.replace(/^This was due [^.]+\.\s*/, "")}</p>
+              <div className="mt-3 flex flex-wrap gap-2"><Link className="btn btn-primary btn-sm" href={`/?ask=${encodeURIComponent(c.ask)}`}>Do it now with Mila</Link>
+                <button className="btn btn-sm" onClick={async () => { try { await jfetch(`/api/tasks/${c.id}`, { method: "PATCH", json: { dismiss: true } }); await reload(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't update.", "error"); } }}>Not needed</button></div>
+            </li>))}</ul>
+        </section>
+      )}
       <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">{KINDS.map((k) => <button key={k.v} className="chip shrink-0" style={kind === k.v ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setKind(k.v)}>{k.l}</button>)}</div>
       {loading && !data ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24" />)}</div> : (
         <>
@@ -89,27 +109,26 @@ function TasksInner() {
               <div className="space-y-3">{blocked.map((a) => <div key={a.id} className="glass p-4" style={{ borderRadius: 24 }}><p className="font-semibold">{a.title}</p><p className="muted text-[14.5px]">{a.error}</p><div className="mt-3 flex gap-2.5">{a.blocked_integration === "google" && <Link href="/settings/connections" className="btn btn-primary btn-sm">Set up</Link>}<button className="btn btn-sm" onClick={() => setReview(a.id)}>View</button></div></div>)}</div>
             </section>
           )}
-          {PRI.map((p) => {
-            const items = open.filter((t) => t.priority === p.key && t.kind !== "approval");
-            if (!items.length) return null;
-            return (
-              <section key={p.key} className="mb-7"><p className="kicker mb-3 flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: p.dot }} />{p.label}</p>
-                <ul className="glass divide-y overflow-hidden" style={{ borderColor: "var(--line)", borderRadius: 26 }}>
-                  <AnimatePresence initial={false}>{items.map((t) => (
-                    <motion.li key={t.id} layout="position" exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }} className="flex items-start gap-3.5 overflow-hidden px-4 py-3.5">
+          {mine.length > 0 && (
+            <section className="mb-7">
+              <p className="kicker mb-3 flex items-center gap-2">Your list{canSort ? <span className="faint font-normal normal-case tracking-normal">· drag ⠿ to put things in the order you want</span> : null}</p>
+              <div className="glass overflow-hidden" style={{ borderColor: "var(--line)", borderRadius: 26 }}>
+                <Sortable items={mine} onItemsChange={setMine} itemKey={(t) => t.id} itemLabel={(t) => t.title} label="Your to-do list" onReorder={saveOrder}>
+                  {(t, handle, { dragging }) => { const pri = PRI.find((x) => x.key === t.priority)!; return (
+                    <div className="flex items-start gap-3 border-b px-3 py-3.5 sm:px-4" style={{ borderColor: "var(--line)", background: dragging ? "color-mix(in srgb, var(--surface-strong, #fff) 92%, transparent)" : undefined }}>
+                      {canSort ? <button type="button" className="mt-0.5 flex h-8 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-white/30" {...handle}><GripVertical size={18} aria-hidden /></button> : <span className="w-1" />}
                       <CheckDot done={fading.includes(t.id)} onClick={() => complete(t)} label={`Mark ${t.title} done`} />
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold leading-snug"><span aria-hidden>{taskEmoji(t.kind)} </span>{t.contact_id && data?.contacts[t.contact_id] ? <Link href={`/contacts/${t.contact_id}`} className="hover:underline">{data.contacts[t.contact_id].name}</Link> : null}{t.contact_id && data?.contacts[t.contact_id] ? " · " : ""}{t.title}</p>
+                        <p className="font-semibold leading-snug"><span aria-hidden>{taskEmoji(t.kind)} </span>{t.contact_id && data?.contacts[t.contact_id] ? <><Link href={`/contacts/${t.contact_id}`} className="hover:underline">{data.contacts[t.contact_id].name}</Link>{" · "}</> : null}{t.title}</p>
                         {t.subtitle && <p className="muted text-[14px]">{t.subtitle}</p>}
-                        <p className="faint mt-0.5 text-[12.5px]">{[t.kind.replace("_", " "), t.due_at && `due ${new Date(t.due_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`, t.priority_reason].filter(Boolean).join(" · ")}</p>
+                        <p className="faint mt-0.5 flex flex-wrap items-center gap-x-2 text-[12.5px]"><span className="inline-flex items-center gap-1 font-semibold"><i className="inline-block h-2 w-2 rounded-full" style={{ background: pri.dot }} />{pri.label}</span><span>{[t.kind.replace("_", " "), t.due_at && `due ${new Date(t.due_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`, t.priority_reason].filter(Boolean).join(" · ")}</span></p>
                       </div>
                       <button className="btn btn-quiet btn-sm !min-w-[44px] !px-2 text-[13px]" aria-label={`Dismiss ${t.title}`} onClick={() => complete(t, true)}><X size={18} className="sm:hidden" aria-hidden /><span className="hidden sm:inline">Dismiss</span></button>
-                    </motion.li>
-                  ))}</AnimatePresence>
-                </ul>
-              </section>
-            );
-          })}
+                    </div>); }}
+                </Sortable>
+              </div>
+            </section>
+          )}
           {!waiting.length && !blocked.length && !open.filter((t) => t.kind !== "approval").length && <Empty title="You're all caught up" body="When Mila prepares something for you, or notices someone to follow up with, it shows up here." />}
           {(data?.done.length ?? 0) > 0 && <Link href="/done" className="btn btn-quiet btn-sm mt-6">See completed ({data!.done.length}) →</Link>}
         </>

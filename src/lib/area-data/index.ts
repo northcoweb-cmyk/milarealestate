@@ -7,7 +7,7 @@
  *   - Census ACS (free key, CENSUS_API_KEY): tract median rent, household income, renter share, vacancy
  *   - Walk Score (key, WALKSCORE_API_KEY): walk, transit and bike scores
  */
-const UA = `Mila/1.0 (${process.env.MILA_CONTACT_EMAIL || "hello@milarealestate.app"})`;
+const UA = `Mila/1.0 (${process.env.MILA_CONTACT_EMAIL || "support@milarealestate.app"})`;
 const memo = new Map<string, { at: number; v: unknown }>();
 async function cached<T>(key: string, ttlMs: number, run: () => Promise<T>): Promise<T> {
   const hit = memo.get(key);
