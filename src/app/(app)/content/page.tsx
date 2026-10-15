@@ -23,7 +23,7 @@ interface Data {
   categories: { key: string; label: string; blurb: string; needsProperty: boolean; group: string }[];
   platforms: { key: SocialPlatform; label: string; limit: number }[]; tz: string; ai: boolean;
 }
-const TABS: { key: Tab; label: string }[] = [{ key: "drafts", label: "Drafts" }, { key: "ready", label: "Ready" }, { key: "scheduled", label: "Planned" }, { key: "posted", label: "Posted" }];
+const TABS: { key: Tab; label: string }[] = [{ key: "drafts", label: "Drafts" }, { key: "ready", label: "Ready to post" }, { key: "scheduled", label: "Planned" }, { key: "posted", label: "Posted" }];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 36) || "post";
 
 function ContentInner() {
@@ -44,6 +44,16 @@ function ContentInner() {
   const bi = profile.settings.brand;
   const brand: Brand = useMemo(() => ({ name: profile.full_name, brokerage: profile.brokerage, pfp: pfpId ? `/api/files/${pfpId}` : null, phone: bi?.cell || bi?.office || null, email: bi?.email || null, credentials: [bi?.credentials, bi?.license ? `Lic# ${bi.license}` : ""].filter(Boolean).join(" ") || null, team: bi?.team || null }), [profile.full_name, profile.brokerage, pfpId, bi]);
   useEffect(() => { setOpen((o) => (o ? posts.find((p) => p.id === o.id) ?? null : o)); }, [posts]);
+  // a link like /content?post=<id> (from Review on Home or To-do) opens that post in the editor
+  const postParam = params.get("post");
+  useEffect(() => {
+    if (!postParam || !data) return;
+    jfetch<{ post: SocialPost }>(`/api/content/${postParam}`).then((r) => { setOpen(r.post); window.history.replaceState(null, "", "/content"); }).catch(() => toast("That post is no longer here.", "info"));
+  }, [postParam, data]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function mark(p: SocialPost, action: "posted" | "ready") {
+    try { await jfetch(`/api/content/${p.id}`, { method: "PATCH", json: { action } }); toast(action === "posted" ? "Marked as posted." : "Moved back to ready to post.", "success"); reload(); }
+    catch (e) { toast(e instanceof Error ? e.message : "That didn't work.", "error"); }
+  }
 
   async function approveAll() {
     setBusy(true);
@@ -100,11 +110,17 @@ function ContentInner() {
         : <ul className="grid gap-3 lg:grid-cols-2">{posts.map((p) => (
           <li key={p.id} className="glass flex w-full gap-3.5 p-3 text-left" style={{ borderRadius: 24 }}>
             <button type="button" className="shrink-0 self-start" aria-label="View images larger" onClick={() => setView({ post: p, start: 0 })}><SlideImage slide={p.slides[0] ?? { role: "hero", headline: p.caption.split("\n")[0] }} index={0} total={p.slides.length || 1} post={p} brand={brand} width={300} className="w-[96px]" rounded={14} /></button>
-            <button type="button" onClick={() => setOpen(p)} className="min-w-0 flex-1 py-0.5 text-left">
+            <div className="min-w-0 flex-1 py-0.5">
+            <button type="button" onClick={() => setOpen(p)} className="block w-full text-left">
               <div className="mb-1.5 flex flex-wrap items-center gap-2"><PlatformBadge platform={p.platform} size={22} /><Pill tone={STATUS_META[p.status]?.tone}>{STATUS_META[p.status]?.label}</Pill>{p.slides.length > 1 && <span className="faint text-[12px]">{p.slides.length} images</span>}{p.stale && <Pill tone="warn">Outdated</Pill>}</div>
               <p className="line-clamp-3 text-[14.5px] leading-snug">{p.caption}</p>
               {p.scheduled_for && <p className="faint mt-1 text-[12.5px]">{new Intl.DateTimeFormat("en-US", { timeZone: data?.tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(p.scheduled_for))}</p>}
             </button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {p.status === "published" ? <button type="button" className="btn btn-quiet btn-sm" onClick={() => mark(p, "ready")}>Not posted yet</button>
+                  : p.status !== "archived" && <button type="button" className="btn btn-sm" onClick={() => mark(p, "posted")}>✓ I posted this</button>}
+              </div>
+            </div>
           </li>))}</ul>}
 
       {view && <SlideViewer slides={view.post.slides} start={view.start} post={view.post} brand={brand} onClose={() => setView(null)} />}
@@ -131,8 +147,6 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const [target, setTarget] = useState<number | "all">(slides.length > 1 ? "all" : 0); // a chosen photo goes on every image unless she picks one image
   const [uploads, setUploads] = useState<string[]>(data.uploads ?? []);
   const [uploading, setUploading] = useState(false);
-  const [link, setLink] = useState("");
-  const [pulling, setPulling] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const propInfo = data.properties.find((x) => x.id === post.property_id);
   // what is already saved on the server (starts as the post as opened); edits save themselves a moment after you stop, and on close
@@ -178,13 +192,6 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
       }));
       toast(made.length === 1 ? "Photo added." : `${made.length} photos added.`, "success");
     } catch (e) { toast(e instanceof Error ? e.message : "Couldn't upload that photo.", "error"); } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
-  }
-  async function pullFromLink(e: React.FormEvent) {
-    e.preventDefault();
-    if (!post.property_id || !link.trim()) return;
-    setPulling(true);
-    try { const r = await jfetch<{ message: string; added: number }>(`/api/properties/${post.property_id}/pull-photos`, { method: "POST", json: { url: link.trim() } }); toast(r.message, r.added ? "success" : "info"); if (r.added) { setLink(""); onChanged(); } }
-    catch (er) { toast(er instanceof Error ? er.message : "Couldn't read that link.", "error"); } finally { setPulling(false); }
   }
   const setText = (i: number, k: "headline" | "sub", v: string) => setSlides((x) => x.map((s, n) => (n === i ? { ...s, [k]: v } : s)));
 
@@ -256,12 +263,6 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
           </div>
           <input ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => addFiles(e.target.files)} />
           <p className="faint mt-2 text-[12.5px]">{library.length ? "Tap a photo to put it on the selected image." : "Add your own photos — a listing shot, a headshot, a neighborhood picture."}</p>
-          {post.property_id && (
-            <form className="mt-3 flex gap-2" onSubmit={pullFromLink}>
-              <input className="field flex-1" inputMode="url" placeholder="…or paste the listing link to pull its photos" value={link} onChange={(e) => setLink(e.target.value)} aria-label="Listing link" />
-              <button className="btn btn-sm" disabled={pulling || !link.trim()}>{pulling ? "Pulling…" : "Pull"}</button>
-            </form>
-          )}
         </div>
 
         {propInfo && !propInfo.verified && <p className="rounded-2xl p-3 text-[13.5px]" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}>The numbers on this post come from public records or an online lookup. Check the price, beds, baths and size before you post — or confirm them on the <a className="font-semibold underline" href={`/properties/${propInfo.id}`}>property page</a> and I'll stop flagging this.</p>}
@@ -296,11 +297,9 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
           {(st === "draft" || st === "pending_approval") && <button className="btn btn-sm" disabled={!!busy || over} onClick={() => act("ready", {}, "Ready to post.")}>Approve</button>}
           {st !== "published" && st !== "archived" && <button className="btn btn-sm" disabled={!!busy} onClick={() => act("posted", {}, "Marked as posted.")}>Mark posted</button>}
           {(st === "scheduled" || st === "approved_unpublished") && <button className="btn btn-quiet btn-sm" disabled={!!busy} onClick={() => act("draft")}>Back to draft</button>}
-          {st !== "published" && <button className="btn btn-quiet btn-sm" disabled={!!busy} onClick={() => act("regenerate", {}, "Fresh version ready.")}>{busy === "regenerate" ? "Writing…" : "Rewrite"}</button>}
-          {st === "archived" ? <button className="btn btn-quiet btn-sm" onClick={() => act("unarchive")}>Restore</button> : <button className="btn btn-quiet btn-sm" disabled={!!busy} onClick={() => act("archive")}>Archive</button>}
+          {st === "archived" && <button className="btn btn-quiet btn-sm" onClick={() => act("unarchive")}>Restore</button>}
           <button className="btn btn-quiet btn-sm" onClick={() => setDel(true)}><Trash2 size={15} /> Delete</button>
         </div>
-        <div><p className="kicker mb-2">Copy to another platform</p><div className="flex flex-wrap gap-2">{data.platforms.filter((p) => p.key !== post.platform).map((p) => <button key={p.key} className="chip" disabled={!!busy} onClick={() => act("duplicate", { platforms: [p.key] }, `Copied to ${p.label} as a draft.`)}>{p.label}</button>)}</div></div>
       </div>
       <Confirm open={del} danger title="Delete this post?" body="This can't be undone." confirmLabel="Delete" onClose={() => setDel(false)} onConfirm={async () => { try { await jfetch(`/api/content/${post.id}?confirm=1`, { method: "DELETE" }); toast("Deleted.", "success"); onChanged(); onClose(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't delete.", "error"); } }} />
     </Sheet>

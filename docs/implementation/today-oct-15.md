@@ -30,15 +30,15 @@ Not doing (decided): Supabase/Google/Vercel upgrades (the 23rd, only if needed),
 - Google scopes added (you). Calendar no longer drops Sheets (reconnect once).
 
 ## Step 7 list: the dinner-break batch (Thu night). Do all, test each, nothing skipped without saying so.
-- [ ] 7.01 Open house for this Saturday did not create the post or have it ready. Every post with a property photo uses the full-photo style.
-- [ ] 7.02 Content tab: sections for "Needs posting" and "Posted", with an obvious mark-off both ways.
-- [ ] 7.03 Remove "pull photos from a link" in Content.
-- [ ] 7.04 Planning content for a day adds a reminder and a to-do for that day.
-- [ ] 7.05 Remove "Copy to another platform" (Instagram story / TikTok).
-- [ ] 7.06 Remove the Rewrite and Archive buttons.
-- [ ] 7.07 Reviewing an Instagram post goes straight to the editor in Content.
-- [ ] 7.08 To-do: tasks marked off by time, plus an obvious end-of-day "what did you do today" check-off.
-- [ ] 7.09 Home: "Start with these 5 - 32 things are ready for you:" shows nothing under it; fix, and add drag-to-reorder for the high-priority items.
+- [x] 7.01 Open house for this Saturday did not create the post or have it ready. Every post with a property photo uses the full-photo style.
+- [x] 7.02 Content tab: sections for "Needs posting" and "Posted", with an obvious mark-off both ways.
+- [x] 7.03 Remove "pull photos from a link" in Content.
+- [x] 7.04 Planning content for a day adds a reminder and a to-do for that day.
+- [x] 7.05 Remove "Copy to another platform" (Instagram story / TikTok).
+- [x] 7.06 Remove the Rewrite and Archive buttons.
+- [x] 7.07 Reviewing an Instagram post goes straight to the editor in Content.
+- [x] 7.08 To-do: tasks marked off by time, plus an obvious end-of-day "what did you do today" check-off.
+- [x] 7.09 Home: "Start with these 5 - 32 things are ready for you:" shows nothing under it; fix, and add drag-to-reorder for the high-priority items.
 - [ ] 7.10 Contacts: an easy way to add missing email/phone etc.
 - [ ] 7.11 Properties: finished showings/open houses go to Past; counts on every filter are correct; only upcoming ones in Upcoming.
 - [ ] 7.12 Onboarding: the second area field prefills like the first.

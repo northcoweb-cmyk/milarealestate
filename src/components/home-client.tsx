@@ -13,6 +13,8 @@ import { CheckDot, Skeleton, jfetch } from "./ui";
 import { useMila } from "./mila-chat";
 import type { Feed } from "@/lib/feed";
 import { EventPhotoCard } from "./event-card";
+import Sortable from "./ui/sortable";
+import { GripVertical } from "lucide-react";
 
 export interface HomeData { greeting: string; firstName: string; dateLine: string; feed: Feed | null; isDemo: boolean }
 
@@ -153,10 +155,12 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
       {f.needsYou.length > 0 && (
         <section aria-labelledby="needs-you">
           <h2 id="needs-you" className="kicker mb-3">Ready for approval</h2>
-          <ul className="space-y-3">
-            {f.needsYou.map((n) => (
-              <li key={n.id} className="glass p-4" style={{ borderRadius: 24 }}>
-                <div className="flex items-start gap-3.5">
+          <Sortable items={f.needsYou} onItemsChange={(next) => setF((cur) => (cur ? { ...cur, needsYou: next } : cur))} itemKey={(n) => n.id} itemLabel={(n) => n.title} label="Ready for approval"
+            onReorder={(next) => { jfetch("/api/feed/order", { method: "PATCH", json: { ids: next.map((n) => n.id) } }).catch(() => undefined); }}>
+            {(n, handle, { dragging }) => (
+              <div className="mb-3 glass p-4" style={{ borderRadius: 24, opacity: dragging ? 0.92 : 1 }}>
+                <div className="flex items-start gap-3">
+                  <button type="button" className="mt-1 flex h-9 w-6 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-white/30" aria-hidden={false} {...handle}><GripVertical size={18} aria-hidden /></button>
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[22px]" style={{ background: "color-mix(in srgb, var(--ink) 8%, transparent)" }} aria-hidden>{n.emoji}</span>
                   <div className="min-w-0 flex-1">
                     {n.label && <p className="faint mb-0.5 text-[11.5px] font-bold uppercase tracking-[.12em]">{n.label}</p>}
@@ -165,9 +169,9 @@ function TodayPanel({ data, refreshKey, helpSeen, onHelpSeen }: { data: HomeData
                     <div className="mt-3 flex items-center gap-2"><Act a={n.primary} primary itemId={n.id} />{n.secondary && <Act a={n.secondary} itemId={n.id + "-s"} />}</div>
                   </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            )}
+          </Sortable>
           {f.needsTotal > f.needsYou.length && <Link href="/tasks" className="mt-3 inline-block px-1 text-[14.5px] font-semibold text-accent">See all {f.needsTotal}</Link>}
         </section>
       )}

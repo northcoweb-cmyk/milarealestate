@@ -41,7 +41,10 @@ function TasksInner() {
     return { of, overdue: mine.filter((t) => of(t) === "overdue").length, today: mine.filter((t) => of(t) === "today").length, week: mine.filter((t) => of(t) === "week").length };
   }, [data, profile.timezone, nowMs]);
   const open = useMemo(() => (data?.open ?? []).filter((t) => (kind === "all" || t.kind === kind) && (bucket === "all" || buckets.of(t) === bucket)), [data, kind, bucket, buckets]);
-  const filtered = useMemo(() => open.filter((t) => t.kind !== "approval"), [open]);
+  const showToday = kind === "all" && bucket === "all";
+  const todayList = useMemo(() => (data?.open ?? []).filter((t) => t.kind !== "approval" && buckets.of(t) === "today").sort((a, b) => (a.due_at ?? "9").localeCompare(b.due_at ?? "9")), [data, buckets]);
+  const filtered = useMemo(() => open.filter((t) => t.kind !== "approval" && !(showToday && buckets.of(t) === "today")), [open, showToday, buckets]);
+  const hourNow = useMemo(() => Number(new Intl.DateTimeFormat("en-US", { timeZone: profile.timezone, hour: "numeric", hour12: false }).format(new Date(nowMs))) % 24, [profile.timezone, nowMs]);
   const [mine, setMine] = useState<Task[]>([]);
   const sig = filtered.map((t) => t.id).join(",");
   useEffect(() => { setMine(filtered); }, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -90,6 +93,24 @@ function TasksInner() {
               <div className="mt-3 flex flex-wrap gap-2"><Link className="btn btn-primary btn-sm" href={`/?ask=${encodeURIComponent(c.ask)}`}>Do it now with Mila</Link>
                 <button className="btn btn-sm" onClick={async () => { try { await jfetch(`/api/tasks/${c.id}`, { method: "PATCH", json: { dismiss: true } }); await reload(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't update.", "error"); } }}>Not needed</button></div>
             </li>))}</ul>
+        </section>
+      )}
+      {showToday && todayList.length > 0 && (
+        <section className="mb-7" aria-label="Today">
+          <p className="kicker mb-2">Today · in time order</p>
+          <p className="muted mb-3 text-[14px]">{hourNow >= 16 ? "Before you wrap up: check off everything you got done today." : "Check each one off as you finish it. Anything left over moves to Catch up tomorrow."}</p>
+          <ul className="glass overflow-hidden" style={{ borderRadius: 26 }}>
+            {todayList.map((t) => (
+              <li key={t.id} className="flex items-start gap-3 border-b px-3 py-3.5 sm:px-4" style={{ borderColor: "var(--line)" }}>
+                <CheckDot done={fading.includes(t.id)} onClick={() => complete(t)} label={`Mark ${t.title} done`} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold leading-snug"><span aria-hidden>{taskEmoji(t.kind)} </span>{t.title}</p>
+                  {t.subtitle && <p className="muted text-[14px]">{t.subtitle}</p>}
+                </div>
+                {t.due_at && <span className="faint shrink-0 text-[13px] font-semibold">{new Intl.DateTimeFormat("en-US", { timeZone: profile.timezone, hour: "numeric", minute: "2-digit" }).format(new Date(t.due_at))}</span>}
+                <button className="btn btn-quiet btn-sm !min-w-[44px] !px-2 text-[13px]" aria-label={`Dismiss ${t.title}`} onClick={() => complete(t, true)}><X size={18} aria-hidden /></button>
+              </li>))}
+          </ul>
         </section>
       )}
       <div className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">{KINDS.map((k) => <button key={k.v} className="chip shrink-0" style={kind === k.v ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined} onClick={() => setKind(k.v)}>{k.l}</button>)}</div>

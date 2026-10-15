@@ -25,8 +25,9 @@ export const LAYOUTS: LayoutDef[] = [
   { key: "cinema", label: "Full photo", photo: "yes" },
 ];
 export const layoutOf = (key: string | undefined | null) => LAYOUTS.find((l) => l.key === key) ?? LAYOUTS[0];
-/** Rotates through layouts so consecutive posts never look alike. Without a photo, "cinema" is skipped. */
+/** Posts with a property photo use the full-photo design. Posts without one rotate through the other designs so consecutive posts never look alike. */
 export function pickLayout(hasPhoto: boolean, seed: number): string {
+  if (hasPhoto) return "cinema"; // a post with the property's photo always uses the full-photo design
   const list = LAYOUTS.filter((l) => hasPhoto || l.photo !== "yes");
   return list[Math.abs(seed) % list.length].key;
 }

@@ -28,12 +28,11 @@ test("every theme picked exists, and platforms get the right image shape", () =>
 });
 
 import { LAYOUTS, pickLayout } from "../src/lib/content/design";
-test("consecutive posts get different layouts, and photo-only layouts need a photo", () => {
-  for (const hasPhoto of [false, true]) {
-    const seen: string[] = [];
-    for (let seed = 0; seed < 12; seed++) { seen.push(pickLayout(hasPhoto, seed)); if (seed) assert.notEqual(seen[seed], seen[seed - 1]); }
-    if (!hasPhoto) assert.ok(!seen.includes("cinema"));
-    assert.ok(new Set(seen).size >= (hasPhoto ? 9 : 8));
-  }
+test("a post with a photo is always the full-photo design; posts without one rotate and never use it", () => {
+  for (let seed = 0; seed < 12; seed++) assert.equal(pickLayout(true, seed), "cinema");
+  const seen: string[] = [];
+  for (let seed = 0; seed < 12; seed++) { seen.push(pickLayout(false, seed)); if (seed) assert.notEqual(seen[seed], seen[seed - 1]); }
+  assert.ok(!seen.includes("cinema"));
+  assert.ok(new Set(seen).size >= 8);
   assert.ok(LAYOUTS.length >= 9);
 });

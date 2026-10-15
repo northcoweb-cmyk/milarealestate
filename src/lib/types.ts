@@ -53,6 +53,8 @@ export interface ProfileSettings {
   referral?: { code?: string; referred_by?: string; signup_net?: string; status?: "pending" | "rewarded" | "review" | "void"; paid_at?: string; plan_key?: string; paid_cents?: number; rewarded_count?: number; rewarded?: boolean };
   /** The order the person arranged their to-do list in (task ids, first = top). */
   task_order?: string[];
+  /** The order the person arranged the "Ready for approval" cards on Home (item ids, first = top). */
+  home_order?: string[];
   brand?: { credentials: string; license: string; cell: string; office: string; email: string; team: string; pfp: string | null };
 }
 

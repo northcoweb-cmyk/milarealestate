@@ -50,7 +50,9 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   for (const a of approvals.filter((x) => x.status === "pending")) {
     const t = tasks.find((x) => x.approval_id === a.id);
     const soon = t?.priority === "urgent" ? 90 : t?.priority === "important" ? 70 : 55;
-    needs.push({ id: `ap-${a.id}`, emoji: approvalEmoji(a.action), label: APPROVAL_LABEL[a.action] ?? "Approval", title: a.title, why: a.summary, primary: { label: a.risk === "high" ? "Review" : "Approve", approveId: a.risk === "high" ? undefined : a.id, href: a.risk === "high" ? `/tasks?approval=${a.id}` : undefined }, secondary: { label: "Review", href: `/tasks?approval=${a.id}` }, tone: soon >= 90 ? "urgent" : "normal", score: soon });
+    const postId = a.action === "publish_social" ? (a.payload?.args as { postId?: string } | undefined)?.postId : undefined;
+    const reviewHref = postId ? `/content?post=${postId}` : `/tasks?approval=${a.id}`; // a post is reviewed in the editor, where it can be changed
+    needs.push({ id: `ap-${a.id}`, emoji: approvalEmoji(a.action), label: APPROVAL_LABEL[a.action] ?? "Approval", title: a.title, why: a.summary, primary: { label: a.risk === "high" ? "Review" : "Approve", approveId: a.risk === "high" ? undefined : a.id, href: a.risk === "high" ? reviewHref : undefined }, secondary: { label: "Review", href: reviewHref }, tone: soon >= 90 ? "urgent" : "normal", score: soon });
   }
   // 2. people who need a follow-up (prioritised by real data)
   for (const p of (await computePriorities(ctx)).filter((x) => x.source !== "event" && x.kind !== "approval")) {
@@ -64,8 +66,9 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   const propName = new Map(props.map((p) => [p.id, p.address]));
   const sortedDrafts = [...reviewable].sort((a, b) => b.created_at.localeCompare(a.created_at));
   for (const [i, p] of sortedDrafts.slice(0, 3).entries()) {
-    const what = POST_LABEL[p.category ?? ""] ?? `${platformLabel(p.platform)} post`;
-    needs.push({ id: `post-${p.id}`, emoji: platformEmoji(p.platform), label: "Post", title: `${what}${p.property_id && propName.get(p.property_id) ? ` · ${propName.get(p.property_id)}` : ""}`, why: "Mila wrote it — check it, edit if you like, then it's yours to post.", primary: { label: "Review", href: "/content?tab=drafts" }, tone: "normal", score: 88 - i }); // a finished draft is a one-tap decision: it outranks "go draft something"
+    const pl = platformLabel(p.platform);
+    const what = POST_LABEL[p.category ?? ""] ?? (/post$/i.test(pl) ? pl : `${pl} post`);
+    needs.push({ id: `post-${p.id}`, emoji: platformEmoji(p.platform), label: "Post", title: `${what}${p.property_id && propName.get(p.property_id) ? ` · ${propName.get(p.property_id)}` : ""}`, why: "Mila wrote it — check it, edit if you like, then it's yours to post.", primary: { label: "Review", href: `/content?post=${p.id}` }, tone: "normal", score: 88 - i }); // a finished draft is a one-tap decision: it outranks "go draft something"
   }
   if (sortedDrafts.length > 3) needs.push({ id: "content-review", emoji: "📣", label: "Post", title: `${plural(sortedDrafts.length - 3, "more post")} ready for your review`, why: null, primary: { label: "Review posts", href: "/content?tab=drafts" }, tone: "normal", score: 40 });
   // 4. outdated messages after a schedule change
@@ -78,7 +81,11 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   }
 
   needs.sort((a, b) => b.score - a.score);
-  const needsYou = needs.slice(0, 5).map(({ score, ...n }) => { void score; return n; });
+  // the top five by importance, in the order the person dragged them into (anything new comes first)
+  const savedOrder = new Map(((ctx.profile.settings as { home_order?: string[] }).home_order ?? []).map((id, i) => [id, i] as const));
+  const top5 = needs.slice(0, 5);
+  if (savedOrder.size) top5.sort((a, b) => (savedOrder.has(a.id) ? savedOrder.get(a.id)! : -1) - (savedOrder.has(b.id) ? savedOrder.get(b.id)! : -1));
+  const needsYou = top5.map(({ score, ...n }) => { void score; return n; });
   const shownContacts = new Set(needs.slice(0, 5).map((n) => n.id.startsWith("fu-") ? n.title.replace("Follow up with ", "") : "").filter(Boolean));
 
   // ------------------------------------------------------------------ Mila did (last 36h, past tense)
@@ -129,7 +136,7 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
   if (plan.length === 0) addPlan({ id: "ask-day", emoji: "💡", title: "Ask Mila what to focus on", why: "Nothing urgent — a good day to build your pipeline.", action: { label: "Ask Mila", href: ask("Who should I follow up with today?") } });
 
   const n = needs.length;
-  const summary = n === 0 ? "You're all caught up. Mila has the rest handled." : n === 1 ? "1 thing is ready for you. Everything else is handled." : n <= 5 ? `${n} things are ready for you. Everything else is handled.` : `Start with these 5 — ${n} things are ready for you.`;
+  const summary = n === 0 ? "You're all caught up. Mila has the rest handled." : n === 1 ? "1 thing is ready for you. Everything else is handled." : n <= 5 ? `${n} things are ready for you. Everything else is handled.` : `${n} things are ready for you. Start with these 5, and drag them into the order you want.`;
   void fmtDay;
 
   // ---- free trial: day count + the five actions that turn "cool app" into "I rely on this"

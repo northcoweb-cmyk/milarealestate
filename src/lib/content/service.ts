@@ -140,7 +140,16 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
 // ------------------------------------------------------------------ reminders for scheduled posts
 const reminderTitle = (p: SocialPost) => `Post to ${platformLabel(p.platform)}: ${p.caption.split("\n")[0].replace(/[^\p{L}\p{N}\s'!?.,&-]/gu, "").trim().slice(0, 48)}`;
 
-async function cancelReminder(ctx: Ctx, post: SocialPost) {
+/** The day's to-do for a planned post: closed when the post is posted (done) or moved/cancelled (dismissed). */
+async function closePostTask(ctx: Ctx, post: SocialPost, status: "done" | "dismissed") {
+  const title = reminderTitle(post);
+  for (const t of await ctx.store.list("tasks", ctx.userId)) {
+    if (t.status === "open" && t.title === title) await ctx.store.update("tasks", ctx.userId, t.id, { status, completed_at: status === "done" ? nowIso() : null } as never);
+  }
+}
+
+async function cancelReminder(ctx: Ctx, post: SocialPost, taskStatus: "done" | "dismissed" = "dismissed") {
+  await closePostTask(ctx, post, taskStatus);
   if (!post.scheduled_for) return;
   const title = reminderTitle(post);
   for (const r of await ctx.store.list("reminders", ctx.userId)) {
@@ -158,12 +167,13 @@ export async function schedulePost(ctx: Ctx, post: SocialPost, whenIso: string):
   await cancelReminder(ctx, post);
   const updated = (await ctx.store.update("social_posts", ctx.userId, post.id, { status: "scheduled", scheduled_for: t.toISOString() }))!;
   const channels = ctx.profile.settings.notifications.channels;
+  await ctx.store.insert("tasks", ctx.userId, { kind: "task", title: reminderTitle(updated), subtitle: "Planned post for today. Mark it done once it's posted.", priority: "important", priority_reason: "Planned post", status: "open", due_at: t.toISOString(), contact_id: null, property_id: updated.property_id ?? null, approval_id: null, workflow_run_id: null, completed_at: null } as never); // it shows in that day's to-do list too
   await ctx.store.insert("reminders", ctx.userId, { title: reminderTitle(updated), remind_at: t.toISOString(), channels: ([channels.pwa && "pwa", channels.browser && "browser", channels.email && "email"].filter(Boolean) as never[]), status: "pending", contact_id: null, event_id: null, workflow_run_id: null, delivered_at: null });
   return { ok: true, post: updated };
 }
 
 export async function setPostStatus(ctx: Ctx, post: SocialPost, action: "ready" | "draft" | "posted" | "archive" | "unarchive"): Promise<SocialPost> {
-  if (action === "posted" || action === "archive" || action === "draft" || action === "ready") await cancelReminder(ctx, post);
+  if (action === "posted" || action === "archive" || action === "draft" || action === "ready") await cancelReminder(ctx, post, action === "posted" ? "done" : "dismissed");
   const patch: Partial<SocialPost> =
     action === "ready" ? { status: "approved_unpublished" } :
     action === "draft" ? { status: "draft" } :
