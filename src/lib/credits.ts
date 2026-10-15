@@ -22,7 +22,7 @@ export class InsufficientCredits extends Error {
 export const trialsEnabled = () => process.env.MILA_TRIALS === "1" || (process.env.MILA_TRIALS !== "0" && Boolean(process.env.VERCEL));
 
 export class TrialEnded extends InsufficientCredits {
-  constructor() { super(0, 1); this.message = "Your 7-day trial has ended."; }
+  constructor(msg = "Your 7-day trial has ended.") { super(0, 1); this.message = msg; }
 }
 
 export async function creditCost(key: string): Promise<number> {
@@ -81,16 +81,20 @@ export async function planRefillAmount(userId: string, sub: { credits_per_period
 }
 
 /** A finished free trial with no plan: the account is view-only until a plan is bought. Everyone is held to this, testers included (extend a tester's trial in Mila OS to keep testing). */
+export function subLocked(sub: { status?: string; period_end?: string } | undefined | null): boolean {
+  if (!sub) return false;
+  if (sub.status === "canceled") return true; // the subscription has ended: no valid plan
+  return sub.status === "trial" && !!sub.period_end && new Date(sub.period_end).getTime() < Date.now();
+}
 export async function trialLocked(userId: string): Promise<boolean> {
-  const sub = (await getStore().list("subscriptions", userId))[0];
-  return sub?.status === "trial" && new Date(sub.period_end).getTime() < Date.now();
+  return subLocked((await getStore().list("subscriptions", userId))[0]);
 }
 
 export async function ensureCredits(userId: string, needed: number) {
   if (needed <= 0) return;
   await refillAnnual(userId);
   // a finished trial with no plan locks EVERY account, testers included: nothing paid runs (existing data stays visible)
-  { const s0 = (await getStore().list("subscriptions", userId))[0]; if (s0?.status === "trial" && new Date(s0.period_end).getTime() < Date.now()) throw new TrialEnded(); }
+  { const s0 = (await getStore().list("subscriptions", userId))[0]; if (subLocked(s0)) throw s0?.status === "canceled" ? new TrialEnded("Your plan has ended. Choose a plan to use Mila again.") : new TrialEnded(); }
   // test accounts never run dry on credits: top them up when they get low
   if (await isTesterId(userId)) {
     const bal0 = await getBalance(userId);
@@ -98,8 +102,6 @@ export async function ensureCredits(userId: string, needed: number) {
     return;
   }
   // a finished trial with no plan: nothing paid runs (existing data stays visible)
-  const sub = (await getStore().list("subscriptions", userId))[0];
-  if (sub?.status === "trial" && new Date(sub.period_end).getTime() < Date.now()) throw new TrialEnded();
   const bal = await getBalance(userId);
   if (bal < needed) throw new InsufficientCredits(bal, needed);
 }

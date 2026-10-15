@@ -24,3 +24,14 @@ for (const email of ["customer-lock@gmail.com", "northcoweb@yahoo.com"]) {
     await assert.rejects(() => ensureCredits(p.id, 1), TrialEnded);
   });
 }
+
+import { subLocked } from "../src/lib/credits.ts";
+test("a finished trial or an ended subscription is locked; active, past-due grace and a running trial are not", () => {
+  const past = new Date(Date.now() - 86400000).toISOString(), future = new Date(Date.now() + 86400000).toISOString();
+  assert.equal(subLocked({ status: "trial", period_end: past }), true);
+  assert.equal(subLocked({ status: "canceled", period_end: future }), true);
+  assert.equal(subLocked({ status: "trial", period_end: future }), false);
+  assert.equal(subLocked({ status: "active", period_end: past }), false);
+  assert.equal(subLocked({ status: "past_due", period_end: past }), false);
+  assert.equal(subLocked(undefined), false);
+});

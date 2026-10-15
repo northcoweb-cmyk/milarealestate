@@ -35,6 +35,8 @@ export interface PromptInputProps {
   /** Visual size: "lg" for the hero input, "md" for the chat dock. */
   size?: "md" | "lg";
   disabled?: boolean;
+  /** No valid trial or plan: nothing can be typed, attached, spoken or sent, and the send button is gray. */
+  locked?: boolean;
   autoFocus?: boolean;
   defaultValue?: string;
   value?: string;
@@ -139,7 +141,7 @@ function AttachmentGalleryModal({ attachment, originRect, onClose }: { attachmen
 // Main component
 // ----------------------------------------------------------------------------
 export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(function PromptInput(
-  { onSubmit, onError, placeholder = "Ask anything", className, size = "md", disabled, autoFocus, defaultValue = "", value: controlled, onChange, maxAttachments = 6, maxFileBytes = 12 * 1024 * 1024, accept = DEFAULT_ACCEPT },
+  { onSubmit, onError, placeholder = "Ask anything", className, size = "md", disabled, locked, autoFocus, defaultValue = "", value: controlled, onChange, maxAttachments = 6, maxFileBytes = 12 * 1024 * 1024, accept = DEFAULT_ACCEPT },
   ref,
 ) {
   const [local, setLocal] = useState(defaultValue);
@@ -161,7 +163,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
   const urls = useRef<Set<string>>(new Set());
 
   const hasFiles = attachments.length > 0;
-  const canSend = (value.trim() !== "" || hasFiles) && !disabled && !submitting;
+  const canSend = (value.trim() !== "" || hasFiles) && !disabled && !locked && !submitting;
   const lg = size === "lg";
 
   const setValue = useCallback((v: string) => { if (controlled === undefined) setLocal(v); onChange?.(v); }, [controlled, onChange]);
@@ -267,7 +269,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           style={{ boxShadow: "var(--shadow)" }}
         >
           <textarea
-            ref={ta} value={value} rows={1} aria-label="Message Mila" placeholder={placeholder}
+            ref={ta} value={locked ? "" : value} rows={1} aria-label="Message Mila" placeholder={locked ? "Choose a plan to use Mila" : placeholder} disabled={locked} readOnly={locked}
             onChange={(e) => setValue(e.target.value)}
             onPaste={(e) => { const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); addFiles(files); } }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); } }}
@@ -276,16 +278,16 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
           />
           <div className="flex items-center justify-between">
             <button
-              type="button" onClick={() => fileRef.current?.click()} disabled={attachments.length >= maxAttachments}
+              type="button" onClick={() => fileRef.current?.click()} disabled={locked || attachments.length >= maxAttachments}
               aria-label="Attach photos or files" title="Attach photos, PDFs or spreadsheets"
               className="flex size-10 items-center justify-center rounded-full text-foreground/60 outline-none transition hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
             >
               <Plus size={22} />
             </button>
             <div className="flex items-center gap-1.5">
-            {canDictate && <button
+            {canDictate && <button disabled={locked}
               type="button" onClick={toggleDictation} aria-label={listening ? "Stop dictation" : "Dictate with your voice"} aria-pressed={listening} title={listening ? "Stop" : "Speak instead of typing"}
-              className={cn("flex size-10 items-center justify-center rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-ring", listening ? "animate-pulse bg-[var(--danger)] text-white" : "text-foreground/60 hover:bg-muted hover:text-foreground")}
+              className={cn("flex size-10 items-center justify-center rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40", listening ? "animate-pulse bg-[var(--danger)] text-white" : "text-foreground/60 hover:bg-muted hover:text-foreground")}
             >
               {listening ? <Square size={16} fill="currentColor" /> : <Mic size={21} />}
             </button>}
@@ -294,10 +296,10 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(fu
               // tapping Send must not pull focus out of the text box: on iPhone that closes the keyboard, and the chat sheet resizes and jumps mid-reply
               onMouseDown={(e) => e.preventDefault()}
               onTouchEnd={(e) => { if (canSend && document.activeElement === ta.current) { e.preventDefault(); void submit(); } }}
-              className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md outline-none transition duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:opacity-40 disabled:shadow-none"
+              className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md outline-none transition duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:opacity-40 disabled:shadow-none disabled:grayscale"
               style={canSend ? { background: "linear-gradient(135deg, var(--accent), var(--accent-2))" } : undefined}
             >
-              {submitting || disabled ? <Loader2 size={19} className="animate-spin" /> : <ArrowUp size={21} strokeWidth={2.6} />}
+              {!locked && (submitting || disabled) ? <Loader2 size={19} className="animate-spin" /> : <ArrowUp size={21} strokeWidth={2.6} />}
             </button>
             </div>
           </div>

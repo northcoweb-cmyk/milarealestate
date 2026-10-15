@@ -42,7 +42,9 @@ export const useMila = () => { const c = useContext(Ctx); if (!c) throw new Erro
 export function MilaProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const path = usePathname();
-  const { toast, setBalance } = useApp();
+  const { toast, setBalance, credits } = useApp();
+  const locked = !!credits.locked;
+  const lockedRef = useRef(locked); lockedRef.current = locked;
   const [messages, setMessages] = useState<Message[]>([]);
   const [isOpen, setOpen] = useState(false);
   const vvBox = useVisualViewport(isOpen);
@@ -86,6 +88,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   }, [messages, steps, isOpen, busy]);
 
   const run = useCallback(async (payload: { message?: string; action?: unknown; attachmentIds?: string[] }, userText?: string, files?: Attachment[], quiet = false) => {
+    if (lockedRef.current) { toast("Choose a plan to use Mila. Your data is still here to look at.", "error"); return; }
     if (!quiet) setOpen(true);
     setBusy(true); setSteps(["Understanding request"]);
     if (userText || files?.length) setMessages((m) => [...m, { id: "tmp-" + Date.now(), user_id: "", created_at: new Date().toISOString(), updated_at: "", conversation_id: convId ?? "", role: "user", content: userText ?? "", blocks: [], attachments: (files ?? []).map((f) => ({ ...f })) }]);
@@ -120,6 +123,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
 
   // Upload attachments first, then hand the message to Mila. Returns false (keeping the draft) if the upload fails.
   const ask = useCallback(async (text: string, files: File[] = []): Promise<boolean> => {
+    if (lockedRef.current) { toast("Choose a plan to use Mila. Your data is still here to look at.", "error"); return false; }
     let docs: Attachment[] = [];
     if (files.length) {
       setBusy(true); setOpen(true);
@@ -138,7 +142,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
 
   const [orb, setOrb] = useState<{ text: string; origin: OrbOrigin } | null>(null);
   const askOrb = useCallback((text: string, origin: OrbOrigin): boolean => {
-    if (busyRef.current) return false;
+    if (busyRef.current || lockedRef.current) return false;
     setOrb({ text, origin });
     return true;
   }, []);
@@ -292,7 +296,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
                 {messages.map((m, i) => <MessageView key={(m as Message & { ck?: string }).ck ?? m.id} last={i === messages.length - 1} m={m} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
                 {busy && <Thinking steps={steps} />}
               </div>
-              <div className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"><PromptInput onSubmit={(t, f) => ask(t, f)} disabled={busy} placeholder="Ask Mila anything…" onError={(m) => toast(m, "error")} /></div>
+              <div className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"><PromptInput onSubmit={(t, f) => ask(t, f)} disabled={busy} locked={locked} placeholder="Ask Mila anything…" onError={(m) => toast(m, "error")} /></div>
             </motion.div>
           </div>
         )}
