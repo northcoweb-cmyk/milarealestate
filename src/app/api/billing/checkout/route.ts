@@ -8,7 +8,7 @@ export const POST = api(async ({ profile, req }) => {
   if (!key) return Response.json({ error: "Billing isn't configured on this server yet.", code: "not_configured" }, { status: 409 });
   const b = await readJson<{ kind: "plan" | "pack"; plan_key?: string; credits?: number }>(req);
   const cfg = await getStore().getConfig();
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  const base = (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL ? "https://app.milarealestate.app" : "http://localhost:3000")).replace(/\/$/, "");
   const f = new URLSearchParams();
   f.set("success_url", `${base}/settings/credits?checkout=success&session_id={CHECKOUT_SESSION_ID}`);
   f.set("cancel_url", `${base}/settings/credits?checkout=cancelled`);

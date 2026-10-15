@@ -21,7 +21,7 @@ export const GOOGLE_SCOPES = {
 export type GoogleService = "calendar" | "gmail" | "contacts" | "sheets";
 
 export const googleConfigured = () => Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-export const redirectUri = () => `${(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "")}/api/integrations/google/callback`;
+export const redirectUri = () => `${(process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL ? "https://app.milarealestate.app" : "http://localhost:3000")).replace(/\/$/, "")}/api/integrations/google/callback`;
 
 export function authUrl(services: GoogleService[], state: string) {
   const scopes = [...GOOGLE_SCOPES.base, ...services.flatMap((s) => GOOGLE_SCOPES[s])];

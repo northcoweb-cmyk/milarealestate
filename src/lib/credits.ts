@@ -80,6 +80,13 @@ export async function planRefillAmount(userId: string, sub: { credits_per_period
   return Math.min(sub.credits_per_period, await planCreditsSpent(userId, sub.period_start));
 }
 
+/** A finished free trial with no plan: the account is view-only until a plan is bought. Testers are never locked. */
+export async function trialLocked(userId: string): Promise<boolean> {
+  if (await isTesterId(userId)) return false;
+  const sub = (await getStore().list("subscriptions", userId))[0];
+  return sub?.status === "trial" && new Date(sub.period_end).getTime() < Date.now();
+}
+
 export async function ensureCredits(userId: string, needed: number) {
   if (needed <= 0) return;
   await refillAnnual(userId);

@@ -9,6 +9,7 @@ import clsx from "clsx";
 import { jfetch } from "@/components/ui";
 import { InstallSteps, markInstallSeen, useInstall } from "@/components/install";
 import { Orb } from "@/components/orb";
+import { ServiceLogo } from "@/components/brand-logos";
 
 const ROLES = ["Agent", "Broker", "Team lead", "Assistant"];
 const LEVELS = [
@@ -27,6 +28,7 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
   const [f, setF] = useState({ full_name: name, role: "Agent", brokerage: "", location: "", primary_market: "", experience: "growing", business_type: "mixed" });
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sample, setSample] = useState(allowSample);
+  async function addApple() { try { const l = await jfetch<{ webcal: string }>("/api/calendar/feed-link"); window.location.href = l.webcal; } catch { /* the Calendar screen has the same button later */ } }
   const [picked, setPicked] = useState<PickedPlace | null>(null);
   const [pickedText, setPickedText] = useState("");
   const [placesOn, setPlacesOn] = useState(false);
@@ -99,8 +101,8 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
           {screen === 4 && <>
             <h1 className="h1 mb-1">Connect your tools</h1><p className="muted mb-5">Optional — you can do this later in More → Settings.</p>
             <div className="space-y-3">
-              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">Mila adds your appointments to your Google calendar, with the client, address and notes inside. She never reads it.</p></div>{googleConfigured ? <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : <span className="faint text-[13px]">Coming soon</span>}</div>
-              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Apple Calendar</p><p className="muted text-[14px]">One tap later on the Calendar screen: Mila's events show up on your iPhone, with the client and address inside.</p></div></div>
+              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><ServiceLogo id="google_g" /><div className="min-w-0 flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">Mila adds your appointments to your Google calendar, with the client, address and notes inside. She never reads it.</p></div>{googleConfigured ? <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : <span className="faint text-[13px]">Coming soon</span>}</div>
+              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><ServiceLogo id="apple" /><div className="min-w-0 flex-1"><p className="font-semibold">Apple Calendar</p><p className="muted text-[14px]">On iPhone or Mac: tap once, then Subscribe. Mila's events show up in your calendar, with the client and address inside.</p></div><button type="button" className="btn btn-sm" onClick={addApple}>Add</button></div>
               {allowSample && <label className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Start with sample contacts</p><p className="muted text-[14px]">Fictional people and appointments so you can try Mila right away. Remove them any time.</p></div><input type="checkbox" className="h-5 w-5" checked={sample} onChange={(e) => setSample(e.target.checked)} /></label>}
               <p className="faint px-1 text-[13.5px]">Have a list already? After setup, just tell Mila “import my contacts” or attach a spreadsheet.</p>
             </div>

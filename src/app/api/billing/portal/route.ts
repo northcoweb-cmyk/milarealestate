@@ -7,7 +7,7 @@ export const POST = api(async ({ profile }) => {
   if (!key) return Response.json({ error: "Billing isn't configured on this server yet.", code: "not_configured" }, { status: 409 });
   const sub = (await getStore().list("subscriptions", profile.id))[0];
   if (!sub?.stripe_customer_id) throw bad("There's no paid subscription to manage yet.");
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  const base = (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL ? "https://app.milarealestate.app" : "http://localhost:3000")).replace(/\/$/, "");
   const f = new URLSearchParams({ customer: sub.stripe_customer_id, return_url: `${base}/settings/credits` });
   if (/^bpc_[A-Za-z0-9]+$/.test(process.env.STRIPE_PORTAL_CONFIG ?? "")) f.set("configuration", process.env.STRIPE_PORTAL_CONFIG!); // Mila's own portal, separate from the account's default
   const r = await fetch("https://api.stripe.com/v1/billing_portal/sessions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/x-www-form-urlencoded" }, body: f });

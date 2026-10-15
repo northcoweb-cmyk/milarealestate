@@ -4,6 +4,8 @@ import { buildCtx } from "../agent/engine";
 import type { Profile } from "../types";
 import { runInAiScope } from "../ai/budget";
 import { errMessage, errStack, logError } from "./errors";
+import { trialLocked } from "../credits";
+import { LOCKED_MESSAGE, writeAllowedWhileLocked } from "./trial-lock";
 
 type Params = Record<string, string>;
 export interface ApiArgs<P extends Params> { req: Request; profile: Profile; params: P; url: URL }
@@ -15,6 +17,7 @@ export function api<P extends Params = Params>(fn: (a: ApiArgs<P>) => Promise<un
       const profile = await getProfile();
       if (!profile) throw new AuthError();
       const params = await ctx.params;
+      { const u = new URL(req.url); if (!writeAllowedWhileLocked(req.method, u.pathname) && (await trialLocked(profile.id))) throw new HttpError(402, LOCKED_MESSAGE); } // a finished trial is view-only
       const out = await runInAiScope(profile.id, () => fn({ req, profile, params, url: new URL(req.url) })); // AI spend inside this request is metered to this person
       return out instanceof Response ? out : NextResponse.json(out ?? { ok: true });
     } catch (e) {

@@ -349,9 +349,9 @@ function Privacy() {
   const [p, setP] = useState(profile.settings.privacy); const [del, setDel] = useState(false); const [txt, setTxt] = useState(""); const [busy, setBusy] = useState(false);
   return (
     <>
-      <Card title="Your data" sub="Your contacts, calendar, emails and documents are visible only to you. Mila's staff and other users can't see them.">
+      <Card title="Your data" sub="Your contacts, calendar, emails and documents are visible only to you. Mila's staff and other users can't see them. To get a copy of your data, send us a request and we'll prepare it for you.">
         <div className="flex items-center gap-4"><div className="flex-1"><p className="font-semibold">Keep conversation history</p><p className="muted text-[14px]">Lets Mila remember context across visits. Structured memory is separate and always editable in More → Memory.</p></div><Toggle label="Keep conversation history" checked={p.store_conversations} onChange={(v) => { const n = { ...p, store_conversations: v }; setP(n); save({ settings: { privacy: n } }); }} /></div>
-        <div className="mt-5 flex flex-wrap gap-3"><a className="btn btn-sm" href="/api/privacy/export">Download my data</a><button className="btn btn-danger btn-sm" onClick={() => setDel(true)}>Delete all my data</button></div>
+        <div className="mt-5 flex flex-wrap gap-3"><Link className="btn btn-sm" href="/settings/support">Request a copy of my data</Link><button className="btn btn-danger btn-sm" onClick={() => setDel(true)}>Delete all my data</button></div>
       </Card>
       <p className="faint px-2 text-[13px]">Mila never sends email, texts or posts without your permission, and never shares your data with other users.</p>
       <Sheet open={del} onClose={() => { setDel(false); setTxt(""); }} title="Delete everything?">

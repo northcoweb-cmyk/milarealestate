@@ -13,7 +13,11 @@ const ITEMS: [string, string][] = [
   ["waitlist", "Waitlist signups land here and the welcome email sends"],
   ["legal", "Privacy policy and terms pages are live and reviewed"],
   ["testers", "5 to 10 test users have used it for a week and their fixes are in"],
-  ["freeze", "Feature freeze Oct 17: bug fixes only"],
+  ["topups", "Every vendor account topped up (see Top-ups below)"],
+  ["support", "support@milarealestate.app receives mail and I can answer it from Mila OS"],
+  ["gcal", "Google Calendar connects on a fresh account and a test event lands in it"],
+  ["trial", "A non-tester account at day 8 gets the popup and is view-only until it buys a plan"],
+  ["freeze", "Feature freeze Oct 18: bug fixes only"],
 ];
 
 export function Checklist() {
