@@ -56,7 +56,7 @@ export default function ContactsPage() {
 
   return (
     <Page wide>
-      <PageHeader title="Contacts" sub={data ? `${all.length} people` : "\u00A0"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
+      <PageHeader title="Contacts" sub={data ? `${all.length} ${all.length === 1 ? "person" : "people"}` : "\u00A0"} right={<button className="btn btn-primary" onClick={() => setAdding(true)}><Plus size={18} />Add</button>} />
       <div role="tablist" aria-label="Contacts view" className="glass mb-4 flex gap-1 p-1" style={{ borderRadius: 999 }}>
         {([["people", "People"], ["messages", "Messages"], ["followups", "Follow up"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)} className="min-h-[40px] flex-1 rounded-full px-3 text-[14px] font-semibold transition" style={view === k ? { background: "linear-gradient(135deg,var(--accent),var(--accent-2))", color: "var(--accent-ink)" } : { color: "var(--ink-soft)" }}>{l}</button>)}
       </div>

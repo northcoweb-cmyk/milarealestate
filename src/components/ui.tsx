@@ -168,7 +168,7 @@ export function TypeBadge({ type, label, emoji }: { type: string; label: string;
 /** Round check that draws itself when completed. */
 export function CheckDot({ done, onClick, label }: { done: boolean; onClick: () => void; label: string }) {
   return (
-    <motion.button onClick={onClick} aria-label={label} aria-pressed={done} whileTap={{ scale: 0.88 }} className="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ border: "2px solid " + (done ? "var(--ok)" : "color-mix(in srgb, var(--ink) 35%, transparent)") }}>
+    <motion.button onClick={onClick} aria-label={label} aria-pressed={done} whileTap={{ scale: 0.88 }} className="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full before:absolute before:-inset-2.5 before:content-['']" style={{ border: "2px solid " + (done ? "var(--ok)" : "color-mix(in srgb, var(--ink) 35%, transparent)") }}>
       <motion.span className="absolute inset-0 rounded-full" initial={false} animate={{ scale: done ? 1 : 0.4, opacity: done ? 1 : 0 }} transition={{ type: "spring", stiffness: 500, damping: 26 }} style={{ background: "var(--ok)" }} />
       <svg viewBox="0 0 24 24" width="16" height="16" className="relative" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <motion.path d="M5 12.5l4.5 4.5L19 7.5" initial={false} animate={{ pathLength: done ? 1 : 0, opacity: done ? 1 : 0 }} transition={{ duration: 0.28, ease: "easeOut", delay: done ? 0.08 : 0 }} />

@@ -248,7 +248,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .sortable .item { position: relative; }
 .sortable.moving { user-select: none; -webkit-user-select: none; }
 .sortable .item.lifted { z-index: 30; box-shadow: 0 18px 40px -14px rgba(20, 10, 70, .45); border-radius: 20px; }
-[data-sortable-handle] { touch-action: none; cursor: grab; }
+[data-sortable-handle] { touch-action: none; cursor: grab; position: relative; }
+[data-sortable-handle]::after { content: ""; position: absolute; inset: -8px -6px; } /* a 44px touch area around the small grip */
 .sortable .item.active [data-sortable-handle] { cursor: grabbing; }
 
 /* ── Thinking orb: the input folds into a small orb right where it was, no screen takeover ───────────── */
