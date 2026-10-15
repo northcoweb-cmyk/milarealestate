@@ -10,7 +10,7 @@ import { SUPPORT_EMAIL } from "@/lib/mail";
 
 export const dynamic = "force-dynamic";
 
-type Row = { id: string; created_at: string; note: string | null; status: string | null; context: { ticket_no?: string; name?: string; email?: string; topic_label?: string; subject?: string; plan?: string | null; status?: string | null; credits_used_this_period?: number | null; attachments?: { id: string; name: string }[]; thread?: { dir: "in" | "out"; at: string; text: string }[] } | null };
+type Row = { id: string; created_at: string; note: string | null; status: string | null; context: { ticket_no?: string; name?: string; email?: string; topic?: string; topic_label?: string; subject?: string; plan?: string | null; status?: string | null; credits_used_this_period?: number | null; attachments?: { id: string; name: string }[]; thread?: { dir: "in" | "out"; at: string; text: string }[] } | null };
 
 export default async function Support() {
   if (!(await isAuthed())) redirect("/login");
@@ -38,6 +38,7 @@ export default async function Support() {
           {c.attachments?.length ? <p className="files">Files: {c.attachments.map((f) => <a key={f.id} href={`${app}/api/admin/support-file/${f.id}`} target="_blank" rel="noreferrer">{f.name}</a>)}</p> : null}
           {(c.thread ?? []).map((m, i) => <div key={i} className={`msg ${m.dir}`}><span className="who">{m.dir === "out" ? "You" : c.name ?? "Customer"} · {fmt(m.at)}</span><p>{m.text}</p></div>)}
         </div>
+        {c.topic === "data_copy" && <p className="note" style={{ margin: "10px 0" }}><b>Copy of their data.</b> <a className="btn primary" href={`/api/user-export?id=${r.id}`}>Download all their data (file)</a> Then reply to them with it, or tell them it is ready.</p>}
         <TicketActions id={r.id} status={st} email={c.email} canReply={who === "ryan"} />
       </details>
     );

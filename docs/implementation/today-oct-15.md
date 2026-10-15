@@ -47,8 +47,12 @@ Not doing (decided): Supabase/Google/Vercel upgrades (the 23rd, only if needed),
 - [x] 7.15 More page: move property things (showing sheets etc.) to where they belong.
 - [x] 7.16 Code-looking text ({{VARIABLES}}) shown to users: fix.
 - [x] 7.17 Two Back buttons on some pages: one only.
-- [ ] 7.18 Notifications: remove SMS, make email work, choose channels in onboarding, known limits for browser/home-screen notifications.
-- [ ] 7.19 Appearance tab: sky, animated clouds, motion toggles actually work.
-- [ ] 7.20 Delete my data: wipe all memory and activity, then ask if they also want the account deleted.
-- [ ] 7.21 Request a copy of data: becomes a support ticket in Mila OS with a file of all their data.
-- [ ] 7.22 Security: change password with the old password.
+- [x] 7.18 Notifications: remove SMS, make email work, choose channels in onboarding, known limits for browser/home-screen notifications.
+- [x] 7.19 Appearance tab: sky, animated clouds, motion toggles actually work.
+- [x] 7.20 Delete my data: wipe all memory and activity, then ask if they also want the account deleted.
+- [x] 7.21 Request a copy of data: becomes a support ticket in Mila OS with a file of all their data.
+- [x] 7.22 Security: change password with the old password.
+
+### Owner action needed for reminder emails to arrive on time
+Vercel's free plan only runs a scheduled job once a day. `.github/workflows/reminders.yml` wakes reminder delivery every 5 minutes instead. One-time: GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret `CRON_SECRET` = the same value as `CRON_SECRET` in the Mila app's Vercel settings.
+Browser and Home Screen alerts only show while the app is open (a browser limit); email always arrives.

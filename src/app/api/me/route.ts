@@ -7,7 +7,7 @@ import { isAdmin } from "@/lib/auth";
 import { aiAvailable } from "@/lib/ai/provider";
 import { trialLocked } from "@/lib/credits";
 import { googleConfigured } from "@/lib/integrations/google";
-import { mergeKnown } from "@/lib/server/sanitize";
+import { mergeSettings } from "@/lib/server/settings-merge";
 import { defaultSettings } from "@/lib/defaults";
 import { isValidTz } from "@/lib/time";
 import type { Profile, ProfileSettings } from "@/lib/types";
@@ -50,11 +50,10 @@ export const PATCH = api(async ({ profile, req }) => {
   if (body.settings) {
     const s = body.settings as Partial<ProfileSettings>;
     const cur = profile.settings;
-    const d = defaultSettings();
-    const merged = mergeKnown({ autonomy: { ...d.autonomy, ...cur.autonomy }, notifications: { channels: { ...d.notifications.channels, ...cur.notifications?.channels }, topics: { ...d.notifications.topics, ...cur.notifications?.topics } }, appearance: { ...d.appearance, ...cur.appearance }, privacy: { ...d.privacy, ...cur.privacy }, workflows: { ...d.workflows!, ...(cur.workflows ?? {}) } } as Record<string, any>, s);
+    const merged = mergeSettings(cur, s);
     for (const v of Object.values(merged.autonomy)) if (v !== "ask" && v !== "auto") throw bad("Unknown autonomy setting.");
     if (!["auto", "day", "night"].includes(merged.appearance.theme)) throw bad("Unknown theme.");
-    patch.settings = { ...merged, brand: await cleanBrand({ ...(cur.brand ?? {}), ...((s.brand && typeof s.brand === "object" ? s.brand : {}) as object) }, profile.id) } as ProfileSettings;
+    patch.settings = { ...cur, ...merged, brand: await cleanBrand({ ...(cur.brand ?? {}), ...((s.brand && typeof s.brand === "object" ? s.brand : {}) as object) }, profile.id) } as ProfileSettings;
   }
   const updated = await getStore().update("profiles", profile.id, profile.id, patch);
   return { profile: updated };

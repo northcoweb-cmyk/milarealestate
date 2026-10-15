@@ -61,7 +61,7 @@ export default function CalendarPage() {
         <div className="flex items-center gap-2"><h2 className="display text-[26px] leading-none">{MONTHS[view.m - 1]} {view.y}</h2>{!(isNow && selDay === nowParts.d) && <button className="chip !min-h-[34px] text-[13px]" onClick={goToday}>Today</button>}</div>
         <button className="btn btn-quiet !min-h-[44px] !min-w-[44px] !px-2" onClick={() => go(1)} aria-label="Next month"><ChevronRight size={22} /></button>
       </div>
-      <div className="mb-1 grid grid-cols-7 gap-1.5 text-center sm:gap-2" aria-hidden>{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => <span key={w} className="faint text-[11px] font-bold uppercase tracking-wider">{w}</span>)}</div>
+      <div className="mb-1 grid grid-cols-7 gap-1.5 text-center sm:gap-2" aria-hidden>{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => <span key={w} className="muted text-[11px] font-bold uppercase tracking-wider">{w}</span>)}</div>
       <div className="mb-5 grid grid-cols-7 gap-1.5 sm:gap-2" role="grid" aria-label={`${MONTHS[view.m - 1]} ${view.y}`}>
         {Array.from({ length: lead }, (_, i) => <span key={"b" + i} aria-hidden />)}
         {days.map((d, i) => {

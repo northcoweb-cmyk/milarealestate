@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useApp } from "@/components/app-context";
 import { jfetch } from "@/components/ui";
 
-const TOPICS: [string, string][] = [["billing", "Billing"], ["refund", "Refund request"], ["bug", "Something isn't working"], ["account", "My account"], ["question", "A question"], ["other", "Something else"]];
+const TOPICS: [string, string][] = [["billing", "Billing"], ["refund", "Refund request"], ["bug", "Something isn't working"], ["account", "My account"], ["data_copy", "Copy of my data"], ["question", "A question"], ["other", "Something else"]];
 const MAX_FILES = 5;
 
 /** In-app support: name and email prefilled (email can be changed), files attached, one clear promise about reply time. */
@@ -15,8 +15,9 @@ export function SupportForm() {
   const [name, setName] = useState(profile.full_name ?? "");
   const [email, setEmail] = useState(profile.email ?? "");
   const [topic, setTopic] = useState(TOPICS.some(([k]) => k === params.get("topic")) ? params.get("topic")! : "question");
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const wantsCopy = params.get("topic") === "data_copy";
+  const [subject, setSubject] = useState(wantsCopy ? "Copy of my data" : "");
+  const [message, setMessage] = useState(wantsCopy ? "Please send me a copy of all my data and records." : "");
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false); const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState<string | null>(null); const [error, setError] = useState<string | null>(null);

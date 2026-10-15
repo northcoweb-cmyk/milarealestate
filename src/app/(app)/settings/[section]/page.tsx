@@ -183,7 +183,6 @@ const AUTONOMY: { key: AutonomyKey; title: string; sub: string }[] = [
   { key: "tasks", title: "Task creation", sub: "Adding tasks and follow-ups" },
   { key: "reminders", title: "Reminders", sub: "Setting reminders" },
   { key: "social_posts", title: "Social posts", sub: "Approving posts for publishing" },
-  { key: "sms", title: "Text messages", sub: "Sending SMS (coming soon)" },
 ];
 function Autonomy() {
   const { profile } = useApp(); const save = useSave();
@@ -212,12 +211,12 @@ function Notifications() {
   const upd = (next: typeof n) => { setN(next); save({ settings: { notifications: next } }); };
   const [perm, setPerm] = useState<string>("default");
   useEffect(() => { if ("Notification" in window) setPerm(Notification.permission); else setPerm("unsupported"); }, []);
-  const ch: [keyof typeof n.channels, string, string][] = [["email", "Email", "Summaries and reminders by email (needs email delivery to be configured)"], ["browser", "Browser", "Alerts while Mila is open"], ["pwa", "App (Home Screen)", "In-app alerts"], ["calendar", "Calendar", "Reminders on your calendar events"], ["sms", "SMS", "Coming soon"]];
+  const ch: [keyof typeof n.channels, string, string][] = [["email", "Email", "Reminders and your daily summary, sent to your inbox. Works any time, even when Mila is closed."], ["browser", "Browser alerts", "A pop-up on this device. Your browser only shows these while Mila is open."], ["pwa", "In the app", "A banner inside Mila when you open it."], ["calendar", "Calendar", "A reminder a day before, and 30 minutes before, on every event Mila adds."]];
   const tp: [keyof typeof n.topics, string][] = [["daily_summary", "Daily summary"], ["task_reminders", "Task reminders"], ["approval_reminders", "Approval reminders"], ["lead_alerts", "Lead alerts"], ["calendar_conflicts", "Calendar conflicts"], ["follow_up_reminders", "Follow-up reminders"]];
   return (
     <>
-      <Card title="How" sub="Where Mila can reach you.">
-        <div className="space-y-4">{ch.map(([k, t, s]) => <div key={k} className="flex items-center gap-4"><div className="min-w-0 flex-1"><p className="font-semibold">{t}</p><p className="muted text-[13.5px]">{s}</p></div><Toggle label={t} checked={k !== "sms" && n.channels[k]} onChange={(v) => k !== "sms" && upd({ ...n, channels: { ...n.channels, [k]: v } })} /></div>)}</div>
+      <Card title="How" sub="Where Mila can reach you. Email is the most reliable; browser and in-app alerts only appear while Mila is open on your device.">
+        <div className="space-y-4">{ch.map(([k, t, s]) => <div key={k} className="flex items-center gap-4"><div className="min-w-0 flex-1"><p className="font-semibold">{t}</p><p className="muted text-[13.5px]">{s}</p></div><Toggle label={t} checked={n.channels[k]} onChange={(v) => upd({ ...n, channels: { ...n.channels, [k]: v } })} /></div>)}</div>
         {perm !== "granted" && perm !== "unsupported" && <button className="btn btn-sm mt-4" onClick={async () => setPerm(await Notification.requestPermission())}>Allow browser notifications</button>}
         {perm === "denied" && <p className="faint mt-2 text-[13px]">Notifications are blocked in your browser settings.</p>}
       </Card>
@@ -347,20 +346,50 @@ function LocationCard() {
 
 function Privacy() {
   const { profile } = useApp(); const save = useSave(); const router = useRouter(); const { toast } = useApp();
-  const [p, setP] = useState(profile.settings.privacy); const [del, setDel] = useState(false); const [txt, setTxt] = useState(""); const [busy, setBusy] = useState(false);
+  const [p, setP] = useState(profile.settings.privacy); const [del, setDel] = useState(false); const [askAcct, setAskAcct] = useState(false); const [txt, setTxt] = useState(""); const [busy, setBusy] = useState(false);
   return (
     <>
       <Card title="Your data" sub="Your contacts, calendar, emails and documents are visible only to you. Mila's staff and other users can't see them. To get a copy of your data, send us a request and we'll prepare it for you.">
         <div className="flex items-center gap-4"><div className="flex-1"><p className="font-semibold">Keep conversation history</p><p className="muted text-[14px]">Lets Mila remember context across visits. Structured memory is separate and always editable in More → Memory.</p></div><Toggle label="Keep conversation history" checked={p.store_conversations} onChange={(v) => { const n = { ...p, store_conversations: v }; setP(n); save({ settings: { privacy: n } }); }} /></div>
-        <div className="mt-5 flex flex-wrap gap-3"><Link className="btn btn-sm" href="/settings/support">Request a copy of my data</Link><button className="btn btn-danger btn-sm" onClick={() => setDel(true)}>Delete all my data</button></div>
+        <div className="mt-5 flex flex-wrap gap-3"><Link className="btn btn-sm" href="/settings/support?topic=data_copy">Request a copy of my data</Link><button className="btn btn-danger btn-sm" onClick={() => setDel(true)}>Delete all my data</button></div>
       </Card>
       <p className="faint px-2 text-[13px]">Mila never sends email, texts or posts without your permission, and never shares your data with other users.</p>
-      <Sheet open={del} onClose={() => { setDel(false); setTxt(""); }} title="Delete everything?">
-        <p className="muted mb-4">This permanently deletes your contacts, calendar, tasks, memories, documents and connections. It can't be undone. Type <b>DELETE</b> to confirm.</p>
+      <Sheet open={del} onClose={() => { setDel(false); setTxt(""); }} title="Delete all my data?">
+        <p className="muted mb-4">This permanently deletes everything you've done in Mila: contacts, calendar, tasks, posts, emails, documents, what Mila remembers about you, your conversations and your connections. It can't be undone. Your account and plan stay. Type <b>DELETE</b> to confirm.</p>
         <input className="field mb-4" autoFocus placeholder="Type DELETE" value={txt} onChange={(e) => setTxt(e.target.value)} aria-label="Type DELETE to confirm" />
-        <div className="flex gap-3"><button className="btn flex-1" onClick={() => setDel(false)}>Cancel</button><button className="btn btn-danger flex-1" disabled={busy || txt !== "DELETE"} onClick={async () => { setBusy(true); try { await jfetch("/api/privacy/delete", { method: "POST", json: { confirm: txt } }); window.location.replace("/welcome"); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't delete.", "error"); setBusy(false); } }}>{busy ? "Deleting…" : "Delete permanently"}</button></div>
+        <div className="flex gap-3"><button className="btn flex-1" onClick={() => setDel(false)}>Cancel</button><button className="btn btn-danger flex-1" disabled={busy || txt !== "DELETE"} onClick={async () => { setBusy(true); try { await jfetch("/api/privacy/delete", { method: "POST", json: { confirm: txt, scope: "data" } }); setDel(false); setTxt(""); setAskAcct(true); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't delete.", "error"); } finally { setBusy(false); } }}>{busy ? "Deleting…" : "Delete my data"}</button></div>
+      </Sheet>
+      <Sheet open={askAcct} onClose={() => { setAskAcct(false); router.refresh(); }} title="Your data is deleted">
+        <p className="muted mb-4">Everything you did in Mila is gone. Do you also want to delete your account? That removes your sign-in too, frees your email to sign up again, and can&apos;t be undone.</p>
+        <div className="flex flex-col gap-3 sm:flex-row"><button className="btn flex-1" onClick={() => { setAskAcct(false); window.location.replace("/"); }}>Keep my account</button><button className="btn btn-danger flex-1" disabled={busy} onClick={async () => { setBusy(true); try { await jfetch("/api/privacy/delete", { method: "POST", json: { confirm: "DELETE", scope: "account" } }); window.location.replace("/welcome"); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't delete the account.", "error"); setBusy(false); } }}>{busy ? "Deleting…" : "Delete my account too"}</button></div>
       </Sheet>
     </>
+  );
+}
+
+function ChangePassword() {
+  const { toast } = useApp();
+  const [f, setF] = useState({ current: "", next: "", again: "" });
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); setErr(null);
+    if (f.next !== f.again) return setErr("The new passwords don't match.");
+    setBusy(true);
+    try { await jfetch("/api/auth/password", { method: "POST", json: { current: f.current, next: f.next } }); setF({ current: "", next: "", again: "" }); toast("Password changed.", "success"); }
+    catch (e2) { setErr(e2 instanceof Error ? e2.message : "Couldn't change it."); } finally { setBusy(false); }
+  }
+  return (
+    <Card title="Change password" sub="Enter your current password first. If you sign in with Google, there's no Mila password to change.">
+      <form className="space-y-3" onSubmit={submit}>
+        <div><label className="lbl" htmlFor="pw-cur">Current password</label><input id="pw-cur" className="field" type="password" autoComplete="current-password" required value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })} /></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><label className="lbl" htmlFor="pw-new">New password</label><input id="pw-new" className="field" type="password" autoComplete="new-password" minLength={8} required value={f.next} onChange={(e) => setF({ ...f, next: e.target.value })} /></div>
+          <div><label className="lbl" htmlFor="pw-again">New password again</label><input id="pw-again" className="field" type="password" autoComplete="new-password" minLength={8} required value={f.again} onChange={(e) => setF({ ...f, again: e.target.value })} /></div>
+        </div>
+        {err && <p role="alert" className="text-[14.5px]" style={{ color: "var(--danger)" }}>{err}</p>}
+        <button className="btn btn-primary" disabled={busy || !f.current || f.next.length < 8}>{busy ? "Saving…" : "Change password"}</button>
+      </form>
+    </Card>
   );
 }
 
@@ -371,6 +400,7 @@ function Security() {
       <Card title="Account protection" sub="How Mila keeps your business safe.">
         <ul className="muted space-y-2 text-[14.5px]"><li>• Every record is tied to your account; other users can never read it.</li><li>• Your connected accounts are stored securely and never shown in the app.</li><li>• Consequential actions wait for your approval unless you say otherwise.</li><li>• Deleting data always asks first.</li></ul>
       </Card>
+      <ChangePassword />
       <Card><button className="btn" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); window.location.replace("/welcome"); }}>Sign out</button></Card>
     </>
   );

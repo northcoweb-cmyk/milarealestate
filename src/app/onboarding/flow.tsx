@@ -23,11 +23,12 @@ const BIZ = [["buyer", "Buyers"], ["seller", "Sellers"], ["rental", "Rentals"], 
 export function OnboardingFlow({ name, googleConfigured, allowSample = true }: { name: string; googleConfigured: boolean; allowSample?: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const SCREENS = [0, 1, 4, 5]; // the short first run: essentials, an optional connection, then straight to work (career level and focus are in Settings)
+  const SCREENS = [0, 1, 6, 4, 5]; // the short first run: essentials, an optional connection, then straight to work (career level and focus are in Settings)
   const screen = SCREENS[step] ?? 5;
   const [f, setF] = useState({ full_name: name, role: "Agent", brokerage: "", location: "", primary_market: "", experience: "growing", business_type: "mixed" });
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sample, setSample] = useState(allowSample);
+  const [notify, setNotify] = useState({ email: true, browser: true, pwa: true }); // how Mila reaches them; changeable later in Settings
   async function addApple() { try { const l = await jfetch<{ webcal: string }>("/api/calendar/feed-link"); window.location.href = l.webcal; } catch { /* the Calendar screen has the same button later */ } }
   const [picked, setPicked] = useState<PickedPlace | null>(null);
   const [pickedText, setPickedText] = useState("");
@@ -53,7 +54,7 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
       // No location permission? Use the place they picked for the sky and time zone.
       const fromPlace = !coords && locVerified && picked?.lat != null && picked.lng != null ? { lat: picked.lat, lng: picked.lng } : {};
       if (!coords && locVerified && picked?.timezone) tz = picked.timezone;
-      await jfetch("/api/me", { method: "PATCH", json: { ...f, brokerage: f.brokerage || null, timezone: tz, ...(coords ?? fromPlace), onboarded: true } });
+      await jfetch("/api/me", { method: "PATCH", json: { ...f, brokerage: f.brokerage || null, timezone: tz, ...(coords ?? fromPlace), onboarded: true, settings: { notifications: { channels: notify } } } });
       if (sample && allowSample) await jfetch("/api/me/sample-data", { method: "POST" });
       window.location.replace("/");
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn't finish setup."); setBusy(false); }
@@ -106,6 +107,17 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
               {allowSample && <label className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Start with sample contacts</p><p className="muted text-[14px]">Fictional people and appointments so you can try Mila right away. Remove them any time.</p></div><input type="checkbox" className="h-5 w-5" checked={sample} onChange={(e) => setSample(e.target.checked)} /></label>}
               <p className="faint px-1 text-[13.5px]">Have a list already? After setup, just tell Mila “import my contacts” or attach a spreadsheet.</p>
             </div>
+          </>}
+          {screen === 6 && <>
+            <h1 className="h1 mb-1">How should Mila reach you?</h1><p className="muted mb-5">For reminders, follow-ups and anything waiting on you. Pick any you like. You can change this later in Settings.</p>
+            <div className="space-y-2.5">
+              {([["email", "Email", "Most reliable. Reaches you even when Mila is closed."], ["browser", "Browser alerts", "A pop-up on this device while Mila is open."], ["pwa", "In the app", "A banner when you open Mila."]] as const).map(([k, t, sub]) => (
+                <label key={k} className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}>
+                  <div className="min-w-0 flex-1"><p className="font-semibold">{t}</p><p className="muted text-[14px]">{sub}</p></div>
+                  <input type="checkbox" className="h-5 w-5" checked={notify[k]} onChange={(e) => setNotify((x) => ({ ...x, [k]: e.target.checked }))} aria-label={t} />
+                </label>))}
+            </div>
+            {notify.browser && typeof window !== "undefined" && "Notification" in window && Notification.permission === "default" && <button type="button" className="btn btn-sm mt-3" onClick={() => { try { void Notification.requestPermission(); } catch { /* not supported here */ } }}>Allow browser alerts</button>}
           </>}
           {screen === 5 && <div className="text-center">
             <div className="mb-5 flex justify-center"><Orb size={64} /></div>

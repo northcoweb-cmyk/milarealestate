@@ -7,8 +7,8 @@ import { creditSummary } from "@/lib/credits";
 import { logError } from "@/lib/server/errors";
 import { brandedEmail } from "@/lib/email-template";
 
-const TOPICS = ["billing", "refund", "bug", "account", "question", "other"] as const;
-const LABEL: Record<string, string> = { billing: "Billing", refund: "Refund request", bug: "Something isn't working", account: "My account", question: "A question", other: "Something else" };
+const TOPICS = ["billing", "refund", "bug", "account", "data_copy", "question", "other"] as const;
+const LABEL: Record<string, string> = { billing: "Billing", refund: "Refund request", bug: "Something isn't working", account: "My account", data_copy: "Copy of my data", question: "A question", other: "Something else" };
 const clip = (v: unknown, n: number) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 
 /** A support ticket from inside Mila. Stored for the owner (Mila OS → Support), with the person's reply-to email, and an email alert to the owner when email is configured. */
