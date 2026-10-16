@@ -7,6 +7,8 @@ interface Me { profile: Profile; referralsFull?: boolean; admin: boolean; tester
 interface Ctx extends Me { refresh: () => Promise<void>; toast: (msg: string, tone?: "info" | "error" | "success") => void; setBalance: (n: number) => void }
 
 const AppCtx = createContext<Ctx | null>(null);
+/** Like useApp, but returns null outside the provider (signed-out pages such as /welcome have no AppProvider). */
+export const useAppOptional = () => useContext(AppCtx);
 export const useApp = () => { const c = useContext(AppCtx); if (!c) throw new Error("useApp outside provider"); return c; };
 
 interface Toast { id: number; msg: string; tone: "info" | "error" | "success" }

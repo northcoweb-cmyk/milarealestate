@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { skyAt, type SkyState } from "@/lib/sky";
 import Cloudscape from "@/components/ui/cloudscape";
-import { useApp } from "@/components/app-context";
+import { useAppOptional } from "@/components/app-context";
 
 interface Props { initialNow: string; tz: string; lat?: number | null; lng?: number | null; theme?: "auto" | "day" | "night"; reduceMotion?: boolean; animated?: boolean }
 
@@ -11,10 +11,11 @@ const STARS = Array.from({ length: 46 }, (_, i) => ({ x: (i * 53.7) % 100, y: (i
 
 export function Sky({ initialNow, tz: tz0, lat: lat0, lng: lng0, theme: theme0 = "auto", reduceMotion: reduceMotion0 = false, animated: animated0 = false }: Props) {
   // The saved settings live in the app context and change the moment they are saved; the layout props only reflect the page load.
-  const { profile } = useApp();
-  const ap = profile.settings.appearance;
+  // Signed-out pages (/welcome, /claim) render the sky with no AppProvider, so the context can be absent: fall back to the props.
+  const profile = useAppOptional()?.profile;
+  const ap = profile?.settings?.appearance;
   const theme = ap?.theme ?? theme0, reduceMotion = ap?.reduce_motion ?? reduceMotion0, animated = (ap?.animated_sky ?? animated0) === true;
-  const tz = profile.timezone || tz0, lat = profile.lat ?? lat0, lng = profile.lng ?? lng0;
+  const tz = profile?.timezone || tz0, lat = profile?.lat ?? lat0, lng = profile?.lng ?? lng0;
   const [now, setNow] = useState(() => new Date(initialNow));
   const [osReduce, setOsReduce] = useState(false);
   useEffect(() => {
