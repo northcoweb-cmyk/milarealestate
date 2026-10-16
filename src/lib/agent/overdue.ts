@@ -41,8 +41,30 @@ export async function expireStale(ctx: Ctx): Promise<{ tasks: number; approvals:
     const mine = events.filter((e) => e.property_id === pid);
     if (mine.every((e) => new Date(e.end_at).getTime() < today)) over.add(pid);
   }
-  if (!over.size) return { tasks: 0, approvals: 0 };
   let tasks = 0, approvals = 0;
+  const STALE_DAYS = 3; // a draft or approval nobody touched for this long is no longer something to do today
+  const cutoff = today - STALE_DAYS * 86_400_000;
+  // 1. posts that are only waiting on the agent: gone once their day has passed, their event is over, or they sat ignored for days
+  const archivedPosts = new Set<string>();
+  for (const p of await ctx.store.list("social_posts", ctx.userId)) {
+    if (p.status !== "draft" && p.status !== "pending_approval") continue;
+    const planned = p.scheduled_for ? new Date(p.scheduled_for).getTime() : null;
+    const ev = p.event_id ? events.find((e) => e.id === p.event_id) : null;
+    const eventOver = (ev && new Date(ev.end_at).getTime() < today) || (p.property_id && over.has(p.property_id));
+    const dayPassed = planned != null ? planned < today : false;
+    const ignored = planned == null && new Date(p.created_at).getTime() < cutoff;
+    if (dayPassed || eventOver || ignored) { await ctx.store.update("social_posts", ctx.userId, p.id, { status: "archived" } as never); archivedPosts.add(p.id); }
+  }
+  // 2. approvals that are still waiting: the post is gone, the calendar change is in the past, or they sat ignored for days
+  for (const a of await ctx.store.list("approvals", ctx.userId)) {
+    if (a.status !== "pending") continue;
+    const args = (a.payload?.args ?? {}) as { postId?: string; start_at?: string };
+    const old = new Date(a.created_at).getTime() < cutoff;
+    const postGone = !!args.postId && archivedPosts.has(args.postId);
+    const calendarPast = a.action.startsWith("calendar") && !!args.start_at && new Date(args.start_at).getTime() < today;
+    if (old || postGone || calendarPast) { await ctx.store.update("approvals", ctx.userId, a.id, { status: "rejected", decided_at: new Date().toISOString(), error: "Expired: it was never needed." } as never); approvals++; for (const t of await ctx.store.list("tasks", ctx.userId)) if (t.approval_id === a.id && t.status === "open") await ctx.store.update("tasks", ctx.userId, t.id, { status: "dismissed" } as never); }
+  }
+  if (!over.size) return { tasks, approvals };
   for (const t of await ctx.store.list("tasks", ctx.userId)) {
     if (t.status !== "open" || !t.property_id || !over.has(t.property_id) || t.kind === "approval" || t.approval_id) continue;
     if (!PRE_EVENT.test(t.title) || AFTER_EVENT.test(t.title)) continue;

@@ -27,3 +27,23 @@ test("pre-event items for a finished open house are cleared, follow-ups and futu
   assert.equal((await store.get("tasks", a.id, future.id))!.status, "open");
   assert.equal((await store.get("approvals", a.id, appr.id))!.status, "rejected");
 });
+
+test("old ignored drafts and approvals go away; today's and future ones stay", async () => {
+  const a = await newAgent({ now: NOW, tz: "America/New_York", seed: false });
+  const post = (o: Record<string, unknown>) => store.insert("social_posts", a.id, { platform: "instagram", caption: "x", hashtags: [], slides: [], status: "pending_approval", property_id: null, event_id: null, scheduled_for: null, stale: false, stale_reason: null, posted_at: null, ...o } as never);
+  const fresh = await post({});
+  const oldIgnored = await post({});
+  await store.update("social_posts", a.id, oldIgnored.id, { created_at: day(-6) } as never);
+  const plannedYesterday = await post({ scheduled_for: day(-1), status: "draft" });
+  const plannedTomorrow = await post({ scheduled_for: day(1), status: "draft" });
+  const appr = (title: string, postId: string, back: number) => store.insert("approvals", a.id, { action: "publish_social", title, summary: null, payload: { tool: "publish_social_post", args: { postId } }, risk: "normal", status: "pending", result: null, error: null, blocked_integration: null, workflow_run_id: null, decided_at: null, executed_at: null } as never).then(async (x) => { await store.update("approvals", a.id, x.id, { created_at: day(back) } as never); return x; });
+  const aOld = await appr("Old post", oldIgnored.id, -6), aFresh = await appr("Fresh post", fresh.id, 0);
+  await expireStale(await buildCtx(a.profile));
+  const st = async (id: string) => (await store.get("social_posts", a.id, id))!.status;
+  assert.equal(await st(fresh.id), "pending_approval");
+  assert.equal(await st(oldIgnored.id), "archived");
+  assert.equal(await st(plannedYesterday.id), "archived");
+  assert.equal(await st(plannedTomorrow.id), "draft");
+  assert.equal((await store.get("approvals", a.id, aOld.id))!.status, "rejected");
+  assert.equal((await store.get("approvals", a.id, aFresh.id))!.status, "pending");
+});
