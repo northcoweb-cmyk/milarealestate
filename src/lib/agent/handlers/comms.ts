@@ -151,7 +151,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
       made.push(post);
     }
     blocks.push({ type: "post_set", title: `${options.length} ${platform === "instagram_story" || platform === "tiktok" ? "story" : "post"} options`, options });
-    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add your photos", body: "I don't have photos for this home yet. Add yours and every option updates, or send me the listing link and I'll pull them. I never use stock images for a real property.", buttons: [{ label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] });
+    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add your photos", body: "I don't have photos for this home yet. Add yours (Zillow and Redfin are good places to find them) and every option updates.", buttons: [{ label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] });
     return reply(`Here are ${options.length} ${platform === "instagram_story" || platform === "tiktok" ? "stories" : "posts"} for ${prop.address}. Swipe to compare, then pick the one you like. Nothing posts until you approve it.`, blocks, "social_generation");
   }
   let post: SocialPost;
@@ -164,7 +164,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text: `open house at ${prop.address}${prop.city ? `, ${prop.city}` : ""}${prop.state ? ` ${prop.state}` : ""}` }, missing: "date" }; // her next message ("Saturday 1 to 4") books it
     await persistState(ctx);
     blocks.push({ type: "notice", tone: "info", title: "Add the day and time", body: `Tell me when it is (like "Saturday 1 to 4") and I'll put the open house on your calendar and add the date to the post.` });
-    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Send me the listing link and I'll pull the photos. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
+    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (Zillow and Redfin are good places to find them) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
     return reply(`Here's an Instagram carousel for the open house at ${prop.address}.`, blocks, "social_generation");
   }
   if (ev && /open house|carousel/i.test(text) || (ev && !/just listed|price/i.test(text))) {
@@ -180,7 +180,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     })) as any).data.post;
   }
   await attach(post);
-  if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Send me the listing link and I'll pull the photos. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
+  if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (Zillow and Redfin are good places to find them) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
   return reply(platform === "tiktok" ? `Here's a TikTok cover for ${prop.address}.` : platform === "instagram_story" ? `Here's an Instagram story for ${prop.address}.` : `Here's an Instagram carousel for ${prop.address}.`, blocks, "social_generation");
 }
 

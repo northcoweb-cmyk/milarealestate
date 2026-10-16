@@ -123,7 +123,7 @@ export async function buildFeed(ctx: Ctx): Promise<Feed> {
     if (c && !shownContacts.has(firstName(c.name))) addPlan({ id: `cf-${e.id}`, emoji: "✉️", title: `Confirm with ${firstName(c.name)}`, why: `${e.title.split(/[—,]/)[0].trim()} · ${relativeDays(e.start_at, now, tz)} ${fmtTime(e.start_at, tz)}`, action: { label: "Draft confirmation", href: ask(`Draft a confirmation message to ${c.name} for ${e.title}`) } });
   }
   for (const e of events.filter((x) => x.status === "confirmed" && x.kind === "open_house" && x.property_id && new Date(x.start_at) > now && new Date(x.start_at).getTime() < now.getTime() + 3 * DAY_MS).slice(0, 1)) {
-    if (!images.some((i) => i.property_id === e.property_id)) addPlan({ id: `ph-${e.id}`, emoji: "📸", title: "Add photos for your open house", why: `${propById.get(e.property_id!)?.address ?? "The listing"} has no photos yet.`, action: { label: "Pull photos", href: `/properties/${e.property_id}` } });
+    if (!images.some((i) => i.property_id === e.property_id)) addPlan({ id: `ph-${e.id}`, emoji: "📸", title: "Add photos for your open house", why: `${propById.get(e.property_id!)?.address ?? "The listing"} has no photos yet.`, action: { label: "Add photos", href: `/properties/${e.property_id}` } });
   }
   const dueToday = posts.filter((p) => p.status === "scheduled" && p.scheduled_for && inDay(p.scheduled_for, dayEnd));
   if (dueToday.length) addPlan({ id: "post-today", emoji: "📣", title: `Post ${plural(dueToday.length, "scheduled post")} today`, why: "Mila reminds you at the scheduled time.", action: { label: "Open posts", href: "/content?tab=scheduled" } });

@@ -7,7 +7,6 @@ import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types
 import type { Ctx } from "../agent/context";
 import { polish, propertyPostData } from "../agent/comms";
 import { LAYOUTS, pickLayout, pickTheme } from "./design";
-import { pullListingPhotos } from "../images/listing";
 import { brandOf, buildSignature, stripSignature, withSignature } from "../signature";
 import { type Category, CATEGORIES, PLATFORMS, buildPost, fitToPlatform, parseTipRequest, platformLimit, variantCount } from "./templates";
 
@@ -60,11 +59,10 @@ function withDesign(slides: SocialSlide[], urls: string[], category: string, see
   });
 }
 
-/** Slides built in chat get the same designs as the Content tab: a rotating palette and layout, and the home's real photos (read from its listing link when none are saved yet). */
+/** Slides built in chat get the same designs as the Content tab: a rotating palette and layout, and the home's real photos (the ones the agent added). */
 export async function designSlides(ctx: Ctx, prop: Property, slides: SocialSlide[], category: string, bump = 0, platform?: string): Promise<SocialSlide[]> {
   await ensureListingPhotos(ctx, prop);
   let urls = await imageUrls(ctx, prop.id);
-  if (!urls.length && prop.listing_url) { try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); urls = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ } }
   const seed = (await ctx.store.list("social_posts", ctx.userId)).length + bump;
   if (platform === "instagram_story" || platform === "tiktok") { // a story is one image, so it carries the details itself
     const d = await propertyPostData(ctx, prop, { sold: category === "just_sold" }).catch(() => null);
@@ -104,10 +102,6 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
   const when = input.category === "open_house" && prop ? await openHouseWhen(ctx, prop) : null;
   await ensureListingPhotos(ctx, prop);
   let ids = await imageUrls(ctx, prop?.id ?? null);
-  // "Pull the images": a listing post with no photos yet reads the listing link's public preview photos.
-  if (prop && !ids.length && prop.listing_url) {
-    try { await pullListingPhotos(ctx.store, ctx.userId, prop, prop.listing_url); ids = await imageUrls(ctx, prop.id); } catch { /* photos are optional */ }
-  }
   const data = prop ? await propertyPostData(ctx, prop, { sold: input.category === "just_sold" }) : null;
   const everyPost = (await ctx.store.list("social_posts", ctx.userId)).length;
   const general = await anyPhotoUrls(ctx);

@@ -2,7 +2,7 @@
  * RentCast (https://developers.rentcast.io) — per-request US property records, active sale listings and value estimates.
  * Auth: X-Api-Key. Set RENTCAST_API_KEY on the server. Without it every function reports "not configured" and the app falls back to
  * the web-search lookup, so nothing here is ever required.
- * RentCast returns NO photos; images come from Google Street View (see /api/places/streetview) or a listing link the agent gives us.
+ * RentCast returns NO photos; images come from Google Street View (see /api/places/streetview).
  */
 const BASE = (process.env.RENTCAST_BASE_URL || "https://api.rentcast.io/v1").replace(/\/$/, ""); // override only for local testing against a mock
 /**
