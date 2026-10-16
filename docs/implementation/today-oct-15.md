@@ -53,6 +53,5 @@ Not doing (decided): Supabase/Google/Vercel upgrades (the 23rd, only if needed),
 - [x] 7.21 Request a copy of data: becomes a support ticket in Mila OS with a file of all their data.
 - [x] 7.22 Security: change password with the old password.
 
-### Owner action needed for reminder emails to arrive on time
-Vercel's free plan only runs a scheduled job once a day. `.github/workflows/reminders.yml` wakes reminder delivery every 5 minutes instead. One-time: GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret `CRON_SECRET` = the same value as `CRON_SECRET` in the Mila app's Vercel settings.
-Browser and Home Screen alerts only show while the app is open (a browser limit); email always arrives.
+### Reminder emails: timing
+The 5-minute GitHub job was removed (it emailed failures until a secret was added). Vercel's free plan runs scheduled jobs once a day, so a reminder email goes out when the app is open (checked every minute) or on the daily run. For on-time emails with the app closed: upgrade Vercel to Pro (per-minute schedule), or add a free outside pinger later.
