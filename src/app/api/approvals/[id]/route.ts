@@ -1,3 +1,4 @@
+import { renderMerge } from "@/lib/merge";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { decideApproval, rebindApproval } from "@/lib/agent/tools";
@@ -15,7 +16,8 @@ export const GET = api<{ id: string }>(async ({ profile, params }) => {
   const contacts = await ctx.store.list("contacts", profile.id);
   const post = a.postId ? await ctx.store.get("social_posts", profile.id, a.postId) : null;
   const event = a.id && approval.payload.tool.includes("calendar") ? await ctx.store.get("calendar_events", profile.id, a.id) : null;
-  return { approval, drafts, post, event, recipients: Object.fromEntries(contacts.map((c) => [c.id, { name: c.name, email: c.email }])) };
+  const shown = (drafts as { to_contact_ids: string[]; contact_id: string | null; body: string }[]).map((d) => ({ ...d, body: renderMerge(d.body, [...new Set([...(d.contact_id ? [d.contact_id] : []), ...d.to_contact_ids])].map((cid) => contacts.find((c) => c.id === cid)).filter(Boolean) as { name: string }[]) }));
+  return { approval, drafts: shown, post, event, recipients: Object.fromEntries(contacts.map((c) => [c.id, { name: c.name, email: c.email }])) };
 });
 
 export const POST = api<{ id: string }>(async ({ profile, params, req }) => {

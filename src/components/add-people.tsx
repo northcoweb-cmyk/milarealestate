@@ -77,9 +77,14 @@ export function AddPeople({ open, onClose, onDone }: { open: boolean; onClose: (
     } catch (e) { toast(e instanceof Error ? e.message : "Upload failed.", "error"); setBusy(false); }
     finally { if (file.current) file.current.value = ""; }
   }
-  async function addManual(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true);
-    try { await jfetch("/api/contacts", { method: "POST", json: { ...m, email: m.email || null, phone: m.phone || null, location: m.location || null } }); toast(`${m.name} added.`, "success"); onDone(); close(); setM({ name: "", email: "", phone: "", type: "lead", location: "" }); }
+  const [dup, setDup] = useState<{ id: string; name: string; matchedOn: string } | null>(null);
+  async function addManual(e: React.FormEvent | null, force = false) {
+    e?.preventDefault(); setBusy(true);
+    try {
+      const r = await jfetch<{ existing?: boolean; matchedOn?: string; contact: { id: string; name: string } }>("/api/contacts", { method: "POST", json: { ...m, email: m.email || null, phone: m.phone || null, location: m.location || null, force: force || undefined } });
+      if (r.existing) { setDup({ id: r.contact.id, name: r.contact.name, matchedOn: r.matchedOn ?? "name" }); return; } // never say "added" when nothing was saved
+      setDup(null); toast(`${m.name} added.`, "success"); onDone(); close(); setM({ name: "", email: "", phone: "", type: "lead", location: "" });
+    }
     catch (er) { toast(er instanceof Error ? er.message : "Couldn't add them.", "error"); } finally { setBusy(false); }
   }
   return (
@@ -113,7 +118,12 @@ export function AddPeople({ open, onClose, onDone }: { open: boolean; onClose: (
           </li>))}</ul>
         <div className="flex gap-3 pt-1"><button className="btn flex-1" onClick={() => setMode("menu")}>Back</button><button className="btn btn-primary flex-1" disabled={busy || !chosen.length} onClick={addChosen}>{busy ? "Adding…" : `Add ${chosen.length} ${chosen.length === 1 ? "person" : "people"}`}</button></div>
       </div>}
-      {mode === "manual" && <form onSubmit={addManual} className="space-y-3">
+      {mode === "manual" && <form onSubmit={(e) => addManual(e)} className="space-y-3">
+        {dup && <div role="alert" className="rounded-2xl p-3.5 text-[14.5px]" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}>
+          <p className="font-semibold">{dup.name} already has this {dup.matchedOn}.</p>
+          <p className="muted mt-0.5">Nothing was added yet.</p>
+          <div className="mt-2.5 flex flex-wrap gap-2"><a className="btn btn-sm" href={`/contacts/${dup.id}`}>Open {dup.name.split(" ")[0]}</a><button type="button" className="btn btn-sm" disabled={busy} onClick={() => addManual(null, true)}>Add anyway</button><button type="button" className="btn btn-quiet btn-sm" onClick={() => setDup(null)}>Cancel</button></div>
+        </div>}
         <div><label className="lbl" htmlFor="mn">Name</label><input id="mn" className="field" required value={m.name} onChange={(e) => setM({ ...m, name: e.target.value })} /></div>
         <div className="grid grid-cols-2 gap-3"><div><label className="lbl" htmlFor="me">Email</label><input id="me" type="email" className="field" value={m.email} onChange={(e) => setM({ ...m, email: e.target.value })} /></div><div><label className="lbl" htmlFor="mp">Phone</label><input id="mp" type="tel" className="field" value={m.phone} onChange={(e) => setM({ ...m, phone: e.target.value })} /></div></div>
         <div className="grid grid-cols-2 gap-3"><div><label className="lbl" htmlFor="mt">Type</label><select id="mt" className="field" value={m.type} onChange={(e) => setM({ ...m, type: e.target.value })}>{CONTACT_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</select></div><div><label className="lbl" htmlFor="ml">Area</label><input id="ml" className="field" value={m.location} onChange={(e) => setM({ ...m, location: e.target.value })} /></div></div>

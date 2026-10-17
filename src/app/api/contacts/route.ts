@@ -17,7 +17,13 @@ export const POST = api(async ({ profile, req }) => {
   if (b.status && !(CONTACT_STATUSES as readonly string[]).includes(b.status)) throw bad("Unknown status.");
   const s = (v: unknown, n: number) => (v == null || v === "" ? null : cleanText(v, n, true));
   const ctx = await buildCtx(profile);
-  const r = await TOOLS.create_contact.run(ctx, { ...b, name: cleanText(b.name, 120), email: s(b.email, 254), phone: s(b.phone, 40), notes: s(b.notes, 4000), location: s(b.location, 120), timeline: s(b.timeline, 120), tags: Array.isArray(b.tags) ? b.tags.slice(0, 20).map((t: unknown) => cleanText(t, 40)).filter(Boolean) : [], source: b.source ? cleanText(b.source, 80) : "Added manually" });
+  const r = await TOOLS.create_contact.run(ctx, { ...b, force: b.force === true, name: cleanText(b.name, 120), email: s(b.email, 254), phone: s(b.phone, 40), notes: s(b.notes, 4000), location: s(b.location, 120), timeline: s(b.timeline, 120), tags: Array.isArray(b.tags) ? b.tags.slice(0, 20).map((t: unknown) => cleanText(t, 40)).filter(Boolean) : [], source: b.source ? cleanText(b.source, 80) : "Added manually" });
   if (!r.ok) throw bad(r.message);
-  return r.data;
+  const data = r.data as { contact: { id: string; name: string; email: string | null; phone: string | null }; existing?: boolean };
+  if (data.existing) { // a person with this name, phone or email is already saved: say so (and which one), never "added"
+    const digits = (v: unknown) => String(v ?? "").replace(/\D/g, "").slice(-10);
+    const matchedOn = b.email && data.contact.email?.toLowerCase() === String(b.email).toLowerCase() ? "email" : b.phone && digits(b.phone).length >= 10 && digits(b.phone) === digits(data.contact.phone) ? "phone number" : "name";
+    return { ...data, matchedOn };
+  }
+  return data;
 });

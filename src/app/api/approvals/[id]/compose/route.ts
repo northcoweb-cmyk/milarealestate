@@ -1,4 +1,5 @@
 import { firstNameOf } from "@/lib/names";
+import { renderMerge, unresolvedBlanks } from "@/lib/merge";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { buildCtx } from "@/lib/agent/engine";
@@ -31,7 +32,9 @@ export const POST = api<{ id: string }>(async ({ profile, params, req }) => {
   const people = [...new Set([...(draft.contact_id ? [draft.contact_id] : []), ...draft.to_contact_ids])].map((id) => contacts.find((c) => c.id === id)).filter(Boolean) as typeof contacts;
   const emails = [...new Set([...people.map((c) => c.email ?? ""), ...draft.to_emails].map((e) => e.trim()).filter((e) => EMAIL.test(e)))];
   const single = emails.length === 1;
-  const body = draft.body.replaceAll("{{first_name}}", single && people[0] ? first(people[0].name) : "there");
+  const body = renderMerge(draft.body, single && people[0] ? [people[0]] : people.length === 1 ? people : [{ name: "" }, { name: "" }]);
+  const blanks = unresolvedBlanks(body);
+  if (blanks.length) throw bad(`This email still has a blank that isn't filled in (${blanks.map((b) => `{{${b}}}`).join(", ")}). Edit the message and try again.`);
 
   await ctx.store.update("email_drafts", profile.id, draft.id, { status: "approved_unsent" } as never);
   const all = await Promise.all(ids.map((id) => ctx.store.get("email_drafts", profile.id, id)));

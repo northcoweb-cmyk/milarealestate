@@ -1,3 +1,4 @@
+import { renderMerge } from "../merge";
 import { eventDescription } from "../calendar-details";
 import { buildSignature, withSignature } from "../signature";
 import { capHashtags, MAX_HASHTAGS } from "../content/templates";
@@ -83,7 +84,7 @@ export const TOOLS: Record<string, ToolDef> = {
     gate: async (ctx, a) => ({ key: "contacts", risk: "normal", action: "other", title: `Add ${a.name}`, summary: `Add ${a.name} as a ${label(a.type ?? "lead").toLowerCase()}.` }),
     run: async (ctx, a) => {
       if (!a.name || !String(a.name).trim()) return fail("invalid", "A contact needs a name.");
-      const dup = await findDuplicateContact(ctx, a);
+      const dup = a.force ? null : await findDuplicateContact(ctx, a); // "add anyway" skips the duplicate check
       if (dup) return ok({ contact: dup, existing: true });
       const c = await ctx.store.insert("contacts", ctx.userId, {
         name: String(a.name).trim(), email: a.email ?? null, phone: a.phone ?? null,
@@ -533,7 +534,7 @@ async function sendDrafts(ctx: Ctx, draftIds: string[]): Promise<ToolResult> {
     for (const t of targets) {
       if (seen.has(t.email.toLowerCase())) continue;
       seen.add(t.email.toLowerCase());
-      const body = d.body.replaceAll("{{first_name}}", t.name ? firstName(t.name) : "there");
+      const body = renderMerge(d.body, [{ name: t.name }]);
       try {
         const r = await gmail.send(ctx.userId, [t.email], d.subject, body);
         sent++;

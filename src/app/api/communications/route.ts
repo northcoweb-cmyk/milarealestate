@@ -1,3 +1,4 @@
+import { renderMerge } from "@/lib/merge";
 import { api } from "@/lib/server/route";
 import { getStore } from "@/lib/db/store";
 
@@ -16,7 +17,7 @@ export const GET = api(async ({ profile }) => {
   for (const d of drafts) {
     const at = d.sent_at ?? d.created_at; if (at < since) continue;
     const cid = d.contact_id ?? d.to_contact_ids[0] ?? null; seenDraft.add(d.id);
-    out.push({ id: `d-${d.id}`, channel: "email", contactId: cid, name: name(cid, d.to_emails[0] ?? "Someone"), subject: d.subject, snippet: d.body.replace(/\s+/g, " ").slice(0, 140), status: d.status === "sent" ? "sent" : d.status === "approved_unsent" ? "handed_off" : "drafted", at });
+    out.push({ id: `d-${d.id}`, channel: "email", contactId: cid, name: name(cid, d.to_emails[0] ?? "Someone"), subject: d.subject, snippet: renderMerge(d.body, [...new Set([...(d.contact_id ? [d.contact_id] : []), ...d.to_contact_ids])].map((id) => who.get(id)).filter(Boolean) as { name: string }[]).replace(/\s+/g, " ").slice(0, 140), status: d.status === "sent" ? "sent" : d.status === "approved_unsent" ? "handed_off" : "drafted", at });
   }
   for (const e of emails) {
     if (e.occurred_at < since) continue;

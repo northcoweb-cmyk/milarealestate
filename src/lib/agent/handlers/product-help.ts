@@ -30,3 +30,20 @@ export async function productHelpHandler(_ctx: Ctx, text: string): Promise<Handl
   if (!topic) return reply("I can help with that. What would you like to know about plans, credits, your calendar or contacts?", [], "smalltalk");
   return reply(topic.text, topic.buttons?.length ? [{ type: "choice", title: "Take me there", buttons: topic.buttons }] : [], "smalltalk");
 }
+
+const PORTAL = /\b(?:zillow|redfin|trulia|realtor\.com|homes\.com|movoto|compass\.com|bright\s?mls|mls|listing sites?|portals?)\b/;
+const PULL = /\b(?:scrap(?:e|ing)|pull|grab|download|rip|copy|extract|import|fetch|crawl)\b/;
+const OWN_FILE = /\b(?:my|your|the)\s+(?:own\s+)?(?:bright\s?mls\s+)?(?:mls\s+)?(?:export|csv|spreadsheet|file)\b|\b(?:i\s+)?(?:uploaded|attached)\b/;
+/** Asking Mila to scrape or pull photos or data from Zillow, Redfin, the MLS or a listing site. */
+export function portalAsk(text: string): boolean {
+  const t = text.toLowerCase();
+  return t.length < 400 && PORTAL.test(t) && PULL.test(t) && !OWN_FILE.test(t);
+}
+
+export async function portalRequestHandler(_ctx: Ctx, text: string): Promise<HandlerOut> {
+  const photos = /\b(?:photos?|pictures?|pics?|images?)\b/i.test(text);
+  const msg = photos
+    ? "I can't pull photos from Zillow, Redfin, the MLS or any listing site: they don't allow it, and the photos belong to the photographer or listing agent. Add your own photos on the property page, or ones you have permission to use. Nothing was charged."
+    : "I can't scrape Zillow, Redfin, the MLS or any listing site: they don't allow it. If you have your own MLS export (a spreadsheet or CSV), upload it and I'll work from that. Nothing was charged.";
+  return reply(msg, [{ type: "choice", title: "What would help?", buttons: [{ label: photos ? "Add photos to a property" : "Upload my export", style: "primary", href: photos ? "/properties" : "/documents" }] }], "smalltalk");
+}

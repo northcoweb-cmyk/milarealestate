@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { followUpBlock } from "./followups";
-import { productHelpHandler } from "./handlers/product-help";
+import { portalRequestHandler, productHelpHandler } from "./handlers/product-help";
 import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
 import { aiAvailable } from "../ai/provider";
 import type { ActionButton, Block, PendingQuestion, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
@@ -454,6 +454,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "closed_deal": return closedDealHandler(ctx, text);
     case "log_interaction": return logInteractionHandler(ctx, text);
     case "draft_text": return draftTextHandler(ctx, text);
+    case "portal_request": return portalRequestHandler(ctx, text);
     case "product_help": return productHelpHandler(ctx, text);
     case "week_overview": return weekOverviewHandler(ctx);
     case "pipeline_value": return pipelineHandler(ctx, text);

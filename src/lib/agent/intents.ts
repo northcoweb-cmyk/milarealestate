@@ -1,12 +1,12 @@
-import { productTopic } from "./handlers/product-help";
+import { portalAsk, productTopic } from "./handlers/product-help";
 import { parseDate, parseTime } from "./nlu";
 
 export type Intent =
-  | "product_help" | "oh_recap" | "client_lost" | "deactivate_contact" | "pre_departure" | "replace_event" | "listing_agreement" | "pet_check" | "client_search" | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
+  | "portal_request" | "product_help" | "oh_recap" | "client_lost" | "deactivate_contact" | "pre_departure" | "replace_event" | "listing_agreement" | "pet_check" | "client_search" | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
   | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "email_audience" | "recall" | "save_memory"
   | "find_property" | "delete_data" | "listing_link" | "showing_sheet" | "agenda" | "update_listing" | "undo" | "smalltalk" | "general";
 
-export const INTENTS: Intent[] = ["product_help", "oh_recap", "client_lost", "deactivate_contact", "pre_departure", "replace_event", "listing_agreement", "pet_check", "client_search", "prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
+export const INTENTS: Intent[] = ["portal_request", "product_help", "oh_recap", "client_lost", "deactivate_contact", "pre_departure", "replace_event", "listing_agreement", "pet_check", "client_search", "prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
 
 export interface Detected { intent: Intent; declared?: boolean }
 
@@ -66,6 +66,7 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   if (!t && hasAttachments) return { intent: "signin_paste" };
   if (/^(help|help me|what can you do|what do you do|what can i ask( you)?|how does this work|how do i use (this|you))[\s?!.]*$/.test(t)) return { intent: "smalltalk" };
   if (/^(hi|hello|hey|yo|good (morning|afternoon|evening)|thanks|thank you|thx|ok|okay|cool|great|got it)[\s!.,]*(mila)?[\s!.]*$/.test(t)) return { intent: "smalltalk" };
+  if (portalAsk(t)) return { intent: "portal_request" }; // asking Mila to scrape or pull from Zillow, Redfin, the MLS and the like: a clear no, free
   if (productTopic(t)) return { intent: "product_help" }; // questions about Mila itself (plans, credits, connections, support)
 
   if (/\b(?:listing (?:agreement|contract)|listing worksheet)\b/.test(t) && /\b(?:for|at|on|need|fill|draft|make|create|prepare|prep|write|start|do)\b/.test(t) && !/\b(uploaded|not uploaded)\b/.test(t) && !/^(?:please |can you |could you )?(?:email|e-mail|send|text|forward|draft an? (?:email|text))\b/.test(t) && !/^(?:what|when|who|where|how|did|is|are)\b/.test(t)) return { intent: "listing_agreement" };
