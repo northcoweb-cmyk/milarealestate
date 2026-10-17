@@ -47,3 +47,34 @@ export async function portalRequestHandler(_ctx: Ctx, text: string): Promise<Han
     : "I can't scrape Zillow, Redfin, the MLS or any listing site: they don't allow it. If you have your own MLS export (a spreadsheet or CSV), upload it and I'll work from that. Nothing was charged.";
   return reply(msg, [{ type: "choice", title: "What would help?", buttons: [{ label: photos ? "Add photos to a property" : "Upload my export", style: "primary", href: photos ? "/properties" : "/documents" }] }], "smalltalk");
 }
+
+/** "send this to everyone now": a blast with no audience and no content. Ask first; nothing is drafted or queued. */
+export function vagueBulk(text: string): boolean {
+  const t = text.toLowerCase();
+  if (!/\b(?:send|email|text|message|blast|forward)\b/.test(t) || !/\b(?:everyone|everybody|all of (?:them|my (?:contacts|clients|leads))|my whole list)\b/.test(t)) return false;
+  // "this"/"it" with nothing in the message that says what it is
+  return /\b(?:this|that|it)\b/.test(t) && !/\b(?:open house|listing|just listed|price|market|update|newsletter|about|saying|that says)\b/.test(t);
+}
+
+export async function vagueBulkHandler(_ctx: Ctx, _text: string): Promise<HandlerOut> {
+  return reply("Before I draft anything: who is \"everyone\" (all contacts, buyers, sellers, or people from one open house?), and what should the message say? I won't create or send anything until you tell me.", [{ type: "choice", title: "Who is it for?", buttons: [
+    { label: "Buyers", style: "secondary", action: { type: "prompt", text: "Draft an email to all my buyers" } },
+    { label: "Sellers", style: "secondary", action: { type: "prompt", text: "Draft an email to all my sellers" } },
+    { label: "An open house", style: "secondary", action: { type: "prompt", text: "Follow up with everyone from my last open house" } },
+  ] }], "smalltalk");
+}
+
+/** "it was priya or dana, I forget": two names and a doubt. Ask, write nothing. */
+export function unsureWho(text: string): boolean {
+  const t = text.toLowerCase();
+  return /\b(?:i forget|i forgot|not sure|don'?t remember|can'?t remember|i think it was|whoever it was)\b/.test(t) && /\b[a-z]{2,}\s+or\s+[a-z]{2,}\b/.test(t);
+}
+
+export async function unsureWhoHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const words = new Set(text.toLowerCase().replace(/[^a-z' ]+/g, " ").split(/\s+/));
+  const people = (await ctx.store.list("contacts", ctx.userId)).filter((c) => c.name && words.has(c.name.toLowerCase().split(/\s+/)[0]));
+  const note = /\bthey\s+(.+?)(?=,|\s+and\s+(?:also|what|remind)|$)/i.exec(text)?.[1]?.trim();
+  const names = people.slice(0, 4).map((c) => c.name);
+  const ask = names.length > 1 ? `Which one was it: ${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}?` : "Which contact was it?";
+  return reply(`${ask} I haven't saved anything yet. Tell me who, and the day of the call, and I'll add the note and then handle the rest (your week and the reminder).`, names.length > 1 ? [{ type: "choice", title: "Who was it?", buttons: people.slice(0, 4).map((c) => ({ label: c.name, style: "secondary" as const, action: { type: "prompt" as const, text: `Add a note to ${c.name}${note ? `: they ${note}` : ""}` } })) }] : [], "smalltalk");
+}

@@ -1,12 +1,12 @@
-import { portalAsk, productTopic } from "./handlers/product-help";
+import { portalAsk, productTopic, vagueBulk, unsureWho } from "./handlers/product-help";
 import { parseDate, parseTime } from "./nlu";
 
 export type Intent =
-  | "portal_request" | "product_help" | "oh_recap" | "client_lost" | "deactivate_contact" | "pre_departure" | "replace_event" | "listing_agreement" | "pet_check" | "client_search" | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
+  | "portal_request" | "vague_bulk" | "unsure_who" | "product_help" | "oh_recap" | "client_lost" | "deactivate_contact" | "pre_departure" | "replace_event" | "listing_agreement" | "pet_check" | "client_search" | "prep_property" | "meeting_prep" | "showing_followups" | "listing_ready" | "what_missing" | "new_listings" | "transaction" | "closed_deal" | "log_interaction" | "draft_text" | "week_overview" | "pipeline_value" | "add_listing" | "time_off" | "open_house" | "move_event" | "cancel_event" | "create_event" | "reminder" | "new_contact" | "priorities" | "market"
   | "debrief" | "find_contacts" | "signin_paste" | "batch_followups" | "social_post" | "draft_email" | "email_audience" | "recall" | "save_memory"
   | "find_property" | "delete_data" | "listing_link" | "showing_sheet" | "agenda" | "update_listing" | "undo" | "smalltalk" | "general";
 
-export const INTENTS: Intent[] = ["portal_request", "product_help", "oh_recap", "client_lost", "deactivate_contact", "pre_departure", "replace_event", "listing_agreement", "pet_check", "client_search", "prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
+export const INTENTS: Intent[] = ["portal_request", "vague_bulk", "unsure_who", "product_help", "oh_recap", "client_lost", "deactivate_contact", "pre_departure", "replace_event", "listing_agreement", "pet_check", "client_search", "prep_property", "meeting_prep", "showing_followups", "listing_ready", "what_missing", "new_listings", "transaction", "closed_deal", "log_interaction", "draft_text", "week_overview", "pipeline_value", "add_listing", "time_off", "open_house", "move_event", "cancel_event", "create_event", "reminder", "new_contact", "priorities", "market", "debrief", "find_contacts", "signin_paste", "batch_followups", "social_post", "draft_email", "email_audience", "recall", "save_memory", "find_property", "delete_data", "listing_link", "showing_sheet", "agenda", "update_listing", "undo", "smalltalk", "general"];
 
 export interface Detected { intent: Intent; declared?: boolean }
 
@@ -66,6 +66,8 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   if (!t && hasAttachments) return { intent: "signin_paste" };
   if (/^(help|help me|what can you do|what do you do|what can i ask( you)?|how does this work|how do i use (this|you))[\s?!.]*$/.test(t)) return { intent: "smalltalk" };
   if (/^(hi|hello|hey|yo|good (morning|afternoon|evening)|thanks|thank you|thx|ok|okay|cool|great|got it)[\s!.,]*(mila)?[\s!.]*$/.test(t)) return { intent: "smalltalk" };
+  if (vagueBulk(t)) return { intent: "vague_bulk" }; // "send this to everyone now": no audience and no content yet, so ask before anything is drafted
+  if (unsureWho(t)) return { intent: "unsure_who" }; // "priya or dana, I forget": ask which one before anything is written
   if (portalAsk(t)) return { intent: "portal_request" }; // asking Mila to scrape or pull from Zillow, Redfin, the MLS and the like: a clear no, free
   if (productTopic(t)) return { intent: "product_help" }; // questions about Mila itself (plans, credits, connections, support)
 
@@ -128,6 +130,7 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   // "cancel the Oak open house and replace it with Pine Saturday 2-4": ONE swap (never two unrelated requests, and never half of one)
   if (!isQuestion && /\b(?:replace|swap|switch)\b[^.?!]{0,40}\b(?:with|for|to)\b|\binstead\b|\bin (?:its|their) place\b/.test(t) && /\b(?:cancel|scrap|scratch|drop|remove|replace|swap|switch)\b/.test(t) && eventNoun.test(t) && !/\b(?:email|text|post|draft|reminder|task)\b.{0,12}\b(?:replace|swap)\b/.test(t)) return { intent: "replace_event" };
   if (!isQuestion && /\b(cancel|scrap|nix|axe|kill|drop|call off|remove|delete|get rid of|take [a-z0-9' ]{0,30} off (?:my |the )?(?:calendar|schedule))\b/.test(t) && (eventNoun.test(t) || /\b(appointments?|everything|events?)\b/.test(t) || /\bo['’]?clock\b|\b\d{1,2}\s*(?:am|pm)\b|\b(?:from|off)\s+(?:my |the )?(?:calendar|schedule)\b/.test(t)) && !notEventStuff.test(t)) return { intent: "cancel_event" };
+  if (!isQuestion && /^(?:(?:please|pls|plz|hey|ok|okay|actually|just|go ahead and)[,\s]+)*cancel\b.{2,60}\b(?:on|for)\s+(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(t) && !notEventStuff.test(t)) return { intent: "cancel_event" };
   if (!isQuestion && /^(?:(?:please|pls|plz|hey|ok|okay|actually|just|go ahead and)[,\s]+)*cancel (?:it|that|this|the last one|the one)\b/.test(t)) return { intent: "cancel_event" };
   if (/^(?:(?:please|pls|plz|hey|ok|okay|actually|just|can you|could you|can we|let'?s)[,\s]+)*(?:move|reschedule|push|postpone|bump|shift|change|switch)\b/.test(t) && !notEventStuff.test(t) && (eventNoun.test(t) || (/\b(it|that|this)\b/.test(t) && (hasWhen || /\b(back|up|earlier|later|sooner)\b/.test(t) || t.split(/\s+/).length <= 3)))) return { intent: "move_event", declared: false };
   if (moveVerb.test(t) && eventNoun.test(t) && /\b(to|until|for|from)\b/.test(t)) return { intent: "move_event", declared: past };

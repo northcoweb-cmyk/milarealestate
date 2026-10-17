@@ -508,6 +508,10 @@ export async function cancelEventHandler(ctx: Ctx, text: string): Promise<Handle
     return reply(out.result.ok ? "Canceled." : out.result.message);
   }
   const { event, candidates } = await resolveEvent(ctx, text);
+  // a date said in the words must be the event's own date: never cancel the "nearest" other event
+  const said = parseWhen(text, ctx.now, ctx.tz).date;
+  const onDay = (e: CalendarEvent) => { const p = partsIn(new Date(e.start_at), ctx.tz); return !said || (p.y === said.y && p.m === said.m && p.d === said.d); };
+  if (said && !candidates.some(onDay) && !(event && onDay(event))) return reply("I don't see a matching event on your calendar for that date, so I haven't canceled anything. If it already passed, it won't be on the upcoming list.");
   if (!event) return candidates.length ? reply("Which one should I cancel?", [{ type: "choice", title: "Which event?", buttons: candidates.slice(0, 5).map((e) => ({ label: `${e.title} · ${fmtDayTime(e.start_at, ctx.tz)}`, style: "secondary" as const, action: { type: "cancel_pick", eventId: e.id } })) }]) : reply("I don't see a matching event on your calendar.");
   return cancelEvent(ctx, event);
 }

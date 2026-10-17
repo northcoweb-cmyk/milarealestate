@@ -203,7 +203,7 @@ export async function draftEmailHandler(ctx: Ctx, text: string): Promise<Handler
   if (!c && names.length) return askBack(ctx, "draft_email", text, "name", `I don't have ${names[0]} in your contacts. Who should the email go to? (Say their name, or add them first.)`);
   if (!c && ctx.state.last_contact_ids?.length === 1) c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
   if (!c) return askBack(ctx, "draft_email", text, "name", "Who is the email for?");
-  const facts = await contactFacts(ctx, c);
+  const facts = await contactFacts(ctx, c, { confirmedOnly: true });
   // instructions about HOW to produce the draft ("draft only", "don't send it", "don't put anything on my calendar") are not its subject
   const brief = text.replace(/[,;.]?\s*(?:and\s+)?(?:draft only|just (?:a )?draft(?: it)?|(?:do ?n['’]?t|do not|no need to|without)\s+[^.,;]*)/gi, "").replace(/\s{2,}/g, " ").trim();
   const after = /\b(after|following|from)\s+(.{4,120}?)[.!?]*$/i.exec(brief);

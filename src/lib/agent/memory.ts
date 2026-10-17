@@ -29,7 +29,8 @@ export async function listMemories(ctx: Ctx, filter?: { scope?: MemoryScope; sub
 }
 
 /** Human-readable facts for a contact, merged from structured fields + stored memories. */
-export async function contactFacts(ctx: Ctx, c: Contact): Promise<string[]> {
+/** `confirmedOnly` leaves out what Mila only inferred, so a draft never states something the agent didn't say or confirm. */
+export async function contactFacts(ctx: Ctx, c: Contact, opts: { confirmedOnly?: boolean } = {}): Promise<string[]> {
   const f: string[] = [];
   const p = c.preferences;
   if (p.beds_min) f.push(`${p.beds_min}+ bedrooms`);
@@ -39,6 +40,6 @@ export async function contactFacts(ctx: Ctx, c: Contact): Promise<string[]> {
   if (c.budget_max) f.push(`${c.budget_min ? fullMoney(c.budget_min) + "–" : "~"}${fullMoney(c.budget_max)}`);
   if (c.timeline) f.push(`Timeline: ${c.timeline}`);
   const mem = await listMemories(ctx, { scope: "contact", subject_id: c.id });
-  for (const m of mem) f.push(`${m.key}: ${m.value}`);
+  for (const m of mem) if (!(opts.confirmedOnly && m.source === "inferred")) f.push(`${m.key}: ${m.value}`);
   return f;
 }

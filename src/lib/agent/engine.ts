@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { followUpBlock } from "./followups";
-import { portalRequestHandler, productHelpHandler } from "./handlers/product-help";
+import { portalRequestHandler, productHelpHandler, vagueBulkHandler, unsureWhoHandler } from "./handlers/product-help";
 import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
 import { aiAvailable } from "../ai/provider";
 import type { ActionButton, Block, PendingQuestion, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
@@ -108,7 +108,8 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
     } else {
       const r = await runText(ctx, text, docs);
       out = r.out; intent = r.intent;
-      if (text) await learnFromTurn(ctx, text);
+      // an instruction ("draft an email to Tom about listing above comps") is not a statement of fact: only plain statements are remembered
+      if (text && !/^(?:draft_email|draft_text|batch_followups|email_audience|showing_followups|vague_bulk|unsure_who)$/.test(intent)) await learnFromTurn(ctx, text);
     }
   } catch (e) {
     if (e instanceof TrialEnded) {
@@ -455,6 +456,8 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "log_interaction": return logInteractionHandler(ctx, text);
     case "draft_text": return draftTextHandler(ctx, text);
     case "portal_request": return portalRequestHandler(ctx, text);
+    case "vague_bulk": return vagueBulkHandler(ctx, text);
+    case "unsure_who": return unsureWhoHandler(ctx, text);
     case "product_help": return productHelpHandler(ctx, text);
     case "week_overview": return weekOverviewHandler(ctx);
     case "pipeline_value": return pipelineHandler(ctx, text);
