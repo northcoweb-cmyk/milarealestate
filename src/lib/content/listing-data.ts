@@ -5,6 +5,8 @@ const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const num = (n: number) => n.toLocaleString("en-US");
 
 export interface ListingPostData {
+  /** true when the facts were left out because the agent has not confirmed them yet */
+  unverified?: boolean;
   /** price + beds/baths/size, formatted so the post renderer turns them into big-number tiles */
   stats: string[];
   /** more numbers (year built, lot, HOA, taxes, days on market) for a second tile slide */
@@ -31,6 +33,8 @@ export function listingPostData(prop: Property, o: { extra?: PropertyExtra | nul
   ].filter(Boolean);
   const descriptors = [x?.property_type ?? "", x?.garage_spaces ? `${x.garage_spaces}-car garage` : "", x?.pool ? "Pool" : ""].filter(Boolean);
   const cityState = [prop.city, [prop.state, prop.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  // Mila only puts price, beds, baths and size in a post after the agent confirms the facts are accurate
+  if (!prop.verified) { const notes0 = (prop.description ?? "").split(/(?<=[.!?])\s+|\n+|;\s*/).map((t) => t.replace(/^[-•*\s]+/, "").trim()).filter((t) => t.length >= 18 && t.length <= 110).slice(0, 3); return { stats: [], details: [], descriptors: [], notes: notes0, fullAddress: [prop.address, cityState].filter(Boolean).join(", "), placeLine: cityState, unverified: true }; }
   const notes = (prop.description ?? "").split(/(?<=[.!?])\s+|\n+|;\s*/).map((t) => t.replace(/^[-•*\s]+/, "").trim()).filter((t) => t.length >= 18 && t.length <= 110).slice(0, 3);
   return { stats, details, descriptors, notes, fullAddress: [prop.address, cityState].filter(Boolean).join(", "), placeLine: cityState };
 }

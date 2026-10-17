@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { FACT_RULES, parseFact } from "@/lib/fact-number";
 import { ArrowLeft, ImagePlus, Trash2 } from "lucide-react";
 import type { CalendarEvent, Property, PropertyImage } from "@/lib/types";
 import { Empty, PageHeader, Pill, Skeleton, jfetch } from "@/components/ui";
@@ -31,6 +32,7 @@ function GoToProperties() {
 function PropertyDetail({ id }: { id: string }) {
   const { data, loading, reload } = useApi<{ property: Property; images: PropertyImage[]; events: CalendarEvent[]; lookup: LookupMemory | null; lookupAvailable: boolean }>(`/api/properties/${id}`);
   const [delOpen, setDelOpen] = useState(false);
+  const [factErrs, setFactErrs] = useState<Record<string, string>>({});
   const [finding, setFinding] = useState(false);
   const [findMsg, setFindMsg] = useState<string | null>(null);
   const autoRan = useRef(false);
@@ -53,10 +55,15 @@ function PropertyDetail({ id }: { id: string }) {
   }, [data]);
   if (loading && !data) return <Page><Skeleton className="h-64" /></Page>;
   if (!data) return <Page><p className="muted">That property couldn't be found.</p></Page>;
-  const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(/[^\d.]/g, "")));
   async function save(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true);
-    try { await jfetch(`/api/properties/${id}`, { method: "PATCH", json: { city: f.city || null, state: f.state || null, zip: f.zip || null, county: f.county || null, list_price: num(f.list_price), beds: num(f.beds), baths: num(f.baths), sqft: num(f.sqft), listing_url: f.listing_url || null, verified: f.verified } }); toast("Saved.", "success"); reload(); }
+    e.preventDefault();
+    // every number is checked field by field: a bad value gets a message next to it and nothing is silently changed or dropped
+    const out: Record<string, number | null> = {}; const errs: Record<string, string> = {};
+    for (const k of Object.keys(FACT_RULES) as (keyof typeof FACT_RULES)[]) { const r = parseFact(String(f[k] ?? ""), FACT_RULES[k]); if ("error" in r) errs[k] = r.error; else out[k] = r.value; }
+    setFactErrs(errs);
+    if (Object.keys(errs).length) { toast("Fix the highlighted fields and save again.", "error"); return; }
+    setBusy(true);
+    try { await jfetch(`/api/properties/${id}`, { method: "PATCH", json: { city: f.city || null, state: f.state || null, zip: f.zip || null, county: f.county || null, ...out, verified: f.verified } }); toast("Saved.", "success"); reload(); }
     catch (er) { toast(er instanceof Error ? er.message : "Couldn't save.", "error"); } finally { setBusy(false); }
   }
   async function upload(files: FileList | null) {
@@ -109,7 +116,7 @@ function PropertyDetail({ id }: { id: string }) {
       <form id="edit" onSubmit={save} className="glass scroll-mt-24 p-5 sm:p-6">
         <p className="kicker mb-1">Facts</p><p className="muted mb-4 text-[14px]">Mila only puts price, beds, baths and size in emails and posts after you confirm they're accurate.</p>
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3"><div><label className="lbl">City</label><input className="field" value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} /></div><div><label className="lbl">State</label><input className="field" maxLength={2} value={f.state} onChange={(e) => setF({ ...f, state: e.target.value.toUpperCase() })} /></div><div><label className="lbl">ZIP</label><input className="field" value={f.zip} onChange={(e) => setF({ ...f, zip: e.target.value })} /></div></div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4"><div><label className="lbl">Price</label><input className="field" inputMode="numeric" value={f.list_price} onChange={(e) => setF({ ...f, list_price: e.target.value })} /></div><div><label className="lbl">Beds</label><input className="field" inputMode="decimal" value={f.beds} onChange={(e) => setF({ ...f, beds: e.target.value })} /></div><div><label className="lbl">Baths</label><input className="field" inputMode="decimal" value={f.baths} onChange={(e) => setF({ ...f, baths: e.target.value })} /></div><div><label className="lbl">Sq ft</label><input className="field" inputMode="numeric" value={f.sqft} onChange={(e) => setF({ ...f, sqft: e.target.value })} /></div></div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4"><div><label className="lbl" htmlFor="f-list_price">Price</label><input id="f-list_price" className="field" inputMode="numeric" aria-invalid={!!factErrs.list_price} value={f.list_price} onChange={(e) => { setF({ ...f, list_price: e.target.value }); setFactErrs(({ list_price: _drop, ...rest }) => rest); }} />{factErrs.list_price && <p role="alert" className="mt-1 text-[12.5px]" style={{ color: "var(--danger)" }}>{factErrs.list_price}</p>}</div><div><label className="lbl" htmlFor="f-beds">Beds</label><input id="f-beds" className="field" inputMode="decimal" aria-invalid={!!factErrs.beds} value={f.beds} onChange={(e) => { setF({ ...f, beds: e.target.value }); setFactErrs(({ beds: _drop, ...rest }) => rest); }} />{factErrs.beds && <p role="alert" className="mt-1 text-[12.5px]" style={{ color: "var(--danger)" }}>{factErrs.beds}</p>}</div><div><label className="lbl" htmlFor="f-baths">Baths</label><input id="f-baths" className="field" inputMode="decimal" aria-invalid={!!factErrs.baths} value={f.baths} onChange={(e) => { setF({ ...f, baths: e.target.value }); setFactErrs(({ baths: _drop, ...rest }) => rest); }} />{factErrs.baths && <p role="alert" className="mt-1 text-[12.5px]" style={{ color: "var(--danger)" }}>{factErrs.baths}</p>}</div><div><label className="lbl" htmlFor="f-sqft">Sq ft</label><input id="f-sqft" className="field" inputMode="numeric" aria-invalid={!!factErrs.sqft} value={f.sqft} onChange={(e) => { setF({ ...f, sqft: e.target.value }); setFactErrs(({ sqft: _drop, ...rest }) => rest); }} />{factErrs.sqft && <p role="alert" className="mt-1 text-[12.5px]" style={{ color: "var(--danger)" }}>{factErrs.sqft}</p>}</div></div>
         <label className="mt-4 flex items-center gap-3 text-[15px]"><input type="checkbox" className="h-5 w-5" checked={f.verified} onChange={(e) => setF({ ...f, verified: e.target.checked })} /><span><b>These facts are accurate</b><span className="faint block text-[13px]">Mila uses them in emails and posts.</span></span></label>
         <button className="btn btn-primary mt-5" disabled={busy}>Save</button>
       </form>

@@ -244,8 +244,7 @@ export const capSlides = (s: SocialSlide[]): SocialSlide[] => (s.length <= MAX_S
 /** Build the final caption (hashtags included where the platform uses them inline), tags and slides. */
 export function buildPost(i: BuildInput): Built {
   const c = core(i);
-  const topic = i.topic?.trim();
-  const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(topic && !i.tips?.own?.length && !i.tips ? ["", topic] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const body = [c.headline, ...(c.lines.length ? ["", ...c.lines] : []), ...(c.cta ? ["", c.cta] : [])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
   const f = fitToPlatform(i.platform, body, baseTags(i));
   const carousel = PLATFORMS.find((p) => p.key === i.platform)?.carousel ?? true;
   // the cover carries the headline details as chips (price, size, when); a story / TikTok is ONE image, so it carries the whole set

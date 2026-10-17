@@ -1,3 +1,4 @@
+import { FACT_RULES, parseFact } from "@/lib/fact-number";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { cleanText } from "@/lib/server/sanitize";
 import { getStore } from "@/lib/db/store";
@@ -22,17 +23,17 @@ export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
   const b = await readJson(req);
   const patch: Record<string, unknown> = {};
   const text = { city: 60, state: 30, zip: 12, county: 60, description: 5000, listing_url: 500 } as const;
-  const num = { list_price: 2_000_000_000, beds: 100, baths: 100, sqft: 10_000_000 } as const;
+  const num = FACT_RULES;
   for (const [k, max] of Object.entries(text)) if (k in b) {
     if (b[k] === "" || b[k] == null) { patch[k] = null; continue; }
     if (typeof b[k] !== "string") throw bad(`${k} isn't valid.`);
     patch[k] = cleanText(b[k], max, k === "description");
   }
-  for (const [k, max] of Object.entries(num)) if (k in b) {
+  for (const k of Object.keys(num) as (keyof typeof num)[]) if (k in b) {
     if (b[k] === "" || b[k] == null) { patch[k] = null; continue; }
-    const n = Number(b[k]);
-    if (!Number.isFinite(n) || n < 0 || n > max) throw bad(`${k} isn't valid.`);
-    patch[k] = n;
+    const r = parseFact(typeof b[k] === "number" ? String(b[k]) : String(b[k]), FACT_RULES[k]);
+    if ("error" in r) throw bad(r.error); // says which field and why, so nothing is quietly changed
+    patch[k] = r.value;
   }
   if (patch.listing_url) { // rendered as a link: web links only (never javascript: or data:)
     try { const u = new URL(String(patch.listing_url)); if (u.protocol !== "http:" && u.protocol !== "https:") throw 0; } catch { throw bad("Listing links must start with http:// or https://."); }

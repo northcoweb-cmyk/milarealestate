@@ -32,7 +32,10 @@ test("every category × platform builds clean, within limits, with no invented f
     assert.ok(!/undefined|NaN|\[object|\{\{/.test(post.caption + JSON.stringify(post.slides)), `${c.key}/${p.key} leaks junk`);
     assert.ok(post.slides.length >= 1 && post.slides.every((s: any) => s.headline.trim()));
     assert.ok((post.caption.match(/(^|\s)#[\p{L}\p{N}_]+/gu) ?? []).length <= 5 && post.hashtags.length <= 5, `${c.key}/${p.key}: at most 5 hashtags`);
-    if (c.needsProperty) assert.ok(/9 Elm Street, Gaithersburg, MD/.test(post.caption) && /\$999,999/.test(post.caption), `${c.key} should carry the full address and price`);
+    if (c.needsProperty) { // an unconfirmed home carries its address but never price, beds, baths or size (audit P0-10)
+      assert.ok(/9 Elm Street, Gaithersburg, MD/.test(post.caption), `${c.key} should carry the full address`);
+      assert.ok(!/\$999,999|5 bd|4 ba|4,000 sq ft/.test(post.caption + JSON.stringify(post.slides)), `${c.key} must not state unconfirmed facts`);
+    }
   }
 });
 

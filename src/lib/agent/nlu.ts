@@ -170,6 +170,13 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
   // "next week Tuesday" = Tuesday of next week
   const nextWeek = new RegExp(`\\bnext\\s+week\\s+(?:on\\s+)?(${WEEKDAYS.join("|")}|${WD_ABBR})\\b`).exec(t);
   if (nextWeek) { const d = parseDate(`next ${nextWeek[1]}`, now, tz); if (d) return { ...d, text: nextWeek[0] }; }
+  // days that already happened: "yesterday", "last Friday", "3 days ago". The caller decides what to do with a past date (usually: ask).
+  if (/\bday before yesterday\b/.test(t)) return mk(-2, "day before yesterday");
+  if (/\byesterday\b/.test(t)) return mk(-1, "yesterday");
+  const ago = /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+days?\s+ago\b/.exec(t);
+  if (ago) return mk(-(numWord(ago[1]) ?? 0), ago[0]);
+  const lastWd = new RegExp(`\\blast\\s+(${WEEKDAYS.join("|")}|${WD_ABBR})(?:day)?\\b`).exec(t);
+  if (lastWd) { const idx = WEEKDAYS.findIndex((w) => w.startsWith(lastWd[1].slice(0, 3))); if (idx >= 0) return mk(-(((today.dow - idx + 7) % 7) || 7), lastWd[0]); }
   if (/\bday after tomorrow\b/.test(t)) return mk(2, "day after tomorrow");
   if (/\btomorrow\b/.test(t)) return mk(1, "tomorrow");
   if (/\b(today|tonight|this (morning|afternoon|evening))\b/.test(t)) return mk(0, "today");
@@ -189,12 +196,13 @@ export function parseDate(text: string, now: Date, tz: string): DateSpec | null 
     }
   }
 
-  const monthRe = new RegExp(`\\b(${MONTHS.join("|")}|${MONTHS.map((m) => m.slice(0, 3)).join("|")})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, "i").exec(t);
+  const monthRe = new RegExp(`\\b(${MONTHS.join("|")}|sept|${MONTHS.map((m) => m.slice(0, 3)).join("|")})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, "i").exec(t);
   if (monthRe) {
     const mi = MONTHS.findIndex((m) => m.startsWith(monthRe[1].slice(0, 3)));
     let y = monthRe[3] ? +monthRe[3] : today.y;
     const cand = zonedToUtc(y, mi + 1, +monthRe[2], 12, 0, tz);
-    if (!monthRe[3] && cand.getTime() < startOfDay(now, tz).getTime()) y += 1;
+    // a date a few weeks back ("Sept 20" on Oct 16) is that day this year, in the past; only older ones mean next year
+    if (!monthRe[3] && cand.getTime() < startOfDay(now, tz).getTime() - 60 * 86_400_000) y += 1;
     return { y, m: mi + 1, d: +monthRe[2], text: monthRe[0], relative: false };
   }
   const slash = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b(?!\s*(?:bed|bath|br\b|ba\b|bd\b))/.exec(t);

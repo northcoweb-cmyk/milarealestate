@@ -27,6 +27,8 @@ export const POST = api(async ({ profile, req }) => {
   const start = new Date(b.start_at), end = new Date(b.end_at);
   if (typeof b.title !== "string" || !b.title.trim() || b.title.length > 200 || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) throw bad("Add a title and a valid start and end time.");
   const ctx = await buildCtx(profile);
+  // a day that already ended is not something to put on a calendar (or push to Google) without the agent meaning it
+  if (end.getTime() < ctx.now.getTime() && b.allowPast !== true) return Response.json({ error: `${new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, weekday: "long", month: "long", day: "numeric" }).format(start)} is in the past. Pick today or a later day.`, code: "past" }, { status: 422 });
   if (!b.ignoreConflicts) {
     const c = await eventConflicts(ctx, start.toISOString(), end.toISOString());
     if (c.length) return Response.json({ error: `That overlaps ${c[0].title}.`, code: "conflict", conflicts: c.map((x) => ({ id: x.id, title: x.title, start_at: x.start_at })) }, { status: 409 });
