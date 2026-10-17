@@ -17,6 +17,7 @@ import { parseAddress, parseBeds, parseMoney } from "../nlu";
 import { TOOLS } from "../tools";
 import { askBack } from "./ask";
 import { type HandlerOut, reply } from "./types";
+import { firstNameOf } from "../../names";
 
 /** Same-origin image for a home: Street View of the address (needs the Google Maps key + a city/state). The card shows a placeholder if it 404s. */
 export const streetViewUrl = (a: { address: string; city?: string | null | undefined; state?: string | null | undefined; zip?: string | null | undefined }) =>
@@ -186,8 +187,8 @@ export async function rentalCardsHandler(ctx: Ctx, text: string): Promise<Handle
   const blocks: Block[] = [{ type: "listings", title: `Rentals in ${where}`, subtitle: filt || undefined, cards: out }];
   const pool = (await ctx.store.list("contacts", ctx.userId)).filter((c) => ["buyer", "renter", "lead"].includes(c.type) && c.status !== "closed").sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const picks = client ? [client] : pool.slice(0, 3);
-  blocks.push({ type: "choice", title: client ? `Save these for ${client.name.split(/\s+/)[0]}?` : "Who are these for?", buttons: [
-    ...picks.map((c, i) => ({ label: client ? `Save all ${out.length} for ${c.name.split(/\s+/)[0]}` : c.name, style: (i === 0 ? "primary" : "secondary") as "primary" | "secondary", action: { type: "save_rentals_for", contactId: c.id, cards: out.map((x) => ({ address: x.address, city: x.city, state: x.state, zip: x.zip, price: x.price, beds: x.beds, baths: x.baths, sqft: x.sqft, note: x.lines?.[0] ?? null })) } })),
+  blocks.push({ type: "choice", title: client ? `Save these for ${firstNameOf(client.name)}?` : "Who are these for?", buttons: [
+    ...picks.map((c, i) => ({ label: client ? `Save all ${out.length} for ${firstNameOf(c.name)}` : c.name, style: (i === 0 ? "primary" : "secondary") as "primary" | "secondary", action: { type: "save_rentals_for", contactId: c.id, cards: out.map((x) => ({ address: x.address, city: x.city, state: x.state, zip: x.zip, price: x.price, beds: x.beds, baths: x.baths, sqft: x.sqft, note: x.lines?.[0] ?? null })) } })),
     { label: "A new client", style: "secondary" as const, action: { type: "prompt", text: "I have a new client who is looking for a rental. Their name is " } },
   ] });
   return reply(`Here ${out.length === 1 ? "is a rental" : `are ${out.length} rentals`} in ${where}${filt ? ` (${filt})` : ""}. Swipe through them${client ? "" : ", then tell me who they're for and I'll save them to that client's profile"}.`, blocks, "market_research");
@@ -207,9 +208,9 @@ export async function saveRentalsForClient(ctx: Ctx, contactId: string, rawCards
   const { saveMemory } = await import("../memory");
   for (const card of cards) await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: `Saved rental: ${String(card.address).slice(0, 60)}`, value: rentalLine(card), source: "system" });
   ctx.state.last_contact_ids = [c.id];
-  return reply(`Saved ${cards.length === 1 ? "that rental" : `all ${cards.length} rentals`} to ${c.name.split(/\s+/)[0]}'s profile. They live there, not in your Properties tab.`, [{ type: "choice", title: "Next", buttons: [
+  return reply(`Saved ${cards.length === 1 ? "that rental" : `all ${cards.length} rentals`} to ${firstNameOf(c.name)}'s profile. They live there, not in your Properties tab.`, [{ type: "choice", title: "Next", buttons: [
     { label: "Open profile", style: "primary", href: `/contacts/${c.id}` },
-    { label: `Draft an email to ${c.name.split(/\s+/)[0]}`, style: "secondary", action: { type: "prompt", text: `Email ${c.name} the rentals we found` } },
+    { label: `Draft an email to ${firstNameOf(c.name)}`, style: "secondary", action: { type: "prompt", text: `Email ${c.name} the rentals we found` } },
   ] }], "smalltalk");
 }
 

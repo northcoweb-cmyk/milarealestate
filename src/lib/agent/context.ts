@@ -1,3 +1,4 @@
+import { firstNameOf } from "../names";
 import type { Store } from "../db/store";
 import type { ConversationState, Profile } from "../types";
 
@@ -29,5 +30,5 @@ export const pickColor = (s: string) => AVATAR_COLORS[[...s].reduce((n, c) => n 
 export const money = (n: number | null | undefined) => (n == null ? "" : n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(n % 1_000_000 ? 2 : 0).replace(/0$/, "")}M` : `$${Math.round(n / 1000)}k`);
 export const fullMoney = (n: number) => `$${n.toLocaleString("en-US")}`;
 export const plural = (n: number, w: string, p = w + "s") => `${n} ${n === 1 ? w : p}`;
-export const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? n;
+export const firstName = (n: string) => firstNameOf(n);
 export const label = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

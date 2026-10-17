@@ -17,6 +17,7 @@ import { sharePhotosBlock, wantsPhotos } from "./photos";
 import { mentionedContacts } from "./contacts";
 import { upcomingWith } from "./lifecycle";
 import { type HandlerOut, reply } from "./types";
+import { firstNameOf } from "../../names";
 
 const TX_NOTE = "Transaction milestone";
 const fullDate = (d: Date | string, tz: string) => new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric", year: "numeric" }).format(new Date(d));
@@ -160,7 +161,7 @@ export async function logInteractionHandler(ctx: Ctx, text: string): Promise<Han
     if (!r.ok) return reply("I couldn't save that contact.");
     c = r.data.contact as Contact; added = true;
   }
-  const first = c.name.split(/\s+/)[0];
+  const first = firstNameOf(c.name);
   const verb = (VERB.exec(text)?.[1] ?? "call").toLowerCase();
   const kind = /text|dm/.test(verb) ? "text" : /email/.test(verb) ? "email" : /met|stopped|came/.test(verb) ? "meeting" : "call";
   await logContactEvent(ctx, c.id, kind, `${kind[0].toUpperCase()}${kind.slice(1)} logged`, text.slice(0, 400));
@@ -204,7 +205,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   const amb = pron ? null : ambiguousFirstName(stripped, known); if (amb) return askWhichPerson(text, amb);
   const c = known[0] ?? null;
   const name = c?.name ?? (pron ? "" : capitalisedNames(stripped).find((n) => !/^(Text|Message|Tell|Send)$/i.test(n)) ?? "");
-  const first = name.split(/\s+/)[0];
+  const first = firstNameOf(name);
   if (!first) return askBack(ctx, "draft_text", text, "name", "Who should I text?");
   let body = (pron ? stripped.slice(pron[0].length) : stripped.replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+(?!I\\b|I\'|a\\b)\\p{Lu}\\p{L}+)?\\s*`, "iu"), "")).replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
   if (!body) body = "just checking in — do you have a few minutes to talk?";
@@ -214,7 +215,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
     const evs = (await upcomingWith(ctx, c)).filter((e) => e.kind === "showing" || /showing|tour/i.test(e.title)).slice(0, 4);
     if (evs.length) body = `confirming ${evs.length === 1 ? "our showing" : "our showings"}: ${evs.map((e) => `${fmtDay(e.start_at, ctx.tz)} at ${fmtTime(e.start_at, ctx.tz)}, ${(e.location || e.title.split("—").pop() || "").trim()}`).join("; ")}. Reply here if anything changes`;
   }
-  const me = ctx.profile.full_name.split(/\s+/)[0];
+  const me = firstNameOf(ctx.profile.full_name);
   const msg = warmText(first, body, me);
   const phone = c?.phone?.replace(/[^\d+]/g, "") ?? "";
   const href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;

@@ -3,6 +3,7 @@ import type { Ctx } from "../context";
 import { persistState } from "../conversation";
 import { parseAddress } from "../nlu";
 import { type HandlerOut, reply } from "./types";
+import { firstNameOf } from "../../names";
 
 /**
  * Which home is this request about? Never "whatever was used last anywhere".
@@ -25,14 +26,14 @@ export async function pickProperty(ctx: Ctx, text: string, again: (address: stri
 /** Two clients with the same first name and the message only says the first name: never choose for the agent. */
 export function ambiguousFirstName(text: string, found: Contact[]): Contact[] | null {
   if (found.length < 2) return null;
-  const first = found[0].name.split(/\s+/)[0].toLowerCase();
-  if (!found.every((c) => c.name.split(/\s+/)[0].toLowerCase() === first)) return null;
+  const first = firstNameOf(found[0].name).toLowerCase();
+  if (!found.every((c) => firstNameOf(c.name).toLowerCase() === first)) return null;
   if (found.some((c) => text.toLowerCase().includes(c.name.toLowerCase()))) return null; // a full name was given
   return found;
 }
 
 export function askWhichPerson(text: string, people: Contact[]): HandlerOut {
-  const first = people[0].name.split(/\s+/)[0];
+  const first = firstNameOf(people[0].name);
   const re = new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
   return reply(`Which ${first}?`, [{ type: "choice", title: `Which ${first}?`, buttons: people.slice(0, 6).map((c) => ({ label: `${c.name}${c.location ? ` · ${c.location}` : c.email ? ` · ${c.email}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: text.replace(re, c.name) } })) }], "smalltalk");
 }

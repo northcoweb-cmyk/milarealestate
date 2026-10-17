@@ -15,6 +15,7 @@ import { eventEmoji } from "@/lib/emoji";
 import { addDays, fmtRange, fmtTime, partsIn, startOfDay, zonedToUtc } from "@/lib/time";
 import { EventPhotoCard } from "@/components/event-card";
 import { ServiceLogo } from "@/components/brand-logos";
+import { firstNameOf } from "../../../lib/names";
 
 interface Person { name: string; phone: string | null; email: string | null; type: string }
 interface Place { address: string; city: string | null; state: string | null; list_price: number | null; beds: number | null; baths: number | null; sqft: number | null; verified: boolean }
@@ -182,7 +183,7 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
         <div className="mt-4 flex flex-wrap gap-2">
           {e.property_id && (e.kind === "showing" || e.kind === "open_house") && <button className="btn btn-primary btn-sm" disabled={starting} onClick={startSheet}><ClipboardCheck size={16} />{starting ? "Opening…" : "Showing sheet"}</button>}
           <a className="btn btn-sm" href={`/api/calendar/event/${e.id}/ics`}><CalendarPlus size={16} />Add to my calendar</a>
-          {person && <Link className="btn btn-sm" href={ask(`Draft a confirmation message to ${person.name} for ${e.title}`)}>Message {person.name.split(" ")[0]}</Link>}
+          {person && <Link className="btn btn-sm" href={ask(`Draft a confirmation message to ${person.name} for ${e.title}`)}>Message {firstNameOf(person.name)}</Link>}
           <Link className="btn btn-sm" href={ask(`Move ${e.title} to a different time`)}>Reschedule</Link>
         </div>
       </div>

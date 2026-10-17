@@ -2,6 +2,7 @@ import type { Block, Contact } from "../types";
 import type { Ctx } from "./context";
 import { type HandlerOut, reply } from "./handlers/types";
 import { listMemories, saveMemory } from "./memory";
+import { firstNameOf } from "../names";
 
 /**
  * Mila listens to everything the agent says and keeps what is durable: how they work, their market, goals,
@@ -62,9 +63,9 @@ export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> 
       // statements about a client we know
       const contacts = await ctx.store.list("contacts", ctx.userId);
       for (const c of contacts) {
-        const first = c.name.split(/\s+/)[0];
+        const first = firstNameOf(c.name);
         // two clients share this first name and the sentence doesn't say which: the fact belongs to neither until the agent says so
-        if (contacts.filter((x) => x.name.split(/\s+/)[0].toLowerCase() === first.toLowerCase()).length > 1 && !s.toLowerCase().includes(c.name.toLowerCase())) continue;
+        if (contacts.filter((x) => firstNameOf(x.name).toLowerCase() === first.toLowerCase()).length > 1 && !s.toLowerCase().includes(c.name.toLowerCase())) continue;
         const esc = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         // short first names ("Li", "Mc") only count when written as a capitalised name, so ordinary words never match
         if (/\?\s*$/.test(s) || !(first.length >= 3 ? new RegExp(`\\b${esc}\\b`, "i").test(s) : new RegExp(`(?<![\\p{L}])${esc}(?![\\p{L}])`, "u").test(s))) continue;
@@ -98,7 +99,7 @@ export async function clientUpdateHandler(ctx: Ctx, text: string, known: Contact
   const items = (await learnDetailed(ctx, text)).filter((i) => i.contact);
   if (!items.length) return noteAboutClient(ctx, text, known);
   const c = items[0].contact!;
-  const first = c.name.split(/\s+/)[0];
+  const first = firstNameOf(c.name);
   const lines = items.map((i) => `• ${i.key}: ${i.value}`).join("\n");
   const blocks: Block[] = [];
   let ask = "";
@@ -125,7 +126,7 @@ export async function knowledgeFor(ctx: Ctx, text: string): Promise<string> {
   for (const m of all.filter((x) => x.scope === "user" || x.scope === "business").slice(0, 25)) lines.push(`- ${m.key}: ${m.value}`);
   const contacts = await ctx.store.list("contacts", ctx.userId);
   for (const c of contacts) {
-    const first = c.name.split(/\s+/)[0];
+    const first = firstNameOf(c.name);
     if (first.length < 3 || !new RegExp(`\\b${first}\\b`, "i").test(text)) continue;
     const { contactFacts } = await import("./memory");
     const f = await contactFacts(ctx, c);
@@ -143,10 +144,10 @@ async function noteAboutClient(ctx: Ctx, text: string, known: Contact[]): Promis
   const t = text.trim();
   if (t.length < 8 || t.length > 400 || /^(remind|call|email|text|send|schedule|book|move|cancel|draft|make|show|tell|find|add|set|create|delete|remove|undo|what|who|when|where|how|why)\b/i.test(t)) return null;
   for (const c of known) {
-    const m = new RegExp(`^(?:${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${c.name.split(/\s+/)[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?:['’]s)?\\s+(.{4,})$`, "iu").exec(t);
+    const m = new RegExp(`^(?:${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${firstNameOf(c.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?:['’]s)?\\s+(.{4,})$`, "iu").exec(t);
     if (!m) continue;
     const value = clip(m[1].replace(/[.!\s]+$/, ""));
-    const first = c.name.split(/\s+/)[0];
+    const first = firstNameOf(c.name);
     const mems = await listMemories(ctx);
     const lv = value.toLowerCase();
     // already known (the structured patterns saved it earlier, or this exact note exists): acknowledge, never store twice

@@ -3,6 +3,7 @@ import { PublicSky } from "@/components/public-sky";
 import { inviteFor } from "@/lib/waitlist";
 import { authMode } from "@/lib/auth";
 import { ClaimForm } from "./claim-form";
+import { firstNameOf } from "../../lib/names";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Claim your account", robots: { index: false, follow: false } };
@@ -17,7 +18,7 @@ export default async function Claim({ searchParams }: { searchParams: Promise<{ 
         <p className="display mb-2 text-center text-[56px]">Mila</p>
         {inv.ok ? (
           <>
-            <p className="muted mb-8 text-center text-[19px]">You&apos;re in. Welcome{inv.entry.name ? `, ${inv.entry.name.split(" ")[0]}` : ""}.</p>
+            <p className="muted mb-8 text-center text-[19px]">You&apos;re in. Welcome{inv.entry.name ? `, ${firstNameOf(inv.entry.name)}` : ""}.</p>
             <ClaimForm token={t!} email={inv.entry.email} needsPassword={authMode() === "supabase"} />
           </>
         ) : (

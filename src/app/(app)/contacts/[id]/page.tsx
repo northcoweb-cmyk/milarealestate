@@ -11,6 +11,7 @@ import { Page, STATUS_LABEL, TYPE_LABEL, ago, money } from "@/components/page";
 import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { contactEmoji } from "@/lib/emoji";
+import { firstNameOf } from "../../../../lib/names";
 
 interface Detail { contact: Contact; facts: string[]; memories: Memory[]; timeline: ContactEvent[]; notes: ContactNote[]; tasks: Task[]; drafts: EmailDraft[] }
 
@@ -53,7 +54,7 @@ export default function ContactPage() {
           await patch(p); setMiss({ email: "", phone: "" }); toast("Saved.", "success");
         }}>
           <p className="kicker mb-1">Missing info</p>
-          <p className="muted mb-3 text-[14px]">Add {[!c.email && "an email", !c.phone && "a phone number"].filter(Boolean).join(" and ")} so Mila can reach {c.name.split(" ")[0]}.</p>
+          <p className="muted mb-3 text-[14px]">Add {[!c.email && "an email", !c.phone && "a phone number"].filter(Boolean).join(" and ")} so Mila can reach {firstNameOf(c.name)}.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {!c.email && <input className="field" type="email" inputMode="email" autoComplete="off" placeholder="Email" aria-label="Email" value={miss.email} onChange={(e) => setMiss((m) => ({ ...m, email: e.target.value }))} />}
             {!c.phone && <input className="field" type="tel" inputMode="tel" autoComplete="off" placeholder="Phone" aria-label="Phone" value={miss.phone} onChange={(e) => setMiss((m) => ({ ...m, phone: e.target.value }))} />}
@@ -92,7 +93,7 @@ export default function ContactPage() {
 
         <section className="glass p-5">
           <div className="mb-3 flex items-center justify-between"><p className="kicker">What Mila remembers</p><Link href="/memory" className="text-[13px] font-semibold text-accent">Manage</Link></div>
-          {data.facts.length ? <ul className="space-y-2">{data.facts.map((f, i) => <li key={i} className="flex gap-2.5 text-[15px]"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--accent)" }} />{f}</li>)}</ul> : <p className="muted text-[14.5px]">Nothing saved yet. Tell Mila what {c.name.split(" ")[0]} wants and I'll keep it.</p>}
+          {data.facts.length ? <ul className="space-y-2">{data.facts.map((f, i) => <li key={i} className="flex gap-2.5 text-[15px]"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--accent)" }} />{f}</li>)}</ul> : <p className="muted text-[14.5px]">Nothing saved yet. Tell Mila what {firstNameOf(c.name)} wants and I'll keep it.</p>}
         </section>
       </div>
 

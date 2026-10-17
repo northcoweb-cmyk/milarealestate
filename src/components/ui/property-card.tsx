@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ShowingCardData } from "@/lib/showings";
+import { firstNameOf } from "../../lib/names";
 
 /**
  * Showing / open-house card. Merges 21st.dev "card-02" (photo, price badge, stats) and "card-14" (3D flip),
@@ -51,7 +52,7 @@ export function PropertyFlipCard({ data, className }: { data: ShowingCardData; c
   const when = `${data.when.day} · ${data.kind === "open_house" ? `${data.when.time}–${data.when.endTime}` : data.when.time}`;
   const place = [p.city, p.state].filter(Boolean).join(", ");
   const hasFacts = p.beds != null || p.baths != null || p.sqft != null;
-  const firstName = data.contact?.name.split(" ")[0];
+  const firstName = data.contact ? firstNameOf(data.contact.name) : undefined;
   const toggle = () => setFlipped((f) => !f);
   const askFollowUp = data.contact
     ? `/?ask=${encodeURIComponent(`Draft a follow-up email to ${data.contact.name} about the showing at ${p.address}`)}`

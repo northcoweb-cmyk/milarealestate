@@ -40,6 +40,7 @@ import { marketResearch } from "./research";
 import { clientSearchHandler } from "./handlers/search";
 import { importCandidates } from "./ingest";
 import { plausibleName, dropNegatedDate, invalidDateToken, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
+import { firstNameOf } from "../names";
 
 export type Action = { type: string; [k: string]: any };
 
@@ -525,7 +526,7 @@ export function adviceCard(ask: string, answer: string, who?: { name: string; ph
     const m = /^(?:\*\*([^*]{2,60})\*\*[:\s-]*|(#{1,4}\s*)?([A-Z][^.\n]{2,50}):\s*)([\s\S]*)$/.exec(x.replace(BULLET, ""));
     return m && (m[1] || m[3]) && m[4].trim() ? { heading: (m[1] ?? m[3]).trim(), body: clean(m[4]) } : { body: clean(x) };
   });
-  const first = who?.name.split(" ")[0];
+  const first = who ? firstNameOf(who.name) : undefined;
   const buttons: ActionButton[] = who && script ? [
     { label: `✉️ Make it an email to ${first}`, style: "secondary", action: { type: "prompt", text: `Draft an email to ${who.name}: ${ask}` } },
     ...(who.phone ? [{ label: `💬 Make it a text to ${first}`, style: "secondary" as const, action: { type: "prompt" as const, text: `Draft a text to ${who.name}: ${ask}` } }] : []),

@@ -1,5 +1,6 @@
 /** The morning email: what's on today, what needs a decision, and a link back into Mila. Pure builder (no I/O) so it can be tested. */
 import { fmtTime } from "./time";
+import { firstNameOf } from "./names";
 
 export interface SummaryInput {
   name: string; tz: string; appUrl: string;
@@ -14,7 +15,7 @@ const SITE = "https://milarealestate.app";
 export function summaryHasContent(i: SummaryInput) { return i.events.length + i.tasks.length + i.approvals.length > 0; }
 
 export function dailySummaryEmail(i: SummaryInput) {
-  const first = i.name.split(" ")[0] || "there";
+  const first = firstNameOf(i.name) || "there";
   const ev = i.events.slice(0, 6), tk = i.tasks.slice(0, 6), ap = i.approvals.slice(0, 5);
   const list = (rows: string[]) => rows.map((r) => `<tr><td style="padding:7px 0;border-bottom:1px solid #eeebfa;font-size:15px;line-height:1.4;color:#33305a">${r}</td></tr>`).join("");
   const section = (title: string, rows: string[]) => rows.length ? `<p style="margin:22px 0 4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#7b63e8;font-weight:700">${title}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${list(rows)}</table>` : "";

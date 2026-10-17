@@ -5,6 +5,7 @@ import { fullMoney, plural } from "./context";
 import { fmtDay, fmtTime } from "../time";
 import { rentcastConfigured } from "../listing-data/rentcast";
 import type { LookupMemory } from "./property-lookup";
+import { firstNameOf } from "../names";
 
 /**
  * Operational memory for one listing: everything Mila already knows (property, seller, dates, notes, comps, appointments, contacts,
@@ -91,7 +92,7 @@ export async function buildListingBrief(ctx: Ctx, prop: Property): Promise<Listi
 
   const price = prop.list_price;
   const fits = price ? contacts.filter((c) => (c.type === "buyer" || c.type === "lead") && c.status !== "inactive" && c.status !== "closed" && c.budget_max != null && c.budget_max >= price * 0.9 && (c.budget_min == null || c.budget_min <= price * 1.1)).slice(0, 3) : [];
-  add("👥", "Relevant contacts", fits.length ? [{ text: `${plural(fits.length, "buyer")} whose budget fits: ${fits.map((c) => c.name.split(" ")[0]).join(", ")}`, state: "info", button: { label: "Message them", style: "secondary", action: ask(`Draft an email to ${fits[0].name} about ${street}`) } }] : []);
+  add("👥", "Relevant contacts", fits.length ? [{ text: `${plural(fits.length, "buyer")} whose budget fits: ${fits.map((c) => firstNameOf(c.name)).join(", ")}`, state: "info", button: { label: "Message them", style: "secondary", action: ask(`Draft an email to ${fits[0].name} about ${street}`) } }] : []);
 
   // ---- notes Mila already has
   const notes = mine.filter((m) => !m.key.startsWith("cache:") && ![LISTING_DATE_KEY, SELLER_KEY, "Stage", "Transaction"].includes(m.key)).slice(0, 4);
@@ -106,7 +107,7 @@ export async function buildListingBrief(ctx: Ctx, prop: Property): Promise<Listi
     livePost ? { text: `Instagram announcement: ${stateWord(livePost.status)}`, state: "done", button: { label: "Open", style: "quiet", href: "/content" } } : { text: "No Instagram announcement yet", state: "missing", gap: "you haven't prepared the Instagram announcement", button: { label: "Make it", style: "secondary", action: ask(`Create an Instagram post for ${street}`) } },
     openTasks.length >= 3 ? { text: `Listing checklist started — ${plural(openTasks.length, "task")} open`, state: "done", button: { label: "See tasks", style: "quiet", href: "/tasks" } } : { text: "Listing checklist not started", state: "missing", gap: "the listing checklist hasn't been started", button: { label: "Start checklist", style: "secondary", action: { type: "listing_checklist", propertyId: prop.id } } },
   ];
-  if (seller) follow.push(sellerMail ? { text: `Seller update drafted for ${seller.name.split(" ")[0]}`, state: "done" } : { text: `No update written for ${seller.name.split(" ")[0]} yet`, state: "missing", gap: `you haven't written the seller update for ${seller.name.split(" ")[0]}`, button: { label: "Draft update", style: "secondary", action: ask(`Draft an email to ${seller.name} with a listing update for ${street}`) } });
+  if (seller) follow.push(sellerMail ? { text: `Seller update drafted for ${firstNameOf(seller.name)}`, state: "done" } : { text: `No update written for ${firstNameOf(seller.name)} yet`, state: "missing", gap: `you haven't written the seller update for ${firstNameOf(seller.name)}`, button: { label: "Draft update", style: "secondary", action: ask(`Draft an email to ${seller.name} with a listing update for ${street}`) } });
   add("📣", "Marketing & follow-ups", follow);
 
   const all = sections.flatMap((s) => s.items);

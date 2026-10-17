@@ -1,5 +1,5 @@
 import { askWhichPerson, ambiguousFirstName, pickProperty } from "./entity";
-import { plausibleName } from "../nlu";
+import { parseDate, plausibleName } from "../nlu";
 import { addDays, fmtDayTime, fmtTime, partsIn, zonedToUtc } from "../../time";
 import type { Block, Contact, ContactType, DocumentTemplate, WorkflowRun } from "../../types";
 import { type Ctx, firstName, fullMoney, label, money, pickColor, plural } from "../context";
@@ -91,12 +91,16 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   }
 
   // first follow-up
-  const tmr = partsIn(addDays(ctx.now, 1, ctx.tz), ctx.tz);
+  // "call Tuesday" / "follow up next week": the day the agent named, else tomorrow
+  const named = /\b(?:call|ring|follow(?:\s|-)?up(?:\s+with\s+(?:him|her|them))?|reach(?:\s+out)?|check\s+in|text|email)\b[^.;,]{0,25}?\b((?:next\s+)?(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*|today|tomorrow|next\s+week)\b/i.exec(text);
+  const day = named ? parseDate(named[1], ctx.now, ctx.tz) : null;
+  const tmr = day ?? partsIn(addDays(ctx.now, 1, ctx.tz), ctx.tz);
   const due = zonedToUtc(tmr.y, tmr.m, tmr.d, 10, 0, ctx.tz).toISOString();
+  const dueLabel = day ? fmtDayTime(new Date(due), ctx.tz) : "Tomorrow, 10:00 AM";
   if (type === "seller") plan.push({ label: "No follow-up scheduled", tool: "create_task", state: "skipped", detail: "Tell me when you want to reach out" });
   else {
     const t = await invoke(ctx, "create_task", { kind: "follow_up", title: `Intro call with ${firstName(name)}`, subtitle: "Confirm criteria and book a consultation", due_at: due, contact_id: contact.id, workflow_run_id: run.id }, { runId: run.id });
-    plan.push({ label: "First follow-up", tool: "create_task", state: t.status === "done" && t.result.ok ? "done" : "needs_approval", detail: "Tomorrow, 10:00 AM" });
+    plan.push({ label: "First follow-up", tool: "create_task", state: t.status === "done" && t.result.ok ? "done" : "needs_approval", detail: dueLabel });
   }
 
   // intake documents: use the agent's own template when one exists, never invent legal language

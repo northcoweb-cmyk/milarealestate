@@ -359,24 +359,33 @@ export function parsePhone(text: string): string | null {
 
 const NAME_STOP = new Set(["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","January","February","March","April","May","June","July","August","September","October","November","December","Mila","Give","Write","Make","Draft","Create","Send","Show","Find","Pull","Get","Set","Help","Please","Can","Could","Would","Should","Open","House","Showing","Main","Street","I","I'm","And","The","She","He","They","Montgomery","County"]);
 
+/** Keeps the whole typed name (up to four words when it starts with two ALL-CAPS tags, else three) and drops trailing day/month words. */
+function tidyName(raw: string): string {
+  const toks = raw.trim().split(/\s+/);
+  while (toks.length > 1 && NAME_STOP.has(toks[toks.length - 1])) toks.pop();
+  const lead = toks.filter((t) => /^[A-Z]{2,}$/.test(t)).length >= 2 && /^[A-Z]{2,}$/.test(toks[0]) && /^[A-Z]{2,}$/.test(toks[1]);
+  const title = /^(?:Dr|Mr|Mrs|Ms|Mx|Prof|Rev)\.?$/.test(toks[0]) ? 1 : 0;
+  return toks.slice(0, (lead ? 4 : 3) + title).join(" ");
+}
+
 export function parsePersonName(text: string): string | null {
   const W = "\\p{Lu}[\\p{L}'’-]*";
   // a couple: "Dave and Linda Kim" is one household, saved as "Dave & Linda Kim"
   const couple = new RegExp(`\\b(${W})\\s+(?:and|&)\\s+(${W})\\s+(${W})\\b`, "u").exec(text);
   if (couple && !NAME_STOP.has(couple[1]) && !/@/.test(couple[0])) return `${couple[1]} & ${couple[2]} ${couple[3]}`;
-  const NM = `(${W}(?:\\s+${W}){0,2})`;
+  const NM = `((?:(?:Dr|Mr|Mrs|Ms|Mx|Prof|Rev)\\.?\\s+)?${W}(?:\\s+${W}){0,3})`;
   const named = new RegExp(`\\b(?:named|called|name is|name's)\\s+${NM}`, "u").exec(text);
-  if (named) return named[1];
+  if (named) return tidyName(named[1]);
   // "Priya Shah is a new buyer, wants…" / "my new client is Lisa Gray"
   const subj = new RegExp(`^\\s*${NM}\\s+(?:is|are|'s)\\s+(?:a|an|my)\\s+(?:new\\s+)?(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\b`, "u").exec(text);
-  if (subj && !NAME_STOP.has(subj[1].split(" ")[0])) return subj[1];
+  if (subj && !NAME_STOP.has(subj[1].split(" ")[0])) return tidyName(subj[1]);
   // "spoke with Greg Hall, he wants to buy" / "just met Dana Cole"
   const met = new RegExp(`\\b(?:spoke\\s+(?:to|with)|talked\\s+(?:to|with)|chatted\\s+with|met(?:\\s+with)?|ran\\s+into|(?:phone|call)\\s+with)\\s+(?:an?\\s+)?${NM}`, "u").exec(text);
-  if (met && !NAME_STOP.has(met[1].split(" ")[0])) return met[1];
+  if (met && !NAME_STOP.has(met[1].split(" ")[0])) return tidyName(met[1]);
   const asA = new RegExp(`\\b(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\s*(?:[,:-]|\\bis\\b)?\\s+${NM}`, "u").exec(text);
-  if (asA && !NAME_STOP.has(asA[1].split(" ")[0])) return asA[1];
+  if (asA && !NAME_STOP.has(asA[1].split(" ")[0])) return tidyName(asA[1]);
   const addAs = new RegExp(`\\b[Aa]dd\\s+${NM}\\s+as\\b`, "u").exec(text);
-  if (addAs) return addAs[1];
+  if (addAs) return tidyName(addAs[1]);
   return lowercaseName(text);
 }
 
@@ -503,7 +512,7 @@ export function dropNegatedDate(reply: string): string {
 const NOT_A_NAME = /\b(already|told|tell|please|pls|comeon|come on|asap|whatever|hello|hey|thanks|thank|yes|yeah|nope|nothing|everything|something|anyone|everyone|asdf|poop|lol|wtf|damn|stupid|dumb|why|what|how|when|where|who)\b/i;
 /** A real person's name: 1-4 words, letters, no punctuation runs, no chat filler. Stops "i already told you..." or "Already Comeon" from becoming a contact. */
 export function plausibleName(name: string | null | undefined): boolean {
-  const n = (name ?? "").trim();
+  const n = (name ?? "").trim().replace(/^(Dr|Mr|Mrs|Ms|Mx|Prof|Rev)\.\s+/i, "$1 "); // a title like "Dr." may carry its period
   if (n.length < 2 || n.length > 60) return false;
   if (/[.!?:;@#$%^*()=+<>\[\]{}|\\/\d]|\.{2,}/.test(n)) return false;
   const words = n.split(/\s+/);

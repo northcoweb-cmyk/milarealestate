@@ -1,6 +1,7 @@
 import { requireProfile } from "@/lib/auth";
 import { greetingFor } from "@/lib/agent/debrief";
 import { HomeClient, type HomeData } from "@/components/home-client";
+import { firstNameOf } from "../../lib/names";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function HomePage() {
   const now = new Date();
   const data: HomeData = {
     greeting: greetingFor(now, profile.timezone, profile.full_name),
-    firstName: profile.full_name.split(" ")[0],
+    firstName: firstNameOf(profile.full_name),
     dateLine: new Intl.DateTimeFormat("en-US", { timeZone: profile.timezone, weekday: "long", month: "long", day: "numeric" }).format(now),
     feed: null,
     isDemo: profile.is_demo,

@@ -1,9 +1,10 @@
+import { firstNameOf } from "@/lib/names";
 import { api, bad, notFound, readJson } from "@/lib/server/route";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { buildCtx } from "@/lib/agent/engine";
 
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
-const first = (n: string) => n.trim().split(/\s+/)[0] ?? "";
+const first = (n: string) => firstNameOf(n);
 
 /**
  * Email approvals no longer send through a background connection. This returns the finished message (recipients, subject, body)

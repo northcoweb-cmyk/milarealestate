@@ -1,6 +1,7 @@
 import type { Ctx } from "./context";
 import type { Contact, Task } from "../types";
 import { startOfDay } from "../time";
+import { firstNameOf } from "../names";
 
 export interface CatchUp { task: Task; daysAgo: number; ago: string; why: string; ask: string }
 
@@ -18,7 +19,7 @@ export async function sweepOverdue(ctx: Ctx, tasks: Task[], contacts: Contact[])
     if (!important || daysAgo > 7) { await ctx.store.update("tasks", ctx.userId, t.id, { status: "dismissed", completed_at: null } as never); removed++; continue; }
     const who = t.contact_id ? contacts.find((c) => c.id === t.contact_id) : null;
     const ago = daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
-    const why = who && t.kind === "follow_up" ? `This was due ${ago}. ${who.name.split(" ")[0]} may be waiting to hear from you, so a quick note now keeps it warm.` : `This was due ${ago}. If it still matters, it's best to handle it today.`;
+    const why = who && t.kind === "follow_up" ? `This was due ${ago}. ${firstNameOf(who.name)} may be waiting to hear from you, so a quick note now keeps it warm.` : `This was due ${ago}. If it still matters, it's best to handle it today.`;
     const ask = who && t.kind === "follow_up" ? `Draft a follow-up message to ${who.name}` : `Help me with this now: ${t.title}`;
     catchUp.push({ task: t, daysAgo, ago, why, ask });
   }

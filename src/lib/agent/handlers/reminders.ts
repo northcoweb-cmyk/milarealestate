@@ -5,6 +5,7 @@ import { invoke } from "../tools";
 import { resolveEvent } from "./calendar";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
+import { firstNameOf } from "../../names";
 
 const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, a: 1, an: 1 };
 
@@ -64,7 +65,7 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   // "remind me to call him": him/her is the one person we were just talking about, so the reminder says who
   if (/\b(?:him|her)\b/i.test(title) && ctx.state.last_contact_ids?.length === 1) {
     const c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
-    if (c) title = title.replace(/\b(?:him|her)\b/i, c.name.split(/\s+/)[0]);
+    if (c) title = title.replace(/\b(?:him|her)\b/i, firstNameOf(c.name));
   }
   if (!title) title = "Reminder";
   title = title.charAt(0).toUpperCase() + title.slice(1);

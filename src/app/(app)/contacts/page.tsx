@@ -13,6 +13,7 @@ import { AddPeople } from "@/components/add-people";
 import { STAGES, stageOf } from "@/lib/pipeline";
 import { contactEmoji } from "@/lib/emoji";
 import { FollowUpsView, MessagesView } from "@/components/contacts-hub";
+import { firstNameOf } from "../../../lib/names";
 
 export default function ContactsPage() {
   const { data, loading, reload, setData } = useApi<{ contacts: Contact[] }>("/api/contacts");
@@ -34,7 +35,7 @@ export default function ContactsPage() {
     const st = STAGES.find((s) => s.key === key)!;
     setMoving(null);
     setData((d) => (d ? { ...d, contacts: d.contacts.map((x) => (x.id === c.id ? { ...x, status: st.set } : x)) } : d)); // instant, then confirm with the server
-    try { await jfetch(`/api/contacts/${c.id}`, { method: "PATCH", json: { status: st.set } }); toast(`${c.name.split(" ")[0]} moved to ${st.label}.`, "success"); }
+    try { await jfetch(`/api/contacts/${c.id}`, { method: "PATCH", json: { status: st.set } }); toast(`${firstNameOf(c.name)} moved to ${st.label}.`, "success"); }
     catch (e) { toast(e instanceof Error ? e.message : "Couldn't move them.", "error"); reload(); }
   }
 
@@ -92,7 +93,7 @@ export default function ContactsPage() {
       )}
       </>}
 
-      <Sheet open={!!moving} onClose={() => setMoving(null)} title={moving ? `Move ${moving.name.split(" ")[0]}` : ""}>
+      <Sheet open={!!moving} onClose={() => setMoving(null)} title={moving ? `Move ${firstNameOf(moving.name)}` : ""}>
         <ul className="space-y-1.5">
           {STAGES.map((s) => { const cur = moving && stageOf(moving.status).key === s.key; return (
             <li key={s.key}><button disabled={!!cur} onClick={() => moving && moveTo(moving, s.key)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition" style={{ background: cur ? "color-mix(in srgb, var(--ink) 8%, transparent)" : "transparent" }}>

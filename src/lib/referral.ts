@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getStore } from "./db/store";
 import { grantCredits } from "./credits";
 import type { Profile } from "./types";
+import { firstNameOf } from "./names";
 
 /**
  * Referral rewards, one time per friend, credits that never expire:
@@ -67,7 +68,7 @@ export async function onSignup(newProfile: Profile, code: string | null | undefi
 /** First name of the person who owns a code (for the invite page). Nothing else is exposed. */
 export async function referrerFirstName(code: string): Promise<string | null> {
   const r = await findReferrer(code);
-  return r ? r.full_name.split(/\s+/)[0] || null : null;
+  return r ? firstNameOf(r.full_name) || null : null;
 }
 
 /**
@@ -120,7 +121,7 @@ export async function settleReferrals(onlyReferrer?: string): Promise<{ rewarded
     if (earned.some((t) => t.reason.includes(`ref:${f.id}`))) { await store.update("profiles", f.id, f.id, { settings: { ...f.settings, referral: { ...r, status: "rewarded" } } } as never); continue; }
     const plan = (await store.getConfig()).plans.find((p) => p.key === r.plan_key);
     const credits = rewardCredits(plan, r.paid_cents ?? (plan ? plan.price_usd * 100 : 0));
-    if (credits > 0) await grantCredits(by, credits, "grant", `Referral reward: ${f.full_name.split(/\s+/)[0]} joined and stayed subscribed (ref:${f.id})`);
+    if (credits > 0) await grantCredits(by, credits, "grant", `Referral reward: ${firstNameOf(f.full_name)} joined and stayed subscribed (ref:${f.id})`);
     const refProfile = await store.get("profiles", by, by);
     if (refProfile) await store.update("profiles", by, by, { settings: { ...refProfile.settings, referral: { ...(refProfile.settings.referral ?? {}), rewarded_count: (refProfile.settings.referral?.rewarded_count ?? 0) + 1 } } } as never);
     await store.update("profiles", f.id, f.id, { settings: { ...f.settings, referral: { ...r, status: "rewarded" } } } as never);

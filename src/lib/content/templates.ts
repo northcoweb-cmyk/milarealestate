@@ -1,3 +1,4 @@
+import { firstNameOf } from "../names";
 import type { SocialPlatform, SocialSlide } from "../types";
 
 /**
@@ -101,7 +102,7 @@ const LOCAL_PROMPTS = [
 
 const pickTip = (bank: Tip[], v: number) => bank[((v % bank.length) + bank.length) % bank.length];
 const slug = (s: string) => s.replace(/[^A-Za-z0-9]/g, "");
-const first = (s: string) => s.trim().split(/\s+/)[0] ?? s;
+const first = (s: string) => firstNameOf(s);
 
 function baseTags(i: BuildInput): string[] {
   const city = i.property?.city ? `#${slug(i.property.city)}` : i.market ? `#${slug(i.market.split(",")[0].replace(/ County$/i, ""))}` : "";
