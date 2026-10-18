@@ -273,13 +273,16 @@ export async function pipelineHandler(ctx: Ctx, text: string): Promise<HandlerOu
   const txn = new Map(mems.filter((m) => m.scope === "property" && m.key === "Transaction").map((m) => [m.subject_id, m.value]));
   const under = props.filter((p) => txn.get(p.id)?.startsWith("Under contract"));
   const sold = props.filter((p) => txn.get(p.id)?.startsWith("Sold"));
-  const listings = props.filter((p) => !p.is_demo && !under.includes(p) && !sold.includes(p) && p.list_price);
+  const looksRent = (p: { list_price: number | null }) => (p.list_price ?? 0) < 20_000; // $2,500 is a monthly rent, not a sale price: left out of sale totals
+  const rents = props.filter((p) => !p.is_demo && !under.includes(p) && !sold.includes(p) && p.list_price && looksRent(p));
+  const listings = props.filter((p) => !p.is_demo && !under.includes(p) && !sold.includes(p) && p.list_price && !looksRent(p));
   const buyers = contacts.filter((c) => c.type === "buyer" && !["inactive", "closed"].includes(c.status) && c.budget_max);
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   const uVal = sum(under.map((p) => p.list_price ?? 0)), lVal = sum(listings.map((p) => p.list_price ?? 0)), bVal = sum(buyers.map((c) => c.budget_max ?? 0));
   const lines = [
     `Under contract: ${under.length} · ${fullMoney(uVal)} volume → about ${fullMoney(Math.round(uVal * rate))} in commission.`,
     `Active listings: ${listings.length} · ${fullMoney(lVal)} → about ${fullMoney(Math.round(lVal * rate))} if they all sell at list.`,
+    ...(rents.length ? [`Left out of sale totals (price looks like a monthly rent): ${rents.map((p) => p.address).join(", ")}.`] : []),
     `Active buyers: ${buyers.length} · combined budgets ${fullMoney(bVal)} (potential ${fullMoney(Math.round(bVal * rate))}, but only a share will close).`,
   ];
   const nothing = !under.length && !listings.length && !buyers.length;

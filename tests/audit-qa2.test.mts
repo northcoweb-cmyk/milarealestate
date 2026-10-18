@@ -66,3 +66,21 @@ test("P0-13/14: Mila can cancel a reminder (after a tap) and a past event by tit
   assert.match(c, /cancel QA TEST past date check/i);
   void ev;
 });
+
+test("P1: a tagged name resolves in one step, tasks keep their words, repeated post requests don't stack, rewrite edits in place", async () => {
+  const a = await newAgent({ now, tz: "America/New_York", seed: false });
+  for (const n of ["QA TEST Jordan Lee", "QA TEST Maya Ortiz", "Priya Shah"]) await store.insert("contacts", a.id, { name: n, email: null, phone: null, type: "buyer", status: "active", tags: [], notes: null, preferences: {}, location: null, budget_min: null, budget_max: null, timeline: null, source: null, importance: 2, last_contact_at: null, next_action: null, next_action_at: null, avatar_color: "#888" });
+  assert.match(await say(a, "Draft a thank-you email to QA TEST Maya after the open house"), /draft for Maya/i);
+  assert.match(await say(a, "Add a task for Priya Shah: send comps"), /Send comps \(Priya\)/);
+  const t = (await store.list("tasks", a.id)).find((x: any) => /Send comps/.test(x.title));
+  assert.ok(t && t.contact_id);
+  await store.insert("properties", a.id, { address: "14 Ridge Road", city: "Gaithersburg", state: "MD", zip: "20877", list_price: 485000, beds: 3, baths: 2, sqft: 1790, verified: true });
+  await say(a, "Make a just listed post for 14 Ridge Road");
+  assert.match(await say(a, "Make a just listed post for 14 Ridge Road"), /already have a just listed post/);
+  assert.equal((await store.list("social_posts", a.id)).length, 1);
+  const rw = await say(a, "Rewrite the 14 Ridge Road just listed post without the price and beds. Keep it short.");
+  assert.match(rw, /Edited your existing post/);
+  const [p] = await store.list("social_posts", a.id);
+  assert.doesNotMatch(p.caption, /\$485,000|3 bed/); assert.match(p.caption, /Just Listed/);
+  assert.equal((await store.list("social_posts", a.id)).length, 1);
+});

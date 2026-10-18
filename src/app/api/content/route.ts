@@ -7,6 +7,7 @@ import { type Category, CATEGORIES, PLATFORMS } from "@/lib/content/templates";
 import { cachedListingPhotoUrls } from "@/lib/media/service";
 import { streetViewPostUrl } from "@/lib/media/proxy";
 import { createPosts } from "@/lib/content/service";
+import { buildCard } from "@/lib/property-stage";
 import type { SocialPlatform } from "@/lib/types";
 
 export const GET = api(async ({ profile, url }) => {
@@ -43,5 +44,14 @@ export const POST = api(async ({ profile, req }) => {
   const r = await createPosts(ctx, { category: b.category, platforms, propertyId: b.property_id ?? null, topic: b.topic ?? null });
   if (!r.ok) throw bad(r.error);
   await recordUsage({ userId: profile.id, operation: "content_post", creditKey: "social_generation" });
-  return { posts: r.posts };
+  // a "Just listed" post for a home that is already under contract or sold: still made, but the agent is told first
+  let warning: string | null = null;
+  if (b.category === "just_listed" && b.property_id) {
+    const prop = await ctx.store.get("properties", profile.id, b.property_id);
+    if (prop) {
+      const card = buildCard(prop, await ctx.store.list("memories", profile.id), await ctx.store.list("calendar_events", profile.id), await ctx.store.list("property_images", profile.id), ctx.now);
+      if (card.stage === "under_contract" || card.stage === "sold") warning = `${prop.address} is ${card.stage === "sold" ? "sold" : "under contract"}, so “Just listed” may not fit. A “Just sold” or update post might be a better choice.`;
+    }
+  }
+  return { posts: r.posts, warning };
 });

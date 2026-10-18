@@ -75,7 +75,7 @@ export async function computePriorities(ctx: Ctx): Promise<Scored[]> {
       const days = Math.floor((now.getTime() - new Date(c.last_contact_at).getTime()) / DAY_MS);
       const threshold = c.status === "nurture" ? 30 : c.status === "showing" || c.status === "offer" || c.status === "under_contract" ? 3 : 7;
       if (days >= threshold) { score += Math.min(25, 8 + (days - threshold) * 2); why.push(`no contact in ${days} days`); }
-    } else if (c.status === "new" && now.getTime() - new Date(c.created_at).getTime() > 2 * DAY_MS) { score += 20; why.push("new lead, not yet contacted"); } // someone added today or yesterday does not need chasing yet
+    } else if (c.status === "new" && now.getTime() - new Date(c.created_at).getTime() > 2 * DAY_MS) { score += 20; why.push(`new ${c.type === "seller" ? "seller" : c.type === "buyer" ? "buyer" : c.type === "investor" ? "investor" : "lead"}, not yet contacted`); } // someone added today or yesterday does not need chasing yet
     if (score === 0) continue;
     score += c.importance * 6 + (STAGE_BOOST[c.status] ?? 0);
     if (score < 28) continue; // only follow-ups that are really due this week, never a long list of maybes

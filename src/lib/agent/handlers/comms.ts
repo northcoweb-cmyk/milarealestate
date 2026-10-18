@@ -130,6 +130,12 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
       return reply(`Here's a Just Sold post for ${prop.address}. Nothing posts until you approve it.`, soldBlocks, "social_generation");
     }
   }
+  // the same request twice is one post: show the one already waiting instead of stacking a second draft and a second approval
+  if (!/\b(another|again|new one|different|redo|second|more|options?|variations?|versions?)\b/i.test(text) && requestedCount(text) <= 1) {
+    const want = /open\s*house/i.test(text) ? "open house" : /\bprice\b/i.test(text) ? "price" : /\b(sold|congrat\w*|just closed)\b/i.test(text) ? "sold" : "just listed";
+    const dup = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.property_id === prop.id && p.platform === platform && ["draft", "pending_approval", "ready"].includes(p.status) && Math.abs(ctx.now.getTime() - new Date(p.created_at).getTime()) < 48 * 3_600_000 * 4 && p.caption.toLowerCase().replace(/[^a-z ]/g, " ").includes(want) ).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    if (dup) return reply(`You already have a ${want} post for ${prop.address} waiting. I didn't make a second one.`, [{ type: "choice", title: "What next?", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${dup.id}` }, { label: "Make another version", style: "secondary", action: { type: "prompt", text: `Make another ${want} post for ${prop.address}` } }] }], "smalltalk");
+  }
   const count = requestedCount(text);
   const blocks: Block[] = [];
   const made: SocialPost[] = [];
@@ -227,3 +233,37 @@ export async function draftEmailHandler(ctx: Ctx, text: string): Promise<Handler
 }
 
 export { fmtDay, fmtRange };
+
+/** "Rewrite the 14 Ridge Road just listed post without the price and beds": edits the post that is already there, keeps its type, and says exactly what changed. */
+export async function rewritePostHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const prop = await resolveProperty(ctx, text, true);
+  const posts = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => !["archived", "posted"].includes(p.status) && (!prop || p.property_id === prop.id)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const t = text.toLowerCase();
+  const kind = /open\s*house/.test(t) ? "open house" : /price/.test(t) && /improvement|drop|reduc/.test(t) ? "price" : /sold/.test(t) ? "sold" : /just listed/.test(t) ? "just listed" : null;
+  const post = (kind ? posts.find((p) => p.caption.toLowerCase().includes(kind)) : null) ?? posts[0];
+  if (!post) return reply(`I don't have a post${prop ? ` for ${prop.address}` : ""} to rewrite yet. Want me to make one?`, [], "smalltalk");
+  const drop: string[] = [];
+  const strip = (s: string) => {
+    let out = s;
+    const tokens = (s.includes(" • ") ? s.split(" • ") : [s]);
+    if (tokens.length > 1) out = tokens.filter((tok) => !((/price|\$/.test(t) && /without|no|remove|drop|leave out|take out|hide/.test(t) && /\$\s?\d/.test(tok)) || (/\bbeds?\b|bedrooms?/.test(t) && /\b(?:bd|bed)/i.test(tok)) || (/\bbaths?\b|bathrooms?/.test(t) && /\b(?:ba|bath)/i.test(tok)) || (/sq\s?ft|square|sqft|size/.test(t) && /sq\.? ?ft/i.test(tok)))).join(" • ");
+    return out;
+  };
+  const without = /\b(without|no|remove|drop|leave out|take out|hide|skip)\b/.test(t);
+  if (without && /price/.test(t)) drop.push("the price");
+  if (without && /\bbeds?\b|bedrooms?/.test(t)) drop.push("the bedrooms");
+  if (without && /\bbaths?\b|bathrooms?/.test(t)) drop.push("the bathrooms");
+  if (without && /sq\s?ft|square|sqft/.test(t)) drop.push("the square footage");
+  let caption = post.caption.split("\n").map(strip).filter((l, i, a) => l.trim() || (a[i - 1] ?? "x").trim()).join("\n");
+  if (without && /price/.test(t)) caption = caption.split("\n").filter((l) => !/^\s*(?:\p{Extended_Pictographic}\s*)?(?:list(?:ed)?(?:\s+price)?|asking|price)\b.*\$\s?\d/iu.test(l)).join("\n");
+  const shorter = /\b(short|shorter|brief|trim|cut)\b/.test(t);
+  if (shorter) {
+    const lines = caption.split("\n"); const keep = lines.filter((l, i) => i < 4 || /^\s*(?:—|-|📞|✉|[A-Z][a-z]+ [A-Z][a-z]+\s*$)/.test(l) || i >= lines.length - 4);
+    caption = keep.join("\n").replace(/\n{3,}/g, "\n\n");
+  }
+  if (!drop.length && !shorter) return reply("Tell me what to change in the post (for example “without the price” or “make it shorter”) and I'll edit the one you have.", [], "smalltalk");
+  const slides = post.slides.map((s) => ({ ...s, headline: strip(s.headline), sub: s.sub ? strip(s.sub) : s.sub }));
+  const saved = await ctx.store.update("social_posts", ctx.userId, post.id, { caption, slides } as never);
+  if (!saved) return reply("I couldn't save that edit, so the post is unchanged.", [], "smalltalk");
+  return reply(`Edited your existing post${prop ? ` for ${prop.address}` : ""} (still ${post.category ? post.category.replace(/_/g, " ") : "the same type"}; no new draft). ${drop.length ? `Removed ${drop.length > 1 ? `${drop.slice(0, -1).join(", ")} and ${drop[drop.length - 1]}` : drop[0]}.` : ""}${shorter ? " Shortened it." : ""}`, [{ type: "choice", title: "Your post", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${post.id}` }] }], "chat_simple");
+}

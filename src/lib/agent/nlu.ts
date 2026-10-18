@@ -418,6 +418,10 @@ function lowercaseName(text: string): string | null {
 /** Capitalised name tokens mentioned anywhere (used to match existing contacts). */
 export function capitalisedNames(text: string): string[] {
   const out: string[] = [];
+  // a test/label tag in capitals goes with the name after it: "QA TEST Maya" is one person, not "QA TEST" and "Maya"
+  const tagged = /(?<![\p{L}])((?:[A-Z]{2,5}\s+){2,3}\p{Lu}\p{Ll}[\p{L}'’-]*(?:\s+\p{Lu}\p{Ll}[\p{L}'’-]*)?)/gu;
+  for (const t of text.matchAll(tagged)) out.push(t[1].trim());
+  text = text.replace(tagged, " ");
   const re = /(?<![\p{L}])(\p{Lu}[\p{L}'’-]+)(?:\s+(\p{Lu}[\p{L}'’-]+))?/gu;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {

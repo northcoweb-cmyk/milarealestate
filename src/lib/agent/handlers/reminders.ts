@@ -100,3 +100,27 @@ export async function cancelReminderAction(ctx: Ctx, id: string): Promise<Handle
   const back = await ctx.store.get("reminders", ctx.userId, id);
   return reply(back?.status === "cancelled" ? `Removed the reminder “${r.title}”.` : "I couldn't remove that reminder.", [], "smalltalk");
 }
+
+/** "Add a task for Priya: send comps": a to-do with the agent's own words, tied to the person if one is named, with a day only if they gave one. */
+export async function addTaskHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const { mentionedContacts } = await import("./contacts");
+  const people = await mentionedContacts(ctx, text);
+  if (people.length > 1 && !people.every((p) => firstNameOf(p.name) !== firstNameOf(people[0].name))) {
+    return reply(`Which ${firstNameOf(people[0].name)}?`, [{ type: "choice", title: `Which ${firstNameOf(people[0].name)}?`, buttons: people.slice(0, 5).map((c) => ({ label: c.name, style: "secondary" as const, action: { type: "prompt", text: text.replace(new RegExp(`\\b${firstNameOf(c.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"), c.name) } })) }], "smalltalk");
+  }
+  const who = people.length === 1 ? people[0] : null;
+  let body = text.replace(/^\s*(?:(?:please|pls|ok|okay|hey|can you|could you)[,\s]+)*(?:add|create|make|put|new|set up)\s+(?:a |an |me a |another )?(?:new )?(?:task|to-?do|todo)\s*(?:to do |to |for |:)?\s*/i, "");
+  // "for Priya: send comps" → the words after the colon are the task
+  const colon = /^(?:for |with |about )?[^:]{1,60}:\s*(.+)$/.exec(body);
+  if (colon) body = colon[1];
+  const w = parseWhen(text, ctx.now, ctx.tz);
+  body = stripWhenWords(body).replace(/\s+/g, " ").replace(/[.,;:\s]+$/, "").trim();
+  if (!body) return askBack(ctx, "add_task", text, "details", "What's the task?");
+  const title = (body.charAt(0).toUpperCase() + body.slice(1)) + (who && !new RegExp(`\\b${firstNameOf(who.name)}\\b`, "i").test(body) ? ` (${firstNameOf(who.name)})` : "");
+  const due = w.date ? zonedToUtc(w.date.y, w.date.m, w.date.d, w.time?.start.h ?? 9, w.time?.start.mi ?? 0, ctx.tz).toISOString() : null;
+  const { TOOLS } = await import("../tools");
+  const out = (await TOOLS.create_task.run(ctx, { kind: "task", title: title.slice(0, 200), contact_id: who?.id ?? null, due_at: due, internal: true })) as any;
+  const saved = out?.ok ? await ctx.store.get("tasks", ctx.userId, out.data.task.id) : null;
+  if (!saved) return reply("I couldn't save that task, so nothing was added.", [], "smalltalk");
+  return reply(`Added to your to-dos: ${saved.title}${due ? `, due ${fmtDayTime(due, ctx.tz)}` : ""}.`, [{ type: "choice", title: "Task added", buttons: [{ label: "See tasks", style: "secondary", href: "/tasks" }] }], "chat_simple");
+}

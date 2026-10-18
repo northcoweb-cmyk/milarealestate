@@ -90,8 +90,8 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
     ctx.state.pending = { kind: "calendar_conflict", draft, conflict_ids: conflicts.map((x) => x.id) };
     await persistState(ctx);
     const nm = c.title.split(/[,—-]/)[0].trim();
-    return reply(`Before I set this up: you already have ${c.title} then.`, [{
-      type: "choice", title: `You already have ${c.title} scheduled ${fmtDayTime(c.start_at, ctx.tz)}.`, body: "Would you like me to:",
+    return reply(`Before I set this up: you already have ${c.title}, ${fmtDayTime(c.start_at, ctx.tz)}, which overlaps it.`, [{
+      type: "choice", title: "What should I do about the overlap?", body: "Would you like me to:",
       buttons: [
         { label: `Keep ${nm}`, style: "secondary", action: { type: "conflict", choice: "keep" } },
         { label: `Move ${nm}`, style: "secondary", action: { type: "conflict", choice: "move" } },

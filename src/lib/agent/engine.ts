@@ -28,14 +28,14 @@ import { saveAnswers } from "./handlers/contacts";
 import { ambiguousFirstName, askWhichPerson } from "./handlers/entity";
 import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, syncEventHandler, eventReminder, eventCard } from "./handlers/calendar";
 import { fmtDayTime } from "../time";
-import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
+import { rewritePostHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
 import { listingLinkHandler } from "./handlers/photos";
-import { cancelReminderAction, cancelReminderHandler, reminderHandler } from "./handlers/reminders";
+import { addTaskHandler, cancelReminderAction, cancelReminderHandler, reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { clientSearchHandler } from "./handlers/search";
@@ -141,6 +141,9 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   return { conversationId: ctx.conversationId, userMessage, milaMessage, balance: await getBalance(ctx.userId) };
 }
 
+/** Cut at a word, never mid-word. */
+const clipWords = (t: string, n: number) => { const s = t.replace(/\s+/g, " ").trim(); if (s.length <= n) return s; const cut = s.slice(0, n); return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 20)).replace(/[,;:\s]+$/, "")}…`; };
+
 /** Internal records (the saved-rating JSON and similar) never show in a reply, even if a model echoes them. */
 export function scrubInternal(text: string): string {
   return text.replace(/\{\s*"(?:kind|q|a|note|at)"\s*:[^\n]*/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -152,7 +155,7 @@ function park(ctx: Ctx, pend: PendingQuestion | null | undefined) {
   const text = String((pend.slots as { text?: string }).text ?? "").trim();
   if (!text) return;
   const keep = (ctx.state.parked ?? []).filter((x) => !(x.intent === pend.intent && x.missing === pend.missing && String((x.slots as { text?: string }).text) === text));
-  ctx.state.parked = [{ intent: String(pend.intent), slots: pend.slots, missing: String(pend.missing), label: text.slice(0, 80), at: Date.now() }, ...keep].slice(0, 3);
+  ctx.state.parked = [{ intent: String(pend.intent), slots: pend.slots, missing: String(pend.missing), label: clipWords(text, 70), at: Date.now() }, ...keep].slice(0, 3);
 }
 // ---- is this message about the same thing as an unfinished question? ("lunch with Mark Friday" is not the answer to "what time is the Oak Lane showing?")
 const NOUN_RE = /\b(open house|showing|tour|lunch|dinner|coffee|breakfast|meeting|appointment|call|inspection|walk-?through|closing|consult\w*)\b/i;
@@ -374,6 +377,8 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   const reminder: Block[] = [];
   // one set of buttons per reply: if this answer already offers something to press, the old question waits for a quieter moment
   const pressable = outs.some((o) => o.blocks.some((b) => b.type === "questions" || (("buttons" in b) && Array.isArray((b as { buttons?: unknown[] }).buttons) && ((b as { buttons?: unknown[] }).buttons?.length ?? 0) > 0)));
+  // a question left open for hours is stale: it stops reappearing above unrelated answers
+  if (ctx.state.parked?.length) ctx.state.parked = ctx.state.parked.filter((x) => Date.now() - x.at < 6 * 3_600_000);
   if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable) {
     const p0 = ctx.state.parked[0];
     reminder.push({ type: "choice", title: `Still open: ${p0.label}`, body: ASK_BY_MISSING[p0.missing] ?? "I still need one detail to finish that.", buttons: [{ label: "Continue it", style: "primary", action: { type: "resume_parked", index: 0 } }, { label: "Drop it", style: "quiet", action: { type: "drop_parked", index: 0 } }] });
@@ -465,6 +470,8 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "portal_request": return portalRequestHandler(ctx, text);
     case "contact_field_update": return contactFieldUpdateHandler(ctx, text);
     case "cancel_reminder": return cancelReminderHandler(ctx, text);
+    case "add_task": return addTaskHandler(ctx, text);
+    case "rewrite_post": return rewritePostHandler(ctx, text);
     case "property_fact": return propertyFactHandler(ctx, text);
     case "vague_bulk": return vagueBulkHandler(ctx, text);
     case "unsure_who": return unsureWhoHandler(ctx, text);
@@ -617,7 +624,7 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
       const blocks: Block[] = [...follow];
       if (blocked.length) blocks.push({ type: "notice", tone: "warn", title: `${plural(blocked.length, "item is", "items are")} approved but waiting on a connection`, body: blocked.join("\n"), buttons: [{ label: "Connect", style: "primary", href: "/settings/connections" }] });
       if (failed.length) blocks.push({ type: "notice", tone: "error", title: `${plural(failed.length, "item")} didn't complete`, body: failed.join("\n") });
-      return reply(done.length ? `Done: ${done.join(", ")}.` : "I approved them, but nothing could be completed yet.", blocks, "smalltalk");
+      return reply(done.length ? `Done: ${done.join(", ")}.` : blocked.length || failed.length ? "None of those could be completed yet. The details are below, and nothing was sent or changed." : "There was nothing waiting to approve.", blocks, "smalltalk");
     }
     case "conflict": return resolveConflict(ctx, a.choice);
     case "pick_slot": return pickSlot(ctx, a.start, a.end);

@@ -320,7 +320,7 @@ function NewPost({ data, onClose, onDone }: { data: Data; onClose: () => void; o
   const def = data.categories.find((c) => c.key === cat);
   async function go() {
     setBusy(true);
-    try { const r = await jfetch<{ posts: unknown[] }>("/api/content", { method: "POST", json: { category: cat, platforms: plats, property_id: prop || null, topic: topic || null } }); toast(`${r.posts.length} draft${r.posts.length === 1 ? "" : "s"} ready.`, "success"); onDone(); }
+    try { const r = await jfetch<{ posts: unknown[]; warning?: string | null }>("/api/content", { method: "POST", json: { category: cat, platforms: plats, property_id: prop || null, topic: topic || null } }); toast(r.warning ?? `${r.posts.length} draft${r.posts.length === 1 ? "" : "s"} ready.`, "success"); onDone(); }
     catch (e) { toast(e instanceof Error ? e.message : "Couldn't create that.", "error"); } finally { setBusy(false); }
   }
   return (

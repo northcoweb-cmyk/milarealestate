@@ -177,7 +177,7 @@ function Connections() {
 const AUTONOMY: { key: AutonomyKey; title: string; sub: string }[] = [
   { key: "contacts", title: "Contacts", sub: "Creating and updating people" },
   { key: "calendar", title: "Calendar — new events", sub: "Adding events (never double-books)" },
-  { key: "calendar_changes", title: "Calendar — changes", sub: "Moving or editing existing events" },
+  { key: "calendar_changes", title: "Calendar — changes", sub: "Changes Mila suggests on her own. A move you ask for yourself goes through right away." },
   { key: "email_drafts", title: "Email drafts", sub: "Writing drafts (never sends)" },
   { key: "email_sending", title: "Email sending", sub: "Sending emails on your behalf" },
   { key: "tasks", title: "Task creation", sub: "Adding tasks and follow-ups" },

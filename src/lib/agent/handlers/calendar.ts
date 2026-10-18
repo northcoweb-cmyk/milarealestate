@@ -348,8 +348,8 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
     const c = conflicts[0];
     ctx.state.pending = { kind: "calendar_conflict", draft: args, conflict_ids: conflicts.map((x) => x.id) };
     await persistState(ctx);
-    return reply(`You already have ${c.title} at ${fmtTime(c.start_at, ctx.tz)}.`, [{
-      type: "choice", title: `You already have ${c.title} scheduled ${fmtDayTime(c.start_at, ctx.tz)}.`,
+    return reply(`You already have ${c.title}, ${fmtDayTime(c.start_at, ctx.tz)}, which overlaps that time.`, [{
+      type: "choice", title: "What should I do about the overlap?",
       body: `Would you like me to:`,
       buttons: [
         { label: `Keep ${c.title.split(/[,—-]/)[0].trim()}`, style: "secondary", action: { type: "conflict", choice: "keep" } },
