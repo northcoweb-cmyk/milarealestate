@@ -35,7 +35,7 @@ import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListH
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
 import { listingLinkHandler } from "./handlers/photos";
-import { reminderHandler } from "./handlers/reminders";
+import { cancelReminderAction, cancelReminderHandler, reminderHandler } from "./handlers/reminders";
 import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { clientSearchHandler } from "./handlers/search";
@@ -464,6 +464,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "draft_text": return draftTextHandler(ctx, text);
     case "portal_request": return portalRequestHandler(ctx, text);
     case "contact_field_update": return contactFieldUpdateHandler(ctx, text);
+    case "cancel_reminder": return cancelReminderHandler(ctx, text);
     case "property_fact": return propertyFactHandler(ctx, text);
     case "vague_bulk": return vagueBulkHandler(ctx, text);
     case "unsure_who": return unsureWhoHandler(ctx, text);
@@ -654,6 +655,7 @@ async function runAction(ctx: Ctx, a: Action): Promise<HandlerOut> {
     case "sync_event": return syncEventHandler(ctx, String(a.eventId));
     case "shift_events": return shiftEvents(ctx, (a.eventIds ?? []).map(String), String(a.after));
     case "find_time": return findTimeForEvent(ctx, a.eventId, a.durationMin ?? 60);
+    case "cancel_reminder": return cancelReminderAction(ctx, a.id);
     case "cancel_pick": { const ev = await ctx.store.get("calendar_events", ctx.userId, a.eventId); return ev ? cancelEvent(ctx, ev) : reply("I couldn't find that event.", [], "smalltalk"); }
     case "stale_comms": return resolveStale(ctx, a.eventId, a.choice);
     case "import_confirm": {

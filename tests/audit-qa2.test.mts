@@ -52,3 +52,17 @@ test("P0-7: moving or canceling an event that isn't there says so", async () => 
 test("P0-9: saved-rating JSON never shows in a reply", () => {
   assert.equal(scrubInternal('Sure. {"kind":"wrong","q":"The one that happened today","a":"I couldn\'t make that out,"'), "Sure.");
 });
+
+test("P0-13/14: Mila can cancel a reminder (after a tap) and a past event by title and date", async () => {
+  const a = await newAgent({ now, tz: "America/New_York", seed: false });
+  const r = await store.insert("reminders", a.id, { title: "Call QA TEST Jordan Lee", remind_at: "2026-10-17T14:00:00.000Z", channels: ["pwa"], status: "pending", contact_id: null, event_id: null, workflow_run_id: null, delivered_at: null });
+  const ask = await a.say("cancel the reminder to call Jordan");
+  assert.match(ask.milaMessage.content, /Remove the reminder .Call QA TEST Jordan Lee./);
+  assert.equal((await store.get("reminders", a.id, r.id)).status, "pending");
+  await a.act({ type: "cancel_reminder", id: r.id });
+  assert.equal((await store.get("reminders", a.id, r.id)).status, "cancelled");
+  const ev = await store.insert("calendar_events", a.id, { title: "QA TEST past date check", kind: "meeting", start_at: "2026-09-20T14:00:00.000Z", end_at: "2026-09-20T14:30:00.000Z", status: "confirmed", source: "mila", location: null, notes: null, contact_id: null, property_id: null, external_id: null, synced_at: null });
+  const c = await say(a, "cancel QA TEST past date check on Sept 20");
+  assert.match(c, /cancel QA TEST past date check/i);
+  void ev;
+});

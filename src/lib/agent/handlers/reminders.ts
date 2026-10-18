@@ -74,3 +74,29 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   if (!out.result.ok) return reply(out.result.message);
   return reply(`I'll remind you ${fmtDayTime(when, ctx.tz).replace(" • ", " at ")}: ${title}.${recurring ? " Heads up: I can only set one-time reminders for now, so this won't repeat. Tell me again after it goes off and I'll set the next one." : ""}`);
 }
+
+/** "Cancel the reminder to call Dana": find it by its words and day, show exactly which one, and only remove it after a tap. */
+export async function cancelReminderHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const all = (await ctx.store.list("reminders", ctx.userId)).filter((r) => r.status === "pending").sort((a, b) => a.remind_at.localeCompare(b.remind_at));
+  if (!all.length) return reply("You don't have any reminders set, so there's nothing to cancel.", [], "smalltalk");
+  const stop = new Set(["cancel", "delete", "remove", "clear", "the", "my", "a", "reminder", "reminders", "to", "for", "about", "on", "at", "please", "get", "rid", "of", "forget", "that", "this", "me"]);
+  const words = text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !stop.has(w));
+  const day = parseWhen(text, ctx.now, ctx.tz).date;
+  let hits = all;
+  if (day) hits = hits.filter((r) => { const p = partsIn(new Date(r.remind_at), ctx.tz); return p.y === day.y && p.m === day.m && p.d === day.d; });
+  const named = words.filter((w) => !/^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|next|week|morning|afternoon)$/.test(w));
+  if (named.length) hits = hits.filter((r) => named.some((w) => r.title.toLowerCase().includes(w)));
+  if (!hits.length) return reply("I don't see a matching reminder, so I haven't removed anything.", [], "smalltalk");
+  const btn = (r: (typeof all)[number]) => ({ label: `${r.title} · ${fmtDayTime(r.remind_at, ctx.tz)}`, style: "secondary" as const, action: { type: "cancel_reminder", id: r.id } });
+  if (hits.length > 1) return reply("Which reminder?", [{ type: "choice", title: "Which reminder should I remove?", buttons: hits.slice(0, 5).map(btn) }], "smalltalk");
+  const r = hits[0];
+  return reply(`Remove the reminder “${r.title}” (${fmtDayTime(r.remind_at, ctx.tz)})?`, [{ type: "choice", title: "Remove this reminder?", buttons: [{ label: "Yes, remove it", style: "primary", action: { type: "cancel_reminder", id: r.id } }, { label: "Keep it", style: "quiet", action: { type: "noop" } }] }], "smalltalk");
+}
+
+export async function cancelReminderAction(ctx: Ctx, id: string): Promise<HandlerOut> {
+  const r = await ctx.store.get("reminders", ctx.userId, id);
+  if (!r || r.status === "cancelled") return reply("That reminder is already gone.", [], "smalltalk");
+  await ctx.store.update("reminders", ctx.userId, id, { status: "cancelled" } as never);
+  const back = await ctx.store.get("reminders", ctx.userId, id);
+  return reply(back?.status === "cancelled" ? `Removed the reminder “${r.title}”.` : "I couldn't remove that reminder.", [], "smalltalk");
+}

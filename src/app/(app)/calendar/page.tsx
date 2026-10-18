@@ -98,14 +98,14 @@ export default function CalendarPage() {
       {dayReminders.length > 0 && (
         <div className="mt-5"><p className="kicker mb-2">Reminders</p>
           <ul className="space-y-2">{dayReminders.map((r) => (
-            <li key={r.id} className="glass flex items-center gap-3 px-4 py-3" style={{ borderRadius: 20 }}><span aria-hidden>🔔</span><span className="min-w-0 flex-1 truncate font-semibold">{r.title}</span><span className="faint shrink-0 text-[13px]">{fmtTime(r.remind_at, tz)}</span></li>
+            <ReminderRow key={r.id} r={r} tz={tz} onChanged={reload} />
           ))}</ul>
         </div>
       )}
       <CalendarSync data={data} googleReady={!!capabilities.google} />
       </div>
       </div>
-      {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} />}
+      {openEv && data && <EventDetail e={openEv} data={data} dayEvents={byDay.get(key(new Date(openEv.start_at))) ?? []} onClose={() => setOpenEv(null)} onChanged={reload} />}
       <AddEvent open={adding} onClose={() => setAdding(false)} defaultDay={selDate} onDone={reload} />
     </Page>
   );
@@ -142,6 +142,39 @@ function AddEvent({ open, onClose, defaultDay, onDone }: { open: boolean; onClos
   );
 }
 
+/** One reminder on the selected day: change its words or time, or remove it (asks first). */
+function ReminderRow({ r, tz, onChanged }: { r: { id: string; title: string; remind_at: string }; tz: string; onChanged: () => void }) {
+  const { toast } = useApp();
+  const p = partsIn(new Date(r.remind_at), tz);
+  const [edit, setEdit] = useState(false);
+  const [title, setTitle] = useState(r.title);
+  const [date, setDate] = useState(`${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`);
+  const [time, setTime] = useState(`${String(p.h).padStart(2, "0")}:${String(p.mi).padStart(2, "0")}`);
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try { const [y, m, d] = date.split("-").map(Number); const [h, mi] = time.split(":").map(Number); await jfetch(`/api/reminders/${r.id}`, { method: "PATCH", json: { title, remind_at: zonedToUtc(y, m, d, h, mi, tz).toISOString() } }); toast("Reminder saved.", "success"); setEdit(false); onChanged(); }
+    catch (e: any) { toast(e?.message ?? "Couldn't save it.", "error"); } finally { setBusy(false); }
+  }
+  async function remove() {
+    if (!window.confirm(`Remove the reminder “${r.title}”?`)) return;
+    setBusy(true);
+    try { await jfetch(`/api/reminders/${r.id}?confirm=1`, { method: "DELETE" }); toast("Reminder removed.", "success"); onChanged(); }
+    catch (e: any) { toast(e?.message ?? "Couldn't remove it.", "error"); setBusy(false); }
+  }
+  return (
+    <li className="glass px-4 py-3" style={{ borderRadius: 20 }}>
+      <div className="flex items-center gap-3"><span aria-hidden>🔔</span><span className="min-w-0 flex-1 truncate font-semibold">{r.title}</span><span className="faint shrink-0 text-[13px]">{fmtTime(r.remind_at, tz)}</span>
+        <button className="chip" onClick={() => setEdit((v) => !v)}>{edit ? "Close" : "Edit"}</button><button className="chip" disabled={busy} onClick={remove} aria-label={`Remove reminder ${r.title}`}>Remove</button></div>
+      {edit && <form className="mt-3 space-y-2" onSubmit={(e) => { e.preventDefault(); save(); }}>
+        <input className="field" required value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Reminder" />
+        <div className="grid grid-cols-2 gap-3"><input type="date" className="field" required value={date} onChange={(e) => setDate(e.target.value)} /><input type="time" className="field" required value={time} onChange={(e) => setTime(e.target.value)} /></div>
+        <button className="btn btn-primary btn-sm" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+      </form>}
+    </li>
+  );
+}
+
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="flex gap-4 py-3"><p className="kicker w-[84px] shrink-0 pt-[3px]">{label}</p><div className="min-w-0 flex-1 text-[15.5px] leading-snug">{children}</div></div>;
 }
@@ -149,7 +182,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 const KIND_LABEL: Record<string, string> = { open_house: "Open house", showing: "Showing", call: "Call", meeting: "Meeting", lunch: "Lunch", closing: "Closing", other: "Event" };
 
 /** Clean summary of one calendar item: when, where, who, what — with the next obvious actions. */
-function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: Data; dayEvents: CalendarEvent[]; onClose: () => void }) {
+function EventDetail({ e, data, dayEvents, onClose, onChanged }: { e: CalendarEvent; data: Data; dayEvents: CalendarEvent[]; onClose: () => void; onChanged: () => void }) {
   const { profile, toast } = useApp();
   const tz = profile.timezone;
   const person = e.contact_id ? data.people[e.contact_id] : null;
@@ -161,6 +194,28 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
   const ask = (q: string) => `/?ask=${encodeURIComponent(q)}`;
   const router = useRouter();
   const [starting, setStarting] = useState(false);
+  const sp = partsIn(new Date(e.start_at), tz);
+  const [editing, setEditing] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({ title: e.title, date: `${sp.y}-${String(sp.m).padStart(2, "0")}-${String(sp.d).padStart(2, "0")}`, time: `${String(sp.h).padStart(2, "0")}:${String(sp.mi).padStart(2, "0")}`, mins: String(mins), location: e.location ?? "", notes: e.notes ?? "" });
+  async function save(ignore = false) {
+    setBusy(true);
+    try {
+      const [y, m, d] = f.date.split("-").map(Number); const [h, mi] = f.time.split(":").map(Number);
+      const start = zonedToUtc(y, m, d, h, mi, tz);
+      await jfetch("/api/calendar", { method: "PATCH", json: { id: e.id, title: f.title, start_at: start.toISOString(), end_at: new Date(start.getTime() + Number(f.mins) * 60000).toISOString(), location: f.location, notes: f.notes, ignoreConflicts: ignore } });
+      toast("Saved.", "success"); onChanged(); onClose();
+    } catch (err: any) {
+      if (err?.data?.code === "conflict" && window.confirm(`${err.message} Save it anyway?`)) { await save(true); return; }
+      toast(err?.message ?? "Couldn't save it.", "error");
+    } finally { setBusy(false); }
+  }
+  async function cancelEvent() {
+    setBusy(true);
+    try { await jfetch(`/api/calendar?id=${encodeURIComponent(e.id)}&confirm=1`, { method: "DELETE" }); toast("Canceled.", "success"); onChanged(); onClose(); }
+    catch (err: any) { toast(err?.message ?? "Couldn't cancel it.", "error"); setBusy(false); }
+  }
   async function startSheet() {
     setStarting(true);
     try { const r = await jfetch<{ id: string }>("/api/showing-sheets", { method: "POST", json: { eventId: e.id } }); router.push(`/showings/${r.id}`); }
@@ -184,8 +239,23 @@ function EventDetail({ e, data, dayEvents, onClose }: { e: CalendarEvent; data: 
           {e.property_id && (e.kind === "showing" || e.kind === "open_house") && <button className="btn btn-primary btn-sm" disabled={starting} onClick={startSheet}><ClipboardCheck size={16} />{starting ? "Opening…" : "Showing sheet"}</button>}
           <a className="btn btn-sm" href={`/api/calendar/event/${e.id}/ics`}><CalendarPlus size={16} />Add to my calendar</a>
           {person && <Link className="btn btn-sm" href={ask(`Draft a confirmation message to ${person.name} for ${e.title}`)}>Message {firstNameOf(person.name)}</Link>}
-          <Link className="btn btn-sm" href={ask(`Move ${e.title} to a different time`)}>Reschedule</Link>
+          <button className="btn btn-sm" onClick={() => setEditing((v) => !v)}>{editing ? "Close editor" : "Edit"}</button>
+          <button className="btn btn-sm" onClick={() => setEditing(true)}>Reschedule</button>
+          <button className="btn btn-sm" style={{ color: "var(--warn)" }} onClick={() => setConfirmCancel(true)}>Cancel event</button>
         </div>
+        {confirmCancel && <div className="mt-3 rounded-2xl p-3.5" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}>
+          <p className="font-semibold">Cancel “{e.title}” on {day}?</p>
+          <p className="muted text-[14px]">{e.external_id ? "It will be removed from your Google Calendar too." : "It comes off your calendar."} Mila won't tell anyone for you.</p>
+          <div className="mt-2 flex gap-2"><button className="btn btn-sm btn-primary" disabled={busy} onClick={cancelEvent}>{busy ? "Canceling…" : "Yes, cancel it"}</button><button className="btn btn-sm" onClick={() => setConfirmCancel(false)}>Keep it</button></div>
+        </div>}
+        {editing && <form className="mt-4 space-y-3" onSubmit={(ev) => { ev.preventDefault(); save(); }}>
+          <div><label className="lbl">Title</label><input className="field" required value={f.title} onChange={(x) => setF({ ...f, title: x.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3"><div><label className="lbl">Date</label><input type="date" className="field" required value={f.date} onChange={(x) => setF({ ...f, date: x.target.value })} /></div><div><label className="lbl">Start</label><input type="time" className="field" required value={f.time} onChange={(x) => setF({ ...f, time: x.target.value })} /></div></div>
+          <div><label className="lbl">Length (minutes)</label><input type="number" min={5} max={720} step={5} className="field" required value={f.mins} onChange={(x) => setF({ ...f, mins: x.target.value })} /></div>
+          <div><label className="lbl">Location</label><input className="field" value={f.location} onChange={(x) => setF({ ...f, location: x.target.value })} /></div>
+          <div><label className="lbl">Notes</label><textarea className="field" rows={3} value={f.notes} onChange={(x) => setF({ ...f, notes: x.target.value })} /></div>
+          <button className="btn btn-primary w-full" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+        </form>}
       </div>
     </Sheet>
   );

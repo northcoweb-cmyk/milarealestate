@@ -272,6 +272,8 @@ export const TOOLS: Record<string, ToolDef> = {
       if (a.start_at) patch.start_at = a.start_at;
       if (a.end_at) patch.end_at = a.end_at;
       if (a.title) patch.title = a.title;
+      if (typeof a.location === "string") patch.location = a.location.trim() || null;
+      if (typeof a.notes === "string") patch.notes = a.notes.trim() || null;
       let syncNote: string | undefined;
       if (ev.external_id && !a.declared) {
         try { await gcal.patch(ctx.userId, ev.external_id, { summary: a.title, start: a.start_at, end: a.end_at, tz: ctx.tz }); patch.synced_at = nowIso(); }

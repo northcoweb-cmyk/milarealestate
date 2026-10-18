@@ -4,6 +4,7 @@ import { getGoogle } from "@/lib/integrations/google";
 import { bad, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { TOOLS, eventConflicts } from "@/lib/agent/tools";
+import { editEventDirect } from "@/lib/agent/handlers/calendar";
 import type { CalendarEventKind } from "@/lib/types";
 
 export const GET = api(async ({ profile, url }) => {
@@ -44,4 +45,23 @@ export const DELETE = api(async ({ profile, url }) => {
   const r = await TOOLS.cancel_calendar_event.run(ctx, { id: url.searchParams.get("id") ?? "" });
   if (!r.ok) throw bad(r.message);
   return { ok: true };
+});
+
+// Edit an event from the Calendar screen: the agent's own change, so it goes straight through (and to Google when connected).
+export const PATCH = api(async ({ profile, req }) => {
+  const b = await readJson(req);
+  const id = typeof b.id === "string" ? b.id : "";
+  const ev = id ? await getStore().get("calendar_events", profile.id, id) : null;
+  if (!ev) throw bad("I couldn't find that event.");
+  const start = b.start_at ? new Date(b.start_at) : null, end = b.end_at ? new Date(b.end_at) : null;
+  if ((start && Number.isNaN(start.getTime())) || (end && Number.isNaN(end.getTime())) || (typeof b.title === "string" && (!b.title.trim() || b.title.length > 200))) throw bad("Add a title and a valid start and end time.");
+  if ((end ?? new Date(ev.end_at)) <= (start ?? new Date(ev.start_at))) throw bad("The end has to be after the start.");
+  const ctx = await buildCtx(profile);
+  if (start && !b.ignoreConflicts) {
+    const c = await eventConflicts(ctx, (start).toISOString(), (end ?? new Date(start.getTime() + (new Date(ev.end_at).getTime() - new Date(ev.start_at).getTime()))).toISOString(), ev.id);
+    if (c.length) return Response.json({ error: `That overlaps ${c[0].title}.`, code: "conflict" }, { status: 409 });
+  }
+  const r = await editEventDirect(ctx, { id, title: typeof b.title === "string" ? b.title.trim() : undefined, start_at: start?.toISOString(), end_at: (end ?? (start ? new Date(start.getTime() + (new Date(ev.end_at).getTime() - new Date(ev.start_at).getTime())) : null))?.toISOString(), location: typeof b.location === "string" ? b.location.slice(0, 200) : undefined, notes: typeof b.notes === "string" ? b.notes.slice(0, 2000) : undefined });
+  if (!r.ok) throw bad(r.message);
+  return { ok: true, event: (r.data as { event: unknown }).event, syncNote: (r.data as { syncNote?: string }).syncNote ?? null };
 });

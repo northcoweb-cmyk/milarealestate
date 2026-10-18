@@ -513,6 +513,16 @@ export async function cancelEventHandler(ctx: Ctx, text: string): Promise<Handle
   // a date said in the words must be the event's own date: never cancel the "nearest" other event
   const said = parseWhen(text, ctx.now, ctx.tz).date;
   const onDay = (e: CalendarEvent) => { const p = partsIn(new Date(e.start_at), ctx.tz); return !said || (p.y === said.y && p.m === said.m && p.d === said.d); };
+  // a day already gone: look through that day's events by their words, so an old test event can still be removed (with the usual confirm)
+  if (said && !candidates.some(onDay) && !(event && onDay(event))) {
+    const nowP = partsIn(ctx.now, ctx.tz);
+    if (said.y * 10000 + said.m * 100 + said.d < nowP.y * 10000 + nowP.m * 100 + nowP.d) {
+      const noise = new Set(["cancel", "delete", "remove", "the", "my", "on", "for", "event", "please", "get", "rid", "of", "sept", "september", "oct", "october", "aug", "august", "nov", "november"]);
+      const ws = text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !noise.has(w) && !/^\d/.test(w));
+      const old = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && onDay(e) && ws.length > 0 && ws.every((w) => e.title.toLowerCase().includes(w)));
+      if (old.length === 1) return cancelEvent(ctx, old[0]);
+    }
+  }
   if (said && !candidates.some(onDay) && !(event && onDay(event))) return reply("I don't see a matching event on your calendar for that date, so I haven't canceled anything. If it already passed, it won't be on the upcoming list.");
   if (!event) return candidates.length ? reply("Which one should I cancel?", [{ type: "choice", title: "Which event?", buttons: candidates.slice(0, 5).map((e) => ({ label: `${e.title} · ${fmtDayTime(e.start_at, ctx.tz)}`, style: "secondary" as const, action: { type: "cancel_pick", eventId: e.id } })) }]) : reply("I don't see a matching event on your calendar.");
   return cancelEvent(ctx, event);
@@ -699,4 +709,10 @@ export async function undoHandler(ctx: Ctx): Promise<HandlerOut> {
   if (!prop) return reply("I can't find that listing anymore.", [], "smalltalk");
   await ctx.store.update("properties", ctx.userId, prop.id, la.patch as never);
   return reply(`Undone. I put ${prop.address} back the way it was.`, [], "smalltalk");
+}
+
+
+/** The agent's own edit from the Calendar screen (they pressed Save): applies straight away, like a move they just asked for. */
+export async function editEventDirect(ctx: Ctx, fields: { id: string; title?: string; start_at?: string; end_at?: string | null; location?: string; notes?: string }) {
+  return TOOLS.update_calendar_event.run(ctx, { ...fields, end_at: fields.end_at ?? undefined, requested: true });
 }
