@@ -63,6 +63,8 @@ export async function resolveEvent(ctx: Ctx, text: string, sourceText?: string):
     const ids = contacts.filter((x) => names.some((n) => x.name.toLowerCase().startsWith(n.split(" ")[0]))).map((x) => x.id);
     const byName = c.filter((e) => (e.contact_id && ids.includes(e.contact_id)) || names.some((n) => e.title.toLowerCase().includes(n.split(" ")[0])));
     if (byName.length) c = byName;
+    // a title or name was typed and nothing on the calendar carries it: no match, never the nearest other event
+    else if (/\b[A-Z]{2,}\s+[A-Z]{2,}\b/.test(text)) return { candidates: [] };
   }
   // "move it to 5" in a conversation that has no "it" yet (a fresh chat, or one about something else) is a question, even when the calendar has a single event
   const pronounOnly = /\b(?:it|that|this|them|those)\b/i.test(text) && !kind && !addr && !day && !capitalisedNames(text).length && !ctx.state.last_event_id;

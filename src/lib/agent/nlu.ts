@@ -256,6 +256,7 @@ const MIXED = /^[A-Za-z][a-z']*[A-Z]/; // "McKinley", "O'Brien", "DeLuca": the a
 const titleCase = (s: string) => s.split(/(\s+)/).map((w) => {
   if (!w.trim()) return w;
   if (MIXED.test(w) && /[a-z]/.test(w)) return w;
+  if (/[a-z]/.test(s) && /^[A-Z]{2,3}$/.test(w) && !/^(?:ST|AVE|RD|DR|LN|CT|PL|NE|NW|SE|SW|BLVD|TER|CIR|TRL|PKY|HWY|WAY|N|S|E|W)$/.test(w)) return w; // "QA", "JR": letters the agent typed in capitals stay
   return w.replace(/\b([a-z])([a-z']*)/gi, (_, a: string, b: string) => a.toUpperCase() + b.toLowerCase().replace(/^'([a-z])/, (_m, c: string) => "'" + (a.toUpperCase() === "O" || a.toUpperCase() === "D" ? c.toUpperCase() : c)));
 }).join("");
 
@@ -455,7 +456,7 @@ export function splitClauses(text: string): string[] {
   const another = /^(.*?\b(showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)s?\b.*?)\s+and\s+(?:another|one more|a second)\s+(?:(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)\s+)?(.+)$/i.exec(text.trim());
   if (another) return [another[1].trim(), `${another[2]} ${another[3]}`.trim()];
   const parts = text
-    .split(/\s*(?:;|,\s*(?:and\s+)?(?=(?:remind me|email|e-mail|text|draft|add|book|schedule|cancel|move|reschedule|set up|create)\b)|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b)|[.!]\s+(?=(?:what(?:'s| is)|what am i|anything)\b[^.?!]*\bmissing\b))\s*/i)
+    .split(/\s*(?:;|,\s*(?:and\s+)?(?=(?:remind me|email|e-mail|text|draft|add|book|schedule|cancel|move|reschedule|set up|create)\b(?!\s*(?:is\s+|address\s+|:\s*)?(?:[\w.+-]+@|\d)))|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b)|[.!]\s+(?=(?:what(?:'s| is)|what am i|anything)\b[^.?!]*\bmissing\b))\s*/i)
     .map((s) => s.trim())
     .filter((s) => s && !/^(?:oh|ok|okay|and|also|so|um+|uh+|hey|wait|actually)[.,!\s]*$/i.test(s)); // "oh and also cancel Monday" leaves one request, not a stray "oh"
   // "… and remind me …", "… and move my …" start a new clause when followed by an action verb

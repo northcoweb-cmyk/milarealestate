@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { followUpBlock } from "./followups";
+import { FAIR_HOUSING_REPLY, fairHousingBlock } from "./fair-housing";
 import { portalRequestHandler, productHelpHandler, vagueBulkHandler, unsureWhoHandler } from "./handlers/product-help";
 import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
 import { aiAvailable } from "../ai/provider";
@@ -17,7 +18,7 @@ import { listingReadyHandler, whatMissingHandler } from "./handlers/readiness";
 import { meetingPrepHandler, showingFollowupsHandler } from "./handlers/briefs";
 import { newListingsHandler, prepPropertyHandler, saveListingCard, saveRentalCard, saveRentalsForClient } from "./handlers/marketdata";
 import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
-import { addListingHandler, listingChecklist, showingSheetHandler, updateListingHandler } from "./handlers/listing";
+import { addListingHandler, listingChecklist, propertyFactHandler, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
 import { correctReplacement, replaceCancel, replaceEventHandler, replaceOverlap, replacePick, replaceSlot, replaceSlotOptions } from "./handlers/replace";
@@ -29,7 +30,7 @@ import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler,
 import { fmtDayTime } from "../time";
 import { draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
-import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
+import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
@@ -136,8 +137,13 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: key === "smalltalk" ? base : Math.max(base, byCost) });
   if (limited === "user_month" || limited === "user_day") await exhaustTrialCredits(ctx.userId); // a trial that hit its allowance is out of credits too
   await persistState(ctx);
-  const milaMessage = await appendMila(ctx, out.text, out.blocks);
+  const milaMessage = await appendMila(ctx, scrubInternal(out.text), out.blocks);
   return { conversationId: ctx.conversationId, userMessage, milaMessage, balance: await getBalance(ctx.userId) };
+}
+
+/** Internal records (the saved-rating JSON and similar) never show in a reply, even if a model echoes them. */
+export function scrubInternal(text: string): string {
+  return text.replace(/\{\s*"(?:kind|q|a|note|at)"\s*:[^\n]*/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /** An unfinished question the agent walked away from: kept (max 3) so it can be resumed. */
@@ -197,6 +203,7 @@ async function recentHistory(ctx: Ctx) {
 
 async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{ out: HandlerOut; intent: Intent }> {
   let text = fixTypos(textIn);
+  if (fairHousingBlock(textIn)) return { out: reply(FAIR_HOUSING_REPLY, [{ type: "choice", title: "Describe the home instead?", buttons: [{ label: "Describe the home itself", style: "primary", action: { type: "prompt", text: "Write a listing description from the property facts only" } }] }], "smalltalk"), intent: "smalltalk" };
   // "Good morning. What do I have today?" is the question, not small talk
   const greet = /^\s*(?:good (?:morning|afternoon|evening)|morning|hey( there)?|hi( there)?|hello)\b[,.!:\s-]+(\S.{5,})$/is.exec(text);
   if (greet && !ctx.state.pending) text = greet[3].charAt(0).toUpperCase() + greet[3].slice(1);
@@ -456,6 +463,8 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "log_interaction": return logInteractionHandler(ctx, text);
     case "draft_text": return draftTextHandler(ctx, text);
     case "portal_request": return portalRequestHandler(ctx, text);
+    case "contact_field_update": return contactFieldUpdateHandler(ctx, text);
+    case "property_fact": return propertyFactHandler(ctx, text);
     case "vague_bulk": return vagueBulkHandler(ctx, text);
     case "unsure_who": return unsureWhoHandler(ctx, text);
     case "product_help": return productHelpHandler(ctx, text);

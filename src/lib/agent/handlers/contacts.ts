@@ -4,6 +4,7 @@ import { addDays, fmtDayTime, fmtTime, partsIn, zonedToUtc } from "../../time";
 import type { Block, Contact, ContactType, DocumentTemplate, WorkflowRun } from "../../types";
 import { type Ctx, firstName, fullMoney, label, money, pickColor, plural } from "../context";
 import { persistState } from "../conversation";
+import { firstNameOf } from "../../names";
 import { buildDebrief, coverageNote, greetingFor } from "../debrief";
 import { contactFacts, listMemories, saveMemory } from "../memory";
 import { capitalisedNames, parseBaths, parseBeds, parseContactType, parseEmail, parseLocation, parseMoney, parsePersonName, parsePhone, parseTimeline } from "../nlu";
@@ -240,7 +241,7 @@ export async function mentionedContacts(ctx: Ctx, text: string): Promise<Contact
   const words = new Set(t.replace(/['’]s\b/g, "").split(/[^a-z0-9'’-]+/).filter((w) => w.length >= 3)); // "Priya's number" names Priya
   const stop = new Set(["who", "the", "and", "for", "all", "tell", "about", "what", "contact", "contacts", "buyer", "seller", "lead", "client", "test"]);
   const shortNames = new Set([...text.matchAll(/(?<![\p{L}])(\p{Lu}\p{Ll})(?![\p{L}])/gu)].map((m) => m[1].toLowerCase())); // "Li", "Mc": only when written as a name
-  return all.filter((c) => { const f = c.name.toLowerCase().split(/\s+/)[0]; return (f.length >= 3 ? words.has(f) : shortNames.has(f)) && !stop.has(f); });
+  return all.filter((c) => { const f = firstNameOf(c.name).toLowerCase(); return (f.length >= 3 ? words.has(f) : shortNames.has(f)) && !stop.has(f); });
 }
 
 export async function recallHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
@@ -296,7 +297,7 @@ export async function findPropertyForContactHandler(ctx: Ctx, text: string): Pro
   let c: Contact | null = null;
   for (const n of names) { const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any; if (r.ok) { c = r.data.contacts[0]; break; } }
   if (!c && state) c = await ctx.store.get("contacts", ctx.userId, state);
-  if (!c) return reply("Who is it for?");
+  if (!c) return reply("Which client should I look for homes for? Tell me their name, or what they want (beds, area, budget).", [], "smalltalk");
   const facts = await contactFacts(ctx, c);
   // With a live listing feed connected, actually search it with this person's saved criteria.
   const { rentcastConfigured } = await import("../../listing-data/rentcast");
@@ -322,3 +323,24 @@ export async function findPropertyForContactHandler(ctx: Ctx, text: string): Pro
 
 export type { DocumentTemplate, Block };
 export { pickColor, fmtDayTime };
+
+
+/** "Update Ana's phone to 512-555-0299": change one saved field, say what it was, and read it back. */
+export async function contactFieldUpdateHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const field = /\b(phone|number|cell|mobile|email|e-?mail|budget|location|area|city)\b/i.exec(text)?.[1]?.toLowerCase() ?? "";
+  const found = await mentionedContacts(ctx, text);
+  if (found.length !== 1) return reply(found.length ? `Which one: ${found.slice(0, 4).map((c) => c.name).join(", ")}?` : "Which contact is that for? Tell me their name.", [], "smalltalk");
+  const c = found[0];
+  let patch: Partial<Contact> | null = null, shown = "", was = "";
+  if (/phone|number|cell|mobile/.test(field)) { const v = parsePhone(text); if (v) { patch = { phone: v }; shown = v; was = c.phone ?? ""; } }
+  else if (/mail/.test(field)) { const v = parseEmail(text); if (v) { patch = { email: v }; shown = v; was = c.email ?? ""; } }
+  else if (field === "budget") { const v = parseMoney(text).max; if (v) { patch = { budget_max: v }; shown = fullMoney(v); was = c.budget_max ? fullMoney(c.budget_max) : ""; } }
+  else { const v = parseLocation(text); if (v) { patch = { location: v }; shown = v; was = c.location ?? ""; } }
+  if (!patch) return reply(`What should ${firstName(c.name)}'s ${field === "number" || field === "cell" || field === "mobile" ? "phone" : field} be? I didn't catch a value, so I haven't changed anything.`, [], "smalltalk");
+  const out = await TOOLS.update_contact.run(ctx, { id: c.id, patch, eventTitle: "Details updated", eventDetail: `${field}: ${shown}`, eventKind: "note" }) as any;
+  const saved = out?.ok ? await ctx.store.get("contacts", ctx.userId, c.id) : null;
+  const key = Object.keys(patch)[0] as keyof Contact;
+  if (!saved || saved[key] == null) return reply(`I couldn't save that for ${c.name}. Nothing was changed.`, [], "smalltalk");
+  ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
+  return reply(`Updated ${c.name}'s ${field === "number" || field === "cell" || field === "mobile" ? "phone" : field} to ${shown}${was ? ` (was ${was})` : ""}.`, [], "chat_simple");
+}

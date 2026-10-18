@@ -138,7 +138,7 @@ export async function resolveAddress(ctx: Ctx, text: string, street: string, opt
   }
   const g = await geocode(street, p);
   if (g === "not_found") return { status: "ok", street, place: p, unverified: true };
-  if (g) return { status: "ok", street, place: { city: g.city ?? p.city, state: g.state ?? p.state, zip: g.zip ?? p.zip, county: g.county, lat: g.lat, lng: g.lng, formatted: g.formatted, landmark: g.landmark ?? null } };
+  if (g) return { status: "ok", street, place: { city: g.city ?? p.city, state: g.state ?? p.state, zip: p.zip ?? g.zip, county: g.county, lat: g.lat, lng: g.lng, formatted: g.formatted, landmark: g.landmark ?? null } };
   return { status: "ok", street, place: p };
 }
 

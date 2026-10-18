@@ -3,7 +3,8 @@ import type { Block, Contact, Property } from "../../types";
 import type { Ctx } from "../context";
 import { persistState } from "../conversation";
 import { describeStated, extractListingFacts, hasAnyFact } from "../listing";
-import { addrKey, parseAddress } from "../nlu";
+import { addrKey, parseAddress, parseMoney } from "../nlu";
+import { fullMoney } from "../context";
 import { askBack } from "./ask";
 import { describeFacts, enrichProperty } from "../property-lookup";
 import { TOOLS } from "../tools";
@@ -32,7 +33,9 @@ export async function addListingHandler(ctx: Ctx, text: string): Promise<Handler
   const said = classifyProperty({ address: street, agentText: text, beds: f.beds ?? null, baths: f.baths ?? null });
   ctx.steps.push("Saving your listing");
   const created = (await TOOLS.create_property.run(ctx, { address: street, city: place.city, state: place.state, zip: place.zip, county: place.county, list_price: f.list_price, beds: f.beds, baths: f.baths, sqft: f.sqft })) as any;
-  let prop = created.data.property as Property;
+  let prop = created.data?.property as Property | undefined;
+  // read it back: "saved" is only said when the record is really there
+  if (!created.ok || !prop || !(await ctx.store.get("properties", ctx.userId, prop.id))) return reply(`I couldn't save ${street}, so nothing was added. ${created.message ?? "Please try again."}`, [], "smalltalk");
   ctx.state.last_property_id = prop.id;
   // the agent named the kind (commercial, duplex, condo, land…): remember it, and keep it where posts and cards can see it
   if (said.basis === "agent" && said.group !== "unknown" && !(said.group === "residential" && said.label === "Single-family home")) {
@@ -173,6 +176,14 @@ export async function updateListingHandler(ctx: Ctx, text: string): Promise<Hand
   if (f.baths != null && f.baths !== prop.baths) changes.push({ key: "baths", label: "baths", from: prop.baths, to: f.baths });
   if (f.sqft != null && f.sqft !== prop.sqft) changes.push({ key: "sqft", label: "square feet", from: prop.sqft, to: f.sqft });
   ctx.state.last_property_id = prop.id;
+  // a price far from the current one (or outside any normal range) is confirmed before it is saved: a typo should never become the list price
+  const pc = changes.find((c) => c.key === "list_price");
+  if (pc && !/^\s*confirmed:/i.test(text)) {
+    const old = Number(pc.from) || 0;
+    if (pc.to > 50_000_000 || pc.to < 10_000 || (old > 0 && (pc.to > old * 3 || pc.to < old / 3))) {
+      return reply(`That would change the price of ${prop.address} from ${old ? fullMoney(old) : "blank"} to ${fullMoney(pc.to)}. That's a big jump, so I haven't saved it. Is ${fullMoney(pc.to)} right?`, [{ type: "choice", title: "Confirm the price", buttons: [{ label: `Yes, ${fullMoney(pc.to)}`, style: "primary", action: { type: "prompt", text: `Confirmed: ${prop.address} price is now ${pc.to}` } }, { label: "No, leave it", style: "quiet", action: { type: "noop" } }] }], "smalltalk");
+    }
+  }
   if (!changes.length) {
     if (hasAnyFact(f)) return reply(`${prop.address} already has those details, so nothing changed.`, [], "smalltalk");
     return askBack(ctx, "update_listing", text, "details", `What should I change on ${prop.address}? For example “price is now $425k”.`);
@@ -185,4 +196,35 @@ export async function updateListingHandler(ctx: Ctx, text: string): Promise<Hand
   const lines = changes.map((c) => `${c.label[0].toUpperCase() + c.label.slice(1)}: ${fmt(c, c.from)} → ${fmt(c, c.to)}`);
   const priceDrop = changes.find((c) => c.key === "list_price" && typeof c.from === "number" && c.to < (c.from as number));
   return reply(`Updated ${prop.address}.\n${lines.join("\n")}`, priceDrop ? [{ type: "choice", title: "Spread the word?", buttons: [{ label: "Make a price-improvement post", style: "primary", action: { type: "prompt", text: `Create a price improvement post for ${prop.address}` } }, { label: "Open property", style: "quiet", href: `/properties/${prop.id}` }] }] : [], "chat_simple");
+}
+
+
+/** Answers a question about a saved property's own numbers. Says so plainly when the home or the number isn't saved. */
+export async function propertyFactHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const t = text.toLowerCase();
+  const props = await ctx.store.list("properties", ctx.userId);
+  if (!parseAddress(text)) {
+    const { max } = parseMoney(text);
+    const over = /\b(?:over|above|more than|at least)\b/.test(t);
+    const city = /\bin ([a-z .]+?)(?:\s+(?:under|over|above|below)|[?.!]|$)/i.exec(text)?.[1]?.trim().toLowerCase();
+    let list = props.filter((p) => p.list_price != null);
+    if (max != null) list = list.filter((p) => (over ? p.list_price! >= max : p.list_price! <= max));
+    if (city) list = list.filter((p) => (p.city ?? "").toLowerCase() === city);
+    if (!list.length) return reply(max != null ? `None of your saved properties ${over ? "are over" : "are under"} ${fullMoney(max)}.` : "I don't see any saved properties that match.", [], "chat_simple");
+    list.sort((a, b) => a.list_price! - b.list_price!);
+    return reply(`${list.length} ${list.length === 1 ? "property" : "properties"}${max != null ? ` ${over ? "over" : "under"} ${fullMoney(max)}` : ""}:\n${list.slice(0, 12).map((p) => `• ${p.address}${p.city ? `, ${p.city}` : ""}: ${fullMoney(p.list_price!)}`).join("\n")}`, [], "chat_simple");
+  }
+  const prop = await resolveProperty(ctx, text);
+  const addr = parseAddress(text)!;
+  if (!prop) return reply(`I don't have ${addr} in your properties, so I can't say. Want me to add it? Say “new listing at ${addr}” with the city and price.`, [], "chat_simple");
+  ctx.state.last_property_id = prop.id; await persistState(ctx);
+  const unc = prop.verified ? "" : " (from the listing record, not confirmed by you yet)";
+  const none = (what: string) => reply(`I don't have ${what} saved for ${prop.address} yet. Tell me and I'll save it.`, [], "chat_simple");
+  if (/price per|per (?:sq|square)/.test(t)) return prop.list_price && prop.sqft ? reply(`${prop.address}: about ${fullMoney(Math.round(prop.list_price / prop.sqft))} per square foot (${fullMoney(prop.list_price)} over ${prop.sqft.toLocaleString("en-US")} sqft)${unc}.`, [], "chat_simple") : none("both a price and square footage");
+  if (/\bbed/.test(t)) return prop.beds != null ? reply(`${prop.address} has ${prop.beds} ${prop.beds === 1 ? "bedroom" : "bedrooms"}${unc}.`, [], "chat_simple") : none("the bedrooms");
+  if (/\bbath/.test(t)) return prop.baths != null ? reply(`${prop.address} has ${prop.baths} ${prop.baths === 1 ? "bathroom" : "bathrooms"}${unc}.`, [], "chat_simple") : none("the bathrooms");
+  if (/sq|square|how big/.test(t)) return prop.sqft != null ? reply(`${prop.address} is ${prop.sqft.toLocaleString("en-US")} sqft${unc}.`, [], "chat_simple") : none("the square footage");
+  if (/zip/.test(t)) return prop.zip ? reply(`${prop.address} is in ZIP ${prop.zip}.`, [], "chat_simple") : none("a ZIP code");
+  if (/year built/.test(t)) return none("the year built");
+  return prop.list_price != null ? reply(`${prop.address} is listed at ${fullMoney(prop.list_price)}${unc}.`, [], "chat_simple") : none("a price");
 }

@@ -9,7 +9,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
  * The chat then opens with the real answer. Adapted from the Morph Orb component; the answer card is left out because the chat shows the answer.
  */
 
-const COPY = { labels: ["Thinking", "Checking your day", "Looking things up", "Writing it up"], done: "Done" };
+const COPY = { labels: ["Thinking", "Checking your day", "Looking things up", "Writing it up"], done: "Ready" };
 type Phase = "launch" | "assemble" | "think" | "resolve" | "done";
 
 export interface OrbOrigin { cx: number; cy: number; w: number; h: number; r: number }

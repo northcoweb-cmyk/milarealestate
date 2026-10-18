@@ -78,3 +78,16 @@ export async function unsureWhoHandler(ctx: Ctx, text: string): Promise<HandlerO
   const ask = names.length > 1 ? `Which one was it: ${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}?` : "Which contact was it?";
   return reply(`${ask} I haven't saved anything yet. Tell me who, and the day of the call, and I'll add the note and then handle the rest (your week and the reminder).`, names.length > 1 ? [{ type: "choice", title: "Who was it?", buttons: people.slice(0, 4).map((c) => ({ label: c.name, style: "secondary" as const, action: { type: "prompt" as const, text: `Add a note to ${c.name}${note ? `: they ${note}` : ""}` } })) }] : [], "smalltalk");
 }
+
+/** "What's the price of 14 Ridge Road?" / "which properties are under $500,000?": answered from the saved records, never a contact question. */
+const FIELD = /\b(price per (?:sq\.? ?ft|square (?:foot|feet))|(?:list |asking )?price|asking|how much|cost|bedrooms?|beds?|bathrooms?|baths?|sq\.? ?ft|sqft|square (?:feet|footage)|how big|zip(?: code)?|year built|status)\b/;
+export function propertyFieldAsk(text: string, hasAddress: boolean): boolean {
+  const t = text.toLowerCase().trim();
+  if (/\b(?:change|update|set|make|fix|correct|drop|raise|lower|reduce|is now|now \$|to \$)\b/.test(t) || !/\?\s*$|^(?:what|how|whats|what's|which|does|is|do)\b/.test(t)) return false;
+  return hasAddress && FIELD.test(t) && /^(?:(?:ok|and|also|so|hey|mila)[,\s]+)*(?:what|what's|whats|how|does|is|do|which)\b/.test(t);
+}
+export function propertyListAsk(text: string): boolean {
+  const t = text.toLowerCase();
+  if (/\b(?:new|newest|latest|last|recent|bed(?:room)?s?|bd|bath|for sale|on the market|in the area|near)\b/.test(t)) return false; // searches of the market, not questions about what's saved
+  return /^(?:(?:ok|and|so|hey)[,\s]+)*(?:which|how many|list|show me)\b.*\b(?:(?:my|saved) (?:properties|listings)|properties|listings)\b.*\b(?:under|below|over|above|less than|more than|at least|at most)\b/.test(t) && /\$|\d/.test(t) && !/\b(?:buyers?|clients?|for (?:my|a) )\b/.test(t);
+}
