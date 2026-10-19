@@ -18,7 +18,7 @@ export default async function Launch() {
   if (!(await isAuthed())) redirect("/login");
   const app = (process.env.MILA_APP_URL || "https://milarealestate.vercel.app").replace(/\/+$/, "");
   const checks = await Promise.all([["Welcome page", `${app}/welcome`], ["App health", `${app}/api/health`]].map(async ([name, url]) => ({ name, url, ...(await ping(url)) })));
-  const date = process.env.LAUNCH_DATE || "2026-10-20";
+  const date = process.env.LAUNCH_DATE || "2026-10-23";
   return (
     <Shell title="Launch" lead={`Release date ${date}. If an item isn't done, the date moves.`}>
       <Section title="Live app checks">

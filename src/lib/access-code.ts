@@ -10,7 +10,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 const LAUNCH_CODE = "3725";
 
 /** At this moment the access code is switched off and anyone can create an account (the seat cap and trial pool still apply). Override with ACCESS_CODE_OFF_AT (an ISO time, or "never"). */
-const OFF_AT = () => process.env.ACCESS_CODE_OFF_AT?.trim() || "2026-10-20T08:00:00-04:00";
+const OFF_AT = () => process.env.ACCESS_CODE_OFF_AT?.trim() || "2026-10-23T08:00:00-04:00";
 export function codeSwitchedOff(now = Date.now()): boolean {
   const v = OFF_AT();
   if (v.toLowerCase() === "never") return false;

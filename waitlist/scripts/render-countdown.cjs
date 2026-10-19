@@ -34,7 +34,7 @@ ${ticks}
 <div style="position:absolute;top:22px;left:0;right:0;text-align:center;color:#fff;font-size:24px;letter-spacing:.02em">Mila</div>
 <div style="position:absolute;left:0;right:0;top:${cy - size * 0.58}px;text-align:center;color:#fff;font-size:${size}px;line-height:1;text-shadow:0 0 38px rgba(166,140,255,.95),0 0 90px rgba(143,180,255,.55);font-weight:400">${big}</div>
 <div style="position:absolute;left:0;right:0;top:${cy + 56}px;text-align:center;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.32em;font-weight:700;color:#d9d4ff">${label}</div>
-<div style="position:absolute;left:0;right:0;bottom:30px;text-align:center"><span style="display:inline-block;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13.5px;font-weight:700;letter-spacing:.16em;color:#1a1650;background:linear-gradient(90deg,#c9dcff,#e6d9ff,#ffe0cf);padding:11px 22px;border-radius:999px;box-shadow:0 10px 30px -8px rgba(166,140,255,.8)">TUESDAY · OCT 20 · 10 AM ET</span></div>
+<div style="position:absolute;left:0;right:0;bottom:30px;text-align:center"><span style="display:inline-block;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13.5px;font-weight:700;letter-spacing:.16em;color:#1a1650;background:linear-gradient(90deg,#c9dcff,#e6d9ff,#ffe0cf);padding:11px 22px;border-radius:999px;box-shadow:0 10px 30px -8px rgba(166,140,255,.8)">FRIDAY · OCT 23 · 10 AM ET</span></div>
 </div></body></html>`;
 };
 

@@ -14,7 +14,7 @@ import { HeroParallax } from "@/components/hero-parallax";
 import { TryMila } from "@/components/try-mila";
 import { Faq } from "@/components/faq";
 
-const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-20T10:00:00-04:00";
+const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T10:00:00-04:00";
 
 const PLANS = [
   { name: "Mila", price: "$39", per: "/month", blurb: "For the agent who wants their day handled.", hot: true, cta: "join", points: ["Calendar, follow-ups, posts and emails", "Listing and open house posts with your photos", "Market and property research", "Monthly credits included", "7-day free trial, cancel any time", "Annual option: $390/year, two months free plus 500 bonus credits"] },
@@ -55,7 +55,7 @@ export default function Page() {
           </div>
         </div>
         <HeroParallax className="relative z-10 mx-auto flex max-w-4xl flex-col items-center pt-14 text-center sm:pt-20">
-          <p className="glass mb-6 inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold text-zinc-900 sm:text-[13.5px]"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden /><span className="sm:hidden">Launching Oct 20 · 7-day free trial</span><span className="hidden sm:inline">Launching October 20 · 7-day free trial</span></p>
+          <p className="glass mb-6 inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold text-zinc-900 sm:text-[13.5px]"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden /><span className="sm:hidden">Launching Oct 23 · 7-day free trial</span><span className="hidden sm:inline">Launching October 23 · 7-day free trial</span></p>
           <h1 className="display text-balance text-[clamp(46px,9vw,92px)] [text-shadow:0_2px_30px_rgba(80,50,200,.35)]">Your AI operations manager for real estate.</h1>
           <p className="mt-6 max-w-2xl text-balance text-[clamp(17px,2.4vw,21px)] leading-relaxed text-white [text-shadow:0_1px_18px_rgba(80,50,200,.45)]">Tell Mila what you need. She preps your listings, writes your posts and emails, sets up open houses and follow-ups, and asks before anything goes out.</p>
           <div id="join" className="mt-10 w-full scroll-mt-10"><WaitlistForm id="hero" /></div>
@@ -175,7 +175,7 @@ export default function Page() {
       <section className="sky grain relative isolate overflow-hidden px-5 py-28 text-center text-white sm:py-36">
         <Clouds />
         <Reveal className="relative z-10 mx-auto max-w-3xl">
-          <h2 className="display text-balance text-[clamp(42px,8vw,84px)]">Be first in on October 20.</h2>
+          <h2 className="display text-balance text-[clamp(42px,8vw,84px)]">Be first in on October 23.</h2>
           <p className="mx-auto mt-5 max-w-xl text-balance text-[18px] text-white/90">We&apos;ll email your personal link the morning we open. Your 7-day free trial starts then.</p>
           <div className="mt-10 flex justify-center"><ScrollToJoin className="h-[56px] w-72 border-black/10 text-[16px] text-zinc-900" /></div>
         </Reveal>

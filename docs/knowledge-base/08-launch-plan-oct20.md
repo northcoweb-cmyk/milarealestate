@@ -1,4 +1,4 @@
-# Launch plan: release Oct 20, 2026
+# Launch plan: release Oct 23, 2026
 
 **Rule:** if a gate below is red, the date moves. A broken launch costs more than a late one.
 
@@ -24,11 +24,11 @@
 
 ## Hype (waitlist page)
 - Waitlist live as early as possible; link in every bio.
-- Countdown to Oct 20 on the page and in posts.
+- Countdown to Oct 23 on the page and in posts.
 - Teaser posts: one feature clip a day; "Comment Mila" for early access.
 - Founding-member offer for the waitlist (only if the owner approves a real offer).
 
-## Launch day (Oct 20)
+## Launch day (Oct 23)
 - Release-captain runs the final gate and checks the live site.
 - Email the waitlist; post the launch video everywhere; reply to every comment.
 - Watch the admin dashboard: signups, trial starts, errors, AI spend. Kill switch ready (MILA_AI_DISABLED=1).

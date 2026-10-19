@@ -1,4 +1,4 @@
-# Mila master launch plan (Mon Oct 12 → launch Tue Oct 20, 10 AM ET)
+# Mila master launch plan (Mon Oct 12 → launch Fri Oct 23, 10 AM ET (moved from Tue Oct 20))
 Replaces the day table in week-plan.md. "You" = owner. "Me" = Claude. Batches ship as ONE push per day (Vercel limits). Feature freeze Sun Oct 18.
 Busy: Wed 4–9:30, Fri 3–9:30, Sat 2–9:30, Sun 8–3, Tue 10am car (slow wifi).
 
@@ -40,7 +40,7 @@ L. After launch: team/brokerage workspaces, referral loop in-app, CRM imports, c
 **Mon 19 (all day)**
 - You: multi-device test day (iPhone, Android, desktop, tablet): signup with code, trial, chat, calendar, posts, voice, billing, cancel. One real Stripe purchase + cancel on your card. Verify every env var; confirm waitlist email ready.
 - Me: only fixes for what you find; one final push by evening; go/no-go list.
-**Tue 20 (launch, 10 AM ET)**
+**Fri 23 (launch, 10 AM ET; moved from Tue 20)**
 - 8:00 final health check · 9:30 send launch email · 10:00 open signups · all day watch admin errors/spend, fix in one push per batch, post socials, reply to every report.
 **Launch week 1 routine:** daily admin export → fixes; daily cost + profit check; SEO/AI-answer check weekly; brokerage outreach; referral push; first reviews (G2/Capterra).
 

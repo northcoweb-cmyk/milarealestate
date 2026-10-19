@@ -61,7 +61,7 @@ export function LiveBoard() {
       </header>
       {!d ? <p className="lmute" style={{ textAlign: "center", marginTop: 120 }}>{err || "Loading…"}</p> : <>
         {!d.launched ? (
-          <section className="hero"><p className="lmute">Mila opens in</p><p className="bigtime">{fmtGo()}</p><p className="lmute">Tuesday · Oct 20 · 10:00 AM ET · {d.waitlist.toLocaleString()} people waiting</p></section>
+          <section className="hero"><p className="lmute">Mila opens in</p><p className="bigtime">{fmtGo()}</p><p className="lmute">Friday · Oct 23 · 10:00 AM ET · {d.waitlist.toLocaleString()} people waiting</p></section>
         ) : (
           <section className="hero launched"><p className="lmute">Accounts created</p><p className="bignum"><Count to={d.accounts} /></p><p className="lmute">{d.seatsLeft > 0 ? `${d.seatsLeft} of ${d.seatCap} seats left` : "All seats taken"} · launched {new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(d.launchAt))} ET</p></section>
         )}

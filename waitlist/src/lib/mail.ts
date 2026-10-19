@@ -11,7 +11,7 @@ export async function sendMail(to: string, subject: string, html: string, text: 
   return true;
 }
 
-const LAUNCH = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-20T10:00:00-04:00";
+const LAUNCH = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T10:00:00-04:00";
 const launchDay = () => `${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" }).format(new Date(LAUNCH))} at ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(LAUNCH))} Eastern`;
 
 const SITE = "https://milarealestate.app";

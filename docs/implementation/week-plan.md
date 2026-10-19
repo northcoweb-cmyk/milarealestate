@@ -1,4 +1,4 @@
-# Lock-in week: Mon Oct 12 → launch Tue Oct 20
+# Lock-in week: Mon Oct 12 → launch Fri Oct 23 (moved from Tue Oct 20)
 
 Rules for the week: one push (one deploy) per batch of fixes, no new features after Sun Oct 18, nothing is called done until it is checked on a real phone. Owner is free from ~11am unless noted. Work blocks you gave: Wed 4–9:30, Fri 3–9:30, Sat 2–9:30, Sun 8–3. Car service Tue 10am (slow wifi).
 
@@ -12,7 +12,7 @@ Rules for the week: one push (one deploy) per batch of fixes, no new features af
 | **Sat 17** (free until 2) | Live-test batch #3, multi-device (phone + desktop + a second person's phone) | Fix batch #4, security/spend-guard pass, backup and restore check |
 | **Sun 18** (work 8–3, free after) | Final walkthrough as a brand-new user; Sarah's UGC videos queued | FEATURE FREEZE. Regression run, deploy rehearsal, rollback checklist |
 | **Mon 19** (all day) | Multi-device test day: signup with code, trial, chat, calendar, posts, billing, cancel. One live Stripe purchase and cancel with your own card | Only fixes for things you find. One push at the end of the day |
-| **Tue 20** | Launch | Watch admin errors and spend; same-day fixes in one push each |
+| **Fri 23** | Launch (moved from Tue 20) | Watch admin errors and spend; same-day fixes in one push each |
 
 ## Model use (so quality never drops)
 Rules are embedded in `CLAUDE.md`: Haiku 5.5 for mechanical work only; Sonnet 5.5 for anything that changes how Mila understands, decides, or handles money/data.

@@ -1,7 +1,7 @@
 import { Nav } from "./nav";
 import { getWho } from "@/lib/auth";
 
-const days = () => Math.ceil((new Date(`${process.env.LAUNCH_DATE || "2026-10-20"}T00:00:00-04:00`).getTime() - Date.now()) / 86_400_000);
+const days = () => Math.ceil((new Date(`${process.env.LAUNCH_DATE || "2026-10-23"}T00:00:00-04:00`).getTime() - Date.now()) / 86_400_000);
 
 export async function Shell({ title, lead, right, children }: { title: string; lead?: string; right?: React.ReactNode; children: React.ReactNode }) {
   const d = days();

@@ -17,7 +17,7 @@ And nothing goes out until you say yes.
 
 Mila is your AI operations manager for real estate. Built for agents, not generic chat.
 
-We launch October 20 with a small group of agents. Join the waitlist (link in bio) to get in line.
+We launch October 23 with a small group of agents. Join the waitlist (link in bio) to get in line.
 
 Comment "MILA" and I'll make sure you're on the list.
 
@@ -34,7 +34,7 @@ Real estate agents: what if you could say one sentence and your whole day got ha
 → post drafted
 → prep notes ready
 
-Mila launches Oct 20. Waitlist: milarealestate.app
+Mila launches Oct 23. Waitlist: milarealestate.app
 
 ## X reply to pin under it (optional)
 

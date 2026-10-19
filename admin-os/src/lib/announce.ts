@@ -1,6 +1,6 @@
 /** Launch-countdown emails for the waitlist: four designs, each addressed to the person by their sign-up name. Inline styles only (email clients ignore the rest). */
 const SITE = "https://milarealestate.app";
-export const launchAt = () => new Date(process.env.LAUNCH_AT || "2026-10-20T10:00:00-04:00");
+export const launchAt = () => new Date(process.env.LAUNCH_AT || "2026-10-23T10:00:00-04:00");
 
 export function daysLeft(now = new Date()): number {
   // whole calendar days in New York, so "5 days" never flips at an odd hour

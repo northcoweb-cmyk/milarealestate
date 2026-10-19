@@ -1,7 +1,7 @@
 # Decisions log (newest first)
 
 **Oct 6, 2026**
-- Release date: **Oct 20**. Quality over date: if the go/no-go list isn't green, it moves.
+- Release date: **Oct 23**. Quality over date: if the go/no-go list isn't green, it moves.
 - Payments: Stripe, using the owner's agency Stripe account.
 - Google Cloud: keep the free credits; upgrade billing about a week before launch (target Oct 12 to 13). Reminder set.
 - Pricing: lower and simplify. Mila saves clicks but isn't full automation (sending a message still opens the phone's message app). Price to be fair for that so lots of agents sign up. Proposal in chat; owner to decide.
@@ -9,9 +9,9 @@
 - Sending email and admin email for now: milarealestateapp@yahoo.com.
 - Platforms: Instagram and X first; TikTok optional (low effort: reuse the same videos).
 - Waitlist page: owner is building it. Signups go to the `waitlist` table (migration 0005).
-- Test users: owner and partner using the app; then 5 to 10 prototype testers; soft launch before Oct 20.
+- Test users: owner and partner using the app; then 5 to 10 prototype testers; soft launch before Oct 23.
 - Admin: a separate "Mila OS" dashboard project (admin-os/) deployed as its own Vercel project.
-- Launch is 10:00 AM Eastern on Oct 20 (not 9).
+- Launch is 10:00 AM Eastern on Oct 23 (not 9).
 
 **Oct 7, 2026**
 - Domain bought: **milarealestate.app** (Porkbun, DNS there). Addresses: `milarealestate.app` and `www` = waitlist (later the public marketing site with pricing and how to sign up); `app.milarealestate.app` = the Mila app; `admin.milarealestate.app` = Mila OS.
