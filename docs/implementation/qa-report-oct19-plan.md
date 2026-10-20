@@ -77,3 +77,6 @@ Replace the plain onboarding with a short conversation like the example the owne
 - Apple Calendar / any calendar app: the private subscription link (one tap), not an OAuth.
 - Not shown: Gmail (hidden for launch), Microsoft/Outlook (removed), MLS (not available).
 Each card goes straight to the real flow, returns to the same chat, and flips to "Connected". Skip is always available; nothing blocks the first task.
+
+### W14. Connector disconnect (owner, Oct 19)
+Disconnecting one Google connector disconnected all of them (`disconnectGoogle` removed the whole row). Fixed with `disconnectGoogleService`: only that service's scopes are dropped, the sign-in is revoked only when none is left, and a reconnect adds back only the services asked for (Google reports every permission ever granted). Per-service Test button added on Connections.

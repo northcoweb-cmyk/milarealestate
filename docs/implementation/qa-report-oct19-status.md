@@ -1,0 +1,34 @@
+# QA report Oct 19: status (223 bugs)
+
+Written after W1–W14. "Fixed" means a regression test or a scripted probe passes in the rule-based agent (2,398-scenario QA, 492 unit tests, tsc and eslint clean). Nothing here was checked on the live site yet: the live re-run is the first thing to do after deploy (credit-burn prompt, `docs/testing/credit-burn-test-prompt.md`).
+
+## Needs the owner (code cannot fix)
+- **OpenAI credits.** The "I'm not sure how to do that yet", "couldn't finish that research" and raw provider errors (BUG-021, 074, 129, 187 and every research reply) came from the OpenAI account running out of quota (429). Add credits and set a spend limit. Advice, calculators, calendar, contacts and drafts no longer depend on it.
+- **Vercel env vars** for the launch date (access code switches off 8 AM ET Oct 23; launch 10 AM ET) in the app, waitlist and Mila OS projects.
+- **Run migration 0013** (done) and 0009 (done). Street View key restrictions still to check.
+- **Mila OS switch:** Launch page → "Tester auto top-up". Turn it OFF to see the real out-of-credits screen on a tester account. BUG-001 (+3,000) was this top-up; it now shows in the history as "Test account top-up".
+- **Gmail** stays hidden for launch (BUG-017 is intentional). **MLS** stays "coming soon".
+- Seed/demo text such as "113 Apple Blossom Way" (BUG-094) only exists in the seeded test data; new accounts have none.
+
+## By workstream
+| Workstream | Bugs | Status |
+|---|---|---|
+| W1 names and contacts | 002, 006, 007, 009, 023, 034, 036, 037, 042, 060, 082, 096, 100, 103, 105, 120, 122, 123, 126, 134, 137, 140, 146, 148, 150, 161, 164, 165, 181, 188, 189, 196, 200, 201, 202, 207, 219, 221 | Fixed: no junk contacts, household names and couples (one "Hollis & Mae Brandt" contact), bare "Add X", pronouns go to the person just discussed, plural roles, accents/emoji/apostrophes kept, "Rockville., MD, MD" cleaned, HTML removed from names. **Partly:** 148 (rejection reasons) and 134 (out-of-area phone note) are not special-cased; 037 junk numbers rely on the phone parser. |
+| W2 safe writes | 002, 023, 043, 084, 092, 104, 108, 122, 162, 163, 166, 172, 174, 182 | Fixed: facts only saved to the person the sentence is about, budgets as numbers, commands never saved, "the budget field should say 625k" corrects the field, multi-fact sentence saved in one go. **Partly:** 108 and 172 (no search criteria / chips for sellers) rely on the seller card wording. |
+| W3 credits, errors, history | 001, 003, 004, 005, 021, 032, 033, 169, 175, 187 | Fixed in code: never negative, no charge on upstream failure, friendly error with no provider text, full ledger incl. grants. 021/187 also need OpenAI credits. |
+| W4 drafts and messages | 030, 049, 050, 051, 064, 075, 087, 098, 102, 103, 114, 141, 147, 153, 154, 159, 173, 184, 186, 195, 211 | Fixed: channel from the words, content from the facts, revise by chat ("rewrite it to say…", "no I said a TEXT"), recipients who aren't contacts, "Open in Gmail" and Copy, Close button on reviewed drafts. |
+| W5 calendar and reminders | 008, 018, 025, 026, 047, 056, 061–063, 068, 083, 086, 099, 110–112, 115, 116, 118, 119, 124, 125, 127, 132, 138, 139, 151, 152, 157, 158, 171, 176–178, 199, 203–205, 208–210, 218, 224 | Fixed: named events, "sat 1 to 4", out-of-office span/query/edit, reminder titles, list and complete reminders, "this week" is a week. **Not reproduced locally:** the production relative-date bug (P0-8) and "Saturday open house, no post". |
+| W6 properties and deals | 012, 013, 015, 038–041, 044–046, 065, 085, 106, 107, 113, 121, 166, 180, 185, 193, 197, 212, 213 | Fixed: status words, list date, offers, property notes, details just after adding, street name resolves to the saved home, price-change confirm. **Partly:** 185 (deal memory across a new chat) relies on the saved memory, not the chat; contact-level offers use the contact note path. |
+| W7 calculators and saved data | 014, 066, 067, 073, 128, 155, 156, 160, 194, 205, 206, 216, 222 | Fixed: payment/PITI, seller net sheet, net price with a credit, reduction %, commission, affordability, buyers under $X, budget compare, recap, each person once in the follow-up list, one waiting-count. **Partly:** 194 (sell-then-buy timing for one client) gets the general advice path, not a per-client plan. |
+| W8 routing and context | 019, 020, 048, 053, 058, 059, 064, 072, 076, 091, 093, 097, 109, 129, 131, 135, 136, 139, 144, 145, 184, 185, 220, 223 | Fixed: inbox questions answered honestly, "txt X…" is a text, comma-separated facts, "Add X as a buyer… open house" is a person, turnout saved, open-house follow-up email, Still-open labels show what was typed. 135 is covered by W10. |
+| W9 content and posts | 011, 027, 028, 035, 052, 054, 072, 088, 089, 090, 117, 190, 214, 215 | Fixed: Coming Soon and home-anniversary posts, status warning on "Just Listed", "w/o the price and beds", headline change, add date/time to caption, a genuinely different "another version", listing description and flyer copy, date on open-house posts, Edit chip opens that post. 035 (Zillow/Redfin tip) is intentional, photos only. |
+| W10 safety and advice | 016, 022, 031, 069, 070, 135, 143, 168, 179, 192, 198 | Fixed: family-status and "market this to" Fair Housing guards (no search, no charge), 1031, MD transfer tax and listing documents, appraisal gap, offer reasonableness, stale listing, client confidentiality, hottest lead, out-of-state showing warning. Advice is general guidance with "check with your broker/attorney". |
+| W11 UI polish | 034, 050, 077, 078, 095, 101, 130, 133, 160, 217, 094 | Fixed: HTML stripped, help chips no longer create sample data, example placeholders, Close on reviewed drafts, Connections test button. **Not changed:** 077 (the "Did you send your text?" toast) could not be reproduced here; 078 reloads on save already. |
+| W12 usage UI, tester top-up, annual plan | owner request | Done: "usage is up" / out-of-credits states with Buy credits on the banner and Credits page, "Test account top-up" label, Mila OS switch, Mila Annual card ($390/year) on the waitlist pricing. |
+| W13 first-run chat with real connectors | owner request | Done in code (Google Calendar, Contacts, Sheets, Apple Calendar; connect returns to the same chat; answers kept). **Not checked in a browser**: sign-in is required and could not be done in this environment. Look at it once on a real phone. |
+| W14 one connector off, not all | owner request | Fixed and tested: turning off Calendar leaves Contacts and Sheets; reconnecting one service does not bring back one you turned off. |
+
+## Known gaps worth a look after launch
+- Per-bug live verification of every ID; this table is by workstream.
+- Sell-before-buy timing plans, contact-level offers, rejection reasons.
+- `tests/content.test.mts` was changed on purpose: open-house posts now carry the date (BUG-090), which replaced the weekday-only expectation.
