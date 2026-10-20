@@ -1,3 +1,4 @@
+import { stripMarkup } from "../names";
 import { renderMerge } from "../merge";
 import { eventDescription } from "../calendar-details";
 import { buildSignature, withSignature } from "../signature";
@@ -87,7 +88,7 @@ export const TOOLS: Record<string, ToolDef> = {
       const dup = a.force ? null : await findDuplicateContact(ctx, a); // "add anyway" skips the duplicate check
       if (dup) return ok({ contact: dup, existing: true });
       const c = await ctx.store.insert("contacts", ctx.userId, {
-        name: String(a.name).trim(), email: a.email ?? null, phone: a.phone ?? null,
+        name: stripMarkup(String(a.name)), email: a.email ?? null, phone: a.phone ?? null,
         type: (a.type as ContactType) ?? "lead", status: (a.status as ContactStatus) ?? "new",
         tags: a.tags ?? [], notes: a.notes ?? null, preferences: a.preferences ?? {}, location: a.location ?? null,
         budget_min: a.budget_min ?? null, budget_max: a.budget_max ?? null, timeline: a.timeline ?? null,
@@ -104,6 +105,7 @@ export const TOOLS: Record<string, ToolDef> = {
       const cur = await ctx.store.get("contacts", ctx.userId, a.id);
       if (!cur) return fail("not_found", "I couldn't find that contact.");
       const patch: Partial<Contact> = { ...a.patch };
+      if (typeof patch.name === "string") patch.name = stripMarkup(patch.name);
       if (patch.preferences) patch.preferences = { ...cur.preferences, ...patch.preferences };
       if (patch.tags) patch.tags = [...new Set([...(cur.tags ?? []), ...patch.tags])];
       const c = (await ctx.store.update("contacts", ctx.userId, cur.id, patch))!;
@@ -249,7 +251,7 @@ export const TOOLS: Record<string, ToolDef> = {
         } catch (e) { syncNote = googleSyncNote(e); }
       }
       const ev = await ctx.store.insert("calendar_events", ctx.userId, {
-        title: a.title, kind: (a.kind as CalendarEventKind) ?? "other", start_at: a.start_at, end_at: a.end_at,
+        title: stripMarkup(String(a.title)), kind: (a.kind as CalendarEventKind) ?? "other", start_at: a.start_at, end_at: a.end_at,
         location: a.location ?? null, property_id: a.property_id ?? null, contact_id: a.contact_id ?? null,
         status: "confirmed", source: "mila", external_id: ext, synced_at: syncedAt, workflow_run_id: a.workflow_run_id ?? null, notes: a.notes ?? null,
       });

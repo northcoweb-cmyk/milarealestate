@@ -358,9 +358,9 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   // "help" / "what can you do": a real answer, not "I'm not sure how to do that"
   if (!forced && !pend && /^(help|help me|what can you do|what do you do|what can i ask( you)?|how does this work|how do i use (this|you))[\s?!.]*$/i.test(text.trim())) {
     return { out: reply("📌 Here's what I can do for you. Just type it like you'd text a coworker:", [{ type: "choice", title: "Try one", buttons: [
-      { label: "📅 Add a showing", style: "secondary", action: { type: "prompt", text: "Showing at 123 Main Street tomorrow at 2pm with the Smiths" } },
-      { label: "🏡 Set up an open house", style: "secondary", action: { type: "prompt", text: "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up." } },
-      { label: "👤 Add a new buyer", style: "secondary", action: { type: "prompt", text: "I have a new buyer named Sarah looking for a 3 bedroom house around $650k" } },
+      { label: "📅 Add a showing", style: "secondary", action: { type: "prompt", text: "Add a showing to my calendar" } },
+      { label: "🏡 Set up an open house", style: "secondary", action: { type: "prompt", text: "Set up an open house" } },
+      { label: "👤 Add a new buyer", style: "secondary", action: { type: "prompt", text: "Add a new buyer" } },
       { label: "✅ Who to follow up with", style: "secondary", action: { type: "prompt", text: "Who do I need to follow up with today?" } },
       { label: "📸 Make a post", style: "secondary", action: { type: "prompt", text: "Make me an Instagram post for my newest listing" } },
     ] }], "smalltalk"), intent: "smalltalk" };

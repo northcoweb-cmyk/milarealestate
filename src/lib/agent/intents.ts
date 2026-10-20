@@ -81,6 +81,7 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   if (!/\?\s*$/.test(t) && /\badd\s+.{2,60}?\s+as\s+(?:a\s+)?(?:related\s+contact\s+(?:for|of|to)\b|(?:her|his|their)\s+(?:son|daughter|husband|wife|partner|spouse|mother|father|brother|sister|assistant|attorney|lawyer|accountant)\b)/.test(t)) return { intent: "related_contact" };
   // a home the agent already has: its status, list date, an offer, a note, the details just after adding it
   if (calcKind(raw)) return { intent: "calc" };
+  if (/^\s*(?:get me ready to list|help me get ready to list|i'?m listing a home)\W*$/i.test(raw)) return { intent: "listing_ready" };
   if (adviceTopic(raw)) return { intent: "advice" };
   if (!/\?\s*$/.test(t) && /^(?:(?:ok|okay|yes|yeah|now|please|and|can you|could you)[,\s]+)*(?:make|give me|do|create|try|show me)\s+(?:me\s+)?(?:another|a different|a new|one more)\s+(?:version|take|option|one)\s*[.!]?$/.test(t)) return { intent: "another_version" };
   if (describeHomeAsk(raw)) return { intent: "describe_home" };

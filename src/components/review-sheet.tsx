@@ -97,6 +97,7 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
               {d && d.drafts.length > 1 && <p className="faint text-center text-[12.5px]">{d.drafts.filter((x) => opened[x.id]).length} of {d.drafts.length} opened — pick the next person above.</p>}
             </div>
           )}
+          {!pending && d && <button className="btn w-full" onClick={onClose}>Close</button>}
           {pending && !isEmail && <div className="flex gap-3 pt-1"><button className="btn flex-1" disabled={busy} onClick={() => decide("reject")}>Decline</button><button className="btn btn-primary flex-[2]" disabled={busy} onClick={() => decide("approve")}>{busy ? "Working…" : action}</button></div>}
         </div>
       )}

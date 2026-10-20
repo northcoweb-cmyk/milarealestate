@@ -144,8 +144,8 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   }, ...(needQ ? [questionsBlock(contact, type)] : [])], "workflow_default");
 }
 
-const Q_BUYER = [{ key: "budget", label: "Budget", placeholder: "$500k" }, { key: "area", label: "Where", placeholder: "Rockville, MD" }, { key: "beds", label: "Bedrooms", placeholder: "3" }, { key: "timeline", label: "Timeline", placeholder: "next 3 months" }, { key: "preapproved", label: "Pre-approved?", placeholder: "yes / no" }];
-const Q_SELLER = [{ key: "home", label: "Their home", placeholder: "12 Oak St" }, { key: "budget", label: "Hoped-for price", placeholder: "$650k" }, { key: "timeline", label: "Timeline", placeholder: "list in spring" }, { key: "why", label: "Why selling", placeholder: "relocating" }];
+const Q_BUYER = [{ key: "budget", label: "Budget", placeholder: "e.g. $500k" }, { key: "area", label: "Where", placeholder: "e.g. Rockville, MD" }, { key: "beds", label: "Bedrooms", placeholder: "e.g. 3" }, { key: "timeline", label: "Timeline", placeholder: "e.g. next 3 months" }, { key: "preapproved", label: "Pre-approved?", placeholder: "e.g. yes or no" }];
+const Q_SELLER = [{ key: "home", label: "Their home", placeholder: "e.g. 12 Oak St" }, { key: "budget", label: "Hoped-for price", placeholder: "e.g. $650k" }, { key: "timeline", label: "Timeline", placeholder: "e.g. list in spring" }, { key: "why", label: "Why selling", placeholder: "e.g. relocating" }];
 /** One card, one tap: the questions worth asking a new client, answered all at once. */
 export const questionsBlock = (c: Contact, type: ContactType): Block => ({ type: "questions", title: `Quick questions for ${firstName(c.name)}`, contactId: c.id, fields: type === "seller" ? Q_SELLER : Q_BUYER });
 

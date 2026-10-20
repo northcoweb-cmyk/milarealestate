@@ -173,7 +173,7 @@ export async function forgettingTodayHandler(ctx: Ctx, text = ""): Promise<Handl
   }
   add("🏠", "Listings coming up", listItems.slice(0, 5));
 
-  const waiting = approvals.filter((a) => a.status === "pending").length + posts.filter((p) => p.status === "draft" || p.status === "pending_approval").length;
+  const waiting = approvals.filter((a) => a.status === "pending").length; // the same number the Tasks tab and Home show: every draft waits as one approval
   const rem = reminders.filter((r) => r.status === "pending" && new Date(r.remind_at).getTime() < dayEnd.getTime()).slice(0, 2);
   add("🔔", "Waiting on you", [...(waiting ? [{ text: `${plural(waiting, "draft")} ready for your approval`, state: "missing" as const, button: { label: "Review", style: "secondary" as const, href: "/" } }] : []), ...rem.map((r) => ({ text: `Reminder: ${r.title} · ${fmtTime(r.remind_at, tz)}`, state: "info" as const }))]);
 

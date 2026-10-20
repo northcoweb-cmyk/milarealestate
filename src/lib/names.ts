@@ -12,3 +12,8 @@ export function firstNameOf(full: string): string {
   if (j - i >= 2 && j < toks.length) i = j;
   return toks[i] ?? toks[0];
 }
+
+/** Names, titles and notes are plain text: any markup typed or pasted into them is removed ("Lee <b>bold</b>" becomes "Lee bold"). */
+export function stripMarkup(s: string): string {
+  return s.replace(/<\/?[a-z][^>]*>/gi, "").replace(/\s{2,}/g, " ").trim();
+}
