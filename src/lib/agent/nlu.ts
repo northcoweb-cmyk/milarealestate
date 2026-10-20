@@ -370,8 +370,8 @@ const NAME_STOP = new Set(["Sunday","Monday","Tuesday","Wednesday","Thursday","F
 
 /** Keeps the whole typed name (up to four words when it starts with two ALL-CAPS tags, else three) and drops trailing day/month words. */
 function tidyName(raw: string): string {
-  const toks = raw.trim().split(/\s+/);
-  while (toks.length > 1 && NAME_STOP.has(toks[toks.length - 1])) toks.pop();
+  const toks = raw.trim().split(/\s+/).map((t, i, a) => (i === a.length - 1 ? t.replace(/['’]s$/i, "").replace(/[,.;:!?]+$/, "") : t));
+  while (toks.length > 1 && (NAME_STOP.has(toks[toks.length - 1]) || /^(?:oh|ok|okay|um|uh|so|then|and|but|too|please)$/i.test(toks[toks.length - 1]))) toks.pop();
   const lead = toks.filter((t) => /^[A-Z]{2,}$/.test(t)).length >= 2 && /^[A-Z]{2,}$/.test(toks[0]) && /^[A-Z]{2,}$/.test(toks[1]);
   const title = /^(?:Dr|Mr|Mrs|Ms|Mx|Prof|Rev)\.?$/.test(toks[0]) ? 1 : 0;
   return toks.slice(0, (lead ? 4 : 3) + title).join(" ");
@@ -383,6 +383,9 @@ export function parsePersonName(text: string): string | null {
   const couple = new RegExp(`\\b(${W})\\s+(?:and|&)\\s+(${W})\\s+(${W})\\b`, "u").exec(text);
   if (couple && !NAME_STOP.has(couple[1]) && !/@/.test(couple[0])) return `${couple[1]} & ${couple[2]} ${couple[3]}`;
   const NM = `((?:(?:Dr|Mr|Mrs|Ms|Mx|Prof|Rev)\\.?\\s+)?${W}(?:\\s+${W}){0,3})`;
+  // a household: "the Lutz family" / "the Brennans"
+  const fam = new RegExp(`\\b[Tt]he\\s+(${W})\\s+[Ff]amily\\b`, "u").exec(text);
+  if (fam && !NAME_STOP.has(fam[1])) return `${fam[1]} Family`;
   const named = new RegExp(`\\b(?:named|called|name is|name's)\\s+${NM}`, "u").exec(text);
   if (named) return tidyName(named[1]);
   // "Priya Shah is a new buyer, wants…" / "my new client is Lisa Gray"
@@ -395,6 +398,8 @@ export function parsePersonName(text: string): string | null {
   if (asA && !NAME_STOP.has(asA[1].split(" ")[0])) return tidyName(asA[1]);
   const addAs = new RegExp(`\\b[Aa]dd\\s+${NM}\\s+as\\b`, "u").exec(text);
   if (addAs) return tidyName(addAs[1]);
+  const addBare = new RegExp(`^\\s*(?:please\\s+)?[Aa]dd\\s+(?:a\\s+|another\\s+)?(?:new\\s+)?(?:contact\\s+|person\\s+)?(?:named\\s+|called\\s+)?${NM}\\s*[.!]*$`, "u").exec(text);
+  if (addBare && !NAME_STOP.has(addBare[1].split(" ")[0])) return tidyName(addBare[1]);
   return lowercaseName(text);
 }
 
@@ -408,7 +413,7 @@ function lowercaseName(text: string): string | null {
     if (!m) return null;
     const out: string[] = [];
     for (const w of m[1].trim().split(/\s+/)) { const bare = w.toLowerCase().replace(/[,.;:]+$/, ""); if (NAME_END.has(bare) || (bare.length > 4 && bare.endsWith("ing"))) break; out.push(w.replace(/[,.;:]+$/, "")); if (/[,.;:]$/.test(w) || out.length === 3) break; }
-    return out.length ? properCase(out.join(" ")) : null;
+    return out.length && !out.every((w) => GENERIC_WORD.test(w)) ? properCase(out.join(" ")) : null;
   };
   return grab(new RegExp(`\\b(?:named|called|name is|name's)\\s+((?:${word}\\s*){1,4})`, "iu"))
     ?? grab(new RegExp(`\\b(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\s*[,:-]?\\s+((?:${word}\\s*){1,4})`, "iu"))
@@ -530,8 +535,11 @@ export function plausibleName(name: string | null | undefined): boolean {
   if (/[.!?:;@#$%^*()=+<>\[\]{}|\\/\d]|\.{2,}/.test(n)) return false;
   const words = n.split(/\s+/);
   if (words.length > 4) return false;
+  // ordinary words are never a person: "buyer agent" -> "Agent", "seller credit" -> "Credit", "rename that new buyer profile" -> "Profile"
+  if (words.every((w) => GENERIC_WORD.test(w))) return false;
   return !words.some((w) => NOT_A_NAME.test(w));
 }
+const GENERIC_WORD = /^(?:agent|agents|profile|credit|credits|referral|contact|contacts|client|clients|buyer|buyers|seller|sellers|lead|leads|person|people|someone|somebody|family|couple|the|a|an|is|are|hi|hello|his|her|their|my|our|new|another|other|that|this|it|them|him|she|he|they|we|you|me|us|mila|home|house|listing|property|offer|price|note|notes|name|email|phone|number|address)$/i;
 
 /**
  * "Thursday at 9am" said on Thursday afternoon means NEXT Thursday: when the time named has already passed today and the agent named a

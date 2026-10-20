@@ -34,6 +34,22 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
       return reply(type === hit.type ? `${hit.name} is already saved as a ${label(hit.type).toLowerCase()}. Want me to draft a follow-up?` : `Done. ${hit.name} is now a ${label(type).toLowerCase()}.`, [{ type: "choice", title: hit.name, buttons: [{ label: "Draft a follow-up", style: "primary", action: { type: "prompt", text: `Draft a follow-up email to ${hit.name}` } }, { label: "Open profile", style: "quiet", href: `/contacts/${hit.id}` }] }]);
     }
   }
+  // "add her as a seller": her = the person just talked about (a saved contact, a name in this message, or the latest full name said in this chat)
+  const pron = /\badd\s+(?:her|him|them)\s+as\s+(?:a\s+|an\s+)?(buyer|seller|lead|renter|investor|client)\b/i.exec(text);
+  if (pron) {
+    const type = parseContactType(text) ?? "lead";
+    const inMsg = capitalisedNames(text).filter((n) => n.includes(" ") && plausibleName(n)).pop();
+    const last = !inMsg && ctx.state.last_contact_ids?.length === 1 ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
+    if (last) {
+      await ctx.store.update("contacts", ctx.userId, last.id, { type: type as ContactType });
+      return reply(`Done. ${last.name} is now a ${label(type as ContactType).toLowerCase()}.`, [{ type: "choice", title: last.name, buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${last.id}` }] }], "chat_simple");
+    }
+    const said = await nameFromChat(ctx, text);
+    if (said) return newContactHandler(ctx, `Add ${said} as a ${type}`);
+    ctx.state.pending = { kind: "clarify", intent: "new_contact", slots: { text: text.replace(/\badd\s+(?:her|him|them)\b/i, "add") }, missing: "name" };
+    await persistState(ctx);
+    return reply("What's their name?");
+  }
   const parsed = parsePersonName(text);
   const name = plausibleName(parsed) ? parsed : null; // never save a complaint or filler as a person
   if (!name) {
@@ -241,7 +257,11 @@ export async function mentionedContacts(ctx: Ctx, text: string): Promise<Contact
   const words = new Set(t.replace(/['’]s\b/g, "").split(/[^a-z0-9'’-]+/).filter((w) => w.length >= 3)); // "Priya's number" names Priya
   const stop = new Set(["who", "the", "and", "for", "all", "tell", "about", "what", "contact", "contacts", "buyer", "seller", "lead", "client", "test"]);
   const shortNames = new Set([...text.matchAll(/(?<![\p{L}])(\p{Lu}\p{Ll})(?![\p{L}])/gu)].map((m) => m[1].toLowerCase())); // "Li", "Mc": only when written as a name
-  return all.filter((c) => { const f = firstNameOf(c.name).toLowerCase(); return (f.length >= 3 ? words.has(f) : shortNames.has(f)) && !stop.has(f); });
+  const byFirst = all.filter((c) => { const f = firstNameOf(c.name).toLowerCase(); return (f.length >= 3 ? words.has(f) : shortNames.has(f)) && !stop.has(f); });
+  // a full name was typed ("QA TEST Dana Lee") and nobody has it: a different person who shares the first name is NOT that person
+  const typedFull = capitalisedNames(text).map((n) => n.split(/\s+/).map((w) => w.replace(/['’]s$/i, "")).filter((w) => !/^[A-Z]{2,5}$/.test(w))).filter((w) => w.length >= 2);
+  if (!typedFull.length) return byFirst;
+  return byFirst.filter((c) => !typedFull.some((w) => w[0].toLowerCase() === firstNameOf(c.name).toLowerCase() && w[w.length - 1].toLowerCase() !== c.name.toLowerCase().split(/\s+/).pop()));
 }
 
 export async function recallHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
@@ -343,4 +363,36 @@ export async function contactFieldUpdateHandler(ctx: Ctx, text: string): Promise
   if (!saved || saved[key] == null) return reply(`I couldn't save that for ${c.name}. Nothing was changed.`, [], "smalltalk");
   ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
   return reply(`Updated ${c.name}'s ${field === "number" || field === "cell" || field === "mobile" ? "phone" : field} to ${shown}${was ? ` (was ${was})` : ""}.`, [], "chat_simple");
+}
+
+
+/** The person this message is about: a full name in the message itself, else the latest full name said earlier in this chat. */
+async function nameFromChat(ctx: Ctx, text: string): Promise<string | null> {
+  const full = (t: string) => capitalisedNames(t).filter((n) => n.includes(" ") && plausibleName(n)).pop();
+  const here = full(text) ?? capitalisedNames(text).find((n) => plausibleName(n) && !/^(?:Add|Corinne)$/.test("") && true);
+  if (here) return here;
+  const msgs = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId && m.role === "user").sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6);
+  for (const m of msgs) { const n = full(m.content); if (n) return n; }
+  return null;
+}
+
+
+/** "Add Grant Abernathy as a related contact for Corinne" / "add Grant as her son": a new person, linked to the client they belong to. */
+export async function relatedContactHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const W = "\\p{Lu}[\\p{L}'’-]*";
+  const m = new RegExp(`[Aa]dd\\s+(${W}(?:\\s+${W}){0,2})\\s+as\\s+(?:a\\s+)?(?:related\\s+contact\\s+(?:for|of|to)\\s+(${W}(?:\\s+${W}){0,2})|(?:her|his|their)\\s+(son|daughter|husband|wife|partner|spouse|mother|father|brother|sister|assistant|attorney|lawyer|accountant))`, "u").exec(text);
+  if (!m || !plausibleName(m[1])) return reply("Who is the new contact, and who are they related to? For example: “Add Grant Abernathy as a related contact for Corinne.”", [], "smalltalk");
+  const name = m[1];
+  const rel = m[3] ?? "related contact";
+  const owners = await mentionedContacts(ctx, m[2] ?? text.replace(m[1], " "));
+  const owner = owners.length === 1 ? owners[0] : ctx.state.last_contact_ids?.length === 1 && !m[2] ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
+  if (!owner) return reply(`Who is ${name} related to? I need the client's name so I can link them.`, [], "smalltalk");
+  const out = (await TOOLS.create_contact.run(ctx, { name, type: "lead", status: "new", source: `Related to ${owner.name}`, notes: `${rel === "related contact" ? "Related contact" : `${owner.name}'s ${rel}`} (${owner.name})` })) as any;
+  const made = out?.ok ? out.data.contact : null;
+  if (!made) return reply(`I couldn't add ${name}, so nothing was saved.`, [], "smalltalk");
+  if (out.data.existing) return reply(`${made.name} is already in your contacts. I haven't added a second one.`, [{ type: "choice", title: made.name, buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${made.id}` }] }], "smalltalk");
+  await saveMemory(ctx, { scope: "contact", subject_id: made.id, key: "Related to", value: `${owner.name}${rel === "related contact" ? "" : ` (${rel})`}`, source: "user_stated" });
+  await saveMemory(ctx, { scope: "contact", subject_id: owner.id, key: "Related contact", value: `${made.name}${rel === "related contact" ? "" : ` (${rel})`}`, source: "user_stated" });
+  ctx.state.last_contact_ids = [owner.id]; await persistState(ctx);
+  return reply(`Added ${made.name}${rel === "related contact" ? "" : ` as ${owner.name}'s ${rel}`}, linked to ${owner.name}. Nothing is sent to them.`, [{ type: "choice", title: made.name, buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${made.id}` }, { label: `Open ${firstName(owner.name)}`, style: "quiet", href: `/contacts/${owner.id}` }] }], "chat_simple");
 }

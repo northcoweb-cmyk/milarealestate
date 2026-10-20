@@ -3,6 +3,13 @@ import type { Ctx } from "./context";
 import { type HandlerOut, reply } from "./handlers/types";
 import { listMemories, saveMemory } from "./memory";
 import { firstNameOf } from "../names";
+import { parseMoney } from "./nlu";
+import { fullMoney } from "./context";
+
+/** A message that tells Mila to DO something (draft, rewrite, schedule…) is not a statement about a client: nothing in it is saved as a fact. */
+const COMMAND = /^\s*(?:(?:please|pls|ok|okay|hey|and|also|so|then|now|can you|could you|just)[,\s]+)*(?:draft|write|rewrite|redo|compose|text|txt|email|send|schedule|book|remind|move|cancel|set|add|create|make|show|find|search|tell|undo|rename|log|record|update|change|fix|delete|remove|put|get|pull|prep|call|mark|save)\b/i;
+/** Wants that are really something else: a role, a meeting, a bare pronoun phrase. */
+const GENERIC_WANT = /^(?:an?\s+)?(?:buyer|seller|listing)?\s*agents?\b|^to\s+(?:meet|talk|speak|call|see)\b|^(?:it|that|this|them)\b|^$/i;
 
 /**
  * Mila listens to everything the agent says and keeps what is durable: how they work, their market, goals,
@@ -60,7 +67,8 @@ export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> 
           saved.push({ scope: r.scope, key: r.key, value });
         }
       }
-      // statements about a client we know
+      // statements about a client we know: only when THAT client is who the sentence is about, never someone merely mentioned
+      if (COMMAND.test(s) || /\?\s*$/.test(s)) continue;
       const contacts = await ctx.store.list("contacts", ctx.userId);
       for (const c of contacts) {
         const first = firstNameOf(c.name);
@@ -68,15 +76,31 @@ export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> 
         if (contacts.filter((x) => firstNameOf(x.name).toLowerCase() === first.toLowerCase()).length > 1 && !s.toLowerCase().includes(c.name.toLowerCase())) continue;
         const esc = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         // short first names ("Li", "Mc") only count when written as a capitalised name, so ordinary words never match
-        if (/\?\s*$/.test(s) || !(first.length >= 3 ? new RegExp(`\\b${esc}\\b`, "i").test(s) : new RegExp(`(?<![\\p{L}])${esc}(?![\\p{L}])`, "u").test(s))) continue;
+        const hit = (first.length >= 3 ? new RegExp(`\\b${esc}\\b`, "i") : new RegExp(`(?<![\\p{L}])${esc}(?![\\p{L}])`, "u")).exec(s);
+        if (!hit) continue;
+        // "a referral from Dana", "email Dana", "tell Dana": Dana is the other party, not the subject
+        if (/\b(?:from|via|about|per|ask|tell|email|text|referral from|referred by|recommended by)\s+(?:my\s+|the\s+|our\s+)?$/i.test(s.slice(Math.max(0, hit.index - 18), hit.index))) continue;
+        const after = s.slice(hit.index + hit[0].length);
         for (const r of CLIENT) {
-          const m = r.re.exec(s);
+          const m = r.re.exec(after);
           if (!m) continue;
           let value = m[0].trim().replace(/\s+(?:and|but)\s+(?:also\s+)?(?:wants?|needs?|has|have|is|are|loves?|prefers?)\b.*$/i, "").replace(/^(?:wants?|needs?|is looking for|are looking for|looking for|hoping for|loves?|prefers?)\s+/i, "").replace(/[,;:\s]+$/, "");
+          let key = r.key;
+          if (key === "Budget") {
+            const money = parseMoney(m[0]).max;
+            if (!money) continue;
+            // a number, written out; "pre-approved" is kept because it says something the number does not
+            value = `${/pre-?approved|approved for/i.test(m[0]) ? "pre-approved for " : ""}${fullMoney(money)}`;
+            if (c.type === "seller") key = "Asking price";
+            else if (c.budget_max !== money) await ctx.store.update("contacts", ctx.userId, c.id, { budget_max: money });
+          } else if (key === "Wants") {
+            value = value.replace(/\b(?:budget|pre-?approved|approved for|max(?:imum)?|up to)\b[^,;]*\$?\s?\d[\d,.]*\s?(?:k|m|million)?[^,;]*/gi, "").replace(/^[\s,;:-]+|[\s,;:-]+$/g, "").replace(/^wants?:?\s*/i, "");
+            if (GENERIC_WANT.test(value)) continue; // "a buyer agent", "to meet Tuesday": not a want of this client
+          }
           value = clip(value);
-          if (value.length < 3 || have("contact", c.id, r.key, value)) continue;
-          await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: r.key, value, source: "inferred", confidence: 0.75 });
-          saved.push({ scope: "contact", key: r.key, value, contact: c });
+          if (value.length < 3 || have("contact", c.id, key, value)) continue;
+          await saveMemory(ctx, { scope: "contact", subject_id: c.id, key, value, source: "inferred", confidence: 0.75 });
+          saved.push({ scope: "contact", key, value, contact: c });
         }
       }
     }
@@ -142,12 +166,29 @@ export async function knowledgeFor(ctx: Ctx, text: string): Promise<string> {
  */
 async function noteAboutClient(ctx: Ctx, text: string, known: Contact[]): Promise<HandlerOut | null> {
   const t = text.trim();
-  if (t.length < 8 || t.length > 400 || /^(remind|call|email|text|send|schedule|book|move|cancel|draft|make|show|tell|find|add|set|create|delete|remove|undo|what|who|when|where|how|why)\b/i.test(t)) return null;
+  if (t.length < 8 || t.length > 400 || COMMAND.test(t) || /^(what|who|when|where|how|why)\b/i.test(t)) return null;
   for (const c of known) {
     const m = new RegExp(`^(?:${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${firstNameOf(c.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?:['’]s)?\\s+(.{4,})$`, "iu").exec(t);
     if (!m) continue;
     const value = clip(m[1].replace(/[.!\s]+$/, ""));
     const first = firstNameOf(c.name);
+    // "are the sellers" / "is the buyer": a role, not a note
+    const role = /^(?:is|are)\s+(?:the\s+|a\s+|my\s+)?(?:new\s+)?(buyers?|sellers?|renters?|investors?|clients?)\b/i.exec(value);
+    if (role) {
+      const type = /seller/i.test(role[1]) ? "seller" : /buyer/i.test(role[1]) ? "buyer" : /renter/i.test(role[1]) ? "rental" : /investor/i.test(role[1]) ? "investor" : null;
+      if (type && type !== c.type) await ctx.store.update("contacts", ctx.userId, c.id, { type } as never);
+      ctx.state.last_contact_ids = [c.id];
+      return reply(`Got it. ${c.name} is saved as ${type ? `a ${type === "rental" ? "renter" : type}` : "a client"}.`, [{ type: "choice", title: c.name, buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] }], "chat_simple");
+    }
+    // "just got an offer on 77 Kentlands for $640k": a deal event, kept as a dated note with its numbers, never as a fragment
+    const offer = /^(?:and\s+\p{Lu}[\p{L}'’-]+\s+)?(?:just\s+)?(?:got|received|have|had)\s+an?\s+offer\b(.*)$/iu.exec(value);
+    if (offer) {
+      const money = parseMoney(offer[1]).max;
+      const clean = `Offer received${money ? `: ${fullMoney(money)}` : ""}${/\bon\s+([^$,]{3,50}?)(?:\s+for|\s+at|[,.]|$)/i.exec(offer[1])?.[1] ? ` on ${/\bon\s+([^$,]{3,50}?)(?:\s+for|\s+at|[,.]|$)/i.exec(offer[1])![1].trim()}` : ""} (${ctx.now.toISOString().slice(0, 10)})`;
+      await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: `Offer ${ctx.now.toISOString().slice(0, 10)}`, value: clean, source: "user_stated", confidence: 0.9 });
+      ctx.state.last_contact_ids = [c.id];
+      return reply(`Recorded on ${first}'s profile: ${clean}.`, [], "chat_simple");
+    }
     const mems = await listMemories(ctx);
     const lv = value.toLowerCase();
     // already known (the structured patterns saved it earlier, or this exact note exists): acknowledge, never store twice

@@ -30,7 +30,7 @@ import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler,
 import { fmtDayTime } from "../time";
 import { rewritePostHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
-import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
+import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
@@ -282,6 +282,11 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" || miss === "details" ? words <= 8 || !!parseAddress(text) : timeLike)))
       || (words <= 4 && timeLike));
     if (looksLikeAnswer && !/\?\s*$/.test(text)) {
+      // a bare name answering "What's their name?" is that person's name: it is attached to the original request, never re-guessed from a merged sentence
+      if (pend.intent === "new_contact" && miss === "name" && plausibleName(text.trim()) && /^\p{Lu}[\p{L}'’-]+(?:\s+\p{L}[\p{L}'’-]*){0,3}$/u.test(text.trim())) {
+        text = `${String((pend.slots as { text?: string }).text ?? "").replace(/[.!\s]+$/, "")}. Name is ${text.trim()}`;
+        forced = "new_contact"; answering = { intent: "new_contact", missing: "name" }; ctx.state.pending = null;
+      } else {
       text = dropNegatedDate(text);
       const orig = overrideWhen((pend.slots as { text: string }).text, text, ctx.now, ctx.tz);
       // a bare "12" / "2:30" answering "what time?" means "at 12" / "at 2:30"
@@ -290,6 +295,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       forced = pend.intent as Intent;
       answering = { intent: String(pend.intent), missing: String(pend.missing ?? "") };
       ctx.state.pending = null;
+      }
     } else { park(ctx, pend); ctx.state.pending = null; }
   } else if (pend && text && pend.kind !== "stale_comms") {
     // a new request supersedes an unanswered choice (an unfinished question is parked and offered again, never lost)
@@ -470,6 +476,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "portal_request": return portalRequestHandler(ctx, text);
     case "contact_field_update": return contactFieldUpdateHandler(ctx, text);
     case "cancel_reminder": return cancelReminderHandler(ctx, text);
+    case "related_contact": return relatedContactHandler(ctx, text);
     case "add_task": return addTaskHandler(ctx, text);
     case "rewrite_post": return rewritePostHandler(ctx, text);
     case "property_fact": return propertyFactHandler(ctx, text);
