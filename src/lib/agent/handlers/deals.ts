@@ -1,6 +1,6 @@
 import { askWhichPerson, ambiguousFirstName } from "./entity";
 import { warmText } from "../warm";
-import { addDays, fmtDay, fmtShortDate, fmtTime, partsIn, zonedToUtc } from "../../time";
+import { addDays, fmtDay, fmtShortDate, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
 import type { Block, BriefItem, BriefSection, CalendarEvent, Contact, Property, Task } from "../../types";
 import type { Ctx } from "../context";
 import { fullMoney, plural } from "../context";
@@ -8,7 +8,7 @@ import { persistState } from "../conversation";
 import { extractListingFacts } from "../listing";
 import { learnDetailed } from "../learn";
 import { listMemories, saveMemory } from "../memory";
-import { capitalisedNames, parseAddress, parseDate } from "../nlu";
+import { capitalisedNames, parseAddress, parseDate, parseMoney, parseTime } from "../nlu";
 import type { Intent } from "../intents";
 import { locationGate } from "./location";
 import { TOOLS, invoke, logContactEvent } from "../tools";
@@ -44,7 +44,7 @@ const MILESTONES = [
   { key: "appraisal", label: "Appraisal", re: /\bappraisal\b/i, def: 21, h: 9 },
   { key: "financing", label: "Financing contingency", re: /\b(?:financing|loan|mortgage|lender|commitment)(?: contingency| commitment| approval| deadline)?\b/i, def: 25, h: 9 },
   { key: "walkthrough", label: "Final walkthrough", re: /\b(?:final )?walk.?through\b/i, def: 0, h: 16 },
-  { key: "closing", label: "Closing", re: /\bclos(?:ing|e)\b/i, def: 0, h: 10 },
+  { key: "closing", label: "Closing", re: /\b(?:clos(?:ing|e)(?!\s+(?:cost|costs|credit|credits))|settlement|settle)\b/i, def: 0, h: 10 },
 ] as const;
 
 /** The date written right after a keyword ("inspection in 7 days", "appraisal by the 28th", "closing November 20"). */
@@ -54,9 +54,14 @@ function dateAfter(text: string, re: RegExp, all: RegExp[], now: Date, tz: strin
   let rest = text.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 48);
   for (const o of all) { if (o === re) continue; const n = o.exec(rest); if (n) rest = rest.slice(0, n.index); }
   rest = rest.split(/[;,]|\band\b/i)[0];
+  // "due in 3 business days": counted on weekdays only
+  const bd = /\bin\s+(\d{1,2})\s+business\s+days?\b/i.exec(rest);
+  if (bd) { let d = now; for (let n = Number(bd[1]); n > 0;) { d = addDays(d, 1, tz); if (![0, 6].includes(partsIn(d, tz).dow)) n--; } const p = partsIn(d, tz); return { y: p.y, m: p.m, d: p.d, text: bd[0], relative: true } as ReturnType<typeof parseDate>; }
   return parseDate(rest, now, tz);
 }
 
+const partsOf = (d: Date, tz: string) => { const q = partsIn(d, tz); return { y: q.y, m: q.m, d: q.d }; };
+const todayKey0 = (q: { y: number; m: number; d: number }) => q.y * 10000 + q.m * 100 + q.d;
 export async function transactionHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const found0 = await propertyFor(ctx, text, "transaction");
   if (found0 && "out" in found0) return found0.out;
@@ -71,9 +76,27 @@ export async function transactionHandler(ctx: Ctx, text: string): Promise<Handle
     for (const m of MILESTONES) { const x = m.re.exec(rest); if (x) rest = rest.slice(0, x.index) + " " + rest.slice(x.index + x[0].length + 48); }
     found.closing = parseDate(rest.replace(/\b\d{1,6}\s+[A-Za-z.' ]{2,30}?\b(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|way|blvd|boulevard|place|pl|terrace|circle|trail)\b/gi, " "), ctx.now, ctx.tz);
   }
+  // an accepted offer with no closing date yet: the acceptance and the earnest-money date are saved now, then the closing date is asked once
+  const acceptedOn = /\baccepted\b/i.test(text);
+  if (acceptedOn && found.closing && todayKey0(found.closing) <= todayKey0(partsOf(ctx.now, ctx.tz)) + 1) found.closing = null;
+  if (!found.closing && acceptedOn) {
+    const price = extractListingFacts(text).list_price ?? (/\$\s?(\d[\d,.]*\s?[km]?)/i.exec(text) ? parseMoney(text).max : null);
+    await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Under contract${price ? ` · accepted at ${fullMoney(price)}` : ""} · offer accepted ${fullDate(ctx.now, ctx.tz)}`, source: "user_stated" });
+    const emd = found.emd;
+    if (emd) await TOOLS.create_task.run(ctx, { kind: "task", title: `Earnest money due — ${prop.address}`, subtitle: TX_NOTE, property_id: prop.id, due_at: zonedToUtc(emd.y, emd.m, emd.d, 9, 0, ctx.tz).toISOString(), internal: true });
+    ctx.state.last_property_id = prop.id; await persistState(ctx);
+    return askBack(ctx, "transaction", text, "date", `Got it: the offer on ${prop.address} was accepted${price ? ` at ${fullMoney(price)}` : ""}${emd ? `, and earnest money is due ${fmtDay(zonedToUtc(emd.y, emd.m, emd.d, 9, 0, ctx.tz), ctx.tz)}, ${fmtShortDate(zonedToUtc(emd.y, emd.m, emd.d, 9, 0, ctx.tz), ctx.tz)}` : ""}. What's the closing date? I'll set up the inspection, appraisal and financing deadlines around it.`);
+  }
   if (!found.closing) return askBack(ctx, "transaction", text, "date", `What's the closing date for ${prop.address}? I'll set up the inspection, appraisal and financing deadlines around it.`);
-  const closeAt = zonedToUtc(found.closing.y, found.closing.m, found.closing.d, 10, 0, ctx.tz);
-  if (closeAt.getTime() < ctx.now.getTime()) return askBack(ctx, "transaction", text, "date", `${fmtDay(closeAt, ctx.tz)} has already passed. What's the real closing date?`);
+  // the time the agent gave for the closing ("settlement Friday November 20 at 10:00 AM"), else 10 AM
+  const closeRe = MILESTONES.find((m) => m.key === "closing")!.re;
+  const cm = closeRe.exec(text);
+  const closeTimeRaw = cm ? text.slice(cm.index, cm.index + 90).split(/[.;]|,\s*(?=(?:inspection|appraisal|financing)\b)/i)[0] : "";
+  const closeTime = parseTime(closeTimeRaw);
+  const closePlace = /\b(?:at|in)\s+(?:the\s+)?([A-Za-z][A-Za-z' .-]{2,40}?)\s*(?:[.;]|$)/.exec(closeTimeRaw.replace(/\bat\s+\d[^ ]*\s*(?:[ap]\.?m\.?)?/i, ""))?.[1]?.trim() ?? null;
+  const closeAt = zonedToUtc(found.closing.y, found.closing.m, found.closing.d, closeTime?.start.h ?? 10, closeTime?.start.mi ?? 0, ctx.tz);
+  const todayKey = (d: Date) => { const q = partsIn(d, ctx.tz); return q.y * 10000 + q.m * 100 + q.d; };
+  if (todayKey(closeAt) < todayKey(ctx.now)) return askBack(ctx, "transaction", text, "date", `${fmtDay(closeAt, ctx.tz)} has already passed. What's the real closing date?`);
   ctx.steps.push("Building the transaction timeline");
 
   // start clean so telling Mila again (e.g. the closing moved) replaces the timeline instead of doubling it
@@ -93,7 +116,7 @@ export async function transactionHandler(ctx: Ctx, text: string): Promise<Handle
   }
   rows.sort((a, b) => a.start.getTime() - b.start.getTime());
   for (const r of rows) {
-    await invoke(ctx, "create_calendar_event", { title: `${r.label} — ${prop.address}`, kind: r.kind, start_at: r.start.toISOString(), end_at: new Date(r.start.getTime() + (r.key === "closing" ? 2 : 1) * 3_600_000).toISOString(), location: prop.address, property_id: prop.id, notes: TX_NOTE, ignoreConflicts: true });
+    await invoke(ctx, "create_calendar_event", { title: `${r.label} — ${prop.address}`, kind: r.kind, start_at: r.start.toISOString(), end_at: new Date(r.start.getTime() + (r.key === "closing" ? 2 : 1) * 3_600_000).toISOString(), location: r.key === "closing" && closePlace ? `${closePlace} (${prop.address})` : prop.address, property_id: prop.id, notes: TX_NOTE, ignoreConflicts: true });
     await TOOLS.create_task.run(ctx, { kind: "task", title: `${r.label} — ${prop.address}`, subtitle: `${TX_NOTE}${r.estimated ? " · typical timing, confirm with your contract" : ""}`, property_id: prop.id, due_at: r.start.toISOString(), internal: true });
   }
   await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Under contract · closing ${fullDate(closeAt, ctx.tz)}`, source: "user_stated" });
@@ -230,16 +253,29 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
 
 // ------------------------------------------------------------------ week overview + pipeline
 
-export async function weekOverviewHandler(ctx: Ctx): Promise<HandlerOut> {
+/** Which week the agent means: "week of Oct 26" and "next week" are Monday to Sunday of that week; "this week" is now to Sunday night; otherwise the next 7 days. */
+function weekRange(ctx: Ctx, text: string): { from: number; to: number; label: string; future: boolean } {
+  const day = partsIn(ctx.now, ctx.tz), sod = startOfDay(ctx.now, ctx.tz);
+  const mondayOf = (d: Date) => { const dw = partsIn(d, ctx.tz).dow; return startOfDay(addDays(d, -((dw + 6) % 7), ctx.tz), ctx.tz); };
+  const wk = /\bweek of\s+(.+?)(?:\s+look|\s+looks|[?.!]|$)/i.exec(text);
+  if (wk) { const d = parseDate(wk[1], ctx.now, ctx.tz); if (d) { const m = mondayOf(zonedToUtc(d.y, d.m, d.d, 12, 0, ctx.tz)); return { from: m.getTime(), to: addDays(m, 7, ctx.tz).getTime(), label: `Week of ${fmtShortDate(m, ctx.tz)}`, future: m.getTime() > ctx.now.getTime() }; } }
+  if (/\bnext week\b/i.test(text)) { const m = addDays(mondayOf(ctx.now), 7, ctx.tz); return { from: m.getTime(), to: addDays(m, 7, ctx.tz).getTime(), label: `Week of ${fmtShortDate(m, ctx.tz)}`, future: true }; }
+  if (/\bthis week\b/i.test(text)) { const end = addDays(mondayOf(ctx.now), 7, ctx.tz); return { from: ctx.now.getTime(), to: end.getTime(), label: `This week, through ${fmtDay(addDays(end, -1, ctx.tz), ctx.tz)}`, future: false }; }
+  void day; void sod;
+  return { from: ctx.now.getTime(), to: ctx.now.getTime() + 7 * 86_400_000, label: "Next 7 days", future: false };
+}
+
+export async function weekOverviewHandler(ctx: Ctx, text = ""): Promise<HandlerOut> {
   const [events, tasks, contacts, props] = await Promise.all([ctx.store.list("calendar_events", ctx.userId), ctx.store.list("tasks", ctx.userId), ctx.store.list("contacts", ctx.userId), ctx.store.list("properties", ctx.userId)]);
-  const t0 = ctx.now.getTime(), t7 = t0 + 7 * 86_400_000;
+  const rng = weekRange(ctx, text);
+  const t0 = rng.from, t7 = rng.to;
   const week = events.filter((e) => e.status === "confirmed" && new Date(e.end_at).getTime() > t0 && new Date(e.start_at).getTime() < t7).sort((a, b) => a.start_at.localeCompare(b.start_at));
   const byDay = new Map<string, CalendarEvent[]>();
   for (const e of week) { const k = `${fmtDay(e.start_at, ctx.tz).slice(0, 3)} ${fmtShortDate(e.start_at, ctx.tz)}`; (byDay.get(k) ?? byDay.set(k, []).get(k)!).push(e); }
   const deadlines = week.filter((e) => e.notes === TX_NOTE);
-  const overdue = tasks.filter((t) => t.status === "open" && t.due_at && new Date(t.due_at).getTime() < t0 - 3_600_000);
+  const overdue = rng.future ? [] : tasks.filter((t) => t.status === "open" && t.due_at && new Date(t.due_at).getTime() < t0 - 3_600_000);
   const dueSoon = tasks.filter((t) => t.status === "open" && t.due_at && new Date(t.due_at).getTime() >= t0 - 3_600_000 && new Date(t.due_at).getTime() < t7 && t.subtitle?.startsWith(TX_NOTE) !== true);
-  const quiet = contacts.filter((c) => !["inactive", "closed"].includes(c.status) && (!c.last_contact_at || t0 - new Date(c.last_contact_at).getTime() > 14 * 86_400_000)).sort((a, b) => b.importance - a.importance).slice(0, 3);
+  const quiet = rng.future ? [] : contacts.filter((c) => !["inactive", "closed"].includes(c.status) && (!c.last_contact_at || t0 - new Date(c.last_contact_at).getTime() > 14 * 86_400_000)).sort((a, b) => b.importance - a.importance).slice(0, 3);
   const cName = new Map(contacts.map((c) => [c.id, c.name]));
   const pAddr = new Map(props.map((p) => [p.id, p.address]));
   const sections: BriefSection[] = [...byDay].map(([day, es]) => ({
@@ -255,11 +291,11 @@ export async function weekOverviewHandler(ctx: Ctx): Promise<HandlerOut> {
   if (overdue.length) flags.push({ text: `${plural(overdue.length, "task")} overdue, oldest: ${overdue[0].title}${overdue[0].contact_id && cName.get(overdue[0].contact_id) ? ` (${cName.get(overdue[0].contact_id)})` : ""}`, state: "missing", button: { label: "See tasks", style: "quiet", href: "/tasks" } });
   if (dueSoon.length) flags.push({ text: `${plural(dueSoon.length, "task")} due this week`, state: "info" });
   quiet.forEach((q) => flags.push({ text: `${q.name} has gone quiet (14+ days)`, state: "info", button: { label: "Draft a follow-up", style: "quiet", action: { type: "prompt", text: `Draft a follow-up for ${q.name}` } } }));
-  const free = [...Array(7).keys()].map((i) => addDays(ctx.now, i, ctx.tz)).find((d) => !byDay.has(`${fmtDay(d, ctx.tz).slice(0, 3)} ${fmtShortDate(d, ctx.tz)}`));
+  const free = [...Array(7).keys()].map((i) => addDays(new Date(t0), i, ctx.tz)).filter((d) => d.getTime() < t7).find((d) => !byDay.has(`${fmtDay(d, ctx.tz).slice(0, 3)} ${fmtShortDate(d, ctx.tz)}`));
   if (free && week.length) flags.push({ text: `${fmtDay(free, ctx.tz)}, ${fmtShortDate(free, ctx.tz)} is open, good for follow-ups`, state: "done" });
   if (flags.length) sections.push({ emoji: "⚠️", label: "Needs your attention", items: flags });
   if (!sections.length) return reply("Your calendar is clear for the next 7 days. Want me to find who to follow up with?", [{ type: "choice", title: "Want me to…", buttons: [{ label: "Prioritize my follow-ups", style: "primary", action: { type: "prompt", text: "Who do I need to follow up with today?" } }] }], "chat_simple");
-  return reply(`You have ${plural(week.length, "thing")} on the calendar this week${overdue.length ? ` and ${plural(overdue.length, "overdue task")}` : ""}.`, [{ type: "listing_brief", kicker: "This week", title: "Your week", done: 0, total: 0, sections, buttons: [{ label: "Prioritize my follow-ups", style: "primary", action: { type: "prompt", text: "Who do I need to follow up with today?" } }, { label: "Open calendar", style: "secondary", href: "/calendar" }] }], "chat_simple");
+  return reply(`${rng.label}: you have ${plural(week.length, "thing")} on the calendar${overdue.length ? ` and ${plural(overdue.length, "overdue task")}` : ""}.`, [{ type: "listing_brief", kicker: rng.label, title: "Your week", done: 0, total: 0, sections, buttons: [{ label: "Prioritize my follow-ups", style: "primary", action: { type: "prompt", text: "Who do I need to follow up with today?" } }, { label: "Open calendar", style: "secondary", href: "/calendar" }] }], "chat_simple");
 }
 
 const RATE_KEY = "Commission rate";

@@ -77,6 +77,14 @@ function parseTimeRaw(text: string): TimeSpec | null {
   const clock = `(\\d{1,2}|${word})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?)?`;
   const toNum = (s: string) => numWord(s) ?? 0;
 
+  // "open house sat 1 to 4": a bare range right after a weekday is a start AND an end, never just a start
+  const dayRange = /\b(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?,?\s+(?:from\s+)?(?:at\s+)?(1[0-2]|[1-9])(?::([0-5]\d))?\s*(?:to|-|until|till|til)\s*(1[0-2]|[1-9])(?::([0-5]\d))?(?![\d:]|\s*(?:bed|bath|br\b|ba\b|bd\b|people|min|hour|hr|day|week))/i.exec(t);
+  if (dayRange && !/\d\s*(?:a\.?m\.?|p\.?m\.?)/i.test(t)) {
+    const st = to24(+dayRange[1], dayRange[2] ? +dayRange[2] : 0);
+    let en = to24(+dayRange[3], dayRange[4] ? +dayRange[4] : 0);
+    if (en.h * 60 + en.mi <= st.h * 60 + st.mi) en = { h: Math.min(23, en.h + 12), mi: en.mi };
+    return { start: st, end: en, explicit: true };
+  }
   // "showing Thursday 11" / "lunch fri 1:30": a bare clock number right after a weekday is a time (never before bed/bath/people/units)
   const dayHour = /\b(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?,?\s+(?:at\s+)?(1[0-2]|[1-9])(?::([0-5]\d))?(?![\d:]|\s*(?:[ap]\.?m|st|nd|rd|th|bed|bath|br\b|ba\b|bd\b|people|min|hour|hr|day|week|month|year|%|\/|-|o['’]?clock|pm|am))/i.exec(t);
   const streetAfter = dayHour ? new RegExp(`^\\s+[a-z0-9'.]+(?:\\s+[a-z0-9'.]+){0,2}\\s+(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|way|blvd|boulevard|pl|place|cir|circle|ter|terrace|pkwy|parkway|pike)\\b`, "i").test(t.slice((dayHour.index ?? 0) + dayHour[0].length)) : false;
@@ -366,7 +374,7 @@ export function parsePhone(text: string): string | null {
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : null;
 }
 
-const NAME_STOP = new Set(["Hi","Hello","Dear","Hey","Now","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","January","February","March","April","May","June","July","August","September","October","November","December","Mila","Give","Write","Make","Draft","Create","Send","Show","Find","Pull","Get","Set","Help","Please","Can","Could","Would","Should","Open","House","Showing","Main","Street","I","I'm","And","The","She","He","They","Montgomery","County"]);
+const NAME_STOP = new Set(["Is","Are","Does","Do","Did","Was","Were","What","When","Where","Who","How","Why","Which","Can","Could","Should","Would","Will","Hi","Hello","Dear","Hey","Now","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","January","February","March","April","May","June","July","August","September","October","November","December","Mila","Give","Write","Make","Draft","Create","Send","Show","Find","Pull","Get","Set","Help","Please","Can","Could","Would","Should","Open","House","Showing","Main","Street","I","I'm","And","The","She","He","They","Montgomery","County"]);
 
 /** Keeps the whole typed name (up to four words when it starts with two ALL-CAPS tags, else three) and drops trailing day/month words. */
 function tidyName(raw: string): string {

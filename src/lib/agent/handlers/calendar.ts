@@ -265,6 +265,16 @@ export async function refreshComms(ctx: Ctx, ev: CalendarEvent) {
 }
 
 /** "Schedule a showing at 1 PM" — always checks the calendar first. */
+/** The thing the agent asked to book, in their words: "the photographer", "a sign install", "photo shoot with the stager". */
+export function namedThing(text: string): string | null {
+  const m = /^\s*(?:please\s+|pls\s+|can you\s+|could you\s+)?(?:book|schedule|put|add|set up|arrange|line up|pencil in|reserve)\s+(?:in\s+)?(?:(?:a|an|the|my|our|another)\s+)?(.+?)(?=\s+(?:on|onto|in)\s+my\s+calendar\b|\s+(?:for|on|at|this|next|tomorrow|tmrw|today|tonight)\s+(?:the\s+)?(?:mon|tue|wed|thu|fri|sat|sun|tomorrow|tmrw|today|next|this|\d|noon|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|\s+(?:tomorrow|tmrw|today|tonight)\b|\s+(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\s+(?:for|at)\s+\d)/i.exec(text);
+  if (!m) return null;
+  let obj = m[1].replace(/\s+(?:for|at|in|on)\s+\d{1,6}\s+[A-Za-z0-9.' ]{3,40}$/i, "").replace(/\s+(?:at|in)\s+the\s+property$/i, "").replace(/[.,;:\s]+$/, "").trim();
+  obj = obj.replace(/^(?:(?:a|an|the)\s+)/i, "");
+  if (obj.length < 3 || obj.length > 48 || /^\d/.test(obj) || /\b(?:event|something|appointment|meeting|call|thing)$/i.test(obj) && obj.split(/\s+/).length < 2) return null;
+  return obj.split(/\s+/).map((w, i) => (i > 0 && /^(?:with|for|of|and|the|a|an|at|in|to)$/i.test(w) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
+}
+
 export async function createEventHandler(ctx: Ctx, text: string, kindHint?: CalendarEvent["kind"], title?: string, contactId?: string | null, propertyId?: string | null): Promise<HandlerOut> {
   text = text.replace(/\bw\/\s*/gi, "with ").replace(/(?<!\d )\bw\s+(?=\p{L}{2})/giu, "with ");
   const w = parseWhen(text, ctx.now, ctx.tz);
@@ -279,6 +289,12 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   if (!title && !noun && !kindHint) {
     const lead = /^\s*(dentist|doctor|dr\.?\s*\w+|haircut|gym|workout|massage|vet|therapy|physio|pickup|errand)\b/i.exec(text)?.[1];
     if (lead) title = lead.replace(/(^|\s)(\p{L})/gu, (_m, sp: string, ch: string) => sp + ch.toUpperCase());
+  }
+  let namedFromText = false;
+  // "Book the photographer for 22 Quince Orchard Road on Monday at 10am" / "Put a sign install on my calendar for Tuesday at 9": the thing named IS the event
+  if (!kindHint && !title && !noun && !/open house/i.test(text)) {
+    const obj = namedThing(text);
+    if (obj) { title = obj; namedFromText = true; }
   }
   if (!kindHint && !title && !noun && !/open house/i.test(text)) {
     const day = w.date ? ` on ${fmtDay(w.start!, ctx.tz)}` : "";
@@ -298,7 +314,9 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   if (start.getTime() < ctx.now.getTime() - 60_000 && endNow.getTime() <= ctx.now.getTime()) return askBack(ctx, "create_event", text, "time", `That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
   const end = w.end ?? new Date(start.getTime() + durMin * 60_000);
-  const addr = parseAddress(text);
+  // "Closing is Monday Nov 23 at 2pm" right after talking about a home: it is that home's closing
+  const lastProp = !parseAddress(text) && noun && /^(?:closing|inspection|walk-?through)$/i.test(noun) && ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id) : null;
+  const addr = parseAddress(text) ?? lastProp?.address ?? null;
   let prop = propertyId === undefined && addr && ["showing", "open_house", "inspection"].includes(kind) ? await resolveProperty(ctx, text, false) : null;
   // a showing or inspection at an address means that home belongs in the Properties tab: save it (with the city and state if they were said)
   if (!prop && propertyId === undefined && addr && ["showing", "inspection"].includes(kind)) {
@@ -336,9 +354,17 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
     if (hits.length === 1) who = hits[0];
   }
   if (who) ctx.state.last_contact_ids = [who.id]; // "email her the details" right after "lunch with Dana" means Dana
-  const finalTitle = title ?? `${nounTitle ?? label(kind)}${who || withWho ? ` with ${who?.name ?? withWho}` : ""}${addr ? ` — ${addr}` : ""}`;
+  const finalTitle = title ? (namedFromText && addr && !title.toLowerCase().includes(addr.toLowerCase()) ? `${title} — ${addr}` : title) : `${nounTitle ?? label(kind)}${who || withWho ? ` with ${who?.name ?? withWho}` : ""}${addr ? ` — ${addr}` : ""}`;
   const args = { title: finalTitle, kind, start_at: start.toISOString(), end_at: end.toISOString(), location: addr, contact_id: contactId ?? who?.id ?? null, property_id: propertyId ?? prop?.id ?? null };
   return scheduleWithConflictCheck(ctx, args);
+}
+
+/** "Out of office, Wed Oct 21 8:00 AM to Fri Oct 23 6:00 PM": a block that runs several days says so, never just its first morning. */
+export function spanLabel(e: { title: string; start_at: string; end_at: string }, tz: string): string {
+  const a = partsIn(new Date(e.start_at), tz), b = partsIn(new Date(e.end_at), tz);
+  const sameDay = a.y === b.y && a.m === b.m && a.d === b.d;
+  const d = (x: string) => `${fmtDay(x, tz).slice(0, 3)} ${fmtShortDate(x, tz)}`;
+  return sameDay ? `${e.title}, ${fmtDayTime(e.start_at, tz)}` : `${e.title}, ${d(e.start_at)} ${fmtTime(e.start_at, tz)} to ${d(e.end_at)} ${fmtTime(e.end_at, tz)}`;
 }
 
 export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, any>, skipCheck = false): Promise<HandlerOut> {
@@ -348,7 +374,7 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
     const c = conflicts[0];
     ctx.state.pending = { kind: "calendar_conflict", draft: args, conflict_ids: conflicts.map((x) => x.id) };
     await persistState(ctx);
-    return reply(`You already have ${c.title}, ${fmtDayTime(c.start_at, ctx.tz)}, which overlaps that time.`, [{
+    return reply(`You already have ${spanLabel(c, ctx.tz)}, which overlaps that time.`, [{
       type: "choice", title: "What should I do about the overlap?",
       body: `Would you like me to:`,
       buttons: [
@@ -376,7 +402,10 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
   const rule = (await ctx.store.list("memories", ctx.userId)).find((m) => new RegExp(`\\b(never|don't|do not|no)\\b.*\\b${dayName}s?\\b`, "i").test(`${m.key} ${m.value}`) && /\b(show|open house|work|meet|book)/i.test(`${m.key} ${m.value}`));
   if (rule) ahead.note += `\n\n⚠️ Heads up: you told me “${rule.value.slice(0, 80)}”. It's booked, say the word if you want it moved.`;
   const unsynced: Block[] = syncPending ? [{ type: "notice", tone: "warn", title: "Saved in Mila, not on Google Calendar yet", body: `${syncNote ?? "Google Calendar didn't answer."} Nothing is lost, and asking again won't create a second copy.`, buttons: [{ label: "Retry sync", style: "primary", action: { type: "sync_event", eventId: ev.id } }] }] : [];
-  return reply(`Added: ${ev.title}, ${fmtDayTime(ev.start_at, ctx.tz)}.${syncPending ? " It is saved in Mila, but it is not on your Google Calendar yet because Google didn't confirm it." : ""}${ahead.note}`, [eventCard(ctx, ev, syncPending ? "Saved · sync pending" : "Added"), ...unsynced, ...ahead.blocks]);
+  // an event more than a week out says its date ("Tuesday, Oct 27 • 3:00 PM"), so "Tuesday" can never mean the wrong one
+  const farOut = new Date(ev.start_at).getTime() - ctx.now.getTime() > 6 * 86_400_000;
+  const whenLabel = farOut ? `${fmtDay(ev.start_at, ctx.tz)}, ${fmtShortDate(ev.start_at, ctx.tz)} • ${fmtTime(ev.start_at, ctx.tz)}` : fmtDayTime(ev.start_at, ctx.tz);
+  return reply(`Added: ${ev.title}, ${whenLabel}.${syncPending ? " It is saved in Mila, but it is not on your Google Calendar yet because Google didn't confirm it." : ""}${ahead.note}`, [eventCard(ctx, ev, syncPending ? "Saved · sync pending" : "Added"), ...unsynced, ...ahead.blocks]);
 }
 
 /** "Retry sync": push an event that is saved in Mila but not on Google Calendar yet. Safe to tap twice: an event that already has a Google id is never pushed again. */
@@ -510,6 +539,14 @@ export async function cancelEventHandler(ctx: Ctx, text: string): Promise<Handle
     return reply(out.result.ok ? "Canceled." : out.result.message);
   }
   const { event, candidates } = await resolveEvent(ctx, text);
+  // "cancel the dentist": a thing was named and nothing on the calendar carries those words, so there is nothing to cancel (never the nearest other event)
+  const phrase = /\b(?:cancel|delete|remove|scrap|nix|axe|kill|drop|call off|get rid of|take)\s+(?:the\s+|my\s+|that\s+|this\s+)?([a-z' -]{3,40}?)(?=\s+(?:on|at|for|from|off|tomorrow|today|tonight|next|this|with|\d)|[.?!,]|$)/i.exec(text)?.[1] ?? "";
+  const namedWords = phrase.toLowerCase().split(/\s+/).filter((w) => w.length >= 4 && !/^(?:appointment|meeting|event|call|showing|showings|tour|open|house|inspection|closing|lunch|dinner|coffee|calendar|schedule|tomorrow|today|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|next|this|that|with|from|off|walkthrough|consult|consultation|everything|please)$/.test(w));
+  if (namedWords.length && !/\b(?:it|that|this|the last one|the one)\b/i.test(text)) {
+    const upc = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed"); // past ones too: an old event can still be removed
+    const ppl = await ctx.store.list("contacts", ctx.userId);
+    if (!upc.some((e) => namedWords.some((w) => `${e.title} ${e.location ?? ""}`.toLowerCase().includes(w))) && !ppl.some((c) => namedWords.some((w) => c.name.toLowerCase().includes(w)))) return reply(`I don't see anything called “${namedWords.join(" ")}” on your calendar, so I haven't canceled anything.`);
+  }
   // a date said in the words must be the event's own date: never cancel the "nearest" other event
   const said = parseWhen(text, ctx.now, ctx.tz).date;
   const onDay = (e: CalendarEvent) => { const p = partsIn(new Date(e.start_at), ctx.tz); return !said || (p.y === said.y && p.m === said.m && p.d === said.d); };
@@ -563,6 +600,12 @@ export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut
       d2 = { y, m, d: +n[1], text: b.trim(), relative: false };
     }
   }
+  // "next wed thru fri": the end is a weekday only, so it is the first such weekday ON or AFTER the start, not one that already passed
+  if (d2 && !/\d/.test(d2.text) && Date.UTC(d2.y, d2.m - 1, d2.d) < Date.UTC(d1.y, d1.m - 1, d1.d)) {
+    const t = new Date(Date.UTC(d2.y, d2.m - 1, d2.d));
+    while (t.getTime() < Date.UTC(d1.y, d1.m - 1, d1.d)) t.setUTCDate(t.getUTCDate() + 7);
+    d2 = { ...d2, y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate() };
+  }
   const first = zonedToUtc(d1.y, d1.m, d1.d, 8, 0, ctx.tz);
   const last = d2 ? zonedToUtc(d2.y, d2.m, d2.d, 18, 0, ctx.tz) : zonedToUtc(d1.y, d1.m, d1.d, 18, 0, ctx.tz);
   if (last.getTime() < first.getTime()) return reply("That end date is before the start. Which days did you mean?");
@@ -571,6 +614,14 @@ export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut
   // "all day Friday, I'm at the NAR conference": the block carries what it is for; there is no all-day event type, so it holds working hours (8 AM to 6 PM)
   const allDay = /\ball[- ]day\b/i.test(text);
   const what = allDay ? /\b(?:at|for)\s+(?:the\s+)?([A-Z][\w&'’-]*(?:\s+[A-Za-z][\w&'’-]*){0,4})\s*(?=[,.;!]|$)/.exec(text)?.[1]?.trim() : undefined;
+  // telling Mila the same time off twice (or a corrected range) updates the block that is there, never stacks a second one
+  const mine = (await upcomingEvents(ctx)).filter((e) => /^(?:out of office|.+ \(all day\))$/i.test(e.title) && e.kind === "other" && new Date(e.start_at) < new Date(last.getTime() + 86_400_000) && new Date(e.end_at) > new Date(first.getTime() - 86_400_000));
+  if (mine.length) {
+    const keep = mine[0];
+    for (const dup of mine.slice(1)) await ctx.store.update("calendar_events", ctx.userId, dup.id, { status: "cancelled" } as never);
+    await ctx.store.update("calendar_events", ctx.userId, keep.id, { start_at: first.toISOString(), end_at: last.toISOString() } as never);
+    return reply(`Updated your out of office: ${spanLabel({ title: "Out of office", start_at: first.toISOString(), end_at: last.toISOString() }, ctx.tz)}.${mine.length > 1 ? ` I also removed ${mine.length - 1} duplicate block${mine.length > 2 ? "s" : ""}.` : ""}`, [eventCard(ctx, { ...keep, start_at: first.toISOString(), end_at: last.toISOString() })]);
+  }
   const out = await invoke(ctx, "create_calendar_event", { title: what ? `${what} (all day)` : "Out of office", kind: "other", start_at: first.toISOString(), end_at: last.toISOString(), ignoreConflicts: true });
   if (out.status === "needs_approval") {
     await persistState(ctx);
@@ -715,4 +766,31 @@ export async function undoHandler(ctx: Ctx): Promise<HandlerOut> {
 /** The agent's own edit from the Calendar screen (they pressed Save): applies straight away, like a move they just asked for. */
 export async function editEventDirect(ctx: Ctx, fields: { id: string; title?: string; start_at?: string; end_at?: string | null; location?: string; notes?: string }) {
   return TOOLS.update_calendar_event.run(ctx, { ...fields, end_at: fields.end_at ?? undefined, requested: true });
+}
+
+
+/** "How long is my out of office?" / "when does it end?": the real start and end, read from the calendar, never a new block. */
+export async function oooQueryHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const blocks = (await upcomingEvents(ctx)).filter((e) => /^(?:out of office)$|\(all day\)$/i.test(e.title) && e.kind === "other");
+  if (!blocks.length) return reply("You don't have any time off blocked in the coming weeks. Tell me the days (“I'm out Wednesday through Friday”) and I'll block them.", [], "smalltalk");
+  const lines = blocks.slice(0, 6).map((e) => `• ${spanLabel(e, ctx.tz)}`);
+  return reply(`${blocks.length === 1 ? "Your time off is" : "Your time off:"}\n${lines.join("\n")}`, [{ type: "choice", title: "Change it?", buttons: [{ label: "Change my time off", style: "secondary", action: { type: "prompt", text: "Change my out of office to " } }] }], "chat_simple");
+}
+
+/** "Change my out of office to Wednesday only": the block that exists is edited in place. */
+export async function oooEditHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const blocks = (await upcomingEvents(ctx)).filter((e) => /^(?:out of office)$|\(all day\)$/i.test(e.title) && e.kind === "other");
+  if (!blocks.length) return reply("I don't see any time off to change. Tell me the days and I'll block them.", [], "smalltalk");
+  const target = text.replace(/^.*?\bto\b\s*/i, "");
+  const only = /\bonly\b/i.test(target);
+  const [a, b] = target.split(/\b(?:through|thru|until|till|to)\b|(?<=\w)\s*[-–—]\s*(?=\w)/i);
+  const d1 = parseDate(a.replace(/\bonly\b/i, ""), ctx.now, ctx.tz), d2 = b ? parseDate(b, ctx.now, ctx.tz) : null;
+  if (!d1) return reply("Which days should the time off cover? For example “Wednesday only” or “Wednesday through Friday”.", [], "smalltalk");
+  const first = zonedToUtc(d1.y, d1.m, d1.d, 8, 0, ctx.tz), last = zonedToUtc((only || !d2 ? d1 : d2).y, (only || !d2 ? d1 : d2).m, (only || !d2 ? d1 : d2).d, 18, 0, ctx.tz);
+  if (last.getTime() < first.getTime()) return reply("That end is before the start, so I haven't changed anything.", [], "smalltalk");
+  const keep = blocks[0];
+  for (const dup of blocks.slice(1)) if (new Date(dup.start_at) < last && new Date(dup.end_at) > first) await ctx.store.update("calendar_events", ctx.userId, dup.id, { status: "cancelled" } as never);
+  const r = await editEventDirect(ctx, { id: keep.id, start_at: first.toISOString(), end_at: last.toISOString() });
+  if (!r.ok) return reply(`I couldn't change it: ${r.message}`, [], "smalltalk");
+  return reply(`Changed. Your out of office is now ${spanLabel({ title: "Out of office", start_at: first.toISOString(), end_at: last.toISOString() }, ctx.tz)}.`, [], "chat_simple");
 }

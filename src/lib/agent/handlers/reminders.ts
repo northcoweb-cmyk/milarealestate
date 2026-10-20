@@ -1,6 +1,6 @@
 import { addDays, fmtDayTime, partsIn, zonedToUtc } from "../../time";
 import type { Ctx } from "../context";
-import { stripPunct, stripWhenWords, parseWhen, rollPastWeekday } from "../nlu";
+import { parseTime, stripPunct, stripWhenWords, parseWhen, rollPastWeekday } from "../nlu";
 import { invoke } from "../tools";
 import { resolveEvent } from "./calendar";
 import { type HandlerOut, reply } from "./types";
@@ -21,9 +21,11 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   // everything after "remind me" / "set a reminder": a head (when) and a tail (what), in either order
   const body = text.replace(/^.*?\b(?:remind me|set (?:a )?reminder)\b/i, "");
   const split = /\b(?:to|about|that)\b\s*/i.exec(body);
+  // "set a reminder for the roof repair response deadline, Monday at 5": the words right after "for" are what it is about
+  const forTail = !split ? /^\s*for\s+(.+)$/i.exec(body)?.[1] : null;
   const head = split ? body.slice(0, split.index) : body;
-  const tail = split ? body.slice(split.index + split[0].length) : "";
-  let title = stripPunct(stripWhenWords(tail || (split ? "" : "")));
+  const tail = split ? body.slice(split.index + split[0].length) : forTail ?? "";
+  let title = stripPunct(stripWhenWords(tail || (split ? "" : ""))).replace(/\b(?:in the |this )?(?:morning|afternoon|evening|tonight)\b/ig, "").replace(/[,\s]*\b(?:due|by|on|for|at)\b[,\s]*$/i, "").replace(/\s{2,}/g, " ").replace(/[,\s]+$/, "").trim();
   let when: Date | null = null;
   let eventId: string | null = null;
 
@@ -66,6 +68,13 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   if (/\b(?:him|her)\b/i.test(title) && ctx.state.last_contact_ids?.length === 1) {
     const c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
     if (c) title = title.replace(/\b(?:him|her)\b/i, firstNameOf(c.name));
+  }
+  // "check on it": what "it" is comes from the chat (the contact or home just discussed), so the reminder still makes sense next week
+  if (/^(?:check|follow up|look|circle back|ask|call|text|email)\b[^.]{0,20}\b(?:it|that|this|them)\b$/i.test(title)) {
+    const c = ctx.state.last_contact_ids?.length === 1 ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
+    const pr = ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id) : null;
+    const subj = [c?.name, pr?.address].filter(Boolean).join(", ");
+    if (subj) title = `${title.replace(/\b(?:it|that|this|them)\b/i, "").replace(/\s+/g, " ").trim()} — ${subj}`;
   }
   if (!title) title = "Reminder";
   title = title.charAt(0).toUpperCase() + title.slice(1);
@@ -114,7 +123,7 @@ export async function addTaskHandler(ctx: Ctx, text: string): Promise<HandlerOut
   const colon = /^(?:for |with |about )?[^:]{1,60}:\s*(.+)$/.exec(body);
   if (colon) body = colon[1];
   const w = parseWhen(text, ctx.now, ctx.tz);
-  body = stripWhenWords(body).replace(/\s+/g, " ").replace(/[.,;:\s]+$/, "").trim();
+  body = stripWhenWords(body).replace(/\s+/g, " ").replace(/[,\s]*\b(?:due|by|on|for|at)\b[,\s]*$/i, "").replace(/(?:,\s*)?\bdue\s*,\s*due\b/ig, "").replace(/[.,;:\s]+$/, "").trim();
   if (!body) return askBack(ctx, "add_task", text, "details", "What's the task?");
   const title = (body.charAt(0).toUpperCase() + body.slice(1)) + (who && !new RegExp(`\\b${firstNameOf(who.name)}\\b`, "i").test(body) ? ` (${firstNameOf(who.name)})` : "");
   const due = w.date ? zonedToUtc(w.date.y, w.date.m, w.date.d, w.time?.start.h ?? 9, w.time?.start.mi ?? 0, ctx.tz).toISOString() : null;
@@ -123,4 +132,40 @@ export async function addTaskHandler(ctx: Ctx, text: string): Promise<HandlerOut
   const saved = out?.ok ? await ctx.store.get("tasks", ctx.userId, out.data.task.id) : null;
   if (!saved) return reply("I couldn't save that task, so nothing was added.", [], "smalltalk");
   return reply(`Added to your to-dos: ${saved.title}${due ? `, due ${fmtDayTime(due, ctx.tz)}` : ""}.`, [{ type: "choice", title: "Task added", buttons: [{ label: "See tasks", style: "secondary", href: "/tasks" }] }], "chat_simple");
+}
+
+
+/** "What are my 9am reminders tomorrow?" / "show my reminders": the pending reminders, for that day or the coming week. */
+export async function listRemindersHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const all = (await ctx.store.list("reminders", ctx.userId)).filter((r) => r.status === "pending").sort((a, b) => a.remind_at.localeCompare(b.remind_at));
+  const day = parseWhen(text, ctx.now, ctx.tz).date;
+  const tm = parseTime(text);
+  let hits = all.filter((r) => new Date(r.remind_at).getTime() > ctx.now.getTime() - 3_600_000);
+  if (day) hits = hits.filter((r) => { const p = partsIn(new Date(r.remind_at), ctx.tz); return p.y === day.y && p.m === day.m && p.d === day.d; });
+  else hits = hits.filter((r) => new Date(r.remind_at).getTime() < ctx.now.getTime() + 7 * 86_400_000);
+  if (tm?.explicit) hits = hits.filter((r) => { const p = partsIn(new Date(r.remind_at), ctx.tz); return p.h === tm.start.h && p.mi === tm.start.mi; });
+  if (!hits.length) return reply(day ? "You don't have any reminders set for then." : "You don't have any reminders in the next 7 days.", [], "chat_simple");
+  const lines = hits.slice(0, 15).map((r) => `• ${fmtDayTime(r.remind_at, ctx.tz)}: ${r.title}`);
+  return reply(`${hits.length === 1 ? "1 reminder" : `${hits.length} reminders`}:\n${lines.join("\n")}`, hits.length <= 4 ? [{ type: "choice", title: "Mark one done?", buttons: hits.map((r) => ({ label: `Done: ${r.title.slice(0, 40)}`, style: "secondary" as const, action: { type: "reminder_done", id: r.id } })) }] : [], "chat_simple");
+}
+
+/** "mark the 9am one tomorrow as done": the reminder that matches is closed, and Mila says which. */
+export async function reminderDoneHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const all = (await ctx.store.list("reminders", ctx.userId)).filter((r) => r.status === "pending").sort((a, b) => a.remind_at.localeCompare(b.remind_at));
+  const day = parseWhen(text, ctx.now, ctx.tz).date, tm = parseTime(text);
+  let hits = all;
+  if (day) hits = hits.filter((r) => { const p = partsIn(new Date(r.remind_at), ctx.tz); return p.y === day.y && p.m === day.m && p.d === day.d; });
+  if (tm?.explicit) hits = hits.filter((r) => { const p = partsIn(new Date(r.remind_at), ctx.tz); return p.h === tm.start.h && p.mi === tm.start.mi; });
+  const words = text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter((w) => w.length >= 4 && !/^(?:mark|done|complete|completed|finished|reminder|reminders|tomorrow|today|morning|that|this|them|with|from|please)$/.test(w));
+  if (words.length) { const byWord = hits.filter((r) => words.some((w) => r.title.toLowerCase().includes(w))); if (byWord.length) hits = byWord; }
+  if (!hits.length) return reply("I don't see a matching reminder, so nothing was changed.", [], "smalltalk");
+  if (hits.length > 1) return reply("Which reminder?", [{ type: "choice", title: "Which one is done?", buttons: hits.slice(0, 5).map((r) => ({ label: `${r.title.slice(0, 40)} · ${fmtDayTime(r.remind_at, ctx.tz)}`, style: "secondary" as const, action: { type: "reminder_done", id: r.id } })) }], "smalltalk");
+  return reminderDoneAction(ctx, hits[0].id);
+}
+export async function reminderDoneAction(ctx: Ctx, id: string): Promise<HandlerOut> {
+  const r = await ctx.store.get("reminders", ctx.userId, id);
+  if (!r || r.status === "cancelled") return reply("That reminder is already gone.", [], "smalltalk");
+  await ctx.store.update("reminders", ctx.userId, id, { status: "done" } as never);
+  const back = await ctx.store.get("reminders", ctx.userId, id);
+  return reply(back?.status === "done" ? `Marked done: “${r.title}”.` : "I couldn't update that reminder.", [], "smalltalk");
 }
