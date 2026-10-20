@@ -81,7 +81,7 @@ export async function whatMissingHandler(ctx: Ctx, text: string): Promise<Handle
     const mems = await ctx.store.list("memories", ctx.userId);
     const today = new Date(ctx.now).toISOString().slice(0, 10);
     const activeListing = Boolean(ctx.state.last_property_id) || mems.some((m) => m.scope === "property" && m.key === LISTING_DATE_KEY && m.value >= today);
-    if (/\b(today|tonight|tomorrow|this week|this morning|forgetting|forget)\b/.test(t) || !activeListing) return forgettingTodayHandler(ctx);
+    if (/\b(today|tonight|tomorrow|this week|this morning|forgetting|forget)\b/.test(t) || !activeListing) return forgettingTodayHandler(ctx, text);
   }
   const prop = await resolveProperty(ctx, text);
   if (!prop) return askBack(ctx, "what_missing", text, "address", "Which listing? Give me the street address.");

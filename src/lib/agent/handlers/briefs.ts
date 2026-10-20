@@ -137,17 +137,18 @@ export async function showingFollowupsHandler(ctx: Ctx, text: string): Promise<H
 }
 
 // =============================================================================== "What am I forgetting today?"
-export async function forgettingTodayHandler(ctx: Ctx): Promise<HandlerOut> {
+export async function forgettingTodayHandler(ctx: Ctx, text = ""): Promise<HandlerOut> {
   const { store, userId, now, tz } = ctx;
+  const week = /\bthis week\b/i.test(text);
   ctx.steps.push("Looking across your day");
   const [events, tasks, props, mems, approvals, reminders, posts] = await Promise.all([store.list("calendar_events", userId), store.list("tasks", userId), store.list("properties", userId), store.list("memories", userId), store.list("approvals", userId), store.list("reminders", userId), store.list("social_posts", userId)]);
-  const dayStart = startOfDay(now, tz), dayEnd = new Date(dayStart.getTime() + DAY_MS);
+  const dayStart = startOfDay(now, tz), dayEnd = new Date(dayStart.getTime() + (week ? 7 : 1) * DAY_MS);
   const sections: BriefSection[] = [];
   const add = (emoji: string, label: string, items: BriefItem[]) => { if (items.length) sections.push({ emoji, label, items }); };
   const cById = new Map((await store.list("contacts", userId)).map((c) => [c.id, c]));
 
   const today = events.filter((e) => e.status === "confirmed" && new Date(e.end_at).getTime() > now.getTime() && new Date(e.start_at).getTime() < dayEnd.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at));
-  add("📅", "Today", today.slice(0, 4).map((e) => {
+  add("📅", week ? "This week" : "Today", today.slice(0, week ? 6 : 4).map((e) => {
     const c = e.contact_id ? cById.get(e.contact_id) : null;
     return { text: `${fmtTime(e.start_at, tz)} · ${e.title.split(" — ")[0]}`, state: "missing" as const, button: c && ["meeting", "call", "lunch", "other"].includes(e.kind) ? { label: "Prep me", style: "secondary" as const, action: ask(`Prep me for my ${fmtTime(e.start_at, tz)} ${e.kind === "call" ? "call" : "meeting"} with ${firstName(c.name)}`) } : e.property_id ? { label: "Open", style: "quiet" as const, href: `/properties/${e.property_id}` } : undefined };
   }));
@@ -179,5 +180,5 @@ export async function forgettingTodayHandler(ctx: Ctx): Promise<HandlerOut> {
   const n = sections.flatMap((s) => s.items).filter((i) => i.state === "missing").length;
   if (!sections.length) return reply("Nothing's slipping today. Your calendar, follow-ups and listings are all covered.", [], "chat_simple");
   const lead = [today.length && `${plural(today.length, "thing")} on your calendar`, due.length && `${plural(due.length, "task")} due`, quiet.length && `${plural(quiet.length, "person", "people")} waiting to hear from you`, listItems.length && `${plural(listItems.length, "listing gap")}`].filter(Boolean).join(", ");
-  return reply(`Here's what I'd hate for you to forget today: ${lead || `${plural(n, "thing")}`}.`, [{ type: "listing_brief", kicker: "Today", title: "What you might be forgetting", subtitle: `${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(now)}`, done: 0, total: 0, sections }], "chat_simple");
+  return reply(`Here's what I'd hate for you to forget ${week ? "this week" : "today"}: ${lead || `${plural(n, "thing")}`}.`, [{ type: "listing_brief", kicker: week ? "This week" : "Today", title: "What you might be forgetting", subtitle: `${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(now)}`, done: 0, total: 0, sections }], "chat_simple");
 }

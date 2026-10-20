@@ -176,14 +176,16 @@ export async function prioritiesHandler(ctx: Ctx): Promise<HandlerOut> {
   const pr = (await computePriorities(ctx)).filter((x) => x.score >= 28 && /overdue|due today|waiting on you|follow-up due|no contact in|not yet contacted/i.test(x.reason)); // only what is really due this week, never a task that is merely scheduled for later
   if (!pr.length) return reply("You're all caught up. Nothing needs a follow-up right now.");
   const caps = { urgent: 3, important: 3, upcoming: 2, low: 0 } as const; // a short, real list for this week
+  const seen = new Set<string>(); // each person once, in their highest group
+  const once = (x: (typeof pr)[number]) => { const k = x.contactId ?? x.id; if (seen.has(k)) return false; seen.add(k); return true; };
   const groups = (["urgent", "important", "upcoming"] as const).map((p) => ({
     priority: p,
-    items: pr.filter((x) => x.priority === p && x.source !== "event").slice(0, caps[p]).map((x) => ({ id: x.id, title: x.title, subtitle: x.subtitle, reason: x.reason || undefined, contactId: x.contactId ?? undefined, href: x.contactId ? `/contacts/${x.contactId}` : x.taskId ? "/tasks" : undefined })),
+    items: pr.filter((x) => x.priority === p && x.source !== "event" && once(x)).slice(0, caps[p]).map((x) => ({ id: x.id, title: x.title, subtitle: x.subtitle, reason: x.reason || undefined, contactId: x.contactId ?? undefined, href: x.contactId ? `/contacts/${x.contactId}` : x.taskId ? "/tasks" : undefined })),
   })).filter((g) => g.items.length);
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   if (!total) return reply("Nothing needs follow-up right now.");
   const urgent = groups.find((g) => g.priority === "urgent")?.items.length ?? 0;
-  return reply(urgent ? `${plural(urgent, "thing needs", "things need")} you first. Here's everything, in order.` : `Nothing is urgent. Here's what's worth your attention.`, [{ type: "priorities", groups, buttons: [{ label: "Open Tasks", style: "secondary", href: "/tasks" }] }]);
+  return reply(urgent ? `${urgent} urgent${total > urgent ? `, ${total} in all` : ""}. Here's everything, in order.` : `Nothing is urgent. Here's what's worth your attention.`, [{ type: "priorities", groups, buttons: [{ label: "Open Tasks", style: "secondary", href: "/tasks" }] }]);
 }
 
 export async function debriefHandler(ctx: Ctx): Promise<HandlerOut> {

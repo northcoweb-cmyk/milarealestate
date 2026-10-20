@@ -1,3 +1,4 @@
+import { calcHandler } from "./handlers/calc";
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { followUpBlock } from "./followups";
@@ -495,6 +496,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "cancel_reminder": return cancelReminderHandler(ctx, text);
     case "property_status": return propertyStatusHandler(ctx, text);
     case "list_date": return listDateHandler(ctx, text);
+    case "calc": return calcHandler(ctx, text);
     case "offer_received": return offerHandler(ctx, text);
     case "property_note": return propertyNoteHandler(ctx, text);
     case "property_details": return detailsFollowupHandler(ctx, text);
