@@ -1,3 +1,4 @@
+import { createPosts } from "../content/service";
 import { calcHandler } from "./handlers/calc";
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
@@ -518,6 +519,15 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "calc": return calcHandler(ctx, text);
     case "inbox_query": return inboxHandler();
     case "describe_home": return describeHomeHandler(ctx, text);
+    case "another_version": {
+      const last = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => !["archived", "posted"].includes(p.status)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+      if (!last) return reply("I don't have a post to make another version of yet. Want me to make one?", [], "smalltalk");
+      const prop = last.property_id ? await ctx.store.get("properties", ctx.userId, last.property_id) : null;
+      if (prop) return socialPostHandler(ctx, `Make another ${(last.category ?? "just_listed").replace(/_/g, " ")} post for ${prop.address}`);
+      const made = await createPosts(ctx, { category: (last.category as never) ?? "buyer_tip", platforms: [last.platform as never], topic: null, variantSeed: ((last.variant ?? 0) + 1) });
+      if (!made.ok) return reply("I couldn't make another version just now. Nothing was changed.", [], "smalltalk");
+      return reply("Here's another version. Your first one is still there. Nothing posts until you approve it.", made.posts.map((post) => ({ type: "draft_social" as const, postId: post.id, category: post.category ?? undefined, platform: post.platform, caption: post.caption, slides: post.slides, status: "Draft" })), "social_generation");
+    }
     case "oh_attendance": return openHouseAttendanceHandler(ctx, text);
     case "offer_received": return offerHandler(ctx, text);
     case "property_note": return propertyNoteHandler(ctx, text);

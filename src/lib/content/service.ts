@@ -2,7 +2,7 @@ import { MAX_SOCIAL_POSTS_PER_DAY } from "../config";
 import { cachedListingPhotoUrls, getListingMedia } from "../media/service";
 import { streetViewPostUrl } from "../media/proxy";
 import { aiAvailable } from "../ai/provider";
-import { addDays, fmtDay, fmtRange, partsIn, startOfDay, zonedToUtc } from "../time";
+import { addDays, fmtDay, fmtRange, fmtShortDate, partsIn, startOfDay, zonedToUtc } from "../time";
 import type { Property, SocialPlatform, SocialPost, SocialSlide } from "../types";
 import type { Ctx } from "../agent/context";
 import { polish, propertyPostData } from "../agent/comms";
@@ -88,7 +88,7 @@ async function nextVariant(ctx: Ctx, category: Category): Promise<number> {
 /** The next confirmed open house for a property, as the day + time range a post shows. */
 async function openHouseWhen(ctx: Ctx, prop: Property): Promise<{ day: string; range: string } | null> {
   const ev = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.property_id === prop.id && e.kind === "open_house" && e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime()).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
-  return ev ? { day: fmtDay(ev.start_at, ctx.tz), range: fmtRange(ev.start_at, ev.end_at, ctx.tz) } : null;
+  return ev ? { day: `${fmtDay(ev.start_at, ctx.tz)}, ${fmtShortDate(ev.start_at, ctx.tz)}`, range: fmtRange(ev.start_at, ev.end_at, ctx.tz) } : null;
 }
 
 export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateResult> {

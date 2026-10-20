@@ -61,8 +61,8 @@ test("an open house post leads with the date and time and still carries all the 
   await store.insert("calendar_events", prof.id, { title: "Open House — 12 Oak Lane", kind: "open_house", start_at: start.toISOString(), end_at: end.toISOString(), location: "12 Oak Lane", property_id: verified.id, contact_id: null, status: "confirmed", source: "mila", external_id: null, synced_at: null, workflow_run_id: null, notes: null });
   const r: any = await svc.createPosts(ctx, { category: "open_house", platforms: ["instagram", "instagram_story"], propertyId: verified.id });
   for (const post of r.posts) {
-    assert.match(post.caption, /🗓 Sunday • /); assert.match(post.caption, /📍 12 Oak Lane, Rockville, MD 20850/); assert.match(post.caption, /💰 \$650,000/);
-    assert.match(post.slides[0].sub, /^Open House • Sunday • /);
+    assert.match(post.caption, /🗓 Sunday, Oct 4 • /); // BUG-090: the post carries the calendar date, not just the weekday assert.match(post.caption, /📍 12 Oak Lane, Rockville, MD 20850/); assert.match(post.caption, /💰 \$650,000/);
+    assert.match(post.slides[0].sub, /^Open House • Sunday, Oct 4 • /);
     if (post.platform === "instagram_story") assert.equal(post.slides.length, 1, "a story is one image");
     else assert.ok(post.slides.some((s: any) => s.headline.startsWith("$650,000 • 4 bd")));
   }

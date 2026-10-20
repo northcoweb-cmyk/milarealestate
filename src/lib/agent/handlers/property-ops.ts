@@ -155,7 +155,7 @@ export async function openHouseAttendanceHandler(ctx: Ctx, text: string): Promis
 
 /** "Describe the home itself" / "write a listing description for 77 Kentlands": a plain, compliant description built only from the facts saved on the home. */
 export function describeHomeAsk(text: string): boolean {
-  return !/\?\s*$/.test(text) && /\b(?:(?:write|draft|create|give me|make)\s+(?:me\s+)?(?:a\s+|the\s+)?(?:listing|property|home|house)\s+description|describe the (?:home|house|property)(?: itself)?|listing description from the property facts)\b/i.test(text);
+  return !/\?\s*$/.test(text) && /\b(?:(?:write|draft|create|give me|make)\s+(?:me\s+)?(?:a\s+|the\s+)?(?:listing|property|home|house)\s+description|describe the (?:home|house|property)(?: itself)?|listing description from the property facts|(?:make|create|write|draft|design)\s+(?:me\s+)?(?:a\s+|the\s+)?(?:property\s+|listing\s+)?flyer)\b/i.test(text);
 }
 
 export async function describeHomeHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
@@ -170,5 +170,9 @@ export async function describeHomeHandler(ctx: Ctx, text: string): Promise<Handl
   const place = [prop.city, prop.state].filter(Boolean).join(", ");
   const desc = `${prop.address}${place ? `, ${place}` : ""}. ${bits.length ? `This home offers ${bits.join(", ")}.` : "Details to be added."}${prop.list_price ? ` Offered at ${fullMoney(prop.list_price)}.` : ""}${notes.length ? ` ${notes.map((n) => n.replace(/[.!\s]+$/, "") + ".").join(" ")}` : ""} Schedule a showing to see it in person.`;
   ctx.state.last_property_id = prop.id; await persistState(ctx);
+  if (/\bflyer\b/i.test(text)) {
+    const flyer = [prop.address.toUpperCase(), place, bits.join("  |  "), prop.list_price ? `Offered at ${fullMoney(prop.list_price)}` : "", ...notes, "", `${ctx.profile.full_name}${ctx.profile.brokerage ? ` · ${ctx.profile.brokerage}` : ""}`].filter((x, i, arr) => x !== "" || (arr[i - 1] ?? "x") !== "").join("\n");
+    return reply(`Here's flyer copy for ${prop.address}, built only from the facts saved on the home. I can't make a designed PDF yet: paste this into Canva or Word, or I can turn it into an Instagram post.\n\n${flyer}`, [{ type: "choice", title: "Next", buttons: [{ label: "Make it a post", style: "secondary", action: { type: "prompt", text: `Make an Instagram post for ${prop.address}` } }, { label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] }], "chat_simple");
+  }
   return reply(`Here's a description using only the facts saved on the home. It says nothing about who should live there:\n\n${desc}`, [{ type: "choice", title: "Next", buttons: [{ label: "Make a post", style: "secondary", action: { type: "prompt", text: `Make an Instagram post for ${prop.address}` } }, { label: "Add more details", style: "quiet", action: { type: "prompt", text: `Update ${prop.address}: ` } }] }], "chat_simple");
 }

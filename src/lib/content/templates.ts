@@ -8,7 +8,7 @@ import type { SocialPlatform, SocialSlide } from "../types";
  */
 
 export type Category =
-  | "just_listed" | "open_house" | "price_improvement" | "just_sold"
+  | "just_listed" | "open_house" | "price_improvement" | "just_sold" | "coming_soon" | "anniversary"
   | "buyer_tip" | "seller_tip" | "education" | "market_update" | "local" | "personal_brand";
 
 export interface CategoryDef { key: Category; label: string; blurb: string; needsProperty: boolean; group: "Listings" | "Education" | "Brand" }
@@ -18,6 +18,8 @@ export const CATEGORIES: CategoryDef[] = [
   { key: "open_house", label: "Open house", blurb: "Invite people to an open house", needsProperty: true, group: "Listings" },
   { key: "price_improvement", label: "Price improvement", blurb: "Announce a price change", needsProperty: true, group: "Listings" },
   { key: "just_sold", label: "Just sold", blurb: "Celebrate a closing", needsProperty: true, group: "Listings" },
+  { key: "coming_soon", label: "Coming soon", blurb: "Announce a home before it goes live", needsProperty: true, group: "Listings" },
+  { key: "anniversary", label: "Home anniversary", blurb: "Celebrate a client's home anniversary", needsProperty: false, group: "Brand" },
   { key: "buyer_tip", label: "Buyer tip", blurb: "Helpful advice for buyers", needsProperty: false, group: "Education" },
   { key: "seller_tip", label: "Seller tip", blurb: "Helpful advice for sellers", needsProperty: false, group: "Education" },
   { key: "education", label: "How it works", blurb: "Explain a step of the process", needsProperty: false, group: "Education" },
@@ -108,6 +110,7 @@ function baseTags(i: BuildInput): string[] {
   const city = i.property?.city ? `#${slug(i.property.city)}` : i.market ? `#${slug(i.market.split(",")[0].replace(/ County$/i, ""))}` : "";
   const bycat: Record<Category, string[]> = {
     just_listed: ["#JustListed", "#NewListing", "#HomesForSale"], open_house: ["#OpenHouse", "#HomesForSale", "#HouseHunting"],
+    coming_soon: ["#ComingSoon", "#NewListing", "#HomesForSale"], anniversary: ["#HomeAnniversary", "#HappyHomeowners", "#ClientLove"],
     price_improvement: ["#PriceImprovement", "#HomesForSale"], just_sold: ["#JustSold", "#Sold", "#HappyHomeowners"],
     buyer_tip: ["#HomeBuyingTips", "#FirstTimeHomeBuyer", "#BuyerTips"], seller_tip: ["#HomeSellingTips", "#SellerTips", "#SellingYourHome"],
     education: ["#RealEstateEducation", "#HomeBuying", "#RealEstate101"], market_update: ["#MarketUpdate", "#RealEstateMarket"],
@@ -147,6 +150,20 @@ function core(i: BuildInput): { headline: string; lines: string[]; cta: string; 
         cta: pick(v, ["Message me for details or a private showing.", "DM me to schedule a tour.", "Want to see it in person? Reach out."]),
         slides: [slide("hero", fullWhere || "New listing", price ? `Just Listed • ${price}` : "Just Listed"), ...(tiles().length ? tiles() : [slide("highlight", "Come see it in person", prop?.city ?? undefined)]), slide("cta", "Let's tour it", sig)],
       };
+    case "coming_soon":
+      return {
+        headline: "Coming Soon! 🏡", lines: [where ? `📍 ${where}` : "", specs.length ? `🛏 ${specs.join(" • ")}` : "", details.length || prop?.descriptors?.length ? `✨ ${[...(prop?.descriptors ?? []), ...details].join(" • ")}` : ""].filter(Boolean), // no price and no "offered at": the home is not on the market yet
+        cta: pick(v, ["Be the first to know. Message me for early details.", "Want a first look? Send me a message.", "Coming soon. Reach out to get on the early list."]),
+        slides: [slide("hero", fullWhere || "Coming soon", "Coming Soon"), ...(specs.length ? [slide("highlight", specs.join(" • "), prop?.city ?? undefined)] : [slide("highlight", "Be the first to see it", prop?.city ?? undefined)]), slide("cta", "Message me for early access", sig)],
+      };
+    case "anniversary": {
+      const who = i.client?.trim();
+      return {
+        headline: `Happy Home Anniversary${who ? `, ${who}` : ""}! 🏡`, lines: ["Another year in the home you love.", "It was a joy helping you find it."],
+        cta: pick(v, ["If you ever need anything, or know someone who does, I'm always here.", "Thank you for letting me be part of your story."]),
+        slides: [slide("hero", `Happy Home Anniversary${who ? `, ${who}` : ""}`, "Cheers to another year"), slide("cta", "Thank you for trusting me", sig)],
+      };
+    }
     case "open_house": {
       const when = i.when ? `${i.when.day} • ${i.when.range}` : "";
       return {

@@ -1,7 +1,7 @@
 import { parseTipRequest } from "../../content/templates";
 import { sharePhotosBlock, wantsPhotos } from "./photos";
 import { classifyProperty } from "../../property-kind";
-import { fmtDay, fmtRange, fmtTime } from "../../time";
+import { fmtDay, fmtRange, fmtShortDate, fmtTime } from "../../time";
 import { upcomingWith } from "./lifecycle";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, SocialSlide } from "../../types";
 import { type Ctx, firstName, fullMoney } from "../context";
@@ -9,7 +9,7 @@ import { openHouseSocial, signature, verifiedFacts } from "../comms";
 import { createPosts, designSlides } from "../../content/service";
 import { llmDraftEmail } from "../llm";
 import { contactFacts } from "../memory";
-import { capitalisedNames, parseAddress } from "../nlu";
+import { capitalisedNames, parseAddress, parseDate, parseTime } from "../nlu";
 import { TOOLS, invoke, logContactEvent } from "../tools";
 import { upcomingEvents } from "./calendar";
 import { type HandlerOut, reply } from "./types";
@@ -22,6 +22,7 @@ import { enrichProperty, resolveAddress } from "../property-lookup";
 import { extractListingFacts, hasAnyFact } from "../listing";
 import { ambiguousFirstName, askWhichPerson } from "./entity";
 import { mentionedContacts } from "./contacts";
+import { STAGE_KEY } from "../../property-stage";
 
 const COUNT_WORDS: Record<string, number> = { one: 1, a: 1, an: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
 /** "make me 3 posts", "three captions", "a post" → how many the agent asked for (1-6). */
@@ -53,6 +54,24 @@ function postAngles(prop: Property, facts: string[], images: string[], ctx: Ctx)
 export async function socialPostHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const platform = /\btik ?tok\b/i.test(text) ? "tiktok" : /\bstor(y|ies)\b/i.test(text) ? "instagram_story" : "instagram"; // Instagram feed posts and stories are what Mila makes
   const addr = parseAddress(text);
+  // "a home-anniversary post for the Ferreiras": a thank-you to past clients, by first names, never a listing post
+  if (/\banniversar\w*\b/i.test(text) && !addr) {
+    const all = await ctx.store.list("contacts", ctx.userId);
+    const fam = /\bthe\s+([\p{Lu}][\p{L}'’-]+?)s?\b/u.exec(text)?.[1]?.toLowerCase();
+    const hits = (await mentionedContacts(ctx, text)).concat(fam ? all.filter((c) => c.name.toLowerCase().split(/\s+/).pop() === fam || c.name.toLowerCase().split(/\s+/).pop() === `${fam}s`) : []);
+    const firsts = [...new Set(hits.map((c) => c.name.split(/\s+/)[0]))].slice(0, 3);
+    const client = firsts.length ? firsts.join(" & ") : (/\bfor\s+(?:the\s+)?([\p{Lu}][\p{L}'’-]+)/u.exec(text)?.[1] ?? null);
+    const made = await createPosts(ctx, { category: "anniversary", platforms: [platform], topic: null, client });
+    if (made.ok) {
+      const bl: Block[] = [];
+      for (const post of made.posts) {
+        const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
+        if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
+        bl.push({ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }] : undefined });
+      }
+      return reply(`Here's a home-anniversary post${client ? ` for ${client} (first names only)` : ""}. It's a thank-you, not a listing. Nothing posts until you approve it.`, bl, "social_generation");
+    }
+  }
   // not about a property at all: tips, advice, how-it-works, "congrats to the Nguyens". Never reuse whatever listing came up last.
   if (!addr && !/\b(it|that|this|that one|this one|the showing|the listing|the property|the house|the home|open house)\b/i.test(text)) {
     const tip = /\b(tips?|advice|first[- ]time|how (?:it )?works|myths?|explain|educat\w*|what to know|things to know|guide)\b/i.test(text);
@@ -132,6 +151,19 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
       return reply(`Here's a Just Sold post for ${prop.address}. Nothing posts until you approve it.`, soldBlocks, "social_generation");
     }
   }
+  // "Coming Soon" is its own post: no "Just Listed", no price, no "offered at" for a home that is not on the market yet
+  if (/\bcoming soon\b/i.test(text) && !/open\s*house/i.test(text)) {
+    const made = await createPosts(ctx, { category: "coming_soon", platforms: [platform], propertyId: prop.id, topic: null });
+    if (made.ok) {
+      const bl: Block[] = [];
+      for (const post of made.posts) {
+        const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
+        if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
+        bl.push({ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }] : undefined });
+      }
+      return reply(`Here's a Coming Soon post for ${prop.address}. It has no price and doesn't say it's listed. Nothing posts until you approve it.`, bl, "social_generation");
+    }
+  }
   // the same request twice is one post: show the one already waiting instead of stacking a second draft and a second approval
   if (!/\b(another|again|new one|different|redo|second|more|options?|variations?|versions?)\b/i.test(text) && requestedCount(text) <= 1) {
     const want = /open\s*house/i.test(text) ? "open house" : /\bprice\b/i.test(text) ? "price" : /\b(sold|congrat\w*|just closed)\b/i.test(text) ? "sold" : "just listed";
@@ -162,6 +194,17 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add your photos", body: "I don't have photos for this home yet. Add yours (Zillow and Redfin are good places to find them) and every option updates.", buttons: [{ label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] });
     return reply(`Here are ${options.length} ${platform === "instagram_story" || platform === "tiktok" ? "stories" : "posts"} for ${prop.address}. Swipe to compare, then pick the one you like. Nothing posts until you approve it.`, blocks, "social_generation");
   }
+  // "make another version": a genuinely different angle, never a word-for-word copy of what's already there
+  if (/\b(another|different|new version|one more|second|redo)\b/i.test(text) && !/open\s*house/i.test(text) && !ev && !/\bcoming soon\b/i.test(text)) {
+    const mine = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.property_id === prop!.id && p.platform === platform);
+    const facts = verifiedFacts(prop);
+    const all = postAngles(prop, facts, images, ctx);
+    const seen = new Set(mine.map((p) => p.caption.split("\n")[0].trim().toLowerCase()));
+    const angle = all.find((a) => !seen.has(a.caption.split("\n")[0].trim().toLowerCase())) ?? all[mine.length % all.length];
+    const made2 = ((await TOOLS.create_social_post.run(ctx, { platform, property_id: prop.id, hashtags: ["#RealEstate", "#HomesForSale"], caption: angle.caption.replace(/\n{3,}/g, "\n\n"), slides: await designSlides(ctx, prop, angle.slides, "just_listed", mine.length * 2 + 1, platform) })) as any).data.post as SocialPost;
+    await attach(made2);
+    return reply(`Here's another version for ${prop.address}: the “${angle.name}” angle. Your first one is still there. Nothing posts until you approve it.`, blocks, "social_generation");
+  }
   let post: SocialPost;
   const wantsOpenHouse = /open\s*house/i.test(text);
   if (!ev && wantsOpenHouse) {
@@ -188,6 +231,14 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     })) as any).data.post;
   }
   await attach(post);
+  // advertising a home that is under contract, sold or not live yet as "Just Listed" is a false advertisement: say so
+  if (post.category !== "open_house" && !/open\s*house/i.test(text)) {
+    const stage = (await ctx.store.list("memories", ctx.userId)).find((m) => m.scope === "property" && m.subject_id === prop!.id && m.key === STAGE_KEY)?.value;
+    if (stage === "under_contract" || stage === "sold" || stage === "upcoming") {
+      const label = stage === "under_contract" ? "under contract" : stage === "sold" ? "sold" : "coming soon (not live yet)";
+      blocks.push({ type: "notice", tone: "warn", title: "Check the wording", body: `${prop.address} is saved as ${label}, so “Just Listed” may not be accurate. Review it before you approve.`, buttons: stage === "upcoming" ? [{ label: "Make it a Coming Soon post", style: "secondary", action: { type: "prompt", text: `Make a Coming Soon post for ${prop.address}` } }] : stage === "sold" ? [{ label: "Make a Just Sold post", style: "secondary", action: { type: "prompt", text: `Make a Just Sold post for ${prop.address}` } }] : undefined });
+    }
+  }
   if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (Zillow and Redfin are good places to find them) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
   return reply(platform === "tiktok" ? `Here's a TikTok cover for ${prop.address}.` : platform === "instagram_story" ? `Here's an Instagram story for ${prop.address}.` : `Here's an Instagram carousel for ${prop.address}.`, blocks, "social_generation");
 }
@@ -291,6 +342,7 @@ export async function reviseDraftHandler(ctx: Ctx, text: string): Promise<Handle
 export { fmtDay, fmtRange };
 
 /** "Rewrite the 14 Ridge Road just listed post without the price and beds": edits the post that is already there, keeps its type, and says exactly what changed. */
+const hm = (t: { h: number; mi: number }) => { const h24 = t.h, mi = t.mi; return `${((h24 + 11) % 12) + 1}${mi ? `:${String(mi).padStart(2, "0")}` : ""} ${h24 >= 12 ? "PM" : "AM"}`; };
 export async function rewritePostHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const prop = await resolveProperty(ctx, text, true);
   const posts = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => !["archived", "posted"].includes(p.status) && (!prop || p.property_id === prop.id)).sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -305,7 +357,34 @@ export async function rewritePostHandler(ctx: Ctx, text: string): Promise<Handle
     if (tokens.length > 1) out = tokens.filter((tok) => !((/price|\$/.test(t) && /without|no|remove|drop|leave out|take out|hide/.test(t) && /\$\s?\d/.test(tok)) || (/\bbeds?\b|bedrooms?/.test(t) && /\b(?:bd|bed)/i.test(tok)) || (/\bbaths?\b|bathrooms?/.test(t) && /\b(?:ba|bath)/i.test(tok)) || (/sq\s?ft|square|sqft|size/.test(t) && /sq\.? ?ft/i.test(tok)))).join(" • ");
     return out;
   };
-  const without = /\b(without|no|remove|drop|leave out|take out|hide|skip)\b/.test(t);
+  const without = /\b(without|w\/o|no|remove|drop|leave out|take out|hide|skip)\b/.test(t) || /\btake\b.{0,40}\bout\b/.test(t);
+  // "change the headline to Coming Soon" / "I need it to say Coming Soon": the label at the top of the post changes, nothing else
+  const head = /\b(?:headline|title|heading)\s+(?:to|should (?:say|be))\s+["“]?([^"”.\n]{3,30})/i.exec(text) ?? /\b(?:need|want) it to say\s+["“]?([^"”.\n]{3,30})/i.exec(text);
+  if (head) {
+    const label = head[1].trim().replace(/\b\w/g, (c) => c.toUpperCase());
+    const swap = (x: string) => x.replace(/Just Listed|Price Improvement|Just Sold|Open House/i, label);
+    let cap = swap(post.caption);
+    if (/coming soon/i.test(label)) cap = cap.split("\n").filter((l) => !/offered at|\$\s?\d/i.test(l)).join("\n").replace(/\n{3,}/g, "\n\n");
+    const sl = post.slides.map((x) => ({ ...x, headline: swap(x.headline), sub: x.sub ? swap(x.sub).replace(/\s*•\s*\$[\d,]+/g, "") : x.sub }));
+    const done = await ctx.store.update("social_posts", ctx.userId, post.id, { caption: cap, slides: sl } as never);
+    if (!done) return reply("I couldn't save that edit, so the post is unchanged.", [], "smalltalk");
+    return reply(`Done. The headline now says “${label}”${/coming soon/i.test(label) ? " and I took the price off" : ""}. Same post, no new draft.`, [{ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform: post.platform, caption: cap, slides: sl, status: "Draft" }], "chat_simple");
+  }
+  // "edit the post to add that date and time to the caption"
+  if (/\badd\b.{0,40}\b(?:date|time|day)\b/.test(t)) {
+    const ev = prop ? (await upcomingEvents(ctx)).find((e) => e.kind === "open_house" && e.property_id === prop.id) : undefined;
+    const d = parseDate(text, ctx.now, ctx.tz), tm = parseTime(text);
+    let when = "";
+    if (ev) when = `${fmtDay(ev.start_at, ctx.tz)}, ${fmtShortDate(ev.start_at, ctx.tz)} • ${fmtRange(ev.start_at, ev.end_at, ctx.tz)}`;
+    else if (d) when = `${d.text}${tm ? ` • ${hm(tm.start)}${tm.end ? `–${hm(tm.end)}` : ""}` : ""}`;
+    if (!when) return reply("What day and time should I add? Tell me like “Sunday 1 to 3” and I'll put it in the caption.", [], "smalltalk");
+    if (post.caption.includes(when)) return reply(`The caption already says “${when}”, so I left it as is.`, [], "chat_simple");
+    const lines = post.caption.split("\n");
+    const cap = [lines[0], `🗓 ${when}`, ...lines.slice(1)].join("\n").replace(/\n{3,}/g, "\n\n");
+    const done = await ctx.store.update("social_posts", ctx.userId, post.id, { caption: cap } as never);
+    if (!done) return reply("I couldn't save that edit, so the post is unchanged.", [], "smalltalk");
+    return reply(`Added “${when}” to the caption of your existing post. No new draft.`, [{ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform: post.platform, caption: cap, slides: post.slides, status: "Draft" }], "chat_simple");
+  }
   if (without && /price/.test(t)) drop.push("the price");
   if (without && /\bbeds?\b|bedrooms?/.test(t)) drop.push("the bedrooms");
   if (without && /\bbaths?\b|bathrooms?/.test(t)) drop.push("the bathrooms");
