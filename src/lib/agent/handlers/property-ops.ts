@@ -129,3 +129,46 @@ export async function detailsFollowupHandler(ctx: Ctx, text: string): Promise<Ha
   if (!upd) return reply("I couldn't save that, so nothing changed.", [], "smalltalk");
   return reply(`Saved on ${prop.address}: ${saved.join(" · ")}.${/\b(?:list for|price|worth|value)\b/i.test(text) && f.list_price == null ? " I can't suggest a price without recent comps; ask me for comps when research is available, or tell me the price you have in mind." : ""}`, [{ type: "choice", title: prop.address, buttons: [{ label: "Open property", style: "secondary", href: `/properties/${prop.id}` }] }], "chat_simple");
 }
+
+/** "any new emails from leads today?" / "what's in my inbox": Mila does not read email, and says so. Nothing is drafted. */
+export async function inboxHandler(): Promise<HandlerOut> {
+  return reply("I don't read your inbox, so I can't see new emails. Your email stays with you. What I can do is draft replies, text messages and follow-ups for you to send, and show you who's waiting to hear from you.", [{ type: "choice", title: "Want that instead?", buttons: [{ label: "Who's waiting on me?", style: "secondary", action: { type: "prompt", text: "Who should I follow up with?" } }, { label: "Draft a follow-up", style: "secondary", action: { type: "prompt", text: "Draft a follow-up email" } }] }], "chat_simple");
+}
+
+const NUM_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, "a dozen": 12 };
+
+/** "I had 6 people come through 77 Kentlands on Saturday": the turnout is saved on that home; no event is created. */
+export async function openHouseAttendanceHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const m = /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|a dozen)\s+(?:people|visitors|groups|families|couples|parties|households)\b/i.exec(text);
+  const n = m ? (NUM_WORDS[m[1].toLowerCase()] ?? parseInt(m[1], 10)) : null;
+  const prop = await homeOf(ctx, text);
+  if (!n) return reply("How many people came through?", [], "smalltalk");
+  if (!prop) return reply(`Got it, ${n} visitors. Which home was it? Give me the address and I'll save the turnout.`, [], "smalltalk");
+  const when = parseDate(text, ctx.now, ctx.tz);
+  let at = when ? new Date(Date.UTC(when.y, when.m - 1, when.d, 12)) : ctx.now;
+  if (at.getTime() > ctx.now.getTime() + 86_400_000) at = new Date(at.getTime() - 7 * 86_400_000); // turnout already happened: "Saturday" is the one just past
+  const day = at.toISOString().slice(0, 10);
+  await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: `Open house turnout ${day}`, value: `${n} visitor${n === 1 ? "" : "s"}`, source: "user_stated" });
+  ctx.state.last_property_id = prop.id; await persistState(ctx);
+  return reply(`Saved: ${n} visitor${n === 1 ? "" : "s"} at ${prop.address}. Want me to follow up with them? Send me the sign-in sheet or their names and I'll draft the messages.`, [{ type: "choice", title: "Next", buttons: [{ label: "Upload sign-in sheet", style: "secondary", action: { type: "prompt", text: "I have the open house sign-in sheet" } }, { label: "Post a thank-you", style: "secondary", action: { type: "prompt", text: `Make a thank-you post for the open house at ${prop.address}` } }] }], "chat_simple");
+}
+
+/** "Describe the home itself" / "write a listing description for 77 Kentlands": a plain, compliant description built only from the facts saved on the home. */
+export function describeHomeAsk(text: string): boolean {
+  return !/\?\s*$/.test(text) && /\b(?:(?:write|draft|create|give me|make)\s+(?:me\s+)?(?:a\s+|the\s+)?(?:listing|property|home|house)\s+description|describe the (?:home|house|property)(?: itself)?|listing description from the property facts)\b/i.test(text);
+}
+
+export async function describeHomeHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  let prop = await homeOf(ctx, text);
+  if (!prop) {
+    const all = (await ctx.store.list("properties", ctx.userId)).filter((p) => !p.is_demo);
+    if (all.length === 1) prop = all[0];
+    else return reply(all.length ? `Which home? ${all.slice(0, 4).map((p) => p.address).join(", ")}…` : "Which home should I describe? Give me the address and what you know about it.", [], "smalltalk");
+  }
+  const notes = (await ctx.store.list("memories", ctx.userId)).filter((m) => m.scope === "property" && m.subject_id === prop!.id && /^Note\b/.test(m.key)).map((m) => m.value).slice(0, 4);
+  const bits = [prop.beds != null && `${prop.beds} bedroom${prop.beds === 1 ? "" : "s"}`, prop.baths != null && `${prop.baths} bath${prop.baths === 1 ? "" : "s"}`, prop.sqft != null && `about ${prop.sqft.toLocaleString("en-US")} square feet`].filter(Boolean) as string[];
+  const place = [prop.city, prop.state].filter(Boolean).join(", ");
+  const desc = `${prop.address}${place ? `, ${place}` : ""}. ${bits.length ? `This home offers ${bits.join(", ")}.` : "Details to be added."}${prop.list_price ? ` Offered at ${fullMoney(prop.list_price)}.` : ""}${notes.length ? ` ${notes.map((n) => n.replace(/[.!\s]+$/, "") + ".").join(" ")}` : ""} Schedule a showing to see it in person.`;
+  ctx.state.last_property_id = prop.id; await persistState(ctx);
+  return reply(`Here's a description using only the facts saved on the home. It says nothing about who should live there:\n\n${desc}`, [{ type: "choice", title: "Next", buttons: [{ label: "Make a post", style: "secondary", action: { type: "prompt", text: `Make an Instagram post for ${prop.address}` } }, { label: "Add more details", style: "quiet", action: { type: "prompt", text: `Update ${prop.address}: ` } }] }], "chat_simple");
+}

@@ -4,6 +4,8 @@ import type { ConversationState, Profile } from "../types";
 
 /** Everything a tool or handler needs for one agent turn. */
 export interface Ctx {
+  /** the message exactly as the agent typed it this turn (for labels shown back to them) */
+  userText?: string;
   userId: string;
   profile: Profile;
   store: Store;

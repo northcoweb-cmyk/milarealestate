@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { followUpBlock } from "./followups";
 import { friendlyAiError, leaksProviderDetail } from "../ai/friendly";
-import { detailsFollowupHandler, listDateHandler, offerHandler, propertyNoteHandler, propertyStatusHandler } from "./handlers/property-ops";
+import { detailsFollowupHandler, listDateHandler, offerHandler, propertyNoteHandler, propertyStatusHandler, inboxHandler, openHouseAttendanceHandler, describeHomeHandler } from "./handlers/property-ops";
 import { FAIR_HOUSING_REPLY, fairHousingBlock } from "./fair-housing";
 import { portalRequestHandler, productHelpHandler, vagueBulkHandler, unsureWhoHandler } from "./handlers/product-help";
 import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
@@ -33,7 +33,7 @@ import { agendaHandler, oooQueryHandler, oooEditHandler, applyMove, undoHandler,
 import { fmtDayTime } from "../time";
 import { rewritePostHandler, reviseDraftHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
-import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
+import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, contactFactsHandler, factCueCount, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
@@ -168,7 +168,7 @@ function park(ctx: Ctx, pend: PendingQuestion | null | undefined) {
   const text = String((pend.slots as { text?: string }).text ?? "").trim();
   if (!text) return;
   const keep = (ctx.state.parked ?? []).filter((x) => !(x.intent === pend.intent && x.missing === pend.missing && String((x.slots as { text?: string }).text) === text));
-  ctx.state.parked = [{ intent: String(pend.intent), slots: pend.slots, missing: String(pend.missing), label: clipWords(text, 70), at: Date.now() }, ...keep].slice(0, 3);
+  ctx.state.parked = [{ intent: String(pend.intent), slots: pend.slots, missing: String(pend.missing), label: clipWords(String((pend.slots as { original?: string }).original ?? text), 70), at: Date.now() }, ...keep].slice(0, 3);
 }
 // ---- is this message about the same thing as an unfinished question? ("lunch with Mark Friday" is not the answer to "what time is the Oak Lane showing?")
 const NOUN_RE = /\b(open house|showing|tour|lunch|dinner|coffee|breakfast|meeting|appointment|call|inspection|walk-?through|closing|consult\w*)\b/i;
@@ -218,11 +218,23 @@ async function recentHistory(ctx: Ctx) {
 }
 
 async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{ out: HandlerOut; intent: Intent }> {
+  ctx.userText = textIn;
   let text = fixTypos(textIn);
   // "prep 9 muddy branch" / "open house post for kentlands": a saved home named by its street (no number or suffix) is that home, so everything downstream sees its full address
   if (!parseAddress(text) && /\b[a-z]{4,}\b/i.test(text) && !/\b(?:has|have)\s+\d+(?:\.\d)?\s*(?:bed|bath|bd|ba)/i.test(text)) {
     const ref = await resolveProperty(ctx, text, false).catch(() => null);
-    if (ref) text = `${text.replace(/[.!?]+\s*$/, "")} ${ref.address}${ref.city ? `, ${ref.city}` : ""}${ref.state ? ` ${ref.state}` : ""}`;
+    if (ref) {
+      const full = `${ref.address}${ref.city ? `, ${ref.city}` : ""}${ref.state ? ` ${ref.state}` : ""}`;
+      const num = /^(\d+)\s+(.+)$/.exec(ref.address);
+      const words = num ? num[2].split(/\s+/).filter((w) => !/^(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|way|blvd|boulevard|pl|place|cir|circle|sq|square|ter|terrace)$/i.test(w)) : [];
+      const typed = num && words.length ? new RegExp(`\\b${num[1]}\\s+${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+")}\\b`, "i") : null;
+      text = typed && typed.test(text) ? text.replace(typed, full) : `${text.replace(/[.!?]+\s*$/, "")} ${full}`; // "9 muddy branch" becomes the full address in place, never twice
+    }
+  }
+  // "no I said a TEXT message, not email": the same request again, as a text
+  if (/^\s*(?:no|nope|wait|oops|sorry)[,.!\s]+(?:i\s+(?:said|meant|asked for)|it should (?:be|say))\s+(?:a\s+)?(?:text|sms|txt)\b/i.test(textIn)) {
+    const prev = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId && m.role === "user" && m.content !== textIn).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    if (prev && /\b(e-?mail)\b/i.test(prev.content)) text = prev.content.replace(/\b(?:an?\s+)?e-?mails?\b/gi, (m) => (/^an?\s/i.test(m) ? "a text" : "text"));
   }
   if (fairHousingBlock(textIn)) return { out: reply(FAIR_HOUSING_REPLY, [{ type: "choice", title: "Describe the home instead?", buttons: [{ label: "Describe the home itself", style: "primary", action: { type: "prompt", text: "Write a listing description from the property facts only" } }] }], "smalltalk"), intent: "smalltalk" };
   // "Good morning. What do I have today?" is the question, not small talk
@@ -369,6 +381,8 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     if (ev) return { out: reply(`The last thing I added: ${ev.title}, ${fmtDayTime(ev.start_at, ctx.tz)}.`, [eventCard(ctx, ev, "Scheduled")], "smalltalk"), intent: "smalltalk" };
   }
 
+  // one person, several facts in one sentence (commas included): saved together, not split into separate requests
+  if (!forced && factCueCount(text) >= 2 && detectIntent(text).intent === "general") { const f = await contactFactsHandler(ctx, text); if (f) return { out: f, intent: "general" }; }
   const clauses = splitClauses(text);
   const outs: HandlerOut[] = [];
   let lastIntent: Intent = "general";
@@ -470,6 +484,11 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     const caller = /^\s*([\p{L}'’-]{3,})\s+(?:just\s+)?(?:called|texted|emailed|messaged|phoned|stopped by|came by|replied|responded|reached out)\b/iu.exec(text);
     if (caller && (await mentionedContacts(ctx, caller[1])).length) return logInteractionHandler(ctx, text);
   }
+  if (intent === "general" || intent === "save_memory") {
+    // "the budget field should say 625k max for Tobias": a correction to one field
+    if (/\b(budget|phone|email|location)\b.{0,25}\b(?:should (?:just )?(?:say|be|read)|is wrong|needs? to (?:say|be))\b/i.test(text)) return contactFieldUpdateHandler(ctx, text);
+    const facts = await contactFactsHandler(ctx, text); if (facts) return facts;
+  }
   if (["general", "recall", "find_contacts", "save_memory", "market", "priorities"].includes(intent)) {
     const known = await mentionedContacts(ctx, text);
     if (known.length) { const u = await clientUpdateHandler(ctx, text, known); if (u) return u; }
@@ -497,6 +516,9 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "property_status": return propertyStatusHandler(ctx, text);
     case "list_date": return listDateHandler(ctx, text);
     case "calc": return calcHandler(ctx, text);
+    case "inbox_query": return inboxHandler();
+    case "describe_home": return describeHomeHandler(ctx, text);
+    case "oh_attendance": return openHouseAttendanceHandler(ctx, text);
     case "offer_received": return offerHandler(ctx, text);
     case "property_note": return propertyNoteHandler(ctx, text);
     case "property_details": return detailsFollowupHandler(ctx, text);

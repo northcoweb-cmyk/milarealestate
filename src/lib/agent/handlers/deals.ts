@@ -221,7 +221,7 @@ export async function logInteractionHandler(ctx: Ctx, text: string): Promise<Han
 
 export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   // "Text Dana I'm running late" / "text her that the showing moved": drop the verb first so it can't be mistaken for a name
-  const stripped = text.replace(/^\s*(?:(?:please|pls|can you|could you|hey mila|mila)[,\s]+)*(?:text|sms|message|msg|tell)\s+/i, "").trim();
+  const stripped = text.replace(/^\s*(?:(?:please|pls|can you|could you|hey mila|mila)[,\s]+)*(?:text|txt|sms|message|msg|tell)\s+/i, "").trim();
   const pron = /^(her|him|them)\b\s*/i.exec(stripped);
   const lastId = ctx.state.last_contact_ids?.[0];
   const known = pron && lastId ? [await ctx.store.get("contacts", ctx.userId, lastId)].filter((x): x is Contact => !!x) : await mentionedContacts(ctx, stripped);
@@ -231,6 +231,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   const first = firstNameOf(name);
   if (!first) return askBack(ctx, "draft_text", text, "name", "Who should I text?");
   let body = (pron ? stripped.slice(pron[0].length) : stripped.replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+(?!I\\b|I\'|a\\b)\\p{Lu}\\p{L}+)?\\s*`, "iu"), "")).replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
+  body = body.replace(/^follow-?\s?ups?\s+(?:from|after|on|about|to)\s+/i, "following up on ");
   if (!body) body = "just checking in — do you have a few minutes to talk?";
   body = body.replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);
   // "text Maya to confirm tomorrow's showings": say which showings, when and where

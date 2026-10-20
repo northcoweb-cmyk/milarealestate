@@ -9,7 +9,7 @@ import { type HandlerOut, reply } from "./types";
  * continues the same request instead of being treated as a brand-new, unrelated message.
  */
 export async function askBack(ctx: Ctx, intent: Intent, text: string, missing: string, question: string, blocks: Block[] = []): Promise<HandlerOut> {
-  ctx.state.pending = { kind: "clarify", intent, slots: { text }, missing };
+  ctx.state.pending = { kind: "clarify", intent, slots: { text, original: ctx.userText }, missing };
   await persistState(ctx);
   return reply(question, blocks);
 }

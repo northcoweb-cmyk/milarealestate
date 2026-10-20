@@ -398,3 +398,44 @@ export async function relatedContactHandler(ctx: Ctx, text: string): Promise<Han
   ctx.state.last_contact_ids = [owner.id]; await persistState(ctx);
   return reply(`Added ${made.name}${rel === "related contact" ? "" : ` as ${owner.name}'s ${rel}`}, linked to ${owner.name}. Nothing is sent to them.`, [{ type: "choice", title: made.name, buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${made.id}` }, { label: `Open ${firstName(owner.name)}`, style: "quiet", href: `/contacts/${owner.id}` }] }], "chat_simple");
 }
+
+const FACT_CUES: RegExp[] = [
+  /\b(?:budget|max(?:imum)? (?:rent|price|budget)|under|up to|pre-?approved)\b[^.;]{0,25}\$\s?\d/i,
+  /\b(?:near|close to|around|in)\s+[A-Z][\p{L}.'’ -]{2,30}/u,
+  /\b(?:moving|move-?in|moves|relocating|closing|lease (?:ends|expires))\b/i,
+  /\b(?:has|have|with)\s+(?:an?\s+|two\s+|\d+\s+)?(?:cat|dog|pet|kid|child|children|baby)s?\b/i,
+  /\bphone(?: number)?\b[^.]{0,6}\d{3}[-.\s)]*\d{3}[-.\s]*\d{4}|\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/i,
+  /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/,
+  /\b(?:wants?|needs?|looking for)\s+(?:a\s+|an\s+)?\d*\s?(?:bed|bd|br|bath|ba|garage|yard|parking)/i,
+];
+export const factCueCount = (text: string): number => FACT_CUES.filter((r) => r.test(text)).length;
+
+/** "Her budget is under $3,200/month, she wants to be near Bethesda Metro, she's moving Dec 1 and has a cat. Phone is 240-555-0142": one person, several facts, one clean save. Returns null when it can't tell who it is about. */
+export async function contactFactsHandler(ctx: Ctx, text: string): Promise<HandlerOut | null> {
+  if (/\?\s*$/.test(text) || /\n/.test(text) || factCueCount(text) < 2) return null;
+  // a call, meeting or visit being reported is a log entry (handled by the interaction flow), not a profile edit
+  if (/\b(?:just )?(?:got off|hung up|spoke (?:to|with)|talked (?:to|with)|met with|ran into|came by|stopped by|called|texted|emailed)\b/i.test(text)) return null;
+  if (/^\s*(?:draft|write|email|text|send|schedule|remind|add a|create|make|book|set up)\b/i.test(text) || /\b\d{1,2}(?::\d\d)?\s?(?:am|pm)\b/i.test(text)) return null;
+  const named = (await mentionedContacts(ctx, text)).filter((c) => c.status !== "inactive");
+  const pron = /^\s*(?:(?:ok|and|also|so)[,\s]+)*(?:her|his|their|she|he|they)\b/i.test(text) || /\b(?:she|he)(?:'s|'ll| is| has| wants)\b/i.test(text);
+  let c = named.length === 1 ? named[0] : null;
+  if (!c && !named.length && pron && ctx.state.last_contact_ids?.[0]) c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
+  if (!c) return null;
+  const patch: Partial<Contact> = {};
+  const saved: string[] = [];
+  const phone = parsePhone(text); if (phone && phone !== c.phone) { patch.phone = phone; saved.push(`Phone: ${phone}`); }
+  const email = parseEmail(text); if (email && email !== c.email) { patch.email = email; saved.push(`Email: ${email}`); }
+  const bm = /\b(?:budget|max(?:imum)?(?: rent| price| budget)?|under|up to|pre-?approved(?: for)?)\b[^.;]{0,25}?(\$\s?\d[\d,.]*\s?(?:k|m)?)/i.exec(text);
+  if (bm) { const v = parseMoney(bm[1]).max; if (v) { patch.budget_max = v; const rent = /\brent|\/\s?mo|per month|month\b/i.test(bm[0] + text.slice(text.indexOf(bm[0]), text.indexOf(bm[0]) + bm[0].length + 12)); saved.push(`${rent ? "Max rent" : "Budget"}: ${fullMoney(v)}${rent ? "/month" : ""}`); if (rent && c.type === "buyer") patch.type = "rental"; }
+  }
+  const near = /\b(?:near|close to)\s+([A-Z][\p{L}.'’ -]{2,40}?)(?=[,.;]|\s+(?:and|but|she|he|they)\b|$)/u.exec(text);
+  if (near) { saved.push(`Area: near ${near[1].trim()}`); await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: "Area", value: `near ${near[1].trim()}`, source: "user_stated" }); if (!c.location) patch.location = near[1].trim(); }
+  const mv = /\b(?:moving|move-?in|moves|relocating)\b[^,.;]{0,30}/i.exec(text);
+  if (mv) { const t = mv[0].trim().replace(/^moving\s+/i, "moving ").replace(/^move-?in\s*/i, "move-in "); patch.timeline = t.slice(0, 60); saved.push(`Timing: ${t}`); }
+  const pet = /\b(?:has|have|with)\s+(?:an?\s+|two\s+|\d+\s+)?(cats?|dogs?|pets?|kids?|children|baby)\b/i.exec(text);
+  if (pet) { saved.push(`Household: ${/pet|cat|dog/i.test(pet[1]) ? "has a " : "has "}${pet[1].toLowerCase()}`.replace("has a pets", "has pets")); await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: /cat|dog|pet/i.test(pet[1]) ? "Pets" : "Household", value: pet[1].toLowerCase(), source: "user_stated" }); }
+  if (!saved.length) return null;
+  if (Object.keys(patch).length) await TOOLS.update_contact.run(ctx, { id: c.id, patch, eventTitle: "Details updated", eventDetail: saved.join("; "), eventKind: "note" });
+  ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
+  return reply(`Saved to ${firstNameOf(c.name)}'s profile:\n${saved.map((x) => `• ${x}`).join("\n")}`, [{ type: "choice", title: `Next for ${firstNameOf(c.name)}`, buttons: [{ label: "Open profile", style: "quiet", href: `/contacts/${c.id}` }] }], "chat_simple");
+}
