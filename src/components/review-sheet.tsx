@@ -92,7 +92,8 @@ export function ReviewSheet({ approvalId, onClose, onChanged }: { approvalId: st
           {pending && isEmail && draft && (
             <div className="space-y-2.5 pt-1">
               <div className="flex gap-3"><button className="btn flex-1" disabled={busy} onClick={() => decide("reject")}>Decline</button><button className="btn btn-primary flex-[2]" disabled={busy} onClick={() => openMail("app")}>{busy ? "Opening…" : opened[draft.id] ? "Open again" : "Open in email app"}</button></div>
-              <p className="faint text-center text-[12.5px]">Opens your email app with the message ready — you press send. {profile.email.toLowerCase().endsWith("@gmail.com") || profile.email.toLowerCase().endsWith("@googlemail.com") ? <button type="button" className="font-semibold underline" onClick={() => openMail("gmail")}>Use Gmail instead</button> : null}</p>
+              <div className="flex flex-wrap justify-center gap-2"><button type="button" className="btn btn-sm" disabled={busy} onClick={() => openMail("gmail")}>Open in Gmail</button><button type="button" className="btn btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(`${cur?.subject ?? ""}\n\n${cur?.body ?? ""}`); toast("Copied. Paste it into any email app.", "success"); } catch { toast("Couldn't copy. Select the message and copy it.", "error"); } }}>Copy message</button></div>
+              <p className="faint text-center text-[12.5px]">“Open in email app” uses the mail app on this device. If nothing opens, use Gmail or copy the message. You always press send yourself.</p>
               {d && d.drafts.length > 1 && <p className="faint text-center text-[12.5px]">{d.drafts.filter((x) => opened[x.id]).length} of {d.drafts.length} opened — pick the next person above.</p>}
             </div>
           )}

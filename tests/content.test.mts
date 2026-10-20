@@ -99,7 +99,7 @@ test("every caption ends with the agent's signature, within limits, and story is
   const p2 = await store.get("profiles", prof.id, prof.id);
   const c2 = await buildCtx(p2);
   const sig = buildSignature(p2);
-  assert.match(sig, /^Sarah Carter \| MD Realtor® C\. 301\.509\.7280 \| o\. 202\.243\.7700 sarah@example\.com Coalition Properties Group at Demo Realty$/);
+  assert.match(sig, /^Sarah Carter \| MD Realtor® C\. \(301\) 509-7280 \| o\. \(202\) 243-7700 sarah@example\.com Coalition Properties Group at Demo Realty$/);
   const r: any = await svc.createPosts(c2, { category: "buyer_tip", platforms: ["instagram", "instagram_story"], topic: "word ".repeat(600) });
   assert.ok(r.ok);
   for (const post of r.posts) {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { followUpBlock } from "./followups";
+import { friendlyAiError, leaksProviderDetail } from "../ai/friendly";
 import { FAIR_HOUSING_REPLY, fairHousingBlock } from "./fair-housing";
 import { portalRequestHandler, productHelpHandler, vagueBulkHandler, unsureWhoHandler } from "./handlers/product-help";
 import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
@@ -28,7 +29,7 @@ import { saveAnswers } from "./handlers/contacts";
 import { ambiguousFirstName, askWhichPerson } from "./handlers/entity";
 import { agendaHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, syncEventHandler, eventReminder, eventCard } from "./handlers/calendar";
 import { fmtDayTime } from "../time";
-import { rewritePostHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
+import { rewritePostHandler, reviseDraftHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
 import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
@@ -134,10 +135,12 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   const key = out.creditKey ?? (intent === "smalltalk" ? "smalltalk" : "chat_simple");
   // a short answer costs the normal amount; a big conversation that used more AI costs more credits, so heavy use is paid for fairly
   const base = await creditCost(key), byCost = creditsForAiCost(takeTurnAiCost(ctx.userId), await usdPerCredit(ctx.userId));
-  await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: key === "smalltalk" ? base : Math.max(base, byCost) });
+  const rec = await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: key === "fallback" ? 0 : key === "smalltalk" ? base : Math.max(base, byCost) });
+  // a heavy turn (comps, research) says what it cost, so a big charge is never a surprise
+  if (rec.credits >= 40) out = { ...out, text: `${out.text}\n\nThis used ${rec.credits} credits: research and comps cost more than a normal reply.` };
   if (limited === "user_month" || limited === "user_day") await exhaustTrialCredits(ctx.userId); // a trial that hit its allowance is out of credits too
   await persistState(ctx);
-  const milaMessage = await appendMila(ctx, scrubInternal(out.text), out.blocks);
+  const milaMessage = await appendMila(ctx, scrubInternal(out.text), scrubBlocks(out.blocks));
   return { conversationId: ctx.conversationId, userMessage, milaMessage, balance: await getBalance(ctx.userId) };
 }
 
@@ -145,7 +148,15 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
 const clipWords = (t: string, n: number) => { const s = t.replace(/\s+/g, " ").trim(); if (s.length <= n) return s; const cut = s.slice(0, n); return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 20)).replace(/[,;:\s]+$/, "")}…`; };
 
 /** Internal records (the saved-rating JSON and similar) never show in a reply, even if a model echoes them. */
+export function scrubBlocks(blocks: Block[]): Block[] {
+  return blocks.map((b) => {
+    const x = b as Record<string, unknown>;
+    if (typeof x.body === "string" && leaksProviderDetail(x.body)) return { ...b, body: friendlyAiError(x.body) } as Block;
+    return b;
+  });
+}
 export function scrubInternal(text: string): string {
+  if (leaksProviderDetail(text)) text = friendlyAiError(text);
   return text.replace(/\{\s*"(?:kind|q|a|note|at)"\s*:[^\n]*/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -476,6 +487,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "portal_request": return portalRequestHandler(ctx, text);
     case "contact_field_update": return contactFieldUpdateHandler(ctx, text);
     case "cancel_reminder": return cancelReminderHandler(ctx, text);
+    case "revise_draft": return reviseDraftHandler(ctx, text);
     case "related_contact": return relatedContactHandler(ctx, text);
     case "add_task": return addTaskHandler(ctx, text);
     case "rewrite_post": return rewritePostHandler(ctx, text);
@@ -535,7 +547,7 @@ async function marketHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   if (!location) return reply("Which market should I look at?");
   ctx.steps.push("Searching current market data");
   const r = await marketResearch(ctx, location, text);
-  if ("error" in r) return reply("I can't give you live market numbers right now.", [{ type: "notice", tone: "warn", title: "Live data isn't available", body: r.error, buttons: r.connect ? [{ label: "See connections", style: "secondary", href: "/settings/connections" }] : undefined }], "smalltalk");
+  if ("error" in r) return reply("I can't give you live market numbers right now.", [{ type: "notice", tone: "warn", title: "Live data isn't available", body: r.error, buttons: r.connect ? [{ label: "See connections", style: "secondary", href: "/settings/connections" }] : undefined }], "fallback");
   return reply(r.cached ? "Here's the latest I pulled (cached for a few hours)." : "Here's what I found.", [r.block], r.cached ? "chat_simple" : "smalltalk");
 }
 
@@ -588,14 +600,21 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   }
   if (ai) return reply(ai.text, ai.suggestions.length ? [{ type: "choice", title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   await logError({ source: "unhandled", level: "info", message: text.slice(0, 300), userId: ctx.userId, email: ctx.profile.email });
-  return reply("I'm not sure how to do that yet. Here are things I can do right now:", [{
-    type: "choice", title: "Try one of these",
-    buttons: [
-      { label: "Set up an open house", style: "secondary", action: { type: "prompt", text: "I have an open house at 123 Main Street Sunday at 1 PM. Set everything up." } },
-      { label: "Who should I follow up with?", style: "secondary", action: { type: "prompt", text: "Who do I need to follow up with today?" } },
-      { label: "Add a new buyer", style: "secondary", action: { type: "prompt", text: "I have a new buyer named Sarah looking for a 3 bedroom house around $650k in Montgomery County in the next 3 months." } },
-    ],
-  }], "smalltalk");
+  return reply("I'm not sure how to do that yet. Nothing was changed and you weren't charged. Here are things I can do right now:", [{
+    type: "choice", title: "Try one of these", buttons: fallbackChips(text),
+  }], "fallback");
+}
+
+/** Suggestions that match what was asked about. None of them carries sample data: they open a question, never create anything. */
+function fallbackChips(text: string): Extract<Block, { type: "choice" }>["buttons"] {
+  const t = text.toLowerCase();
+  const chip = (label: string, prompt: string, primary = false) => ({ label, style: primary ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: prompt } });
+  const out = [];
+  if (/\b(calendar|schedule|showing|open house|appointment|meeting|call|reminder|week|today|tomorrow|out of office|deadline|closing|inspection)\b/.test(t)) out.push(chip("What's on my calendar this week?", "What's on my calendar this week?"), chip("Add something to my calendar", "Add an event to my calendar"));
+  if (/\b(buyer|seller|client|lead|contact|budget|phone|email|follow.?up)\b/.test(t)) out.push(chip("Who should I follow up with?", "Who do I need to follow up with today?"), chip("Add a contact", "Add a contact"));
+  if (/\b(listing|property|price|offer|comps?|post|caption|flyer)\b/.test(t)) out.push(chip("Add a listing", "Add a new listing"), chip("Make a post", "Make a post for a listing"));
+  if (!out.length) out.push(chip("What's on my calendar this week?", "What's on my calendar this week?"), chip("Who should I follow up with?", "Who do I need to follow up with today?"), chip("Add a contact", "Add a contact"));
+  return out.slice(0, 3);
 }
 
 // ------------------------------------------------------------------ actions

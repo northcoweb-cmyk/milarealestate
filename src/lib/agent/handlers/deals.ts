@@ -61,7 +61,7 @@ export async function transactionHandler(ctx: Ctx, text: string): Promise<Handle
   const found0 = await propertyFor(ctx, text, "transaction");
   if (found0 && "out" in found0) return found0.out;
   const prop = found0?.prop ?? null;
-  if (!prop) return askBack(ctx, "transaction", text, "address", "Congrats! Which property is it? Give me the address and the closing date and I'll build the whole timeline.");
+  if (!prop) return askBack(ctx, "transaction", text, "address", `${/\b(roof|leak|damage|problem|issue|repair|fell through|fall through|appraised low|low appraisal|failed|terminated|backed out|cancel)/i.test(text) ? "I'm sorry, that's a hard one." : "Congrats!"} Which property is it? Give me the address and the closing date and I'll build the whole timeline.`);
   ctx.state.last_property_id = prop.id;
   const all = MILESTONES.map((m) => m.re);
   const found: Record<string, ReturnType<typeof parseDate>> = {};

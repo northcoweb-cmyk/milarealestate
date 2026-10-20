@@ -1,3 +1,5 @@
+import { logError } from "../server/errors";
+import { friendlyAiError } from "../ai/friendly";
 import { aiAvailable, estimateCost, getProvider } from "../ai/provider";
 import { recordUsage } from "../credits";
 import { fmtShortDate } from "../time";
@@ -40,6 +42,7 @@ export async function marketResearch(ctx: Ctx, location: string, question: strin
     else await ctx.store.insert("memories", ctx.userId, { scope: "business", subject_id: null, key, value: JSON.stringify(block), source: "system", confidence: 1, pinned: false });
     return { block, cached: false };
   } catch (e) {
-    return { error: `I couldn't reach live market data: ${e instanceof Error ? e.message : "unknown error"}` };
+    await logError({ source: "ai", message: `market research: ${e instanceof Error ? e.message : e}`, userId: ctx.userId, email: ctx.profile.email }).catch(() => undefined); // the owner sees the raw error; the agent sees a plain sentence
+    return { error: friendlyAiError(e) };
   }
 }

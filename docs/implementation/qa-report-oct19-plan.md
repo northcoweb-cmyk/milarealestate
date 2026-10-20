@@ -65,3 +65,15 @@ Bugs: 034, 050, 077, 078, 095, 101, 130, 133, 160, 217, 094.
 
 ## Final step
 Re-run the credit-burn prompt on the live app, then write the per-bug table (fixed / partly / needs owner) into `docs/implementation/qa-report-oct19-status.md`.
+
+### W12. Added by the owner (Oct 19, after W11)
+- **Low-credit and usage UI:** a clean meter on Home/More/Credits showing credits used vs the plan, a "running low" state at 20% left and an "out of credits" state, each with a one-tap "Buy credits" button and what a top-up costs. Usage history already lists every charge and grant (done in W3).
+- **Admin auto top-up:** the account that "randomly topped up" is a tester/admin account; test accounts get +3,000 credits whenever they run low (`TESTER_TOPUP_CREDITS`, `src/lib/testers.ts`). Keep it for testers, but show it plainly in the ledger as "Test account top-up" and add a switch in Mila OS to turn it off so a tester can run down to zero like a real user.
+- **Annual plan on the waitlist site:** add the $390/year plan (two months free, +500 bonus credits) next to $39/month on the pricing section and the FAQ, in `waitlist/src`.
+
+### W13. Chat-style onboarding with real connectors (owner, Oct 19)
+Replace the plain onboarding with a short conversation like the example the owner shared: Mila introduces herself in two bullets, then offers connector cards (logo, name, one-line reason, one dark button, "Mila asks before making changes. Disconnect any time."). Only connectors that actually work today:
+- Google Calendar (events Mila adds; add-only), Google Contacts, Google Sheets (contact import): one "Connect Google" flow using the existing `/api/integrations/google/start`.
+- Apple Calendar / any calendar app: the private subscription link (one tap), not an OAuth.
+- Not shown: Gmail (hidden for launch), Microsoft/Outlook (removed), MLS (not available).
+Each card goes straight to the real flow, returns to the same chat, and flips to "Connected". Skip is always available; nothing blocks the first task.

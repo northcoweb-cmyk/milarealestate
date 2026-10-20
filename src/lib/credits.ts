@@ -158,7 +158,9 @@ export async function exhaustTrialCredits(userId: string): Promise<void> {
 export async function recordUsage(u: UsageInput): Promise<{ usage: UsageRow; credits: number }> {
   const store = getStore();
   if ((u.estCostUsd ?? 0) > 0) turnAiCost.set(u.userId, (turnAiCost.get(u.userId) ?? 0) + (u.estCostUsd ?? 0));
-  const credits = u.creditsOverride ?? (await creditCost(u.creditKey));
+  let credits = u.creditsOverride ?? (await creditCost(u.creditKey));
+  // a balance never goes below zero: an expensive turn that outran what was left is charged only what is left
+  if (credits > 0 && !(await isTesterId(u.userId))) credits = Math.min(credits, Math.max(0, await getBalance(u.userId)));
   const usage = await store.insert("usage", u.userId, {
     conversation_id: u.conversationId ?? null,
     operation: u.operation,
@@ -215,8 +217,10 @@ export async function creditSummary(userId: string) {
   const balance = tx.reduce((n, t) => n + t.delta, 0);
   const planLeft = Math.min(balance, Math.max(0, sub.credits_per_period - spentThisPeriod));
   const history = [...usage].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 40);
+  // the full ledger: every charge AND every credit added (top-ups, grants, refills, adjustments), newest first, so the balance can always be traced
+  const ledger = [...tx].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 300).map((t) => ({ id: t.id, at: t.created_at, kind: t.kind, label: t.reason ?? t.kind, delta: t.delta, balance_after: t.balance_after }));
   const trial = sub.status === "trial" ? { endsAt: sub.period_end, daysLeft: Math.max(0, Math.ceil((new Date(sub.period_end).getTime() - Date.now()) / 86_400_000)), day: Math.min(7, Math.max(1, Math.floor((Date.now() - new Date(sub.period_start).getTime()) / 86_400_000) + 1)), expired: new Date(sub.period_end).getTime() < Date.now() } : null;
-  return { balance, planCredits: planLeft, extraCredits: Math.max(0, balance - planLeft), trial, allowance: sub.credits_per_period, spentThisPeriod, resetsAt: sub.period_end, status: sub.status, plan: cfg.plans.find((p) => p.key === sub.plan_key) ?? null, history, packs: cfg.packs, creditPrice: cfg.credit_price_usd ?? 0.05, plans: visiblePlans(cfg, sub.plan_key) };
+  return { ledger, balance, planCredits: planLeft, extraCredits: Math.max(0, balance - planLeft), trial, allowance: sub.credits_per_period, spentThisPeriod, resetsAt: sub.period_end, status: sub.status, plan: cfg.plans.find((p) => p.key === sub.plan_key) ?? null, history, packs: cfg.packs, creditPrice: cfg.credit_price_usd ?? 0.05, plans: visiblePlans(cfg, sub.plan_key) };
 }
 
 /** Owner-level margin report: credits, real AI cost, and revenue per user. */

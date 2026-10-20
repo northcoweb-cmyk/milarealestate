@@ -401,6 +401,10 @@ export interface ConversationState {
   /** Mila asked "what kind of script?": the request so the short answer ("phone call, keep it short") can finish it */
   script_ask?: { base: string; at: number } | null;
   last_workflow_run_id?: ID | null;
+  /** the email draft and the text Mila just wrote in this chat, so "rewrite it to say…" edits THAT one */
+  last_draft_id?: ID | null;
+  last_draft_at?: number;
+  last_text?: { to: ID | null; name: string; text: string; at: number } | null;
   last_event_id?: ID | null;
   last_property_id?: ID | null;
   /** the street Mila last asked a city/state for: a second pass for the same street never asks again */

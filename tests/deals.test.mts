@@ -74,11 +74,12 @@ test("text drafts open in the agent's own Messages app; nothing is sent by Mila"
   assert.match(btn.href, /^sms:3015550142\?&body=Hi%20Dana/);
 });
 
-test("emailing someone who isn't a contact asks, instead of using whoever came up last", async () => {
+test("emailing someone who isn't a contact is drafted to them by name (QA report BUG-221), never to whoever came up last", async () => {
   const a = await fresh();
   await say(a, "I have a new buyer named Dana Whitfield looking for a 3 bedroom around $600k");
   const out = await say(a, "Draft a price reduction email for the Hendersons, we're dropping 15k");
-  assert.match(out, /don't have Hendersons in your contacts/i);
+  assert.match(out, /draft for Hendersons/i);
+  assert.doesNotMatch(out, /Dana/);
 });
 
 test("how's my week and what's my pipeline worth answer from real data", async () => {

@@ -9,12 +9,17 @@ export const brandOf = (p: Pick<Profile, "settings">): BrandInfo => ({ ...emptyB
  * "Ryan Stillwell | MD Realtor® C. 301.509.7280 | o. 202.243.7700 ryan@example.com Coalition Properties Group at Keller Williams Properties"
  * Every part after the name is optional, so teams, solo agents and different brokerages all come out right.
  */
+/** 3015097280 / 301.509.7280 / +1 301 509 7280 → (301) 509-7280. Anything that isn't a 10-digit US number is left as typed. */
+export function prettyPhone(raw: string): string {
+  const d = raw.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : raw.trim();
+}
 export function buildSignature(p: Pick<Profile, "full_name" | "brokerage" | "settings">): string {
   const b = brandOf(p);
   const cred = [b.credentials.trim(), b.license.trim() ? `Lic# ${b.license.trim()}` : ""].filter(Boolean).join(" ");
   const head = [p.full_name.trim(), cred].filter(Boolean).join(" | ");
   const affil = b.team.trim() && p.brokerage?.trim() ? `${b.team.trim()} at ${p.brokerage.trim()}` : b.team.trim() || p.brokerage?.trim() || "";
-  return [head + (b.cell.trim() ? ` C. ${b.cell.trim()}` : "") + (b.office.trim() ? ` | o. ${b.office.trim()}` : ""), b.email.trim(), affil].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return [head + (b.cell.trim() ? ` C. ${prettyPhone(b.cell)}` : "") + (b.office.trim() ? ` | o. ${prettyPhone(b.office)}` : ""), b.email.trim(), affil].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
 
 /** Removes a trailing signature (so a caption can be re-shaped or re-signed). */

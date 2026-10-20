@@ -51,9 +51,9 @@ export async function portalRequestHandler(_ctx: Ctx, text: string): Promise<Han
 /** "send this to everyone now": a blast with no audience and no content. Ask first; nothing is drafted or queued. */
 export function vagueBulk(text: string): boolean {
   const t = text.toLowerCase();
-  if (!/\b(?:send|email|text|message|blast|forward)\b/.test(t) || !/\b(?:everyone|everybody|all of (?:them|my (?:contacts|clients|leads))|my whole list)\b/.test(t)) return false;
+  if (!/\b(?:send|email|text|message|blast|forward|draft|write|txt)\b/.test(t) || !/\b(?:everyone|everybody|all of (?:them|my (?:contacts|clients|leads))|my whole list)\b/.test(t)) return false;
   // "this"/"it" with nothing in the message that says what it is
-  return /\b(?:this|that|it)\b/.test(t) && !/\b(?:open house|listing|just listed|price|market|update|newsletter|about|saying|that says)\b/.test(t);
+  return /\b(?:this|that|it|smth|something|a message|a note|an email|a text)\b/.test(t) && !/\b(?:open house|listing|just listed|price|market|update|newsletter|about|saying|that says)\b/.test(t);
 }
 
 export async function vagueBulkHandler(_ctx: Ctx, _text: string): Promise<HandlerOut> {

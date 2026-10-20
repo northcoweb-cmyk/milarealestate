@@ -1,3 +1,4 @@
+import { InsufficientCredits, ensureCredits } from "../../credits";
 import { rentalCardsHandler } from "./marketdata";
 import { plainText } from "../plain";
 import { aiAvailable, estimateCost, getProvider } from "../../ai/provider";
@@ -64,6 +65,7 @@ function withContext(ctx: Ctx, text: string): string {
   return text;
 }
 
+const RESEARCH_MIN_CREDITS = 30;
 export async function clientSearchHandler(ctx: Ctx, textIn: string): Promise<HandlerOut> {
   const text = withContext(ctx, textIn);
   const rentals = await rentalCardsHandler(ctx, text); // "rentals under $2,000 in Austin": cards to swipe through, then who they are for
@@ -74,6 +76,9 @@ export async function clientSearchHandler(ctx: Ctx, textIn: string): Promise<Han
       type: "notice", tone: "info", title: "Saved request", body: text.slice(0, 900),
     }], "smalltalk");
   }
+  // research and comps are the heavy turns: check the balance BEFORE running, so an almost-empty account is told so instead of being overdrawn
+  try { await ensureCredits(ctx.userId, RESEARCH_MIN_CREDITS); }
+  catch (e) { if (e instanceof InsufficientCredits) return reply(`This kind of research (comps, market and neighborhood questions) uses more credits than you have left. You have ${e.balance} credits, and a research turn needs at least ${RESEARCH_MIN_CREDITS}; comps can use several times that. Nothing was run and nothing was charged.`, [{ type: "choice", title: "Add credits?", buttons: [{ label: "See credits", style: "primary", href: "/settings/credits" }] }], "smalltalk"); throw e; }
   ctx.steps.push("Reading the request");
   const known = await mentionedContacts(ctx, text); // only people the agent actually named
   const facts = known.length ? (await Promise.all(known.slice(0, 2).map(async (c) => `${c.name}: ${(await contactFacts(ctx, c)).join("; ") || "no saved details"}`))).join("\n") : "";
@@ -124,6 +129,6 @@ export async function clientSearchHandler(ctx: Ctx, textIn: string): Promise<Han
     return reply(plainText(`${j.bottom_line.trim()}${q}`), blocks, "market_research");
   } catch (e) {
     await logError({ source: "ai", message: `client_search: ${e instanceof Error ? e.message : e}`, userId: ctx.userId, email: ctx.profile.email });
-    return reply("I couldn't finish that research right now, and I don't want to guess. Your request is saved, so just say \"search again\" in a minute.", [], "smalltalk");
+    return reply("I couldn't finish that research right now, and I don't want to guess. Your request is saved, so just say \"search again\" in a minute.", [], "fallback");
   }
 }

@@ -10,10 +10,12 @@ import { createPosts, designSlides } from "../../content/service";
 import { llmDraftEmail } from "../llm";
 import { contactFacts } from "../memory";
 import { capitalisedNames, parseAddress } from "../nlu";
-import { TOOLS, invoke } from "../tools";
+import { TOOLS, invoke, logContactEvent } from "../tools";
 import { upcomingEvents } from "./calendar";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
+import { type Spec, atWord, bodyOf, channelOf, contentOf, purposeOf, subjectOf } from "../compose";
+import { finishEmailBody } from "../../signature";
 import { persistState } from "../conversation";
 import { resolveProperty } from "./listing";
 import { enrichProperty, resolveAddress } from "../property-lookup";
@@ -134,7 +136,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   if (!/\b(another|again|new one|different|redo|second|more|options?|variations?|versions?)\b/i.test(text) && requestedCount(text) <= 1) {
     const want = /open\s*house/i.test(text) ? "open house" : /\bprice\b/i.test(text) ? "price" : /\b(sold|congrat\w*|just closed)\b/i.test(text) ? "sold" : "just listed";
     const dup = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.property_id === prop.id && p.platform === platform && ["draft", "pending_approval", "ready"].includes(p.status) && Math.abs(ctx.now.getTime() - new Date(p.created_at).getTime()) < 48 * 3_600_000 * 4 && p.caption.toLowerCase().replace(/[^a-z ]/g, " ").includes(want) ).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-    if (dup) return reply(`You already have a ${want} post for ${prop.address} waiting. I didn't make a second one.`, [{ type: "choice", title: "What next?", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${dup.id}` }, { label: "Make another version", style: "secondary", action: { type: "prompt", text: `Make another ${want} post for ${prop.address}` } }] }], "smalltalk");
+    if (dup) return reply(`You already have ${/^[aeiou]/i.test(want) ? "an" : "a"} ${want} post for ${prop.address} waiting. I didn't make a second one.`, [{ type: "choice", title: "What next?", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${dup.id}` }, { label: "Make another version", style: "secondary", action: { type: "prompt", text: `Make another ${want} post for ${prop.address}` } }] }], "smalltalk");
   }
   const count = requestedCount(text);
   const blocks: Block[] = [];
@@ -193,43 +195,97 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
 export async function draftEmailHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   text = text.replace(/^\s*(?:(?:yah|yeah|yep|yes|ok|okay|sure|and|then|go ahead)[,.!\s]+)+/i, "");
   const addrIn = parseAddress(text);
+  const typedEmail = /[\w.+-]+@[\w-]+\.[\w.-]+/.exec(text)?.[0] ?? null;
+  // "starts Hi Hollis and Mae": the agent wrote the greeting, so that is the greeting
+  const greet = /\b(?:starts?|begin(?:s|ning)?|opens?)\s+(?:with\s+)?["“]?(?:Hi|Hello|Dear|Hey)\s+([\p{Lu}][\p{L}'’-]+(?:\s+(?:and|&)\s+[\p{Lu}][\p{L}'’-]+)?)/u.exec(text)?.[1] ?? null;
   // "Email him the homes we saw…": him/her/them means the person we were just talking about, never a street or a house name later in the sentence
   const pronTo = /^\s*(?:(?:please|can you|could you)\s+)?(?:email|e-mail|write|draft|send)\s+(?:to\s+)?(?:him|her|them)\b/i.test(text) && ctx.state.last_contact_ids?.length === 1;
-  const names = pronTo ? [] : capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:tell|let|notify)\s+(?:(?:her|him|them)\b(?:\s+know)?|(?=\p{Lu}))(?:\s+know)?)/iu, " ").replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " "));
+  const names = pronTo ? [] : capitalisedNames((addrIn ? text.replace(addrIn, " ") : text).replace(/^\s*(?:(?:tell|let|notify)\s+(?:(?:her|him|them)\b(?:\s+know)?|(?=\p{Lu}))(?:\s+know)?)/iu, " ").replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:draft|write|compose|send|prepare|create|make|email|e-mail)\b/i, " ").replace(/\b(?:starts?|begin(?:s|ning)?|opens?)\s+(?:with\s+)?["“]?(?:Hi|Hello|Dear|Hey)\s+[\p{Lu}][\p{L}'’-]+(?:\s+(?:and|&)\s+[\p{Lu}][\p{L}'’-]+)?/gu, " ")).filter((n) => !/^(?:Hi|Hello|Dear|Hey|Draft|Now|Can|Please)\b/.test(n) && !/\b(?:Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Court|Ct|Drive|Dr|Way|Boulevard|Blvd|Place|Pl|Circle|Cir|Terrace|Square|Sq|Highway|Hwy)\b\.?$/i.test(n));
   let c: Contact | null = null;
   // typed in lowercase ("email priya about the showing"): still a saved client by first name, and two of them is a question
   if (!pronTo && !names.length) {
-    const known = await mentionedContacts(ctx, text.replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:email|e-mail|write|draft|send|tell|let|notify)\b/i, " "));
-    const amb = ambiguousFirstName(text, known);
+    const known = await mentionedContacts(ctx, (greet ? `${greet} ` : "") + text.replace(/^\s*(?:(?:please|can you|could you)\s+)?(?:email|e-mail|write|draft|send|tell|let|notify)\b/i, " "));
+    const amb = greet ? null : ambiguousFirstName(text, known);
     if (amb) return askWhichPerson(text, amb);
-    if (known.length === 1) c = known[0];
+    if (known.length >= 1) c = known[0];
   }
+  if (!c && greet) c = (await mentionedContacts(ctx, greet))[0] ?? null; // "starts Hi Hollis and Mae": Hollis is who it is for
+  const role = /\b(?:to\s+)?the\s+(listing agent|buyer'?s?\s+agent|sellers?|lender|title (?:company|officer)|inspector|appraiser)\b/i.exec(text)?.[1]?.toLowerCase() ?? null;
   for (const n of names) { const r = (await TOOLS.get_contact.run(ctx, { name: n })) as any; if (r.ok && r.data.contacts.length === 1) { c = r.data.contacts[0]; break; } if (r.ok && r.data.contacts.length > 1) return reply(`Which ${n}?`, [{ type: "choice", title: `Which ${n}?`, buttons: r.data.contacts.slice(0, 5).map((x: Contact) => ({ label: `${x.name}${x.email ? ` · ${x.email}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: text.replace(n, x.name) } })) }]); }
-  // someone was named but isn't a contact: say so, never quietly send the draft to whoever came up last
-  if (!c && names.length) return askBack(ctx, "draft_email", text, "name", `I don't have ${names[0]} in your contacts. Who should the email go to? (Say their name, or add them first.)`);
-  if (!c && ctx.state.last_contact_ids?.length === 1) c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
-  if (!c) return askBack(ctx, "draft_email", text, "name", "Who is the email for?");
-  const facts = await contactFacts(ctx, c, { confirmedOnly: true });
-  // instructions about HOW to produce the draft ("draft only", "don't send it", "don't put anything on my calendar") are not its subject
-  const brief = text.replace(/[,;.]?\s*(?:and\s+)?(?:draft only|just (?:a )?draft(?: it)?|(?:do ?n['’]?t|do not|no need to|without)\s+[^.,;]*)/gi, "").replace(/\s{2,}/g, " ").trim();
-  const after = /\b(after|following|from)\s+(.{4,120}?)[.!?]*$/i.exec(brief);
-  // "email Gus the flyer for 12 Oak Lane": what comes after the recipient is the subject
-  const gave = /^\s*(?:(?:please|can you|could you)\s+)?(?:email|e-mail|write|draft|send)\s+(?:to\s+)?(?:him|her|them|\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)\s+((?:the|a|an|my)\s+.{3,100}?)[.!?]*$/iu.exec(brief);
-  const topic = after ? after[2].trim() : /\b(?:about|regarding|saying|to say|that)\b/i.test(brief) ? brief.replace(/^.*?\b(?:about|regarding|saying|to say|that)\b\s*/i, "").trim() || brief : gave ? gave[1].trim() : brief;
-  const ai = await llmDraftEmail(ctx, text, c.name, facts);
-  const hasTopic = !!topic && topic !== text && topic !== brief;
+  if (!c && !names.length && !typedEmail && !greet && !role && ctx.state.last_contact_ids?.length === 1) c = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]);
+  // someone was named but isn't a contact (a listing agent, a buyer's agent): the draft is still written, addressed by name, and they can be added
+  const outsider = !c ? names.find((n) => n.includes(" ")) ?? names[0] ?? null : null;
+  if (!c && !outsider && !typedEmail && !role) return askBack(ctx, "draft_email", text, "name", "Who is the email for?");
+  const prefs = c ? await contactFacts(ctx, c, { confirmedOnly: true }) : [];
+  // a saved "updates by text only" is the agent's own preference (even if Mila filed it as inferred): it decides the channel when the words don't
+  const channel = channelOf(text, c ? await contactFacts(ctx, c) : []);
+  if (channel === "text") return replyText(ctx, c, outsider ?? role ?? "", text, greet);
+  const recipientFirst = greet ?? (c ? firstName(c.name) : outsider ? firstName(outsider) : role ? "there" : "");
+  // "email Dana" with nothing to say and nobody saved: ask, rather than invent a message for a stranger
+  if (!c && !typedEmail && !role && contentOf(text, [outsider ?? "", greet ?? ""]).replace(/[\s.!?]+/g, "").length < 4) return askBack(ctx, "draft_email", text, "name", `I don't have ${outsider} in your contacts. Who should the email go to, and what should it say? (Say their name, or add them first.)`);
   // "email Maya the details for the apartments": her booked showings, with day, time and place, are the details
-  const mine = /\b(details|schedule|itinerary|showings?|tours?|apartments?|units?|properties|homes|addresses)\b/i.test(brief) ? (await upcomingWith(ctx, c)).filter((e) => e.kind === "showing" || /showing|tour/i.test(e.title)).slice(0, 6) : [];
-  const lines = mine.map((e) => `• ${fmtDay(e.start_at, ctx.tz)} at ${fmtTime(e.start_at, ctx.tz)}: ${(e.location || e.title.split("—").pop() || "").trim()}`);
-  const subject = ai?.subject ?? (lines.length ? `Your showing schedule` : `Following up${hasTopic ? ` — ${topic.slice(0, 50)}` : ""}`);
-  const body = (!ai?.body && lines.length) ? `Hi ${firstName(c.name)},\n\nHere is your showing schedule:\n\n${lines.join("\n")}\n\nLet me know if any time needs to change, and tell me what you think of each place.\n\n${signature(ctx.profile)}` : ai?.body ?? `Hi ${firstName(c.name)},\n\n${hasTopic ? `I wanted to follow up ${after ? after[1].toLowerCase() === "following" ? "following" : after[1].toLowerCase() : "about"} ${topic.replace(/[.!?]+$/, "")}.` : "I wanted to follow up."} Let me know a good time to talk.\n\n${signature(ctx.profile)}`;
-  const d = ((await TOOLS.draft_email.run(ctx, { contact_id: c.id, subject, body })) as any).data.draft as EmailDraft;
+  const sched = c && /\b(details|schedule|itinerary|showings?|tours?|apartments?|units?|properties|homes|addresses)\b/i.test(text) ? (await upcomingWith(ctx, c)).filter((e) => e.kind === "showing" || /showing|tour/i.test(e.title)).slice(0, 6) : [];
+  const spec: Spec = { channel: "email", purpose: purposeOf(text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, " ")), content: contentOf(text, [c?.name ?? "", c ? firstName(c.name) : "", outsider ?? "", greet ?? ""]), address: addrIn, recipientFirst, greetingNames: greet, me: firstName(ctx.profile.full_name) };
+  const facts = prefs;
+  const ai = await llmDraftEmail(ctx, text, c?.name ?? outsider ?? role, facts);
+  const schedLines = sched.map((e) => `• ${fmtDay(e.start_at, ctx.tz)} at ${fmtTime(e.start_at, ctx.tz)}: ${(e.location || e.title.split("—").pop() || "").trim()}`);
+  const body = schedLines.length ? finishEmailBody(`Hi ${firstName(c!.name)},\n\nHere is your showing schedule:\n\n${schedLines.join("\n")}\n\nLet me know if any time needs to change, and tell me what you think of each place.\n\nBest,\n${firstName(ctx.profile.full_name)}`, ctx.profile) : ai?.body ?? finishEmailBody(bodyOf(spec), ctx.profile);
+  const subject = schedLines.length ? "Your showing schedule" : ai?.subject ?? subjectOf(spec);
+  // "Desmond's email is x@y": the address the agent typed goes on the contact (and on the draft)
+  if (c && typedEmail && !c.email) { await ctx.store.update("contacts", ctx.userId, c.id, { email: typedEmail }); c = { ...c, email: typedEmail }; }
+  const toEmails = typedEmail ? [typedEmail] : c?.email ? [c.email] : [];
+  const d = ((await TOOLS.draft_email.run(ctx, { contact_id: c?.id ?? null, to_emails: c ? [] : toEmails, subject, body, property_id: null })) as any).data.draft as EmailDraft;
+  ctx.state.last_draft_id = d.id; ctx.state.last_draft_at = Date.now(); ctx.state.last_text = null;
   const out = await invoke(ctx, "send_email", { draftId: d.id });
-  const blocks: Block[] = [{ type: "draft_email", draftId: d.id, to: `${c.name}${c.email ? ` <${c.email}>` : ""}`, subject, body, status: "Draft", buttons: out.status === "needs_approval" ? [{ label: "Edit", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Open in email app", style: "primary", approvalId: out.approval.id }] : undefined }];
+  const toLabel = c ? `${c.name}${c.email ? ` <${c.email}>` : ""}` : `${outsider ?? (role ? `the ${role}` : "")}${typedEmail ? ` <${typedEmail}>` : ""}`.trim();
+  const blocks: Block[] = [{ type: "draft_email", draftId: d.id, to: toLabel, subject, body, status: "Draft", buttons: out.status === "needs_approval" ? [{ label: "Edit", style: "secondary", href: `/tasks?approval=${out.approval.id}` }, { label: "Open in email app", style: "primary", approvalId: out.approval.id }] : undefined }];
   if (out.status === "needs_approval") await ctx.store.update("email_drafts", ctx.userId, d.id, { status: "pending_approval" });
-  if (!c.email) blocks.push({ type: "notice", tone: "warn", title: `${c.name} has no email address`, body: "Add one in their profile before sending.", buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] });
+  if (c && !c.email) blocks.push({ type: "notice", tone: "warn", title: `${c.name} has no email address`, body: "Add one in their profile before sending.", buttons: [{ label: "Open profile", style: "secondary", href: `/contacts/${c.id}` }] });
+  if (!c && outsider) blocks.push({ type: "notice", tone: "info", title: `${outsider} isn't in your contacts`, body: "I wrote the draft anyway. Add them to keep their email and history.", buttons: [{ label: `Add ${firstName(outsider)} to contacts`, style: "secondary", action: { type: "prompt", text: `Add ${outsider} as a contact` } }] });
   if (wantsPhotos(text)) blocks.push(...(await sharePhotosBlock(ctx, text, body))); // photos go in an email only when the agent says so
-  return reply(ai ? `Here's a draft for ${firstName(c.name)}.` : `Here's a simple draft for ${firstName(c.name)}.`, blocks, "email_generation");
+  const who = c ? firstName(c.name) : outsider ? firstName(outsider) : role ? `the ${role}` : "them";
+  return reply(ai ? `Here's a draft for ${who}.` : `Here's a draft for ${who}, written from what you told me. Edit anything before you send it.`, blocks, "email_generation");
+}
+
+/** A text message: short, in the agent's voice, from the specifics they gave. It opens in their own Messages app; Mila never sends it. */
+async function replyText(ctx: Ctx, c: Contact | null, outsider: string, text: string, greet: string | null): Promise<HandlerOut> {
+  const first = c ? firstName(c.name) : outsider ? firstName(outsider) : "";
+  const words = [c?.name ?? "", first, outsider, greet ?? ""];
+  const content = contentOf(text, words);
+  const spec: Spec = { channel: "text", purpose: purposeOf(text), content, address: parseAddress(text), recipientFirst: first || "there", greetingNames: greet, me: firstName(ctx.profile.full_name) };
+  const msg = bodyOf(spec);
+  const phone = c?.phone?.replace(/[^\d+]/g, "") ?? "";
+  const href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
+  if (c) await logContactEvent(ctx, c.id, "text", "Text drafted", msg);
+  if (c) { ctx.state.last_contact_ids = [c.id]; ctx.state.pending_text = { contact_id: c.id, name: c.name, at: Date.now() }; }
+  ctx.state.last_text = { to: c?.id ?? null, name: c?.name ?? outsider, text: msg, at: Date.now() };
+  await persistState(ctx);
+  return reply(`Here's the text${first ? ` to ${first}` : ""}:\n\n“${msg}”\n\n${phone ? "Tap below and it opens in your Messages, ready to send." : `${first ? `I don't have a number for ${first} yet — tap` : "Tap"} below to pick them in Messages.`} I don't send texts myself, so nothing goes out until you tap Send.`, [{
+    type: "choice", title: `Text ${first || "them"}`,
+    buttons: [{ label: "Open in Messages", style: "primary", href }, { label: "Copy text", style: "secondary", action: { type: "copy", text: msg } as never }, ...(c ? [{ label: "Open profile", style: "quiet" as const, href: `/contacts/${c.id}` }] : [])],
+  }], "chat_simple");
+}
+
+/** "that draft is too generic, rewrite it to say …": the draft already made is rewritten in place, to the same person. */
+export async function reviseDraftHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const instruction = text.replace(/^[^,.]*?(?:too generic|doesn'?t (?:mention|say|include)[^.,]*|not right|wrong)[.,]?\s*/i, "").replace(/^\s*(?:(?:ok|okay|so|then|please)[,\s]+)*(?:rewrite|redo|rework|revise|fix|change|update)\s+(?:it|that|the draft|this|the email|the text)\s*(?:to say|so it says|:|-|and|to)?\s*/i, "").trim();
+  if (!instruction) return reply("Tell me what the message should say and I'll rewrite it.", [], "smalltalk");
+  const lastText = ctx.state.last_text && Date.now() - ctx.state.last_text.at < 60 * 60_000 ? ctx.state.last_text : null;
+  const draft = ctx.state.last_draft_id ? await ctx.store.get("email_drafts", ctx.userId, ctx.state.last_draft_id) : null;
+  if (draft && (!lastText || (ctx.state.last_draft_at ?? 0) >= lastText.at)) {
+    const c = draft.contact_id ? await ctx.store.get("contacts", ctx.userId, draft.contact_id) : null;
+    const spec: Spec = { channel: "email", purpose: purposeOf(instruction), content: instruction, address: parseAddress(`${instruction} ${draft.subject}`), recipientFirst: c ? firstName(c.name) : /^Hi ([^,\n]+)/.exec(draft.body)?.[1] ?? "there", me: firstName(ctx.profile.full_name) };
+    const subject = subjectOf(spec), body = finishEmailBody(bodyOf(spec), ctx.profile);
+    await ctx.store.update("email_drafts", ctx.userId, draft.id, { subject, body } as never);
+    return reply("Rewritten. This replaces the earlier draft, and nothing was sent.", [{ type: "draft_email", draftId: draft.id, to: c ? `${c.name}${c.email ? ` <${c.email}>` : ""}` : (draft.to_emails[0] ?? ""), subject, body, status: "Draft" }], "email_generation");
+  }
+  if (lastText) {
+    const spec: Spec = { channel: "text", purpose: purposeOf(instruction), content: instruction, address: parseAddress(instruction), recipientFirst: firstName(lastText.name ?? "") || "there", me: firstName(ctx.profile.full_name) };
+    const msg = bodyOf(spec);
+    ctx.state.last_text = { ...lastText, text: msg, at: Date.now() }; await persistState(ctx);
+    return reply(`Rewritten:\n\n“${msg}”\n\nNothing was sent.`, [], "chat_simple");
+  }
+  return reply("I don't have a draft from this chat to rewrite. Tell me who it's for and what to say, and I'll write a new one.", [], "smalltalk");
 }
 
 export { fmtDay, fmtRange };
