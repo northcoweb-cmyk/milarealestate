@@ -16,5 +16,6 @@ export async function GET(req: Request) {
   const sig = oauthStateSig(nonce, uid);
   if (!sig) return NextResponse.redirect(new URL("/settings/connections?error=not_configured", req.url));
   (await cookies()).set("mila_oauth", `${nonce}.${sig}`, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 600 });
+  (await cookies()).set("mila_oauth_svc", wanted.join(","), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 600 });
   return NextResponse.redirect(authUrl(wanted, nonce));
 }

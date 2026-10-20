@@ -156,7 +156,8 @@ function Connections() {
   const SHOWN = ["google_calendar", "apple_calendar", "google_contacts", "google_sheets", "mls"];
   const NAME: Record<string, string> = { google_gmail: "Gmail", google_calendar: "Google Calendar", apple_calendar: "Apple Calendar", google_contacts: "Google Contacts", google_sheets: "Google Sheets", mls: "MLS" };
   const startHref = (i: Integration) => (i.id === "apple_calendar" ? "/calendar" : `/api/integrations/google/start?services=${i.services?.join(",") ?? "gmail"}`);
-  async function off(i: Integration) { setBusy(i.id); try { await jfetch("/api/integrations/google/disconnect", { method: "POST" }); await reload(); toast("Disconnected.", "success"); } finally { setBusy(null); } }
+  async function off(i: Integration) { setBusy(i.id); try { await jfetch("/api/integrations/google/disconnect", { method: "POST", json: { service: i.services?.[0] } }); await reload(); toast(`${NAME[i.id] ?? "That connection"} is disconnected. Your other connections stay on.`, "success"); } finally { setBusy(null); } }
+  async function test(i: Integration) { setBusy(`t-${i.id}`); try { const r = await jfetch<{ ok: boolean; message: string }>("/api/integrations/google/test", { method: "POST", json: { service: i.services?.[0] } }); toast(r.message, r.ok ? "success" : "error"); } catch { toast("Couldn't run the test.", "error"); } finally { setBusy(null); } }
   if (loading) return <Skeleton className="h-96" />;
   return (
     <div className="space-y-3">
@@ -167,6 +168,7 @@ function Connections() {
           <ServiceLogo id={i.id} />
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{NAME[i.id] ?? i.name}</p><Pill tone={tone}>{t}</Pill></div><p className="muted text-[14px]">{i.status === "connected" && i.detail ? i.detail : i.description}</p>{i.id === "mls" && <p className="faint mt-1 text-[13px]">{i.detail}</p>}</div>
           {live && <a className="btn btn-primary btn-sm" href={startHref(i)}>{i.status === "error" ? "Reconnect" : i.id === "apple_calendar" ? "Set up" : "Connect"}</a>}
+          {i.status === "connected" && i.id !== "mls" && i.services && <button className="btn btn-sm" disabled={busy === `t-${i.id}`} onClick={() => test(i)}>{busy === `t-${i.id}` ? "Testing…" : "Test"}</button>}
           {i.status === "connected" && i.id !== "mls" && <button className="btn btn-sm" disabled={busy === i.id} onClick={() => off(i)}>Disconnect</button>}
         </div>); })}
       <p className="faint px-2 pt-2 text-[13px]">You can disconnect any time.</p>

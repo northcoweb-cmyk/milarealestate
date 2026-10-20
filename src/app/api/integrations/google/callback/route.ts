@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { oauthStateSig } from "@/lib/integrations/oauth-state";
 import { cookies } from "next/headers";
 import { getUserId } from "@/lib/auth";
-import { exchangeCode, saveConnection } from "@/lib/integrations/google";
+import { GOOGLE_SCOPES, exchangeCode, saveConnection, type GoogleService } from "@/lib/integrations/google";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -15,13 +15,15 @@ export async function GET(req: Request) {
   const jar = await cookies();
   const cookie = jar.get("mila_oauth")?.value;
   jar.delete("mila_oauth");
+  const requested = (jar.get("mila_oauth_svc")?.value ?? "").split(",").filter((x): x is GoogleService => x in GOOGLE_SCOPES && x !== "base");
+  jar.delete("mila_oauth_svc");
   if (!code || !state || !cookie) return back("error=state");
   const [nonce, sig] = cookie.split(".");
   const exp = oauthStateSig(nonce ?? "", uid);
   if (!exp || !sig || nonce !== state || sig.length !== exp.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(exp))) return back("error=state");
   try {
     const { tokens, scopes } = await exchangeCode(code);
-    await saveConnection(uid, tokens, scopes);
+    await saveConnection(uid, tokens, scopes, requested.length ? requested : undefined);
     return back("connected=google");
   } catch {
     return back("error=exchange");

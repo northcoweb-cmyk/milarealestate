@@ -49,13 +49,16 @@ export async function accountEmail(accessToken: string) {
   return r.ok ? ((await r.json()) as { email?: string }).email ?? null : null;
 }
 
-export async function saveConnection(userId: string, tokens: Tokens, scopes: string[]) {
+export async function saveConnection(userId: string, tokens: Tokens, scopes: string[], requested?: GoogleService[]) {
   const store = getStore();
   const existing = (await store.list("integrations", userId)).find((i) => i.provider === "google");
   const email = await accountEmail(tokens.access_token);
   const prev = existing?.token_encrypted ? (JSON.parse(decrypt(existing.token_encrypted)) as Tokens) : null;
   const merged: Tokens = { ...tokens, refresh_token: tokens.refresh_token ?? prev?.refresh_token };
-  const allScopes = [...new Set([...(existing?.scopes ?? []), ...scopes])]; // connecting Calendar must not drop an earlier Contacts or Sheets connection
+  // connecting Calendar must not drop an earlier Contacts or Sheets connection, and Google reports every permission ever granted (even one the agent
+  // already disconnected here), so only the services asked for THIS time (and still granted) are added back
+  const asked = requested ? requested.flatMap((x) => GOOGLE_SCOPES[x]).filter((x) => scopes.includes(x)) : scopes;
+  const allScopes = [...new Set([...(existing?.scopes ?? []), ...GOOGLE_SCOPES.base.filter((x) => scopes.includes(x)), ...asked])];
   const data = { provider: "google" as const, status: "connected" as const, account_label: email, scopes: allScopes, token_encrypted: encrypt(JSON.stringify(merged)), error: null, connected_at: new Date().toISOString() };
   return existing ? store.update("integrations", userId, existing.id, data) : store.insert("integrations", userId, data);
 }
@@ -64,6 +67,31 @@ export async function getGoogle(userId: string): Promise<(Integration & { hasSco
   const row = (await getStore().list("integrations", userId)).find((i) => i.provider === "google" && i.status === "connected");
   if (!row) return null;
   return Object.assign(row, { hasScope: (s: GoogleService) => GOOGLE_SCOPES[s].every((x) => row.scopes.includes(x)) || GOOGLE_SCOPES[s].some((x) => row.scopes.includes(x)) });
+}
+
+/** Turns off ONE Google service (Calendar, Contacts, Sheets or Gmail) and leaves the others connected. When none is left the sign-in is revoked and removed. */
+export async function disconnectGoogleService(userId: string, service: GoogleService): Promise<{ remaining: GoogleService[] }> {
+  const store = getStore();
+  const row = (await store.list("integrations", userId)).find((x) => x.provider === "google");
+  if (!row) return { remaining: [] };
+  const drop = new Set(GOOGLE_SCOPES[service]);
+  const scopes = row.scopes.filter((x) => !drop.has(x));
+  const remaining = (["calendar", "gmail", "contacts", "sheets"] as GoogleService[]).filter((sv) => GOOGLE_SCOPES[sv].some((x) => scopes.includes(x)));
+  if (!remaining.length) { await disconnectGoogle(userId); return { remaining: [] }; }
+  await store.update("integrations", userId, row.id, { scopes });
+  return { remaining };
+}
+
+/** A real call to Google for one service, so "Test" tells the truth. */
+export async function testGoogleService(userId: string, service: GoogleService): Promise<{ ok: boolean; message: string }> {
+  try {
+    const row = await getGoogle(userId);
+    if (!row || !row.hasScope(service)) return { ok: false, message: "That isn't connected." };
+    if (service === "calendar") { await g(userId, "https://www.googleapis.com/calendar/v3/calendars/primary"); return { ok: true, message: "Google Calendar answered. Mila can add events." }; }
+    if (service === "contacts") { await g(userId, "https://people.googleapis.com/v1/people/me/connections?pageSize=1&personFields=names"); return { ok: true, message: "Google Contacts answered." }; }
+    await accessToken(userId);
+    return { ok: true, message: service === "sheets" ? "Google Sheets is connected." : "Connected." };
+  } catch (e) { return { ok: false, message: e instanceof GoogleError && e.code === "reauth" ? "Google needs your permission again. Tap Reconnect." : "Google didn't answer. Try again in a minute." }; }
 }
 
 export async function disconnectGoogle(userId: string) {
