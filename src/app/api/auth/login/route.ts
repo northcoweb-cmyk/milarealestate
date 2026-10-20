@@ -10,8 +10,14 @@ export async function POST(req: Request) {
   if (!email || typeof email !== "string" || email.length > 254) return NextResponse.json({ error: "Enter your email." }, { status: 400 });
   if (authMode() === "supabase") {
     const base = supabaseUrl(), anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const r = await fetch(`${base}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: anon, "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
-    const d = await r.json();
+    const r = await fetch(`${base}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: anon, "content-type": "application/json" }, body: JSON.stringify({ email, password }), signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    // a wrong password is a 400/401; anything else (no answer, 5xx, paused project, bad key) is OUR problem and must not read as "wrong password"
+    if (!r || ![200, 400, 401, 422].includes(r.status)) {
+      const { logError } = await import("@/lib/server/errors");
+      await logError({ source: "api", level: "error", message: `Sign-in: the auth service ${r ? `answered HTTP ${r.status}` : "did not answer"}. Check the Supabase project is running and the keys are current.`, route: "POST /api/auth/login" });
+      return NextResponse.json({ error: "Sign-in is having a problem on our side, not with your password. Please try again in a minute." }, { status: 503 });
+    }
+    const d = await r.json().catch(() => ({}));
     if (!r.ok) return NextResponse.json({ error: "That email and password don't match." }, { status: 401 });
     const store = getStore();
     if (!(await store.get("profiles", d.user.id, d.user.id))) await createProfile({ id: d.user.id, email: String(d.user.email || email), full_name: d.user.user_metadata?.full_name || email.split("@")[0] });
