@@ -1,4 +1,5 @@
 import { createPosts } from "../content/service";
+import { adviceHandler } from "./handlers/advice";
 import { calcHandler } from "./handlers/calc";
 import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
@@ -519,6 +520,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "calc": return calcHandler(ctx, text);
     case "inbox_query": return inboxHandler();
     case "describe_home": return describeHomeHandler(ctx, text);
+    case "advice": return adviceHandler(ctx, text);
     case "another_version": {
       const last = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => !["archived", "posted"].includes(p.status)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       if (!last) return reply("I don't have a post to make another version of yet. Want me to make one?", [], "smalltalk");

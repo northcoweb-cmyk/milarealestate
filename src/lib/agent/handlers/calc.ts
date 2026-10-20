@@ -11,6 +11,7 @@ import { mentionedContacts } from "./contacts";
 import { type HandlerOut, reply } from "./types";
 import { startOfDay } from "../../time";
 
+export const amountsIn = (text: string): number[] => amounts(text);
 const amounts = (text: string): number[] =>
   [...text.matchAll(/\$?\s?(\d[\d,]*(?:\.\d+)?)\s?(k|m)\b|\$\s?(\d[\d,]*(?:\.\d+)?)|\b(\d{1,3}(?:,\d{3})+)\b/gi)]
     .map((m) => { const n = parseFloat((m[1] ?? m[3] ?? m[4]).replace(/,/g, "")); return /k/i.test(m[2] ?? "") ? n * 1000 : /m/i.test(m[2] ?? "") ? n * 1e6 : n; })
@@ -135,6 +136,6 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
     }
     case "unknown_fact":
     default:
-      return reply("I don't have that figure on file and I won't guess. Property tax rates and HOA fees come from the county and the association: check the listing sheet or MLS record, tell me the amount, and I'll save it on the home and use it in payment estimates.", [], "chat_simple");
+      return reply("I don't have that figure on file and I won't guess. HOA and condo fees vary a lot by building and community, and property tax rates by county. They come from the county and the association: check the listing sheet or MLS record, tell me the amount, and I'll save it on the home and use it in payment estimates.", [], "chat_simple");
   }
 }

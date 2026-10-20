@@ -6,7 +6,8 @@ const GROUP = "white|black|asian|hispanic|latino|latina|latinx|african|mexican|c
 const PEOPLE = "couples?|families|family|buyers?|people|folks|professionals|singles|renters|tenants|residents|neighbors|neighbours|crowd|community";
 
 const STEER: RegExp[] = [
-  new RegExp(`\\b(?:perfect|ideal|great|best|suitable|good|only|exclusively|target|market(?:ed)?(?: it)?(?: to)?|appeal(?:s|ing)? to|aimed at|geared (?:to|toward)|for)\\s+(?:for\\s+|to\\s+)?(?:(?:${GROUP})(?:\\s+and\\s+|,\\s*|\\s+))+(?:${PEOPLE})\\b`, "i"),
+  new RegExp(`\\b(?:perfect|ideal|great|best|suitable|good|only|exclusively|target|market(?:ed)?(?: (?:it|this|that|these|the (?:home|listing|property)))?(?: to)?|appeal(?:s|ing)? to|aimed at|geared (?:to|toward)|for)\\s+(?:for\\s+|to\\s+)?(?:(?:${GROUP})(?:\\s+and\\s+|,\\s*|\\s+))+(?:${PEOPLE})\\b`, "i"),
+  /\b(?:perfect|ideal|great|best|suitable|good|only|for)\s+(?:for\s+)?(?:an?\s+)?(?:family|families|couple|couples|buyers?|people)\s+(?:with)?out\s+(?:any\s+)?(?:kids|children)\b|\b(?:child|kid)[- ]?free\b/i,
   /\bno (?:kids|children|families|section 8|disabled|handicapped|wheelchairs?|minorities|foreigners)\b/i,
   /\b(?:adults?|singles?|couples?|families|seniors?|christians?|whites?) only\b/i,
   /\bnot (?:suitable|good|ideal|right|safe) for (?:the )?(?:disabled|handicapped|wheelchair\w*|elderly|families|kids|children|minorities|seniors)\b/i,

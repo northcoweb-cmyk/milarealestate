@@ -275,6 +275,7 @@ export function namedThing(text: string): string | null {
   return obj.split(/\s+/).map((w, i) => (i > 0 && /^(?:with|for|of|and|the|a|an|at|in|to)$/i.test(w) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
 }
 
+const US_STATES = new Set("AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split(" "));
 export async function createEventHandler(ctx: Ctx, text: string, kindHint?: CalendarEvent["kind"], title?: string, contactId?: string | null, propertyId?: string | null): Promise<HandlerOut> {
   text = text.replace(/\bw\/\s*/gi, "with ").replace(/(?<!\d )\bw\s+(?=\p{L}{2})/giu, "with ");
   const w = parseWhen(text, ctx.now, ctx.tz);
@@ -402,6 +403,13 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
   const rule = (await ctx.store.list("memories", ctx.userId)).find((m) => new RegExp(`\\b(never|don't|do not|no)\\b.*\\b${dayName}s?\\b`, "i").test(`${m.key} ${m.value}`) && /\b(show|open house|work|meet|book)/i.test(`${m.key} ${m.value}`));
   if (rule) ahead.note += `\n\n⚠️ Heads up: you told me “${rule.value.slice(0, 80)}”. It's booked, say the word if you want it moved.`;
   const unsynced: Block[] = syncPending ? [{ type: "notice", tone: "warn", title: "Saved in Mila, not on Google Calendar yet", body: `${syncNote ?? "Google Calendar didn't answer."} Nothing is lost, and asking again won't create a second copy.`, buttons: [{ label: "Retry sync", style: "primary", action: { type: "sync_event", eventId: ev.id } }] }] : [];
+  // a showing or open house in another state than the one the agent is licensed in: say so before it becomes a problem
+  if (["showing", "open_house", "meeting"].includes(ev.kind) || /showing|open house/i.test(ev.title)) {
+    const lic = ((await ctx.store.list("businesses", ctx.userId))[0] as { license_state?: string | null } | undefined)?.license_state?.toUpperCase() || null;
+    const evProp = ev.property_id ? await ctx.store.get("properties", ctx.userId, ev.property_id) : null;
+    const st = evProp?.state?.toUpperCase() ?? new RegExp("(?:,\\s*|\\s)([A-Z]{2})(?:\\s+\\d{5})?\\b").exec(`${ev.location ?? ""} ${ev.title}`.replace(/\b(?:AM|PM|OH)\b/g, ""))?.[1];
+    if (lic && st && /^[A-Z]{2}$/.test(st) && st !== lic && US_STATES.has(st)) ahead.note += `\n\n⚠️ This one is in ${st}, and your profile says you're licensed in ${lic}. Check with your broker whether you can show or list there, or need a local agent and a referral.`;
+  }
   // an event more than a week out says its date ("Tuesday, Oct 27 • 3:00 PM"), so "Tuesday" can never mean the wrong one
   const farOut = new Date(ev.start_at).getTime() - ctx.now.getTime() > 6 * 86_400_000;
   const whenLabel = farOut ? `${fmtDay(ev.start_at, ctx.tz)}, ${fmtShortDate(ev.start_at, ctx.tz)} • ${fmtTime(ev.start_at, ctx.tz)}` : fmtDayTime(ev.start_at, ctx.tz);
