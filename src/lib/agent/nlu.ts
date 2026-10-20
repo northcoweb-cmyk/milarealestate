@@ -448,7 +448,7 @@ export function parseLocation(text: string): string | null {
   const county = /\b((?:[A-Z][a-z]+\s+)+County)\b/.exec(text);
   if (county) return county[1];
   const m = /\b(?:in|around|near|within|throughout)\s+((?:[A-Z][a-zA-Z.'-]+)(?:\s+[A-Z][a-zA-Z.'-]+){0,2}(?:,\s*[A-Z]{2})?)(?=[\s,.!?]|$)/.exec(text);
-  if (m && !NAME_STOP.has(m[1])) return m[1];
+  if (m && !NAME_STOP.has(m[1])) return m[1].replace(/\.(?=,)/g, "").replace(/,\s*([A-Z]{2})(?:,\s*\1)+/g, ", $1"); // "Rockville., MD, MD" is "Rockville, MD"
   return null;
 }
 
@@ -456,10 +456,10 @@ export type ContactTypeGuess = "buyer" | "seller" | "rental" | "investor" | "lea
 export function parseContactType(text: string): ContactTypeGuess {
   const t = text.toLowerCase();
   if (/\bpast client\b/.test(t)) return "past_client";
-  if (/\binvestor\b/.test(t)) return "investor";
-  if (/\b(renter|tenant|rental client|looking to rent|rental)\b/.test(t)) return "rental";
-  if (/\bseller\b|\blisting (?:my|their|her|his)\b|\bsell(?:ing)? (?:my|her|his|their)\b/.test(t)) return "seller";
-  if (/\bbuyer\b|\blooking (?:to buy|for a (?:house|home|condo|townhome))\b/.test(t)) return "buyer";
+  if (/\binvestors?\b/.test(t)) return "investor";
+  if (/\b(renters?|tenants?|rental client|looking to rent|rental)\b/.test(t)) return "rental";
+  if (/\bsellers?\b|\blisting (?:my|their|her|his)\b|\bsell(?:ing)? (?:my|her|his|their)\b/.test(t)) return "seller";
+  if (/\bbuyers?\b|\blooking (?:to buy|for a (?:house|home|condo|townhome))\b/.test(t)) return "buyer";
   if (/\blead\b/.test(t)) return "lead";
   return null;
 }

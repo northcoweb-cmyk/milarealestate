@@ -400,7 +400,7 @@ export async function relatedContactHandler(ctx: Ctx, text: string): Promise<Han
 }
 
 const FACT_CUES: RegExp[] = [
-  /\b(?:budget|max(?:imum)? (?:rent|price|budget)|under|up to|pre-?approved)\b[^.;]{0,25}\$\s?\d/i,
+  /\b(?:budget|max(?:imum)? (?:rent|price|budget)|under|up to|pre-?approved)\b[^.;]{0,25}(?:\$\s?\d|\b\d[\d,.]*\s?[km]\b)/i,
   /\b(?:near|close to|around|in)\s+[A-Z][\p{L}.'’ -]{2,30}/u,
   /\b(?:moving|move-?in|moves|relocating|closing|lease (?:ends|expires))\b/i,
   /\b(?:has|have|with)\s+(?:an?\s+|two\s+|\d+\s+)?(?:cat|dog|pet|kid|child|children|baby)s?\b/i,
@@ -408,11 +408,14 @@ const FACT_CUES: RegExp[] = [
   /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/,
   /\b(?:wants?|needs?|looking for)\s+(?:a\s+|an\s+)?\d*\s?(?:bed|bd|br|bath|ba|garage|yard|parking)/i,
 ];
-export const factCueCount = (text: string): number => FACT_CUES.filter((r) => r.test(text)).length;
+export const factCueCount = (text: string): number => FACT_CUES.filter((r) => r.test(text)).length + (/^\s*(?:(?:ok|and|also|so)[,\s]+)*(?:she|he|they)(?:'s|'ll| is| are| has| have| wants?| also)\b/i.test(text) && FACT_CUES.some((r) => r.test(text)) ? 1 : 0); // "she's also pre-approved for 500k": one fact about the person just discussed is enough
 
 /** "Her budget is under $3,200/month, she wants to be near Bethesda Metro, she's moving Dec 1 and has a cat. Phone is 240-555-0142": one person, several facts, one clean save. Returns null when it can't tell who it is about. */
 export async function contactFactsHandler(ctx: Ctx, text: string): Promise<HandlerOut | null> {
   if (/\?\s*$/.test(text) || /\n/.test(text) || factCueCount(text) < 2) return null;
+  // budget and wants alone belong to the older learn flow (it also flags a contradiction like a "seller" who is pre-approved); this handles the rest
+  const pronounLead = /^\s*(?:(?:ok|and|also|so)[,\s]+)*(?:she|he|they|her|his|their)\b/i.test(text);
+  if (!pronounLead && ![1, 2, 3, 4, 5].some((i) => FACT_CUES[i].test(text))) return null;
   // a call, meeting or visit being reported is a log entry (handled by the interaction flow), not a profile edit
   if (/\b(?:just )?(?:got off|hung up|spoke (?:to|with)|talked (?:to|with)|met with|ran into|came by|stopped by|called|texted|emailed)\b/i.test(text)) return null;
   if (/^\s*(?:draft|write|email|text|send|schedule|remind|add a|create|make|book|set up)\b/i.test(text) || /\b\d{1,2}(?::\d\d)?\s?(?:am|pm)\b/i.test(text)) return null;
@@ -425,7 +428,7 @@ export async function contactFactsHandler(ctx: Ctx, text: string): Promise<Handl
   const saved: string[] = [];
   const phone = parsePhone(text); if (phone && phone !== c.phone) { patch.phone = phone; saved.push(`Phone: ${phone}`); }
   const email = parseEmail(text); if (email && email !== c.email) { patch.email = email; saved.push(`Email: ${email}`); }
-  const bm = /\b(?:budget|max(?:imum)?(?: rent| price| budget)?|under|up to|pre-?approved(?: for)?)\b[^.;]{0,25}?(\$\s?\d[\d,.]*\s?(?:k|m)?)/i.exec(text);
+  const bm = /\b(?:budget|max(?:imum)?(?: rent| price| budget)?|under|up to|pre-?approved(?: for)?)\b[^.;]{0,25}?(\$?\s?\d[\d,.]*\s?(?:k|m)?)\b/i.exec(text);
   if (bm) { const v = parseMoney(bm[1]).max; if (v) { patch.budget_max = v; const rent = /\brent|\/\s?mo|per month|month\b/i.test(bm[0] + text.slice(text.indexOf(bm[0]), text.indexOf(bm[0]) + bm[0].length + 12)); saved.push(`${rent ? "Max rent" : "Budget"}: ${fullMoney(v)}${rent ? "/month" : ""}`); if (rent && c.type === "buyer") patch.type = "rental"; }
   }
   const near = /\b(?:near|close to)\s+([A-Z][\p{L}.'’ -]{2,40}?)(?=[,.;]|\s+(?:and|but|she|he|they)\b|$)/u.exec(text);

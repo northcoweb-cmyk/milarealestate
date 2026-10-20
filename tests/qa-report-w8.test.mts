@@ -49,3 +49,13 @@ test("W8: a correction to one field applies; 'Describe the home itself' describe
   await say(a, "Draft an email to Tobias Reed saying the photos are ready");
   assert.match(await say(a, "no i said a TEXT message not email"), /text to Tobias/);
 });
+
+test("W1 follow-ups: a couple is one household contact, plural roles work, 'Rockville., MD, MD' is cleaned, 'she is also pre-approved' goes to the person just added", async () => {
+  const a = await newAgent({ now, tz: "America/New_York", seed: false });
+  await a.say("Add Hollis and Mae Brandt as sellers, 301-555-0123");
+  assert.ok((await store.list("contacts", a.id)).some((c: any) => /Hollis & Mae Brandt/.test(c.name) && c.type === "seller"));
+  await a.say("Add a buyer Sam Rivera, budget 600k, looking in Rockville., MD, MD");
+  const sam = (await store.list("contacts", a.id)).find((c: any) => c.name === "Sam Rivera") as any;
+  assert.equal(sam.location, "Rockville, MD");
+  assert.match(await say(a, "she is also pre-approved for 500k"), /Sam's profile[\s\S]*\$500,000/);
+});
