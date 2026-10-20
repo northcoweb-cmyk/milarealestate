@@ -1,6 +1,7 @@
 import { Shell } from "@/components/shell";
 import { Checklist } from "@/components/checklist";
 import { TopupButton } from "@/components/topup-button";
+import { TesterTopupSwitch } from "@/components/tester-topup-switch";
 import { ExtendTrial, GrantCredits } from "@/components/admin-actions";
 import { Pill, Section } from "@/components/ui";
 import { isAuthed } from "@/lib/auth";
@@ -36,7 +37,7 @@ export default async function Launch() {
           <li><b>Voice:</b> speech is metered in credits; check the AI provider balance covers it.</li>
         </ul><p className="mute" style={{ marginTop: 10, fontSize: 13 }}>The in-app daily AI cap (<b>MILA_DAILY_AI_BUDGET_USD</b>, default $40) and the free-trial pool ($20) stop a runaway before it drains an account.</p></div>
       </Section>
-      <Section title="Before testing"><TopupButton /></Section>
+      <Section title="Before testing"><TopupButton /><div style={{ marginTop: 14 }}><TesterTopupSwitch /></div></Section>
       <Section title="Grant credits (audited)"><GrantCredits /></Section>
       <Section title="Extend a free trial (audited)"><ExtendTrial /></Section>
       <Section title="Go / no-go checklist"><Checklist /></Section>

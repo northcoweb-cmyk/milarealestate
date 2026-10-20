@@ -629,6 +629,8 @@ export interface AppConfig {
   dev_credits: number; // credits granted to accounts when billing isn't configured
   /** the free trial new signups start on (no card). Optional so configs saved before it existed keep working. */
   trial?: { days: number; credits: number; ai_budget_usd: number; pool_usd?: number };
+  /** test accounts get +3,000 credits whenever they run low; Mila OS can switch that off so a tester runs down like a real user (default on) */
+  tester_topup?: boolean;
 }
 
 export const TABLES = [

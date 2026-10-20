@@ -17,7 +17,8 @@ import { Faq } from "@/components/faq";
 const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T10:00:00-04:00";
 
 const PLANS = [
-  { name: "Mila", price: "$39", per: "/month", blurb: "For the agent who wants their day handled.", hot: true, cta: "join", points: ["Calendar, follow-ups, posts and emails", "Listing and open house posts with your photos", "Market and property research", "Monthly credits included", "7-day free trial, cancel any time", "Annual option: $390/year, two months free plus 500 bonus credits"] },
+  { name: "Mila", price: "$39", per: "/month", blurb: "For the agent who wants their day handled.", hot: true, cta: "join", points: ["Calendar, follow-ups, posts and emails", "Listing and open house posts with your photos", "Market and property research", "Monthly credits included", "7-day free trial, cancel any time"] },
+  { name: "Mila Annual", price: "$390", per: "/year", blurb: "Two months free, billed once a year.", hot: false, cta: "join", points: ["Everything in Mila", "Two months free vs. monthly ($32.50 a month)", "500 bonus credits when you start", "Credits delivered every month", "7-day free trial, cancel any time"] },
   { name: "Team", price: "Custom", per: "", blurb: "For teams and small brokerages.", hot: false, cta: "contact", points: ["Your team's logo and look", "Shared pipeline", "Invite links for every agent", "Set up around your CRM and MLS"] },
 ];
 
@@ -136,7 +137,7 @@ export default function Page() {
           <Reveal><p className="text-center text-[12.5px] font-semibold uppercase tracking-[.2em] text-iris">Simple pricing</p>
             <h2 className="display mx-auto mt-3 max-w-3xl text-balance text-center text-[clamp(36px,6vw,64px)]">Try Mila free for 7 days.</h2>
             <p className="mx-auto mt-4 max-w-xl text-balance text-center text-[17px] text-muted-foreground">No card to start. Cancel any time. No contracts.</p></Reveal>
-          <div className="mx-auto mt-12 grid max-w-3xl items-stretch gap-4 md:grid-cols-2">
+          <div className="mx-auto mt-12 grid max-w-5xl items-stretch gap-4 md:grid-cols-3">
             {PLANS.map((p, i) => (
               <Reveal key={p.name} delay={i * 0.1}>
                 <div className={`relative flex h-full flex-col rounded-[28px] p-7 ${p.hot ? "text-white shadow-[0_30px_70px_-30px_rgba(110,80,230,.7)]" : "border border-border bg-white"}`} style={p.hot ? { background: "linear-gradient(160deg,#6f8dff 0%,#7b63e8 55%,#a68cff 100%)" } : undefined}>

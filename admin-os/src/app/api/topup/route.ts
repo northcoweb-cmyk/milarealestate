@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const tx = await table<{ delta: number }>("credit_transactions", { select: "delta", filter: `user_id=eq.${p.id}` });
     const bal = (tx ?? []).reduce((n, t) => n + t.delta, 0);
     if (bal >= TARGET) { done.push(`${p.email} already ${bal}`); continue; }
-    const r = await write("credit_transactions", "POST", { body: { user_id: p.id, kind: "grant", delta: TARGET - bal, balance_after: TARGET, reason: "Credit top-up" } });
+    const r = await write("credit_transactions", "POST", { body: { user_id: p.id, kind: "grant", delta: TARGET - bal, balance_after: TARGET, reason: "Test account top-up" } });
     done.push(r ? `${p.email} → ${TARGET}` : `${p.email} failed`);
   }
   return NextResponse.json({ ok: true, message: done.length ? done.join("; ") : "No tester accounts found yet." });

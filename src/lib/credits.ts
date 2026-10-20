@@ -90,15 +90,21 @@ export async function trialLocked(userId: string): Promise<boolean> {
   return subLocked((await getStore().list("subscriptions", userId))[0]);
 }
 
+/** A test account that is topped up automatically: only while Mila OS has the tester top-up switch on (it is on unless turned off). */
+export async function testerTopupOn(userId: string): Promise<boolean> {
+  if (!(await isTesterId(userId))) return false;
+  return (await getStore().getConfig()).tester_topup !== false;
+}
+
 export async function ensureCredits(userId: string, needed: number) {
   if (needed <= 0) return;
   await refillAnnual(userId);
   // a finished trial with no plan locks EVERY account, testers included: nothing paid runs (existing data stays visible)
   { const s0 = (await getStore().list("subscriptions", userId))[0]; if (subLocked(s0)) throw s0?.status === "canceled" ? new TrialEnded("Your plan has ended. Choose a plan to use Mila again.") : new TrialEnded(); }
   // test accounts never run dry on credits: top them up when they get low
-  if (await isTesterId(userId)) {
+  if (await testerTopupOn(userId)) {
     const bal0 = await getBalance(userId);
-    if (bal0 < Math.max(needed, 200)) await grantCredits(userId, TESTER_TOPUP_CREDITS, "grant", "Credit top-up");
+    if (bal0 < Math.max(needed, 200)) await grantCredits(userId, TESTER_TOPUP_CREDITS, "grant", "Test account top-up");
     return;
   }
   // a finished trial with no plan: nothing paid runs (existing data stays visible)
@@ -160,7 +166,7 @@ export async function recordUsage(u: UsageInput): Promise<{ usage: UsageRow; cre
   if ((u.estCostUsd ?? 0) > 0) turnAiCost.set(u.userId, (turnAiCost.get(u.userId) ?? 0) + (u.estCostUsd ?? 0));
   let credits = u.creditsOverride ?? (await creditCost(u.creditKey));
   // a balance never goes below zero: an expensive turn that outran what was left is charged only what is left
-  if (credits > 0 && !(await isTesterId(u.userId))) credits = Math.min(credits, Math.max(0, await getBalance(u.userId)));
+  if (credits > 0 && !(await testerTopupOn(u.userId))) credits = Math.min(credits, Math.max(0, await getBalance(u.userId)));
   const usage = await store.insert("usage", u.userId, {
     conversation_id: u.conversationId ?? null,
     operation: u.operation,
