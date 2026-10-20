@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getStore } from "../db/store";
 import { followUpBlock } from "./followups";
 import { friendlyAiError, leaksProviderDetail } from "../ai/friendly";
+import { detailsFollowupHandler, listDateHandler, offerHandler, propertyNoteHandler, propertyStatusHandler } from "./handlers/property-ops";
 import { FAIR_HOUSING_REPLY, fairHousingBlock } from "./fair-housing";
 import { portalRequestHandler, productHelpHandler, vagueBulkHandler, unsureWhoHandler } from "./handlers/product-help";
 import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
@@ -19,7 +20,7 @@ import { listingReadyHandler, whatMissingHandler } from "./handlers/readiness";
 import { meetingPrepHandler, showingFollowupsHandler } from "./handlers/briefs";
 import { newListingsHandler, prepPropertyHandler, saveListingCard, saveRentalCard, saveRentalsForClient } from "./handlers/marketdata";
 import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
-import { addListingHandler, listingChecklist, propertyFactHandler, showingSheetHandler, updateListingHandler } from "./handlers/listing";
+import { addListingHandler, resolveProperty, listingChecklist, propertyFactHandler, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { decideApproval } from "./tools";
 import { correctReplacement, replaceCancel, replaceEventHandler, replaceOverlap, replacePick, replaceSlot, replaceSlotOptions } from "./handlers/replace";
@@ -217,6 +218,11 @@ async function recentHistory(ctx: Ctx) {
 
 async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{ out: HandlerOut; intent: Intent }> {
   let text = fixTypos(textIn);
+  // "prep 9 muddy branch" / "open house post for kentlands": a saved home named by its street (no number or suffix) is that home, so everything downstream sees its full address
+  if (!parseAddress(text) && /\b[a-z]{4,}\b/i.test(text) && !/\b(?:has|have)\s+\d+(?:\.\d)?\s*(?:bed|bath|bd|ba)/i.test(text)) {
+    const ref = await resolveProperty(ctx, text, false).catch(() => null);
+    if (ref) text = `${text.replace(/[.!?]+\s*$/, "")} ${ref.address}${ref.city ? `, ${ref.city}` : ""}${ref.state ? ` ${ref.state}` : ""}`;
+  }
   if (fairHousingBlock(textIn)) return { out: reply(FAIR_HOUSING_REPLY, [{ type: "choice", title: "Describe the home instead?", buttons: [{ label: "Describe the home itself", style: "primary", action: { type: "prompt", text: "Write a listing description from the property facts only" } }] }], "smalltalk"), intent: "smalltalk" };
   // "Good morning. What do I have today?" is the question, not small talk
   const greet = /^\s*(?:good (?:morning|afternoon|evening)|morning|hey( there)?|hi( there)?|hello)\b[,.!:\s-]+(\S.{5,})$/is.exec(text);
@@ -487,6 +493,11 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "portal_request": return portalRequestHandler(ctx, text);
     case "contact_field_update": return contactFieldUpdateHandler(ctx, text);
     case "cancel_reminder": return cancelReminderHandler(ctx, text);
+    case "property_status": return propertyStatusHandler(ctx, text);
+    case "list_date": return listDateHandler(ctx, text);
+    case "offer_received": return offerHandler(ctx, text);
+    case "property_note": return propertyNoteHandler(ctx, text);
+    case "property_details": return detailsFollowupHandler(ctx, text);
     case "ooo_query": return oooQueryHandler(ctx, text);
     case "ooo_edit": return oooEditHandler(ctx, text);
     case "list_reminders": return listRemindersHandler(ctx, text);
