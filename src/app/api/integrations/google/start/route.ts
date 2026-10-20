@@ -11,8 +11,10 @@ export async function GET(req: Request) {
   if (!uid) return NextResponse.redirect(new URL("/welcome", req.url));
   if (!googleConfigured()) return NextResponse.redirect(new URL("/settings/connections?error=not_configured", req.url));
   const url = new URL(req.url);
-  const wanted = (url.searchParams.get("services") ?? "calendar,gmail,contacts,sheets").split(",").filter((s): s is GoogleService => s in GOOGLE_SCOPES && s !== "base");
+  const wanted = (url.searchParams.get("services") ?? "calendar,contacts,sheets").split(",").filter((s): s is GoogleService => s in GOOGLE_SCOPES && s !== "base");
   const nonce = randomBytes(16).toString("hex");
+  const fromOnboarding = url.searchParams.get("next") === "onboarding";
+  (await cookies()).set("mila_oauth_next", fromOnboarding ? "onboarding" : "", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 600 }); // a connect from the first-run chat returns to it
   const sig = oauthStateSig(nonce, uid);
   if (!sig) return NextResponse.redirect(new URL("/settings/connections?error=not_configured", req.url));
   (await cookies()).set("mila_oauth", `${nonce}.${sig}`, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 600 });

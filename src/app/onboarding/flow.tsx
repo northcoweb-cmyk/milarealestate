@@ -29,13 +29,31 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sample, setSample] = useState(allowSample);
   const [notify, setNotify] = useState({ email: true, browser: true, pwa: true }); // how Mila reaches them; changeable later in Settings
-  async function addApple() { try { const l = await jfetch<{ webcal: string }>("/api/calendar/feed-link"); window.location.href = l.webcal; } catch { /* the Calendar screen has the same button later */ } }
+  async function addApple() { try { const l = await jfetch<{ webcal: string }>("/api/calendar/feed-link"); window.location.assign(l.webcal); } catch { /* the Calendar screen has the same button later */ } }
   const [picked, setPicked] = useState<PickedPlace | null>(null);
   const [pickedText, setPickedText] = useState("");
   const [placesOn, setPlacesOn] = useState(false);
   useEffect(() => { fetch("/api/places/autocomplete?q=ab").then((r) => r.json()).then((j) => setPlacesOn(j.available === true)).catch(() => {}); }, []);
   const locVerified = !!picked && f.location === pickedText;
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
+  const [connected, setConnected] = useState<Record<string, boolean>>({});
+  // a connect sends them to Google and back: their answers so far are kept for the trip, then restored
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("mila_onb"); if (!raw) return;
+      sessionStorage.removeItem("mila_onb");
+      const saved = JSON.parse(raw) as { f?: typeof f; step?: number; notify?: typeof notify; sample?: boolean };
+      if (saved.f) setF(saved.f); if (saved.notify) setNotify(saved.notify); if (typeof saved.sample === "boolean") setSample(saved.sample); if (typeof saved.step === "number") setStep(saved.step);
+    } catch { /* start fresh */ }
+  }, []);
+  useEffect(() => {
+    if (screen !== 4) return;
+    jfetch<{ items: { id: string; status: string }[] }>("/api/integrations").then((r) => setConnected(Object.fromEntries(r.items.map((i) => [i.id, i.status === "connected"])))).catch(() => {});
+  }, [screen]);
+  function connect(services: string) {
+    try { sessionStorage.setItem("mila_onb", JSON.stringify({ f, step, notify, sample })); } catch { /* the trip still works */ }
+    window.location.assign(`/api/integrations/google/start?services=${services}&next=onboarding`);
+  }
   const install = useInstall();
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   const total = SCREENS.length;
@@ -100,12 +118,37 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
             <div className="grid grid-cols-2 gap-2.5">{BIZ.map(([v, l]) => <button key={v} onClick={() => set("business_type", v)} aria-pressed={f.business_type === v} className={clsx("glass flex items-center justify-between p-4 text-left font-semibold transition", f.business_type === v && "is-selected")} style={{ borderRadius: 20 }}>{l}{f.business_type === v && <Check size={18} style={{ color: "var(--accent)" }} />}</button>)}</div>
           </>}
           {screen === 4 && <>
-            <h1 className="h1 mb-1">Connect your tools</h1><p className="muted mb-5">Optional — you can do this later in More → Settings.</p>
+            <div className="mb-4 flex items-start gap-3">
+              <span className="mt-0.5 shrink-0"><Orb size={36} /></span>
+              <div className="min-w-0 rounded-3xl rounded-tl-lg p-4 text-[15px] leading-relaxed" style={{ background: "color-mix(in srgb, var(--ink, #14122b) 6%, transparent)" }}>
+                <p className="font-semibold">Hi {f.full_name.split(" ")[0] || "there"}, I'm Mila.</p>
+                <ul className="mt-2 space-y-1.5">
+                  <li className="flex gap-2"><span aria-hidden>•</span><span>I keep your calendar, follow-ups, listings and posts in order, so you can focus on clients.</span></li>
+                  <li className="flex gap-2"><span aria-hidden>•</span><span>I draft and prepare. Nothing is sent, posted or deleted until you say OK.</span></li>
+                </ul>
+                <p className="mt-2">Connect the tools you already use. Each takes one tap, and it's all optional.</p>
+              </div>
+            </div>
             <div className="space-y-3">
-              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><ServiceLogo id="google_g" /><div className="min-w-0 flex-1"><p className="font-semibold">Google Calendar</p><p className="muted text-[14px]">Mila adds your appointments to your Google calendar, with the client, address and notes inside. She never reads it.</p></div>{googleConfigured ? <a className="btn btn-sm" href="/api/integrations/google/start?services=calendar">Connect</a> : <span className="faint text-[13px]">Coming soon</span>}</div>
-              <div className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}><ServiceLogo id="apple" /><div className="min-w-0 flex-1"><p className="font-semibold">Apple Calendar</p><p className="muted text-[14px]">On iPhone or Mac: tap once, then Subscribe. Mila's events show up in your calendar, with the client and address inside.</p></div><button type="button" className="btn btn-sm" onClick={addApple}>Add</button></div>
-              {allowSample && <label className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Start with sample contacts</p><p className="muted text-[14px]">Fictional people and appointments so you can try Mila right away. Remove them any time.</p></div><input type="checkbox" className="h-5 w-5" checked={sample} onChange={(e) => setSample(e.target.checked)} /></label>}
-              <p className="faint px-1 text-[13.5px]">Have a list already? After setup, just tell Mila “import my contacts” or attach a spreadsheet.</p>
+              {([
+                { id: "google_calendar", logo: "google_calendar", name: "Google Calendar", why: "Mila adds your showings and open houses to your calendar, with the client, address and notes inside. She never reads it.", services: "calendar", needsGoogle: true },
+                { id: "google_contacts", logo: "google_contacts", name: "Google Contacts", why: "Import the people you already know, so you don't retype them.", services: "contacts", needsGoogle: true },
+                { id: "google_sheets", logo: "google_sheets", name: "Google Sheets", why: "Bring in a contact list or sign-in sheet from a spreadsheet.", services: "sheets", needsGoogle: true },
+                { id: "apple_calendar", logo: "apple", name: "Apple Calendar", why: "On iPhone or Mac, tap once and subscribe. Mila's events show up in your calendar app.", services: "", needsGoogle: false },
+              ] as const).map((c) => {
+                const on = !!connected[c.id]; const unavailable = c.needsGoogle && !googleConfigured;
+                return (
+                  <div key={c.id} className="glass flex items-center gap-4 p-4" style={{ borderRadius: 22 }}>
+                    <ServiceLogo id={c.logo} />
+                    <div className="min-w-0 flex-1"><p className="font-semibold">{c.name}</p><p className="muted text-[14px]">{c.why}</p></div>
+                    {on ? <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13.5px] font-semibold" style={{ background: "color-mix(in srgb, #2ea36b 16%, transparent)", color: "#1f7a4f" }}><Check size={15} />Connected</span>
+                      : unavailable ? <span className="faint shrink-0 text-[13.5px]">Coming soon</span>
+                      : <button type="button" className="shrink-0 rounded-full px-5 py-2.5 text-[14.5px] font-semibold text-white transition hover:opacity-90" style={{ background: "#14122b" }} onClick={() => (c.needsGoogle ? connect(c.services) : void addApple())}>{c.needsGoogle ? "Connect" : "Set up"}</button>}
+                  </div>
+                );
+              })}
+              {allowSample && <label className="glass flex cursor-pointer items-center gap-4 p-4" style={{ borderRadius: 22 }}><div className="flex-1"><p className="font-semibold">Start with sample contacts</p><p className="muted text-[14px]">Fictional people and appointments so you can try Mila right away. Remove them any time.</p></div><input type="checkbox" className="h-5 w-5" checked={sample} onChange={(e) => setSample(e.target.checked)} aria-label="Start with sample contacts" /></label>}
+              <p className="faint px-1 text-[13.5px]">Mila asks before making changes. Disconnect any time in More → Settings → Connections. Have a list already? After setup, tell Mila “import my contacts”.</p>
             </div>
           </>}
           {screen === 6 && <>

@@ -7,7 +7,8 @@ import { GOOGLE_SCOPES, exchangeCode, saveConnection, type GoogleService } from 
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const back = (q: string) => NextResponse.redirect(new URL(`/settings/connections?${q}`, req.url));
+  const fromOnboarding = (await cookies()).get("mila_oauth_next")?.value === "onboarding";
+  const back = (q: string) => NextResponse.redirect(new URL(`${fromOnboarding ? "/onboarding" : "/settings/connections"}?${q}`, req.url));
   const uid = await getUserId();
   if (!uid) return NextResponse.redirect(new URL("/welcome", req.url));
   if (url.searchParams.get("error")) return back("error=denied");
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   const cookie = jar.get("mila_oauth")?.value;
   jar.delete("mila_oauth");
   const requested = (jar.get("mila_oauth_svc")?.value ?? "").split(",").filter((x): x is GoogleService => x in GOOGLE_SCOPES && x !== "base");
-  jar.delete("mila_oauth_svc");
+  jar.delete("mila_oauth_svc"); jar.delete("mila_oauth_next");
   if (!code || !state || !cookie) return back("error=state");
   const [nonce, sig] = cookie.split(".");
   const exp = oauthStateSig(nonce ?? "", uid);
