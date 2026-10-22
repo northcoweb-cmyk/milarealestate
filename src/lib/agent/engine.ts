@@ -310,10 +310,20 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     const numText = miss === "time" ? text.replace(/\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/gi, (w) => WORDNUM[w.toLowerCase()]) : text;
     const numTime = miss === "time" && words <= 8 && (d.intent === "general" || d.intent === "smalltalk" || d.intent === pend.intent) && !/\d\s*(?:[ap]\.?m|o.?clock)|\d:\d\d/i.test(text) ? /(?:^|[^\d:])(1[0-2]|[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?(?![\d:]|\s*(?:st|nd|rd|th|people|bed|bath|min|hour|hr|day|week))/i.exec(numText) : null;
     if (numTime) text = `at ${numTime[1]}${numTime[2] ? ":" + numTime[2] : ""}${numTime[3] ?? (/\b(afternoon|evening|night)\b/i.test(text) ? "pm" : /\bmorning\b/i.test(text) ? "am" : "")}`;
-    const looksLikeAnswer = !(words <= 3 && NOT_AN_ANSWER.test(text.trim())) && (d.intent === pend.intent && sameThread(String((pend.slots as { text?: string }).text ?? ""), text)
+    // a different street address typed while a date or time is being asked for is a correction of the address: swap it into the open request
+    let addrFixed = false;
+    { const oldText = String((pend.slots as { text?: string }).text ?? ""), oldAddr = parseAddress(oldText), newAddr = parseAddress(text);
+      if (oldAddr && newAddr && oldAddr.toLowerCase() !== newAddr.toLowerCase() && (miss === "time" || miss === "date")) {
+        const swapped = oldText.replace(new RegExp(oldAddr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?:,?\\s*[A-Za-z .]+,?\\s*[A-Z]{2}(?:\\s+\\d{5})?)?", "i"), text.includes(newAddr) ? text.slice(text.indexOf(newAddr)).replace(/\s+(?:on|at|from|this|next)\b.*$/i, "") : newAddr);
+        const rest = text.replace(newAddr, " ").replace(/\b[A-Z][a-z]+(?: [A-Z][a-z]+)?,? [A-Z]{2}(?: \d{5})?\b/, " ").replace(/\s{2,}/g, " ").replace(/^[\s,.]+|[\s,.]+$/g, "");
+        text = `${swapped} ${rest}`.trim(); forced = pend.intent as Intent; answering = { intent: String(pend.intent), missing: miss }; ctx.state.pending = null; addrFixed = true;
+      } }
+    // a fresh "set up an open house…" with no address is a NEW request, not the answer to an old question about another home
+    const freshOpenHouse = pend.intent === "open_house" && words > 3 && /open\s*house/i.test(text) && !parseAddress(text);
+    const looksLikeAnswer = !addrFixed && !freshOpenHouse && !(words <= 3 && NOT_AN_ANSWER.test(text.trim())) && (d.intent === pend.intent && sameThread(String((pend.slots as { text?: string }).text ?? ""), text)
       || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" || miss === "details" ? words <= 8 || !!parseAddress(text) : timeLike)))
       || (words <= 4 && timeLike));
-    if (looksLikeAnswer && !/\?\s*$/.test(text)) {
+    if (addrFixed) { /* handled above */ } else if (looksLikeAnswer && !/\?\s*$/.test(text)) {
       // a bare name answering "What's their name?" is that person's name: it is attached to the original request, never re-guessed from a merged sentence
       if (pend.intent === "new_contact" && miss === "name" && plausibleName(text.trim()) && /^\p{Lu}[\p{L}'’-]+(?:\s+\p{L}[\p{L}'’-]*){0,3}$/u.test(text.trim())) {
         text = `${String((pend.slots as { text?: string }).text ?? "").replace(/[.!\s]+$/, "")}. Name is ${text.trim()}`;

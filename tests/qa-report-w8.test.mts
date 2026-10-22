@@ -59,3 +59,13 @@ test("W1 follow-ups: a couple is one household contact, plural roles work, 'Rock
   assert.equal(sam.location, "Rockville, MD");
   assert.match(await say(a, "she is also pre-approved for 500k"), /Sam's profile[\s\S]*\$500,000/);
 });
+
+test("Launch-eve: a new open house with no address never reuses the last home or an old pending question; a typed address wins", async () => {
+  const a = await newAgent({ now, tz: "America/New_York", seed: false });
+  await a.say("I have an open house at 123 Main Street. Set everything up.");
+  assert.match(await say(a, "setup an open house for this upcoming saturday"), /Which property/);
+  assert.match(await say(a, "456 Oak Lane, Gaithersburg MD"), /What time does it start on Saturday/);
+  await say(a, "1 to 4");
+  const oh = (await store.list("calendar_events", a.id)).filter((e: any) => e.kind === "open_house");
+  assert.equal(oh.length, 1); assert.match(oh[0].title, /456 Oak Lane/);
+});

@@ -57,12 +57,14 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
   const address = parseAddress(text);
   if (!address) {
     // no address given: the home this conversation is on, or the only saved home. With several homes Mila asks which one: never a guess.
-    const picked = await pickProperty(ctx, text, (addr) => `${text.replace(/[.!?\s]+$/, "")} at ${addr}`, "open_house");
-    if ("ask" in picked) return picked.ask;
-    const last = picked.prop, guessed = picked.assumed;
-    const out = await openHouseHandler(ctx, `${text} at ${last.address}`);
-    if (guessed && !ctx.state.pending) out.text = `I used ${last.address}${last.city ? `, ${last.city}` : ""} because it's the only home you have saved. If it's a different home, just tell me the address and I'll redo it. ${out.text}`;
-    return out;
+    // a new open house with no address in the message is NEVER assumed to be the home last discussed (an old sample or a past listing):
+    // Mila offers the recent homes as buttons and takes a typed address too
+    const all = await ctx.store.list("properties", ctx.userId);
+    const props = all.some((p) => !p.is_demo) ? all.filter((p) => !p.is_demo || ctx.state.last_property_id === p.id) : all; // a demo-only account offers its demo homes
+    const recent = [...props].sort((a, b) => (a.id === ctx.state.last_property_id ? 1 : 0) - (b.id === ctx.state.last_property_id ? 1 : 0) || b.updated_at.localeCompare(a.updated_at)).slice(0, 3);
+    ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text }, missing: "address" };
+    await persistState(ctx);
+    return reply("Which property is the open house for? Type the street address, or pick one you've saved.", recent.length ? [{ type: "choice", title: "Saved homes", buttons: recent.map((p) => ({ label: `${p.address}${p.city ? `, ${p.city}` : ""}`, style: "secondary" as const, action: { type: "prompt", text: `${text.replace(/[.!?\s]+$/, "")} at ${p.address}` } })) }] : [], "smalltalk");
   }
   const gate = await locationGate(ctx, "open_house", text, address);
   if (!gate.ok) return gate.out;
