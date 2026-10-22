@@ -176,7 +176,21 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const setLayout = (l: string) => setSlides((x) => x.map((s) => ({ ...s, layout: l })));
   // photo shown on the slide(s) being edited
   const shown = target === "all" ? (slides.every((s) => s.image_url === slides[0]?.image_url) ? slides[0]?.image_url ?? null : undefined) : slides[target]?.image_url ?? null;
-  const setPhoto = (url: string | null) => setSlides((x) => x.map((s, i) => (target === "all" || target === i ? { ...s, image_url: url } : s)));
+  // the first photo on a post switches it to the full-photo design (the photo is the picture); the agent can still pick another design
+  const withFullPhoto = (x: SocialSlide[], had: boolean) => (had ? x : x.map((s) => ({ ...s, layout: "cinema" })));
+  const setPhoto = (url: string | null) => setSlides((x) => withFullPhoto(x.map((s, i) => (target === "all" || target === i ? { ...s, image_url: url } : s)), !url || x.some((s) => s.image_url)));
+  // up to 7 more images on top of the 3 Mila makes (10 is Instagram's limit); each can carry its own photo and its own text, or no text at all
+  const MAX = 10;
+  const addSlide = () => setSlides((x) => {
+    if (x.length >= MAX) return x;
+    const base = x[1] ?? x[0];
+    const spare = [...new Set([...photos, ...uploads])].find((u) => !x.some((s) => s.image_url === u)) ?? null; // the next photo not used yet
+    const fresh: SocialSlide = { role: "highlight", headline: "", sub: "", image_url: spare, theme: base?.theme, layout: base?.layout, font: base?.font };
+    const at = x.length > 1 && x[x.length - 1].role === "cta" ? x.length - 1 : x.length;
+    return [...x.slice(0, at), fresh, ...x.slice(at)];
+  });
+  const removeSlide = (i: number) => { setSlides((x) => (x.length > 1 ? x.filter((_, n) => n !== i) : x)); setTarget("all"); };
+  const setPlain = (i: number, v: boolean) => setSlides((x) => x.map((s, n) => (n === i ? { ...s, plain: v || undefined } : s)));
   const library = [...new Set([...photos, ...uploads])];
   async function addFiles(files: FileList | null) {
     const list = [...(files ?? [])].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, 8);
@@ -186,10 +200,10 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
       const made: string[] = [];
       for (const f of list) made.push((await uploadMedia(f, {})).url);
       setUploads((u) => [...made, ...u.filter((x) => !made.includes(x))]);
-      setSlides((x) => x.map((s, i) => {
+      setSlides((x) => withFullPhoto(x.map((s, i) => {
         if (target === "all") return { ...s, image_url: made[i % made.length] }; // several photos spread across the images
         return target === i ? { ...s, image_url: made[0] } : s;
-      }));
+      }), x.some((s) => s.image_url)));
       toast(made.length === 1 ? "Photo added." : `${made.length} photos added.`, "success");
     } catch (e) { toast(e instanceof Error ? e.message : "Couldn't upload that photo.", "error"); } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   }
@@ -278,9 +292,16 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
         <div>
           <button className="flex w-full items-center justify-between text-left" onClick={() => setEditText(!editText)} aria-expanded={editText}><span className="kicker">Edit image text</span><ChevronDown size={18} className={"transition " + (editText ? "rotate-180" : "")} /></button>
           {editText && <div className="mt-3 space-y-3">{slides.map((s, i) => (
-            <div key={i} className="grid gap-2"><p className="faint text-[12.5px]">Image {i + 1}</p>
-              <input className="field" value={s.headline} maxLength={120} onChange={(e) => setText(i, "headline", e.target.value)} aria-label={`Image ${i + 1} headline`} />
-              <input className="field" value={s.sub ?? ""} maxLength={160} onChange={(e) => setText(i, "sub", e.target.value)} placeholder="Small line (optional)" aria-label={`Image ${i + 1} small line`} /></div>))}</div>}
+            <div key={i} className="grid gap-2">
+              <div className="flex items-center justify-between gap-2"><p className="faint text-[12.5px]">Image {i + 1}{s.role === "hero" ? " · cover" : s.role === "cta" ? " · last" : ""}</p>
+                <div className="flex items-center gap-3">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] font-semibold"><input type="checkbox" className="h-4 w-4" checked={!!s.plain} onChange={(e) => setPlain(i, e.target.checked)} aria-label={`No text on image ${i + 1}`} />No text</label>
+                  {slides.length > 1 && <button type="button" className="text-[12.5px] font-semibold text-[color:var(--danger)]" onClick={() => removeSlide(i)} aria-label={`Remove image ${i + 1}`}>Remove</button>}
+                </div></div>
+              {s.plain ? <p className="faint rounded-xl p-2.5 text-[13px]" style={{ background: "color-mix(in srgb, var(--ink) 5%, transparent)" }}>This image shows the photo only, with no text on it.</p> : <>
+                <input className="field" value={s.headline} maxLength={120} onChange={(e) => setText(i, "headline", e.target.value)} placeholder="Text on this image" aria-label={`Image ${i + 1} headline`} />
+                <input className="field" value={s.sub ?? ""} maxLength={160} onChange={(e) => setText(i, "sub", e.target.value)} placeholder="Small line (optional)" aria-label={`Image ${i + 1} small line`} /></>}</div>))}</div>}
+          {slides.length < MAX && <button type="button" className="btn btn-sm mt-3" onClick={() => { addSlide(); setEditText(true); }}>+ Add an image ({slides.length} of {MAX})</button>}
         </div>
 
         {dirty && <button className="btn btn-primary w-full" disabled={!!busy || over} onClick={() => act(null, {}, "Saved.")}>{busy === "save" ? "Saving…" : "Save changes"}</button>}

@@ -200,6 +200,12 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   let lay = layoutOf(slide.layout).key;
   if (lay === "cinema" && !photo) lay = "panel";
   const fullBleed = lay === "cinema" && !!photo;
+  // "No text": the photo alone, edge to edge, nothing drawn over it (also an added image the agent has not typed anything on yet)
+  if (slide.plain === true || (slide.role === "highlight" && !slide.headline?.trim() && !slide.sub?.trim())) {
+    if (photo) { const sc = Math.max(W / photo.width, H / photo.height); const pw = photo.width * sc, ph = photo.height * sc; c.drawImage(photo, (W - pw) / 2, (H - ph) / 2, pw, ph); }
+    else { c.fillStyle = pal.bg; c.fillRect(0, 0, W, H); }
+    return cv;
+  }
   const ink = fullBleed ? "#ffffff" : pal.ink, soft = fullBleed ? "rgba(255,255,255,.8)" : pal.soft;
   const poster = lay === "poster";
   // the headline font is its own choice (colors never change it)
@@ -224,8 +230,8 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   if (fullBleed && photo) {
     const s = Math.max(W / photo.width, H / photo.height); const w = photo.width * s, h = photo.height * s;
     c.drawImage(photo, (W - w) / 2, (H - h) / 2, w, h);
-    const top = c.createLinearGradient(0, 0, 0, H * 0.3); top.addColorStop(0, "rgba(0,0,0,.5)"); top.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = top; c.fillRect(0, 0, W, H * 0.3);
-    const bot = c.createLinearGradient(0, H * (slide.role === "cta" ? 0 : 0.38), 0, H); bot.addColorStop(0, `rgba(0,0,0,${slide.role === "cta" ? 0.55 : 0})`); bot.addColorStop(1, "rgba(0,0,0,.88)"); c.fillStyle = bot; c.fillRect(0, 0, W, H);
+    const top = c.createLinearGradient(0, 0, 0, H * 0.18); top.addColorStop(0, "rgba(0,0,0,.34)"); top.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = top; c.fillRect(0, 0, W, H * 0.18);
+    const bot = c.createLinearGradient(0, H * 0.52, 0, H); bot.addColorStop(0, "rgba(0,0,0,0)"); bot.addColorStop(1, "rgba(0,0,0,.72)"); c.fillStyle = bot; c.fillRect(0, H * 0.52, W, H * 0.48);
   } else {
     c.fillStyle = lay === "polaroid" ? pal.bg2 : pal.bg; c.fillRect(0, 0, W, H);
     c.save();
@@ -301,7 +307,8 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
     lines.forEach((raw, idx) => {
       const l = (poster ? raw.toUpperCase() : raw).replace(/'/g, "’");
       if (marker && idx % 2 === 1) { const tw = c.measureText(l).width; const bxm = align === "center" ? x - tw / 2 : x; c.fillStyle = pal.accent; rrect(c, bxm - 22 * u, y - px * 0.86, tw + 44 * u, px * 1.0, 14 * u); c.fill(); c.fillStyle = pal.onAccent; } else c.fillStyle = ink;
-      c.fillText(l, x, y); y += px * lh;
+      if (fullBleed) { c.save(); c.shadowColor = "rgba(0,0,0,.55)"; c.shadowBlur = 16 * u; c.shadowOffsetY = 3 * u; c.fillText(l, x, y); c.restore(); } else c.fillText(l, x, y);
+      y += px * lh;
     });
     c.textAlign = "left"; loose();
   };
@@ -309,12 +316,32 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   const swipe = (x: number, y: number, align: "left" | "right" = "left") => { c.font = sans(26 * u, 800); c.fillStyle = fullBleed ? "#fff" : pal.ink; const w = spacedWidth(c, "SWIPE", 4 * u); const sx = align === "left" ? x : x - w - 60 * u; spaced(c, "SWIPE", sx, y, 4 * u); arrow(sx + w + 16 * u, y - 9 * u, 38 * u, fullBleed ? "#fff" : pal.ink); };
 
   // ================================================================ LAST IMAGE: who is hosting
+  if (isCta && !lone && fullBleed && !landscape) {
+    // the last image over a photo: the home stays clear on top, the agent sits in a compact card at the bottom (no heavy dimming of the picture)
+    const cardH = H * 0.36, top0 = H - cardH;
+    const g = c.createLinearGradient(0, top0 - H * 0.08, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(0.35, "rgba(0,0,0,.5)"); g.addColorStop(1, "rgba(0,0,0,.72)"); c.fillStyle = g; c.fillRect(0, top0 - H * 0.08, W, cardH + H * 0.08);
+    const info = [o.brand.phone, o.brand.email, [o.brand.credentials, o.brand.team].filter(Boolean).join(" · ")].filter((x): x is string => !!x && !!x.trim());
+    const r = 62 * u, cx = m + r, cy = top0 + 40 * u + r;
+    c.save(); c.shadowColor = "rgba(0,0,0,.4)"; c.shadowBlur = 24 * u; roundPhoto(cx, cy, r, "#ffffff"); c.restore();
+    const x0 = cx + r + 30 * u, mw = W - x0 - m;
+    c.save(); c.shadowColor = "rgba(0,0,0,.5)"; c.shadowBlur = 14 * u; c.shadowOffsetY = 2 * u;
+    c.fillStyle = "#fff"; c.font = sans(44 * u, 800); c.fillText(o.brand.name, x0, cy - 22 * u, mw);
+    c.fillStyle = "rgba(255,255,255,.85)"; c.font = sans(28 * u, 500); if (o.brand.brokerage) c.fillText(o.brand.brokerage, x0, cy + 16 * u, mw);
+    c.fillStyle = "#fff"; c.font = sans(28 * u, 700); let yy = cy + (o.brand.brokerage ? 54 : 22) * u; for (const l of info.slice(0, 2)) { c.fillText(l, x0, yy, mw); yy += 38 * u; }
+    c.restore();
+    if (slide.sub) {
+      c.font = sans(32 * u, 800); const label = slide.sub.length > 44 ? slide.sub.slice(0, 43) + "…" : slide.sub; const tw = Math.min(c.measureText(label).width, boxW - 72 * u);
+      const pw = tw + 72 * u, py = H - m - 84 * u - 64 * u, bxp = (W - pw) / 2; // above the page dots
+      rrect(c, bxp, py, pw, 84 * u, 42 * u); c.fillStyle = "#ffffff"; c.fill(); c.fillStyle = "#111"; c.fillText(label, bxp + 36 * u, py + 42 * u + 11 * u, boxW - 72 * u);
+    }
+    return cv;
+  }
   if (isCta && !lone) {
     const dark = fullBleed || !!photo; // a property photo sits behind, dimmed, so the home is still in every image
     if (photo && !fullBleed) {
       const sc = Math.max(W / photo.width, H / photo.height); const pw = photo.width * sc, ph = photo.height * sc;
       c.drawImage(photo, (W - pw) / 2, (H - ph) / 2, pw, ph);
-      const shade = c.createLinearGradient(0, 0, 0, H); shade.addColorStop(0, "rgba(8,8,10,.62)"); shade.addColorStop(1, "rgba(8,8,10,.86)"); c.fillStyle = shade; c.fillRect(0, 0, W, H);
+      const shade = c.createLinearGradient(0, 0, 0, H); shade.addColorStop(0, "rgba(8,8,10,.28)"); shade.addColorStop(1, "rgba(8,8,10,.7)"); c.fillStyle = shade; c.fillRect(0, 0, W, H);
     }
     const tInk = dark ? "#ffffff" : pal.ink, tSoft = dark ? "rgba(255,255,255,.78)" : pal.soft;
     const info = [o.brand.phone, o.brand.email, [o.brand.credentials, o.brand.team].filter(Boolean).join(" · ")].filter((x): x is string => !!x && !!x.trim());
@@ -354,7 +381,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
   if (slide.role === "hero") {
     if (fullBleed) {
       pill(kickerText, m, m);
-      const { px, lines } = fit(c, HL, head, boxW, H * 0.32, 168 * u, 60 * u, lhOf, 4);
+      const { px, lines } = fit(c, HL, head, boxW, H * 0.2, 92 * u, 44 * u, lhOf, 3); // the photo is the picture: the title is a line, not a poster
       drawLines(lines, px, m, contentBottom - lines.length * px * lhOf - (swipeCue ? 70 * u : 0), lhOf);
       if (swipeCue) swipe(m, contentBottom - 12 * u);
     } else if (landscape) {
@@ -451,18 +478,19 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
     const stats = slide.headline.includes("\n") ? null : parseStats(slide.headline);
     if (stats) {
       const cols = landscape ? Math.min(stats.length, 4) : 2; const rows = Math.ceil(stats.length / cols);
-      const gap = 28 * u; const cw = (boxW - gap * (cols - 1)) / cols;
-      const ch = Math.min(280 * u, (contentBottom - (m + 150 * u) - gap * (rows - 1)) / rows);
+      const slim = fullBleed && !landscape; // over a photo the numbers are a compact strip at the bottom, so the home stays the picture
+      const gap = (slim ? 14 : 28) * u; const cw = (boxW - gap * (cols - 1)) / cols;
+      const ch = slim ? 112 * u : Math.min(280 * u, (contentBottom - (m + 150 * u) - gap * (rows - 1)) / rows);
       const gridH = rows * ch + (rows - 1) * gap;
       const top = fullBleed ? contentBottom - gridH : m + 130 * u + Math.max(0, (contentBottom - (m + 130 * u) - gridH) / 2);
       if (slide.sub) { c.fillStyle = soft; c.font = sans(32 * u, 700); c.textAlign = ax; c.fillText(slide.sub, tx, top - 38 * u); c.textAlign = "left"; }
       stats.forEach((st, i) => {
         const col = i % cols, row = Math.floor(i / cols); const x = m + col * (cw + gap), y = top + row * (ch + gap);
-        rrect(c, x, y, cw, ch, tileR); c.fillStyle = fullBleed ? "rgba(12,12,12,.62)" : i === 0 ? pal.accent : pal.bg2; c.fill();
+        rrect(c, x, y, cw, ch, slim ? 26 * u : tileR); c.fillStyle = fullBleed ? "rgba(12,12,12,.5)" : i === 0 ? pal.accent : pal.bg2; c.fill();
         const first = i === 0 && !fullBleed; const vcol = first ? pal.onAccent : ink, lcol = first ? pal.onAccent : soft;
-        const { px } = fit(c, st.value, head, cw - 64 * u, 150 * u, 132 * u, 52 * u, 1, 1);
-        c.fillStyle = vcol; c.font = head(px); tight(px); c.fillText(poster ? st.value.toUpperCase() : st.value, x + 32 * u, y + ch * 0.58); loose();
-        c.fillStyle = lcol; c.globalAlpha = first ? 0.8 : 1; c.font = sans(26 * u, 800); spaced(c, st.label.toUpperCase(), x + 32 * u, y + ch * 0.58 + 52 * u, 4 * u); c.globalAlpha = 1;
+        const { px } = fit(c, st.value, head, cw - 56 * u, slim ? 70 * u : 150 * u, slim ? 58 * u : 132 * u, slim ? 34 * u : 52 * u, 1, 1);
+        c.fillStyle = vcol; c.font = head(px); tight(px); c.fillText(poster ? st.value.toUpperCase() : st.value, x + (slim ? 28 : 32) * u, y + ch * (slim ? 0.55 : 0.58)); loose();
+        c.fillStyle = lcol; c.globalAlpha = first ? 0.8 : 1; c.font = sans((slim ? 19 : 26) * u, 800); spaced(c, st.label.toUpperCase(), x + (slim ? 28 : 32) * u, y + ch * (slim ? 0.55 : 0.58) + (slim ? 32 : 52) * u, (slim ? 3 : 4) * u); c.globalAlpha = 1;
       });
     } else {
       if (slide.headline.includes("\n")) { // a numbered list on one image: every item its own row with a round number
@@ -507,7 +535,7 @@ export async function renderSlideCanvas(slide: SocialSlide, o: RenderOpts): Prom
       } else if (slide.sub) { const kk = centered ? centerPill(n ? `Tip ${n[1]} of ${n[2]}` : slide.sub, m) : pill(n ? `Tip ${n[1]} of ${n[2]}` : slide.sub, m, m); top = m + kk.h + 56 * u; }
       const panelH = fullBleed || landscape ? 0 : format === "story" ? Math.min(H * 0.3, 540 * u) : Math.min(H * 0.27, 330 * u);
       const textW = !fullBleed && landscape ? W * 0.5 - m : boxW;
-      const { px, lines } = fit(c, HL, head, textW, contentBottom - top - panelH - (panelH ? 40 * u : 0), 160 * u, 52 * u, 1.08, 6);
+      const { px, lines } = fit(c, HL, head, textW, fullBleed ? Math.min(contentBottom - top, H * 0.24) : contentBottom - top - panelH - (panelH ? 40 * u : 0), fullBleed ? 86 * u : 160 * u, fullBleed ? 40 * u : 52 * u, 1.08, 6);
       const free = contentBottom - top - panelH - (panelH ? 40 * u : 0);
       const blockH2 = lines.length * px * 1.08;
       const ty = fullBleed ? contentBottom - blockH2 : format === "story" ? top + Math.max(0, (free - blockH2) / 2) : top;

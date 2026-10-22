@@ -284,6 +284,8 @@ export interface SocialSlide {
   /** Extra photos of the home drawn as a strip under the highlights (up to 3). */
   gallery?: string[];
   role: "hero" | "highlight" | "cta";
+  /** "No text": the photo alone, nothing drawn over it. */
+  plain?: boolean;
 }
 
 export interface SocialPost extends Row {
