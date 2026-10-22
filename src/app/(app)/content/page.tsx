@@ -157,6 +157,10 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const quietSave = useCallback(async () => {
     if (!dirty || caption.length > limit || !caption.trim()) return;
     await jfetch(`/api/content/${post.id}`, { method: "PATCH", json: { caption, slides } });
+    // read it back: "saved" only counts if the server really kept every photo
+    const back = await jfetch<{ post: SocialPost }>(`/api/content/${post.id}`);
+    const want = slides.map((x) => x.image_url ?? null), got = back.post.slides.map((x) => x.image_url ?? null);
+    if (want.length !== got.length || want.some((u, i) => u !== got[i])) throw new Error("the photos on this post didn't save. Please try adding them again");
     setSnap({ caption, slides: slidesJson });
   }, [dirty, caption, slides, slidesJson, limit, post.id]);
   useEffect(() => {
@@ -201,6 +205,9 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
     try {
       const made: string[] = [];
       for (const f of list) made.push((await uploadMedia(f, {})).url);
+      // each photo must load back from storage before it goes on a post, so a broken upload is caught now, not after the post is shared
+      const readable = await Promise.all(made.map((u) => new Promise<boolean>((res) => { const im = new Image(); im.onload = () => res(true); im.onerror = () => res(false); im.src = u; })));
+      if (readable.some((ok) => !ok)) { toast("A photo uploaded but couldn't be opened. Use a JPG or PNG (iPhone photos set to Most Compatible work best) and try again.", "error"); return; }
       setUploads((u) => [...made, ...u.filter((x) => !made.includes(x))]);
       setSlides((x) => withFullPhoto(x.map((s, i) => {
         if (target === "all") return { ...s, image_url: made[i % made.length] }; // several photos spread across the images

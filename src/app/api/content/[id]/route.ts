@@ -39,6 +39,11 @@ export const PATCH = api<{ id: string }>(async ({ profile, params, req }) => {
   if ("platform" in b) { if (!PLAT.includes(b.platform)) throw bad("Unknown platform."); patch.platform = b.platform as SocialPlatform; }
   if ("property_id" in b) patch.property_id = b.property_id || null;
   if ("slides" in b && Array.isArray(b.slides)) patch.slides = b.slides.slice(0, 10).map((s: any): SocialSlide => ({ role: ["hero", "highlight", "cta"].includes(s.role) ? s.role : "highlight", headline: str(s.headline, 500), plain: s.plain === true ? true : undefined, sub: s.sub ? str(s.sub, 160) : undefined, image_id: s.image_id || null, image_url: typeof s.image_url === "string" && (/^\/api\/files\/[\w-]+$/.test(s.image_url) || okProxied(s.image_url) || isStreetViewPostUrl(s.image_url)) ? s.image_url : null, theme: PALETTES.some((p) => p.key === s.theme) ? s.theme : undefined, layout: LAYOUTS.some((l) => l.key === s.layout) ? s.layout : undefined, font: POST_FONTS.some((f) => f.key === s.font) ? s.font : undefined, gallery: Array.isArray(s.gallery) ? s.gallery.filter((g: unknown): g is string => typeof g === "string" && (/^\/api\/files\/[\w-]+$/.test(g) || okProxied(g) || isStreetViewPostUrl(g))).slice(0, 3) : undefined, lines: Array.isArray(s.lines) ? s.lines.slice(0, 8).map((x: unknown) => str(x, 60)).filter(Boolean) : undefined })).filter((s: SocialSlide) => s.headline.trim());
+  // a photo link that was sent but not kept is a bug worth seeing in Mila OS: say so instead of silently dropping it
+  if (patch.slides && Array.isArray(b.slides)) {
+    const sent = b.slides.slice(0, 10).filter((x: any) => typeof x?.image_url === "string" && x.image_url).length, kept = patch.slides.filter((x) => x.image_url).length;
+    if (kept < sent) { const { logError } = await import("@/lib/server/errors"); await logError({ source: "api", level: "warn", message: `Post save dropped ${sent - kept} photo link(s): ${b.slides.map((x: any) => String(x?.image_url ?? "").slice(0, 60)).join(" | ")}`.slice(0, 300), route: "PATCH /api/content/:id", userId: profile.id }); }
+  }
   if (Object.keys(patch).length) post = (await ctx.store.update("social_posts", profile.id, post.id, { ...patch, stale: false, stale_reason: null }))!;
 
   const over = () => post!.caption.length > platformLimit(post!.platform);
