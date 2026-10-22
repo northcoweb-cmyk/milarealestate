@@ -197,7 +197,13 @@ export async function regenerate(ctx: Ctx, post: SocialPost): Promise<SocialPost
   const when = category === "open_house" && prop ? await openHouseWhen(ctx, prop) : null;
   const built = buildPost({ category, platform: post.platform, variant, contact: contactLine(ctx.profile), name: ctx.profile.full_name, role: ctx.profile.role, brokerage: ctx.profile.brokerage, market: ctx.profile.primary_market || ctx.profile.location, when, property: prop && data ? { address: prop.address, city: prop.city, state: prop.state, zip: prop.zip, facts: data.stats, details: data.details, descriptors: data.descriptors, notes: data.notes, fullAddress: data.fullAddress, placeLine: data.placeLine } : null });
   // photos the agent picked or uploaded stay on their slides; only empty slides get a fresh pick
-  const designed = withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout).map((sl, i) => ({ ...sl, image_url: post.slides[i]?.image_url ?? sl.image_url }));
+  const redesigned = withDesign(built.slides, ids, post.category ?? "", variant + 1 + (post.slides[0]?.theme ? 1 : 0), nextLayout).map((sl, i) => ({ ...sl, image_url: post.slides[i]?.image_url ?? sl.image_url, plain: post.slides[i]?.plain }));
+  // images the agent added (and the text and photos on them) are never thrown away by a restyle: only Mila's own first, second and last images are redrawn
+  const n = redesigned.length, mine = post.slides;
+  const designed = mine.length > n && n >= 2
+    ? [...redesigned.slice(0, n - 1), ...mine.slice(n - 1, -1).map((sl) => ({ ...sl, theme: redesigned[0].theme, layout: redesigned[0].layout, font: redesigned[0].font })),
+       { ...redesigned[n - 1], image_url: mine[mine.length - 1].image_url ?? redesigned[n - 1].image_url, plain: mine[mine.length - 1].plain }]
+    : redesigned;
   return (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: withSignature(built.caption, buildSignature(ctx.profile), platformLimit(post.platform)), hashtags: built.hashtags, slides: designed, variant, stale: false, stale_reason: null }))!;
 }
 

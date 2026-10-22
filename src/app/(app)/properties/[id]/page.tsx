@@ -14,6 +14,7 @@ import { PlaceInput } from "@/components/place-input";
 import { DeletePropertyConfirm } from "@/components/delete-property";
 import type { LookupMemory } from "@/lib/agent/property-lookup";
 import { useRouter } from "next/navigation";
+import { uploadMedia } from "@/lib/media-upload";
 import { ClipboardCheck } from "lucide-react";
 
 export default function PropertyPage() {
@@ -68,8 +69,18 @@ function PropertyDetail({ id }: { id: string }) {
   }
   async function upload(files: FileList | null) {
     if (!files?.length) return; setBusy(true);
-    try { const fd = new FormData(); for (const x of Array.from(files)) fd.append("file", x); fd.append("propertyId", id); await jfetch("/api/upload", { method: "POST", body: fd }); reload(); toast("Photos added.", "success"); }
-    catch (er) { toast(er instanceof Error ? er.message : "Upload failed.", "error"); } finally { setBusy(false); if (ref.current) ref.current.value = ""; }
+    // each photo is shrunk on the phone and sent straight to storage one at a time (a whole-roll multipart request is refused by the host above ~4 MB),
+    // then attached to this home only after it is really uploaded, so a failed upload never leaves a broken picture
+    let ok = 0; let lastError = "";
+    try {
+      for (const x of Array.from(files).slice(0, 20)) {
+        try { const m = await uploadMedia(x, {}); await jfetch(`/api/properties/${id}/images`, { method: "POST", json: { documentId: m.id } }); ok++; }
+        catch (er) { lastError = er instanceof Error ? er.message : "Upload failed."; }
+      }
+      await reload();
+      if (ok) toast(ok === 1 ? "Photo added." : `${ok} photos added.`, "success");
+      if (ok < files.length) toast(`${files.length - ok} photo${files.length - ok === 1 ? "" : "s"} didn't upload: ${lastError}`, "error");
+    } finally { setBusy(false); if (ref.current) ref.current.value = ""; }
   }
   const p = data.property;
   const addrComplete = !!((p.city && p.state) || p.zip);

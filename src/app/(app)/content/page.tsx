@@ -140,6 +140,7 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   const [busy, setBusy] = useState<string | null>(null);
   const [del, setDel] = useState(false);
   const [editText, setEditText] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
   const limit = data.platforms.find((p) => p.key === post.platform)?.limit ?? 2200;
   const over = caption.length > limit;
   const theme = slides[0]?.theme ?? "noir";
@@ -160,11 +161,12 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
   }, [dirty, caption, slides, slidesJson, limit, post.id]);
   useEffect(() => {
     if (!dirty) return;
-    const t = setTimeout(() => { quietSave().then(onChanged).catch(() => undefined); }, 1200);
+    const t = setTimeout(() => { setSaveMsg("Saving…"); quietSave().then(() => { setSaveMsg("All changes saved"); onChanged(); }).catch((e) => { setSaveMsg("Not saved yet"); toast(e instanceof Error ? `Your last change didn't save: ${e.message}` : "Your last change didn't save. Tap Save changes to try again.", "error"); }); }, 1200);
     return () => clearTimeout(t);
   }, [dirty, caption, slidesJson]); // eslint-disable-line react-hooks/exhaustive-deps
   async function closeEditor() {
-    try { await quietSave(); onChanged(); } catch { toast("Couldn't save your last edit.", "error"); }
+    if (dirty && (over || !caption.trim())) { toast(over ? "The caption is over the limit, so your changes can't save yet. Shorten it first." : "The caption can't be empty, so your changes can't save yet.", "error"); return; }
+    try { await quietSave(); onChanged(); } catch { toast("Your last edit didn't save, so I've kept this open. Tap Save changes to try again.", "error"); return; } // never close over unsaved work
     onClose();
   }
   const live: SocialPost = { ...post, caption, slides };
@@ -304,6 +306,7 @@ function Editor({ post, data, brand, onClose, onChanged }: { post: SocialPost; d
           {slides.length < MAX && <button type="button" className="btn btn-sm mt-3" onClick={() => { addSlide(); setEditText(true); }}>+ Add an image ({slides.length} of {MAX})</button>}
         </div>
 
+        {saveMsg && <p className="faint text-center text-[12.5px]" role="status">{dirty && saveMsg === "All changes saved" ? "Unsaved changes" : saveMsg}</p>}
         {dirty && <button className="btn btn-primary w-full" disabled={!!busy || over} onClick={() => act(null, {}, "Saved.")}>{busy === "save" ? "Saving…" : "Save changes"}</button>}
 
         {st !== "published" && st !== "archived" && (
