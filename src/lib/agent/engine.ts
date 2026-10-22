@@ -1,4 +1,5 @@
 import { createPosts } from "../content/service";
+import { buildClientBrief } from "./client-brief";
 import { adviceHandler } from "./handlers/advice";
 import { calcHandler } from "./handlers/calc";
 import { randomUUID } from "node:crypto";
@@ -531,6 +532,15 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "inbox_query": return inboxHandler();
     case "describe_home": return describeHomeHandler(ctx, text);
     case "advice": return adviceHandler(ctx, text);
+    case "client_summary": {
+      const people = await mentionedContacts(ctx, text);
+      const c = people.length === 1 ? people[0] : !people.length && ctx.state.last_contact_ids?.[0] && /\b(them|him|her|they|this client|that client)\b/i.test(text) ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
+      if (!c) return people.length > 1 ? askWhichPerson(text, people) : reply("Who is it about? Tell me the client's name and I'll give you a summary and next steps.", [], "smalltalk");
+      ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
+      const b = await buildClientBrief(ctx, c);
+      const list = (steps: { text: string; why?: string }[]) => steps.map((st) => `• ${st.text}${st.why ? ` (${st.why})` : ""}`).join("\n");
+      return reply(`${b.summary}${b.watch.length ? `\n\nHeads up: ${b.watch.join(" ")}` : ""}\n\nDo now:\n${list(b.now)}\n\nComing up:\n${list(b.soon)}\n\nLater:\n${list(b.later)}`, [{ type: "choice", title: `Next for ${c.name.split(" ")[0]}`, buttons: [...b.now.filter((st) => st.ask).slice(0, 2).map((st) => ({ label: st.text.slice(0, 40), style: "secondary" as const, action: { type: "prompt" as const, text: st.ask! } })), { label: "Open profile", style: "quiet" as const, href: `/contacts/${c.id}` }] }], "chat_simple");
+    }
     case "another_version": {
       const last = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => !["archived", "posted"].includes(p.status)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       if (!last) return reply("I don't have a post to make another version of yet. Want me to make one?", [], "smalltalk");

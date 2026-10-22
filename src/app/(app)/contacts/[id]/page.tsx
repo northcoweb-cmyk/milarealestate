@@ -12,6 +12,7 @@ import { useApi } from "@/components/use-api";
 import { useApp } from "@/components/app-context";
 import { contactEmoji } from "@/lib/emoji";
 import { firstNameOf } from "../../../../lib/names";
+import type { ClientBrief } from "@/lib/agent/client-brief";
 
 interface Detail { contact: Contact; facts: string[]; memories: Memory[]; timeline: ContactEvent[]; notes: ContactNote[]; tasks: Task[]; drafts: EmailDraft[] }
 
@@ -43,6 +44,8 @@ export default function ContactPage() {
           <Link className="btn btn-primary btn-sm" href={`/?ask=${encodeURIComponent(`Draft a follow-up email to ${c.name}`)}`}><Sparkles size={16} />Ask Mila</Link>
         </div>
       </div>
+
+      <BriefCard id={id} />
 
       {(!c.email || !c.phone) && (
         <form className="glass mb-5 p-5" style={{ borderRadius: 24 }} onSubmit={async (e) => {
@@ -159,6 +162,40 @@ function EmailsCard({ id }: { id: string }) {
       <p className="kicker mb-3">Emails{data.source ? ` · from your ${"Gmail"}` : ""}</p>
       {rows.length ? <ul className="space-y-3">{rows.map((m, i) => <li key={i} className="text-[15px]"><p className="font-semibold">{m.fromThem ? "↩︎ They replied: " : "✉️ You sent: "}{m.subject}</p><p className="muted line-clamp-2 text-[14px]">{m.snippet}</p>{m.at && <p className="faint text-[12.5px]">{new Date(m.at).toString() === "Invalid Date" ? m.at : new Date(m.at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>}</li>)}</ul> : <p className="muted text-[14.5px]">No emails with them yet.</p>}
       {data.note && <p className="faint mt-3 text-[13.5px]">{data.note}</p>}
+    </section>
+  );
+}
+
+
+/** Mila's read on this client: where they stand, and what to do now, soon and later. */
+function BriefCard({ id }: { id: string }) {
+  const { data } = useApi<{ brief: ClientBrief }>(`/api/contacts/${id}/brief`);
+  if (!data) return <Skeleton className="mb-5 h-40" />;
+  const b = data.brief;
+  const col = (title: string, steps: ClientBrief["now"], tone: string) => (
+    <div>
+      <p className="kicker mb-2" style={{ color: tone }}>{title}</p>
+      <ul className="space-y-2.5">
+        {steps.map((st, i) => (
+          <li key={i} className="text-[14.5px] leading-snug">
+            <p className="font-medium">{st.text}</p>
+            {st.why && <p className="faint text-[13px]">{st.why}</p>}
+            {st.ask && <Link href={`/?ask=${encodeURIComponent(st.ask)}`} className="mt-0.5 inline-block text-[13px] font-semibold text-accent">Ask Mila →</Link>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+  return (
+    <section className="glass mb-5 p-5 sm:p-6" style={{ borderRadius: 26 }} aria-label="Mila's summary">
+      <p className="kicker mb-2 flex items-center gap-1.5"><Sparkles size={14} />Mila's summary</p>
+      <p className="text-[15.5px] leading-relaxed">{b.summary}</p>
+      {b.watch.length > 0 && <p className="mt-2 rounded-2xl p-2.5 text-[13.5px]" style={{ background: "color-mix(in srgb, var(--warn) 14%, transparent)" }}>{b.watch.join(" ")}</p>}
+      <div className="hairline mt-4 grid gap-5 pt-4 sm:grid-cols-3">
+        {col("Do now", b.now, "var(--accent)")}
+        {col("Coming up", b.soon, "var(--ink-soft, inherit)")}
+        {col("Later", b.later, "var(--ink-faint, inherit)")}
+      </div>
     </section>
   );
 }
