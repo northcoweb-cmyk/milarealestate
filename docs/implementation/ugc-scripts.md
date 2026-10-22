@@ -1,70 +1,78 @@
-# UGC video scripts (filmed in your room, Meta Ray-Ban POV + phone screen)
+# UGC videos you can film in your room with a laptop (Meta Ray-Ban POV + screen recording)
 
-Rules for every video
-- Vertical. The first 2 seconds decide everything: start mid-problem, on the action, never "Hey guys".
-- One problem, one fix, under 25 seconds. Show the real Mila screen for at least 5 seconds.
-- Big on-screen captions (people watch muted). End every video with: "7-day free trial, link in bio."
-- Say "an AI assistant for real estate agents", never promise guaranteed results.
-- Film 3 takes of the hook alone and use the best one. The hook is the video.
+Goal: get new real estate agents to stop scrolling and start a free trial. Everything below is filmed at your desk. No other locations.
 
-How to film
-- Ray-Ban glasses = your POV: walking, grabbing keys, looking at the phone, "rushing" shots. Record in short clips (the glasses cap clip length) and cut together in CapCut or the TikTok editor.
-- Phone screen = screen-record Mila (iPhone: Control Center screen record). Put it on top of the glasses footage as a cutaway.
-- Light from a window in front of you. Phone on a stand for the face shots. Keep the room clean and bright.
-- Film all 8 below in one sitting (about 90 minutes), then post one a day.
+## Set up once before filming (15 minutes)
+1. **The mansion.** In Mila, add a fictional luxury listing (the address is fake, the photos are what sell it):
+   `Add a listing at 1 Estate Drive, Potomac, MD 20854, 7 bed 9 bath, 14,000 sq ft, $12,500,000`
+   Then open the property and upload 4 to 6 mansion photos. Use photos you have the right to use (your own, or free-to-use stock from Unsplash or Pexels). Never use someone else's real listing photos.
+2. **Fake people.** Use made-up names only (for example Marcus Hale). No real client names, numbers or emails on screen.
+3. **Clean laptop screen.** Close other tabs, full-screen the app, text size up (zoom the browser to 125 percent) so it reads on a phone.
+4. **Screen recording.** Mac: Shift-Command-5. Windows: Win-G or OBS. Record the laptop screen separately from the glasses footage.
+5. **Glasses footage.** Wear the Ray-Bans at the desk and look at the laptop (this is your "POV"). Film a few extra short clips: rushing into the chair, grabbing the laptop open, looking at your watch/phone, a big exhale. The glasses clip length is short, so film in 10 to 20 second pieces.
+6. **Type fast on camera.** Copy the prompt below into a note first and paste it, so it appears in one second instead of ten.
+7. **Reset between takes.** Delete the open house event and extra posts, or just use a new fictional address each take.
 
-## 1. "I forgot the open house" (rushing hook)  [best first video]
-- Hook (0-2s, Ray-Ban POV, running to the door, grabbing keys): "I have an open house in an hour and I haven't done ANYTHING."  Caption: "open house in 1 hour. nothing ready."
-- Beat (2-5s): sit down, phone out: "Okay. Mila."
-- Screen (5-15s): type "Set up an open house at 456 Oak Lane this Saturday 1 to 4". Show the calendar event, the post draft and the follow-up appear.
-- Payoff (15-20s, face to camera, exhale): "...Oh thank God. Calendar, post, follow-ups. Done." Caption: "20 seconds."
-- CTA: "Free for 7 days. Link in bio."
-- Caption: "this is why I stopped doing it manually"
+## The hook formula that works on TikTok (use it for every video)
+1. **Stakes + clock in the first 2 seconds.** Someone is about to lose something soon. ("I have an open house in 1 hour.")
+2. **Say the pain out loud, then cut to relief.** The video is the relief.
+3. **One clean payoff on screen**, shown big, held for 2 seconds.
+4. **Close with a number**: "20 seconds", "$39", "7 days free".
+Never start with "Hey guys", your name, or what Mila is. Start in the problem.
 
-## 2. "Who do I call today?" (curiosity hook)
-- Hook: look at the camera, serious: "Most agents lose deals because of ONE thing. It's not price." Caption: "the real reason agents lose clients"
-- Beat: "They forget to follow up."
-- Screen: open a client page: Mila's summary, Do now / Coming up / Later. "She tells me exactly who to call and what to say."
-- Payoff: "Follow-up on autopilot." CTA.
+## Video 1 (film first): "Open house in one hour"  (about 22 seconds)
+Shots (all at your desk):
+- 0:00 to 0:02 (glasses POV, you sit down hard, laptop opens): you, out of breath: **"I have an open house at the mansion in ONE hour and nothing is set up."**  On-screen text: *open house in 1 hour. nothing ready.*
+- 0:02 to 0:04 (face to camera, quick, panicked half-smile): "Okay. Okay. Mila."
+- 0:04 to 0:12 (screen recording, big): paste and send:
+  **`Set up an open house at 1 Estate Drive this Saturday 1 to 4`**
+  Let it run. Show the plan building: the calendar event, the Instagram post draft, the follow-up checklist.
+- 0:12 to 0:17 (screen): scroll to the post it made, then tap the property photos so the mansion photos fill the screen. Hold on the post for 2 seconds.
+- 0:17 to 0:22 (face, big exhale, lean back): **"...Okay. Calendar, post, follow-ups. Done."**  Text: *20 seconds.*
+- End card: **7-day free trial. Link in bio.**
+Caption: `my open house was in an hour and I had nothing 😅 #realestateagent #realtorlife #openhouse #realestatetiktok`
 
-## 3. "Post from my listing photos" (visual hook)
-- Hook (Ray-Ban POV, scrolling your camera roll): "Your listing photos are way too good for a basic template." Caption: "stop using templates"
-- Screen: upload 3 photos, Full photo design, edit a line, save images. Show the finished post big.
-- Payoff: "Three photos, one minute, post ready." CTA.
+## Video 2: "Make the post from the photos" (visual hook)
+- Hook (0:00 to 0:02, glasses POV, scrolling mansion photos): **"These photos deserve better than a Canva template."**
+- Screen: `Make a Just Listed post for 1 Estate Drive`, then open the post, add the photos, show the full-photo design. Keep the finished post full screen for 3 seconds.
+- Payoff: "One minute. Looks like I hired a designer." Text: *Just Listed, done.*
 
-## 4. "Mila vs my Monday" (relatable chaos)
-- Hook: pace the room with the phone, ranting: "Showing at 2, call Priya, send comps, lunch Friday, remind me to..." (talk fast).
-- Screen: say/type that messy list. Mila sorts it into calendar, reminder and task.
-- Payoff: "I said it like a crazy person and it just... worked." CTA.
+## Video 3: "Who should I call today?" (curiosity hook)
+- Hook: **"Most agents lose deals because of one thing, and it's not price."** (pause) **"They forget to follow up."**
+- Screen: first type `Add buyer Marcus Hale, 301-555-0142, budget 13m, looking in Potomac` (this takes 3 seconds), then `Summarize Marcus`. Show the Do now / Coming up / Later steps.
+- Payoff: "Mila tells me who to call and what to do next." Text: *follow-up on autopilot.*
 
-## 5. "Can I share her sale price with her son?" (value hook)
-- Hook: "A client's son just asked me for her sale price. Should I tell him?" Caption: "agents get this wrong"
-- Screen: ask Mila; show the answer (written permission first) and the draft note offer.
-- Payoff: "Quick answers without Googling for an hour." CTA.
+## Video 4: "The deal almost fell through" (drama hook)
+- Hook: **"The appraisal came in $200,000 under the contract. I have 24 hours."**
+- Screen: type `What are my options if the appraisal comes in $200k under a $12.5 million contract?` Show the options list.
+- Payoff: "Instead of panicking, I have a plan." Text: *ask it anything.*
+- (She answers from standard practice and ends with a check-with-your-broker note, which is what you want on camera.)
 
-## 6. "I'm getting out of the house" (lifestyle hook)
-- Hook (Ray-Ban POV, putting shoes on, bag over shoulder): "I'm leaving for vacation in 10 minutes and my calendar is a disaster."
-- Screen: "I'm out of town next Wednesday through Friday." Mila blocks the days, flags conflicts, sets a reminder the night before.
-- Payoff: "Okay I can leave now." CTA.
+## Video 5: "What would my payment be?" (instant value)
+- Hook: **"A buyer just asked what the payment is on a $12.5 million house."**
+- Screen: type `payment 12.5m 25%/6.75`. Shows about $60,806 a month principal and interest.
+- Payoff: "Answered before they finish asking." Text: *instant math.*
 
-## 7. "Pretend I'm your assistant" (trend/POV)
-- Hook (you in a chair, deadpan): "POV: you hired an assistant who never sleeps and costs $39 a month."
-- Quick cuts: text drafted, post made, follow-up scheduled, summary opened. Each cut 2 seconds with a sound effect.
-- Payoff: "Real estate assistants are about to look very different." CTA.
+## Video 6: "My whole Saturday in one message" (relatable chaos)
+- Hook: pace behind the laptop, talking fast: **"Open house 1 to 4, call Marcus at noon, send comps, lunch at 12:30..."**
+- Screen: send the open house message, then `What am I doing this Saturday?` to show it all in order.
+- Payoff: "I said it like a crazy person and it just worked."
 
-## 8. "Build in public" (trust hook)
-- Hook: "I built an AI assistant for agents and I'm launching it this week." Caption: "day 1"
-- Show a real number (waitlist, first sign-up, a bug you fixed). Honest and short. CTA: "Come try it."
-- Post a follow-up every few days with the next number.
+## Video 7: Build in public (trust hook)
+- Hook: **"I built an AI assistant for real estate agents and I'm launching it today."**
+- Show a real number (waitlist, first sign-up, a bug you fixed that day). Honest and short. Post a follow-up every few days.
 
-## Hook bank (use as the first line of anything)
+## Hook bank (first line of anything)
 - "I have an open house in an hour and nothing is ready."
-- "Stop doing your follow-ups like this."
+- "The appraisal came in $200,000 under. I have 24 hours."
 - "Most agents lose deals because of one thing."
-- "I asked my AI assistant to run my whole Monday."
-- "This took me 20 seconds. It used to take me an hour."
+- "This used to take me an hour. It took 20 seconds."
 - "If you're a real estate agent, don't scroll."
-- "POV: your assistant never sleeps."
+- "POV: your assistant never sleeps and costs $39 a month."
 
-## Posting plan
-Day 1 video 1, day 2 video 2, day 3 video 3, then boost whichever got the most views in 24 hours ($5 to $10 a day for 3 days, objective: link clicks, link `?ref=tt1`). Reuse each video on Reels and Shorts the same day. Reply to every comment within an hour.
+## Before you post (so it converts)
+- Put the number in the caption and on screen, and one clear call to action: "7-day free trial, link in bio." Pin a comment with the link.
+- Post at the time agents are online: weekday mornings 7 to 9 AM or evenings 7 to 9 PM.
+- Boost the winner after 24 hours: $5 to $10 a day for 3 days, objective link clicks, link `?ref=tt1`.
+- Say "an AI assistant for real estate agents". Don't promise results or leads.
+- The mansion address is fictional, so say "example listing" in the caption or a small on-screen note. Don't present a fake listing as real.
