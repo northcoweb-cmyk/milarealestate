@@ -62,3 +62,18 @@ test("launch-eve: 'payment 550k 20% 6.5' uses the 6.5 rate", async () => {
   assert.match(r.milaMessage.content, /6\.5% for 30 years/);
   assert.match(r.milaMessage.content, /\$2,781\/month/);
 });
+
+test("launch-eve: 'block off friday afternoon' holds 1 to 5 PM, not the whole day as out of office", async () => {
+  const a = await fresh();
+  await a.say("block off friday afternoon");
+  const ev = await store.list("calendar_events", a.id);
+  assert.equal(ev.length, 1);
+  assert.equal((new Date(ev[0].end_at).getTime() - new Date(ev[0].start_at).getTime()) / 3_600_000, 4);
+  assert.doesNotMatch(String(ev[0].title), /out of office/i);
+});
+
+test("launch-eve: a question about what to SAY on HOA is not answered with 'I don't have that figure'", async () => {
+  const a = await fresh();
+  const r = await a.say("what is a good response when a buyer asks about HOA");
+  assert.doesNotMatch(r.milaMessage.content, /don't have that figure/);
+});

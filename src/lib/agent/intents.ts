@@ -43,6 +43,7 @@ export function fixTypos(raw: string): string {
   return raw
     .replace(/\b(?:showinge|showign|shwoing|showng|showin)\b/gi, "showing")
     .replace(/\b(tmrw|tmr|tomorrow)\s+(\d{1,2})(?![\d:])(?!\s*(?:am|pm|a\.m|p\.m|o'?clock))\b/gi, "tomorrow at $2").replace(/\b(?:abt)\b/gi, "about").replace(/\b(?:cal)\b(?=\s+[A-Z])/g, "call")
+    .replace(/\bblock(?:ing)?\s+(?:off|out)\s+((?:this\s+|next\s+)?(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|tomorrow|today)\s+(morning|afternoon|evening)\b/gi, (_m, d: string, part: string) => `Schedule busy time ${d} ${/^morn/i.test(part) ? "8am to 12pm" : /^aft/i.test(part) ? "1pm to 5pm" : "5pm to 8pm"}`)
     .replace(/\bw\/o\b/gi, "without").replace(/\bw\/\s*/gi, "with ")
     .replace(/\b(?:um+|uh+|uhm+|erm+|hmm+)\b[,.]?\s*/gi, "") // dictation filler
     .replace(/\bopen\s*hous\b/gi, "open house").replace(/\b(?:appoitment|apointment|appointmnt)\b/gi, "appointment")

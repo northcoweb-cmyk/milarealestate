@@ -32,7 +32,7 @@ export function calcKind(text: string): CalcKind | null {
   if (/\b(?:afford|affordable)\b/.test(t) && !/\bwhat (?:is|are) the/.test(t)) return "affordable";
   if (/\b(?:which|what|list|show|who)\b.{0,30}\b(?:buyers?|clients?|leads?|sellers?)\b.{0,40}\b(?:under|below|over|above|more than|less than)\s+\$?\d/.test(t)) return "budget_filter";
   if (/\bcompare\b.{0,40}\bbudgets?\b|\bbudget\b.{0,40}\bcompare\b|\bhow does\b.{0,40}\bbudget\b.{0,30}\bcompare\b/.test(t)) return "budget_compare";
-  if (/\b(?:property tax(?:es)?(?: rate)?|tax rate|hoa(?: fees?| dues)?|condo fees?|insurance rate)\b/.test(t) && /\?|^\s*(?:what|how|hoa|property tax)/.test(t)) return "unknown_fact";
+  if (/\b(?:property tax(?:es)?(?: rate)?|tax rate|hoa(?: fees?| dues)?|condo fees?|insurance rate)\b/.test(t) && /\?|^\s*(?:what|how|hoa|property tax)/.test(t) && !/\b(?:say|respond|response|reply|answer|explain|script|tell|talk|handle|objection|words?)\b/.test(t)) return "unknown_fact";
   return null;
 }
 
