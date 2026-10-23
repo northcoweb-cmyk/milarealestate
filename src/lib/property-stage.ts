@@ -64,7 +64,7 @@ export function buildCard(p: Property, mems: Memory[], events: CalendarEvent[], 
   else stage = "upcoming";
 
   const photo = images[0]?.url ?? null;
-  const street = !photo && p.city && p.state ? `/api/properties/${p.id}/streetview?size=640x440` : null;
+  const street = !photo && p.city && p.state && stage !== "done" && stage !== "archived" ? `/api/properties/${p.id}/streetview?size=640x440` : null; // past and set-aside homes do not fetch a street image on every visit
   const def = STAGES.find((s) => s.key === stage)!;
   return {
     ...p, kind: kindForProperty(p, mems), stage, stage_label: def.label, group: def.group, manual_stage: isManual, market: stage === "active" ? "on" : "off",

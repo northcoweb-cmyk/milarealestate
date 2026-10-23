@@ -43,7 +43,7 @@ export default function CalendarPage() {
   const go = (delta: number) => { const t = new Date(Date.UTC(view.y, view.m - 1 + delta, 1)); const y = t.getUTCFullYear(), m = t.getUTCMonth() + 1; setView({ y, m }); setSelDay(y === nowParts.y && m === nowParts.m ? nowParts.d : 1); };
   const goToday = () => { setView({ y: nowParts.y, m: nowParts.m }); setSelDay(nowParts.d); };
   const key = (d: Date) => { const p = partsIn(d, tz); return `${p.y}-${p.m}-${p.d}`; };
-  const byDay = useMemo(() => { const m = new Map<string, CalendarEvent[]>(); for (const e of data?.events ?? []) { const k = key(new Date(e.start_at)); m.set(k, [...(m.get(k) ?? []), e]); } return m; }, [data, tz]); // eslint-disable-line react-hooks/exhaustive-deps
+  const byDay = useMemo(() => { const m = new Map<string, CalendarEvent[]>(); for (const e of data?.events ?? []) { const s0 = new Date(e.start_at), e0 = new Date(e.end_at); const last = key(new Date(Math.max(s0.getTime(), e0.getTime() - 1))); /* a block that spans days (out of office) shows on every day it covers */ for (let t = s0.getTime(), g = 0; g < 45; g++, t += 86_400_000) { const k = key(new Date(t)); if (!(m.get(k) ?? []).includes(e)) m.set(k, [...(m.get(k) ?? []), e]); if (k === last) break; } } return m; }, [data, tz]); // eslint-disable-line react-hooks/exhaustive-deps
   const selDate = days[Math.min(selDay, daysInMonth) - 1];
   const dayEvents = byDay.get(key(selDate)) ?? [];
   const dayReminders = (data?.reminders ?? []).filter((r) => key(new Date(r.remind_at)) === key(selDate));

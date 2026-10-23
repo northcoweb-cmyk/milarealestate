@@ -7,6 +7,6 @@ export function syncLabel(e: Pick<CalendarEvent, "source" | "external_id" | "syn
   if (e.source === "google") return { state: "from_external", text: "From Google Calendar" };
   if (e.source === "ics") return { state: "read_only_link", text: "From your calendar link (read-only)" };
   if (e.external_id && e.synced_at) return { state: "synced", text: "Synced to Google Calendar" };
-  if (o.googleCalendar) return { state: "needs_attention", text: "Saved in Mila. Google sync needs attention" };
+  if (o.googleCalendar) return { state: "needs_attention", text: "Saved in Mila. Not on your Google Calendar yet" };
   return { state: "saved", text: "Saved in Mila" };
 }

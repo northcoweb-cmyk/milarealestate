@@ -164,6 +164,8 @@ export function scrubBlocks(blocks: Block[]): Block[] {
 }
 export function scrubInternal(text: string): string {
   if (leaksProviderDetail(text)) text = friendlyAiError(text);
+  // sources read cleanly: no tracking parameters, and a markdown link is shown as its words with the site in brackets
+  text = text.replace(/https?:\/\/[^\s)\]]+/g, (u) => u.replace(/([?&])utm_[a-z_]+=[^&]*/gi, "$1").replace(/\?&/g, "?").replace(/[?&]+$/, "")).replace(/\(\[([^\]\n]{2,120})\]\(https?:\/\/(?:www\.)?([^/)\s]+)[^)\s]*\)\)/g, (_m, label: string, host: string) => `(${label}, ${host})`).replace(/\[([^\]\n]{2,120})\]\((https?:\/\/(?:www\.)?([^/)\s]+)[^)\s]*)\)/g, (_m, label: string, _u: string, host: string) => `${label.replace(/^\(|\)$/g, "")} (${host})`);
   return text.replace(/\{\s*"(?:kind|q|a|note|at)"\s*:[^\n]*/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 

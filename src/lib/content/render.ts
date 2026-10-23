@@ -569,7 +569,7 @@ export const toBlob = (cv: HTMLCanvasElement, type = "image/png") => new Promise
 // ---------------------------------------------------------------- preview cache + queue
 const urlCache = new Map<string, string>();
 let chain: Promise<unknown> = Promise.resolve();
-const slideKey = (s: SocialSlide, o: RenderOpts) => JSON.stringify([s.role, s.headline, s.sub, s.image_url, s.theme, s.layout, s.font, s.lines, s.gallery, o.index, o.total, o.platform, o.brand, o.category, o.width]);
+const slideKey = (s: SocialSlide, o: RenderOpts) => JSON.stringify([s, o.index, o.total, o.platform, o.brand, o.category, o.width]); // every setting of the slide is part of the key (a toggle like "No text" must redraw the preview)
 
 /** Small preview image (object URL). Renders one at a time so the page stays smooth. */
 export function previewUrl(slide: SocialSlide, o: RenderOpts): Promise<string> {

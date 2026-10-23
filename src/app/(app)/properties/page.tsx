@@ -48,7 +48,8 @@ export default function PropertiesPage() {
   const tab: Tab = picked ?? (counts.work ? "work" : counts.current ? "current" : counts.upcoming ? "upcoming" : "all");
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return all.filter((p) => (tab === "all" || (tab === "work" ? needsWork(p) : p.group === tab)) && (mkt === "all" || p.market === mkt) && (!t || `${p.address} ${p.city ?? ""} ${p.state ?? ""} ${p.zip ?? ""}`.toLowerCase().includes(t)));
+    return all.filter((p) => (!!t || tab === "all" || (tab === "work" ? needsWork(p) : p.group === tab)) // a search looks through every property, whatever tab is open
+     && (mkt === "all" || p.market === mkt) && (!t || `${p.address} ${p.city ?? ""} ${p.state ?? ""} ${p.zip ?? ""}`.toLowerCase().includes(t)));
   }, [all, tab, q, mkt]);
   const mktCounts = { all: all.length, on: all.filter((p) => p.market === "on").length, off: all.filter((p) => p.market === "off").length };
 

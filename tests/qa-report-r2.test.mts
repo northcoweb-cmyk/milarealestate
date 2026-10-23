@@ -276,3 +276,28 @@ test("round 3 (doc H2): a listing description uses the facts given in the reques
   assert.match(r.milaMessage.content, /townhouse offers 3 bedrooms, 2\.5 baths, about 1,600 square feet/);
   assert.match(r.milaMessage.content, /Finished basement; new roof \(2023\)\./);
 });
+
+test("round 3 (doc M-34): research links lose tracking parameters and read cleanly", async () => {
+  const { scrubInternal } = await import("../src/lib/agent/engine");
+  const out = scrubInternal("Rates are 7.32% ([Freddie Mac](https://www.freddiemac.com/pmms?utm_source=openai)). More at https://x.com/a?utm_source=openai&id=3 ok");
+  assert.doesNotMatch(out, /utm_/);
+  assert.match(out, /Freddie Mac, freddiemac\.com/);
+  assert.match(out, /https:\/\/x\.com\/a\?id=3/);
+});
+
+test("round 3 (doc M-36): the same reminder or to-do twice is one", async () => {
+  const a = await fresh();
+  await a.say("remind me tomorrow at 9 to order signs");
+  await a.say("remind me tomorrow at 9 to order signs");
+  assert.equal((await store.list("reminders", a.id)).length, 1);
+});
+
+test("round 3 (doc M-26): a thank-you email is a thank-you for the showing, with the person's name and nothing left over", async () => {
+  const a = await fresh();
+  await C(a, "QA TEST Dana Whitfield", { email: "d@example.com" });
+  await a.say("Draft an email to QA TEST Dana Whitfield thanking her for the showing");
+  const d = (await store.list("email_drafts", a.id))[0];
+  assert.equal(d.subject, "Thank you");
+  assert.match(d.body, /Hi Dana,\n\nThank you for the showing\./);
+  assert.doesNotMatch(d.body, /Whitfield|thanking/i);
+});
