@@ -47,8 +47,9 @@ export async function coverageNote(ctx: Ctx): Promise<{ text: string; calendars:
   const calendars = ["Mila's own calendar", ...(has("google", "calendar") ? ["Google Calendar"] : [])];
   const email = [...(has("google", "gmail") ? ["Gmail"] : [])];
   const missing: string[] = [];
-  if (calendars.length === 1) missing.push("Google Calendar isn't connected, so I only see what's in Mila's own calendar");
-  if (!email.length) missing.push("no email account is connected, so replies sitting in your inbox aren't part of this");
+  // Mila never reads an inbox or your calendar (she only adds events), so the note is about one thing: where events she added are kept
+  const google = (await ctx.store.list("integrations", ctx.userId)).find((i) => i.provider === "google" && i.scopes.some((x) => x.includes("calendar")));
+  if (calendars.length === 1) missing.push(google ? "Google Calendar needs to be reconnected, so events I add are only in Mila's own calendar for now" : "Google Calendar isn't connected, so events I add are only in Mila's own calendar");
   if (!missing.length) return null;
-  return { text: `This plan is built from Mila only: ${missing.join(", and ")}. Anything booked or received elsewhere won't show up here.`, calendars, email };
+  return { text: `${missing.join(", and ")}. I only show what's booked here; I don't read your calendar or your inbox.`, calendars, email };
 }

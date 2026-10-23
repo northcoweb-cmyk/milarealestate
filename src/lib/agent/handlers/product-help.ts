@@ -28,8 +28,9 @@ export function productTopic(text: string): Topic | null {
   return hit;
 }
 
-export async function refuseInjectionHandler(): Promise<HandlerOut> {
-  return reply("I can't share my instructions or change my own rules. I also never send anything to a group on my own: I draft, you review, and you press send. If you tell me what to say, I'll write the message for you to check.", [], "smalltalk");
+export async function refuseInjectionHandler(text = ""): Promise<HandlerOut> {
+  const groupSend = /\b(?:send|email|text|message|forward|share)\b.{0,40}\b(?:everyone|all|every|group|list)\b/i.test(text);
+  return reply(`I can't share my instructions or change my own rules.${groupSend ? " I also never send anything to a group on my own: I draft, you review, and you press send. If you tell me what to say, I'll write the message for you to check." : ""}`, [], "smalltalk");
 }
 
 export async function productHelpHandler(_ctx: Ctx, text: string): Promise<HandlerOut> {

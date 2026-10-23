@@ -664,8 +664,9 @@ export async function timeOffHandler(ctx: Ctx, text: string): Promise<HandlerOut
 }
 
 /** Proposes moving each booked event to the same time on the first day after time off. Nothing moves here: the agent sees every move and confirms once. */
-export async function shiftEvents(ctx: Ctx, eventIds: string[], after: string): Promise<HandlerOut> {
-  const back = addDays(new Date(after), 1, ctx.tz), b = partsIn(back, ctx.tz);
+export async function shiftEvents(ctx: Ctx, eventIds: string[], after: string, toDay?: Date): Promise<HandlerOut> {
+  const back = toDay ?? addDays(new Date(after), 1, ctx.tz), b = partsIn(back, ctx.tz);
+  const where = toDay ? fmtDay(back, ctx.tz) : `${fmtDay(back, ctx.tz)}, your first day back`;
   const moves: { id: string; start_at: string; end_at: string }[] = [];
   const evs: CalendarEvent[] = [];
   for (const id of eventIds.slice(0, 20)) {
@@ -693,10 +694,10 @@ export async function shiftEvents(ctx: Ctx, eventIds: string[], after: string): 
     ctx.state.pending = { kind: "approval", approval_id: out.approval.id, label: out.approval.title };
     await persistState(ctx);
     const exact = moves.map((_, i) => line(i)).join("\n");
-    return reply(`This would move ${plural(moves.length, "event")} to ${fmtDay(back, ctx.tz)}, your first day back. Nothing has moved yet. Exactly these:\n${exact}`, [{ type: "notice", tone: "warn", title: out.approval.title, body: exact, buttons: [{ label: `Confirm — move ${moves.length}`, style: "primary", approvalId: out.approval.id }, { label: "Never mind", style: "quiet", action: { type: "noop" } }] }], "smalltalk");
+    return reply(`This would move ${plural(moves.length, "event")} to ${where}. Nothing has moved yet. Exactly these:\n${exact}`, [{ type: "notice", tone: "warn", title: out.approval.title, body: exact, buttons: [{ label: `Confirm — move ${moves.length}`, style: "primary", approvalId: out.approval.id }, { label: "Never mind", style: "quiet", action: { type: "noop" } }] }], "smalltalk");
   }
   if (!out.result.ok) return reply(out.result.message, [], "smalltalk");
-  return reply(`Moved ${plural(moves.length, "event")} to ${fmtDay(back, ctx.tz)}, your first day back.`, [], "smalltalk");
+  return reply(`Moved ${plural(moves.length, "event")} to ${where}.`, [], "smalltalk");
 }
 
 
@@ -812,4 +813,19 @@ export async function oooEditHandler(ctx: Ctx, text: string): Promise<HandlerOut
   const r = await editEventDirect(ctx, { id: keep.id, start_at: first.toISOString(), end_at: last.toISOString() });
   if (!r.ok) return reply(`I couldn't change it: ${r.message}`, [], "smalltalk");
   return reply(`Changed. Your out of office is now ${spanLabel({ title: "Out of office", start_at: first.toISOString(), end_at: last.toISOString() }, ctx.tz)}.`, [], "chat_simple");
+}
+
+
+/** "Move everything on Saturday to Monday" / "reschedule everything tomorrow to Thursday": every event that day, same times, one confirmation. */
+export async function moveDayHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const m = /(?:move|reschedule|push|shift|bump)\s+(?:everything|all(?: of)?(?: my)?(?: events| appointments| meetings| showings| calls)?)(?:\s+(?:on|from|for))?\s+(.+?)\s+(?:to|onto|until)\s+(.+?)[.!?]*$/i.exec(text);
+  if (!m) return reply("Which day should I move, and to which day? For example “move everything on Saturday to Monday”.", [], "smalltalk");
+  const from = parseDate(m[1], ctx.now, ctx.tz);
+  const to = from ? (/\b(?:today|tomorrow|tonight|next|this|\d{1,2}(?:st|nd|rd|th)|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(m[2]) ? parseDate(m[2], ctx.now, ctx.tz) : parseDate(m[2], zonedToUtc(from.y, from.m, from.d, 12, 0, ctx.tz), ctx.tz)) : null; // "Friday to Monday": the Monday after that Friday
+  if (!from || !to) return reply("I couldn't tell which days you meant. Try “move everything on Saturday to Monday”.", [], "smalltalk");
+  const a = zonedToUtc(from.y, from.m, from.d, 0, 0, ctx.tz), b = addDays(a, 1, ctx.tz);
+  const day = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && new Date(e.start_at) >= a && new Date(e.start_at) < b);
+  if (!day.length) return reply(`You don't have anything on ${fmtDay(a, ctx.tz)}, so there is nothing to move.`, [], "smalltalk");
+  const target = zonedToUtc(to.y, to.m, to.d, 12, 0, ctx.tz);
+  return shiftEvents(ctx, day.map((e) => e.id), addDays(target, -1, ctx.tz).toISOString(), target);
 }

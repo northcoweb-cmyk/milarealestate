@@ -3,11 +3,11 @@
  * today's to-dos, a percentage of a number, and a recap of this chat. Free, instant, nothing invented.
  */
 import { type Ctx, fullMoney } from "../context";
-import { fmtDayTime, startOfDay } from "../../time";
+import { fmtDayTime, fmtTime, startOfDay } from "../../time";
 import { parseMoney } from "../nlu";
 import { type HandlerOut, reply } from "./types";
 
-export type BasicsKind = "count_contacts" | "count_properties" | "next_open_house" | "next_showing" | "showings_range" | "stale_contacts" | "status_of" | "tasks_today" | "percent_of" | "chat_recap";
+export type BasicsKind = "count_contacts" | "count_properties" | "next_open_house" | "next_showing" | "showings_range" | "focus_today" | "stale_contacts" | "status_of" | "tasks_today" | "percent_of" | "chat_recap";
 
 export function basicsKind(text: string): BasicsKind | null {
   const t = text.toLowerCase().trim();
@@ -16,6 +16,7 @@ export function basicsKind(text: string): BasicsKind | null {
   if (/\bhow many (?:(?:active|live|current|upcoming|sold|pending)\s+)?(?:properties|listings|homes|houses)\b/.test(t)) return "count_properties";
   if (/\b(?:what(?:'s| is)|when(?:'s| is)|show me) (?:my )?next open house\b/.test(t)) return "next_open_house";
   if (/\b(?:any|which|what|how many|show me|list)\b.{0,25}\bshowings?\b.{0,25}\b(?:next week|this week|tomorrow|today)\b|\bshowings?\b.{0,12}\b(?:next week|this week)\b/.test(t)) return "showings_range";
+  if (/\bwhat should i (?:focus on|work on|tackle|do|prioriti[sz]e)\b.{0,20}\btoday\b|\bwhat(?:'s| is) my (?:focus|top priorit\w+)\b.{0,15}\btoday\b|\bwhat do i need to (?:focus on|get done|handle) today\b|\bwhat(?:'s| is) (?:most )?(?:urgent|important) today\b/.test(t)) return "focus_today";
   if (/\bwho (?:haven'?t|have not|hasn'?t) i (?:talked|spoken|reached|been in touch|contacted|heard)\b|\bwho (?:have i )?(?:not|n'?t) (?:talked|spoken|contacted)\b|\bhaven'?t (?:talked|spoken|contacted|reached out)\b.{0,30}\b(?:in a while|lately|recently|in weeks)\b|\blong time since\b.{0,20}\b(?:talked|spoke|contact)/.test(t)) return "stale_contacts";
   if (/\b(?:what(?:'s| is)|whats) the status of\b|\bis\b.{3,40}\bstill (?:available|on the market|active|for sale)\b/.test(t)) return "status_of";
   if (/\b(?:what(?:'s| is)|when(?:'s| is)) (?:my )?next showing\b/.test(t)) return "next_showing";
@@ -67,6 +68,20 @@ export async function basicsHandler(ctx: Ctx, text: string): Promise<HandlerOut>
       else if (/this week/.test(t)) { to = day0 + (((8 - dow) % 7) || 7) * 86_400_000; label = "this week"; }
       const evs = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && e.kind === "showing" && new Date(e.start_at).getTime() >= from && new Date(e.start_at).getTime() < to).sort((a, b) => a.start_at.localeCompare(b.start_at));
       return reply(evs.length ? `${evs.length === 1 ? "One showing" : `${evs.length} showings`} ${label}:\n${evs.map((e) => `• ${fmtDayTime(e.start_at, ctx.tz)}: ${e.title.split(" — ").pop()}`).join("\n")}` : `You don't have any showings ${label}.`, [], "chat_simple");
+    }
+    case "focus_today": {
+      const { computePriorities } = await import("../prioritize");
+      const day0 = startOfDay(ctx.now, ctx.tz), day1 = new Date(day0.getTime() + 86_400_000);
+      const evs = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && new Date(e.start_at) >= day0 && new Date(e.start_at) < day1).sort((a, b) => a.start_at.localeCompare(b.start_at));
+      const tasks = (await ctx.store.list("tasks", ctx.userId)).filter((t) => t.status === "open" && t.kind !== "approval" && t.due_at && new Date(t.due_at) < day1).sort((a, b) => (a.due_at ?? "").localeCompare(b.due_at ?? ""));
+      const approvals = (await ctx.store.list("approvals", ctx.userId)).filter((a) => a.status === "pending");
+      const follow = (await computePriorities(ctx)).filter((x) => x.source === "contact").slice(0, 3);
+      const parts: string[] = [];
+      if (evs.length) parts.push(`On the calendar today:\n${evs.slice(0, 8).map((e) => `• ${fmtTime(e.start_at, ctx.tz)}  ${e.title}${e.notes === "Transaction milestone" ? " (deadline)" : ""}`).join("\n")}`);
+      if (approvals.length) parts.push(`Waiting for your OK (${approvals.length}):\n${approvals.slice(0, 4).map((a) => `• ${a.title}`).join("\n")}`);
+      if (tasks.length) parts.push(`Due or overdue:\n${tasks.slice(0, 5).map((t) => `• ${t.title}${new Date(t.due_at!) < day0 ? " (overdue)" : ""}`).join("\n")}${tasks.length > 5 ? `\n• …and ${tasks.length - 5} more` : ""}`);
+      if (follow.length) parts.push(`People to reach out to:\n${follow.map((f) => `• ${f.title}: ${f.reason || "follow up"}`).join("\n")}`);
+      return reply(parts.length ? `Here's your focus for today, in the order I'd do it:\n\n${parts.join("\n\n")}` : "Nothing is booked or due today, and nobody needs a follow-up right now. A good day to prospect or post.", [], "chat_simple");
     }
     case "stale_contacts": {
       const all = (await ctx.store.list("contacts", ctx.userId)).filter((c) => c.status !== "inactive" && c.status !== "closed");

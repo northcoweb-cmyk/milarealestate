@@ -59,11 +59,15 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       const newC = contacts.filter((c) => !c.is_demo && within(c.created_at)), newP = props.filter((p) => !p.is_demo && within(p.created_at));
       const newE = events.filter((e) => e.status === "confirmed" && within(e.created_at)), newPosts = posts.filter((p) => within(p.created_at));
       const span = week ? "this week" : yday ? "yesterday" : "today";
+      const rems = (await ctx.store.list("reminders", ctx.userId)).filter((r) => r.status !== "cancelled" && within(r.created_at));
+      const happened = events.filter((e) => e.status === "confirmed" && within(e.start_at) && new Date(e.end_at) <= ctx.now && e.notes !== "Transaction milestone");
       const lines = [
         done.length ? `• Finished ${done.length} to-do${done.length === 1 ? "" : "s"}: ${done.slice(0, 4).map((t) => t.title).join("; ")}` : "",
         newC.length ? `• Added ${newC.length} contact${newC.length === 1 ? "" : "s"}: ${newC.slice(0, 5).map((c) => c.name).join(", ")}` : "",
         newP.length ? `• Added ${newP.length} propert${newP.length === 1 ? "y" : "ies"}: ${newP.slice(0, 4).map((p) => p.address).join("; ")}` : "",
         newE.length ? `• Put ${newE.length} event${newE.length === 1 ? "" : "s"} on your calendar: ${newE.slice(0, 4).map((e) => e.title.split(" — ")[0]).join("; ")}` : "",
+        rems.length ? `• Set ${rems.length} reminder${rems.length === 1 ? "" : "s"}: ${[...new Set(rems.map((r) => r.title))].slice(0, 4).join("; ")}` : "",
+        happened.length ? `• Had ${happened.length} thing${happened.length === 1 ? "" : "s"} on the calendar: ${happened.slice(0, 4).map((e) => e.title.split(" — ")[0]).join("; ")}` : "",
         newPosts.length ? `• Prepared ${newPosts.length} post draft${newPosts.length === 1 ? "" : "s"}` : "",
       ].filter(Boolean);
       return reply(lines.length ? `Here's what got done ${span}:\n${lines.join("\n")}` : `Nothing is recorded as done ${span} yet. Add a contact, finish a to-do or schedule something and it shows up here.`, [], "chat_simple");

@@ -315,11 +315,15 @@ export async function pipelineHandler(ctx: Ctx, text: string): Promise<HandlerOu
   const rate = rateStr ? parseFloat(rateStr) / 100 : 0.03;
   const [contacts, props] = await Promise.all([ctx.store.list("contacts", ctx.userId), ctx.store.list("properties", ctx.userId)]);
   const txn = new Map(mems.filter((m) => m.scope === "property" && m.key === "Transaction").map((m) => [m.subject_id, m.value]));
-  const under = props.filter((p) => txn.get(p.id)?.startsWith("Under contract"));
-  const sold = props.filter((p) => txn.get(p.id)?.startsWith("Sold"));
+  // the same stages the Properties page shows: "active" means live on the market right now, not every saved address that has a price
+  const { buildCard } = await import("../../property-stage");
+  const events = await ctx.store.list("calendar_events", ctx.userId);
+  const stageOf = new Map(props.map((p) => [p.id, buildCard(p, mems, events, [], ctx.now).stage]));
+  const under = props.filter((p) => txn.get(p.id)?.startsWith("Under contract") || stageOf.get(p.id) === "under_contract");
+  const sold = props.filter((p) => txn.get(p.id)?.startsWith("Sold") || stageOf.get(p.id) === "sold");
   const looksRent = (p: { list_price: number | null }) => (p.list_price ?? 0) < 20_000; // $2,500 is a monthly rent, not a sale price: left out of sale totals
   const rents = props.filter((p) => !p.is_demo && !under.includes(p) && !sold.includes(p) && p.list_price && looksRent(p));
-  const listings = props.filter((p) => !p.is_demo && !under.includes(p) && !sold.includes(p) && p.list_price && !looksRent(p));
+  const listings = props.filter((p) => !p.is_demo && !under.includes(p) && !sold.includes(p) && (stageOf.get(p.id) === "active" || (stageOf.get(p.id) === "upcoming" && p.verified)) && p.list_price && !looksRent(p)); // live homes, plus ones the agent entered and confirmed; saved search results and imports never inflate it
   const buyers = contacts.filter((c) => c.type === "buyer" && !["inactive", "closed"].includes(c.status) && c.budget_max);
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   const uVal = sum(under.map((p) => p.list_price ?? 0)), lVal = sum(listings.map((p) => p.list_price ?? 0)), bVal = sum(buyers.map((c) => c.budget_max ?? 0));

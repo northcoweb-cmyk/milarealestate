@@ -71,7 +71,7 @@ export async function buildClientBrief(ctx: Ctx, c: Contact): Promise<ClientBrie
   if (daysSince == null && c.status !== "inactive" && !pastClient) now_.push({ text: `Make first contact`, ask: `Draft an intro email to ${c.name}` });
   const factsText = facts.join(" ") + " " + (c.notes ?? "");
   const missing = [!c.phone && "phone", !c.email && "email", (buyer || renter) && !c.budget_max && "budget", (buyer || renter) && !c.location && !/search|area|near|in [A-Z]/i.test(factsText) && "area", buyer && !/pre-?approv/i.test(factsText) && "pre-approval status"].filter(Boolean) as string[];
-  if (missing.length) now_.push({ text: `Fill in: ${missing.join(", ")}`, why: "so I can match homes and write better messages" });
+  if (missing.length) now_.push({ text: `Fill in: ${missing.join(", ")}`, why: buyer || renter ? "so I can match homes and write better messages" : "so I can write better messages and keep them updated" });
   if (!now_.length) now_.push({ text: `Nothing urgent. ${first} ${/&/.test(first) ? "are" : "is"} in good shape.`, why: "no overdue items, nothing waiting" });
 
   if (renter) {

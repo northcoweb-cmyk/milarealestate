@@ -34,7 +34,7 @@ import { petCheckHandler, setPets } from "./handlers/pets";
 import { listingAgreementHandler, saveWorksheet, worksheetForm } from "./handlers/worksheet";
 import { saveAnswers } from "./handlers/contacts";
 import { ambiguousFirstName, askWhichPerson } from "./handlers/entity";
-import { agendaHandler, oooQueryHandler, oooEditHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, syncEventHandler, eventReminder, eventCard } from "./handlers/calendar";
+import { moveDayHandler, agendaHandler, oooQueryHandler, oooEditHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, syncEventHandler, eventReminder, eventCard } from "./handlers/calendar";
 import { fmtDayTime } from "../time";
 import { rewritePostHandler, reviseDraftHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
@@ -400,6 +400,13 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
 
   // one person, several facts in one sentence (commas included): saved together, not split into separate requests
   if (!forced && factCueCount(text) >= 2 && detectIntent(text).intent === "general") { const f = await contactFactsHandler(ctx, text); if (f) return { out: f, intent: "general" }; }
+  // a prompt-injection ask inside a longer message is refused on its own; everything else in the message is still done
+  const INJ = /\b(?:system prompt|your (?:hidden )?(?:instructions|rules|prompt)|ignore (?:all |your |any )?(?:previous |prior )?(?:rules|instructions)|reveal your|jailbreak)\b/i;
+  let refusePart = false;
+  if (!forced && INJ.test(text)) {
+    const keep = text.split(/\s*;\s*|,\s*(?:and\s+)?|(?<=[.!?])\s+/).filter((f) => f.trim() && !INJ.test(f)).join(", ").trim();
+    if (keep.length >= 8) { text = keep; refusePart = true; }
+  }
   const clauses = splitClauses(text);
   const outs: HandlerOut[] = [];
   let lastIntent: Intent = "general";
@@ -457,6 +464,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       outs.push(reply(`I couldn't make that out, and I don't want to keep asking, so I haven't changed anything. ${HINT[answering.missing] ?? "Send me the whole request in one message and I'll take it from there."}`, [], "smalltalk"));
     } else ctx.state.clarify_streak = { key, n: streak };
   } else ctx.state.clarify_streak = null;
+  if (refusePart) outs.push(reply("I can't share my instructions or change my own rules, but I did the rest.", [], "smalltalk"));
   // still-open questions from earlier stay visible after the new request is handled
   const reminder: Block[] = [];
   // one set of buttons per reply: if this answer already offers something to press, the old question waits for a quieter moment
@@ -569,7 +577,8 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "advice": return adviceHandler(ctx, text);
     case "basics": return basicsHandler(ctx, text);
     case "past_client_note": return pastClientNoteHandler(ctx, text);
-    case "refuse_injection": return refuseInjectionHandler();
+    case "refuse_injection": return refuseInjectionHandler(text);
+    case "move_day": return moveDayHandler(ctx, text);
     case "client_summary": {
       const people = await mentionedContacts(ctx, text);
       const c = people.length === 1 ? people[0] : !people.length && ctx.state.last_contact_ids?.[0] && /\b(them|him|her|they|this client|that client)\b/i.test(text) ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
@@ -625,7 +634,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
       return newContactHandler(ctx, text);
     }
     case "priorities": ctx.steps.push("Looking at your contacts and tasks"); return prioritiesHandler(ctx);
-    case "debrief": return debriefHandler(ctx);
+    case "debrief": return debriefHandler(ctx, text);
     case "find_contacts": return findContactsHandler(ctx, text);
     case "recall": return recallHandler(ctx, text);
     case "delete_data": return deleteHandler(ctx, text);

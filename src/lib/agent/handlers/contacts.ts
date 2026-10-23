@@ -1,13 +1,14 @@
 import { askWhichPerson, ambiguousFirstName, pickProperty } from "./entity";
 import { parseDate, plausibleName } from "../nlu";
-import { addDays, fmtDayTime, fmtTime, partsIn, zonedToUtc } from "../../time";
+import { addDays, fmtDayTime, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
 import type { Block, Contact, ContactType, DocumentTemplate, WorkflowRun } from "../../types";
 import { type Ctx, firstName, fullMoney, label, money, pickColor, plural } from "../context";
 import { persistState } from "../conversation";
 import { firstNameOf } from "../../names";
 import { buildDebrief, coverageNote, greetingFor } from "../debrief";
 import { contactFacts, listMemories, saveMemory } from "../memory";
-import { capitalisedNames, parseBaths, parseBeds, parseContactType, parseEmail, parseLocation, parseMoney, parsePersonName, parsePhone, parseTimeline } from "../nlu";
+import { resolveAddress } from "../property-lookup";
+import { capitalisedNames, parseAddress, parseBaths, parseBeds, parseContactType, parseEmail, parseLocation, parseMoney, parsePersonName, parsePhone, parseTimeline } from "../nlu";
 import { computePriorities } from "../prioritize";
 import { TOOLS, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
@@ -108,6 +109,22 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   plan.push({ label: existing ? `Updated ${firstName(name)}'s profile` : `Created ${label(type).toLowerCase()} profile`, tool: "create_contact", state: "done" });
   ctx.state.last_contact_ids = [contact.id];
 
+  // a seller who comes with an address: that home is saved exactly as typed (city, state and ZIP included) and noted on them, never left behind
+  const homeAddr = type === "seller" ? parseAddress(text) : null;
+  let sellerHome: string | null = null;
+  if (homeAddr) {
+    const r = await resolveAddress(ctx, text, homeAddr, { answering: false }).catch(() => null);
+    const place = r && r.status === "ok" ? r.place : null;
+    const made = (await TOOLS.create_property.run(ctx, { address: homeAddr, city: place?.city ?? null, state: place?.state ?? null, zip: place?.zip ?? null, county: null, list_price: null, beds: null, baths: null, sqft: null }).catch(() => null)) as any;
+    const prop = made?.data?.property;
+    if (prop) {
+      ctx.state.last_property_id = prop.id;
+      sellerHome = [prop.address, prop.city, [prop.state, prop.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+      await ctx.store.insert("contact_notes", ctx.userId, { contact_id: contact.id, body: `Home to list: ${sellerHome}` } as never);
+      plan.push({ label: "Saved their home", tool: "create_property", state: "done", detail: sellerHome });
+    }
+  }
+
   // memory: durable, structured, editable
   const crit = [beds && `${beds}+ bedrooms`, baths && `${baths}+ baths`, ...features, location, money$.max && `~${fullMoney(money$.max)}`, timeline && `Timeline: ${timeline}`].filter(Boolean).join(" • ");
   if (crit) {
@@ -196,11 +213,15 @@ export async function prioritiesHandler(ctx: Ctx): Promise<HandlerOut> {
   return reply(urgent ? `${urgent} urgent${total > urgent ? `, ${total} in all` : ""}. Here's everything, in order.` : `Nothing is urgent. Here's what's worth your attention.`, [{ type: "priorities", groups, buttons: [{ label: "Open Tasks", style: "secondary", href: "/tasks" }] }]);
 }
 
-export async function debriefHandler(ctx: Ctx): Promise<HandlerOut> {
+export async function debriefHandler(ctx: Ctx, text = ""): Promise<HandlerOut> {
+  const tomorrow = /\btomorrow\b/i.test(text);
+  if (tomorrow) ctx = { ...ctx, now: addDays(ctx.now, 1, ctx.tz) }; // "plan my day tomorrow": the same plan, for tomorrow
   const d = await buildDebrief(ctx);
+  const rem = (await ctx.store.list("reminders", ctx.userId)).filter((r) => r.status === "pending" && new Date(r.remind_at) >= startOfDay(ctx.now, ctx.tz) && new Date(r.remind_at) < addDays(startOfDay(ctx.now, ctx.tz), 1, ctx.tz)).sort((a, b) => a.remind_at.localeCompare(b.remind_at));
   const cov = await coverageNote(ctx);
   const line = (e: { start_at: string; title: string }) => `• ${fmtTime(e.start_at, ctx.tz)}  ${e.title}`;
-  const today = d.today.length ? `Today you have ${plural(d.today.length, "thing")}:\n${d.today.slice(0, 8).map(line).join("\n")}` : "Nothing is on your calendar today.";
+  const dayWord = tomorrow ? "tomorrow" : "today";
+  const today = d.today.length || rem.length ? `${tomorrow ? "Tomorrow" : "Today"} you have ${plural(d.today.length + rem.length, "thing")}:\n${[...d.today.slice(0, 8).map((e) => ({ t: e.start_at, s: line(e) })), ...rem.slice(0, 6).map((r) => ({ t: r.remind_at, s: `• ${fmtTime(r.remind_at, ctx.tz)}  Reminder: ${r.title}` }))].sort((a, b) => a.t.localeCompare(b.t)).map((x) => x.s).join("\n")}` : `Nothing is on your calendar ${dayWord}.`;
   const blocks: Block[] = [{ type: "debrief", greeting: greetingFor(ctx.now, ctx.tz, ctx.profile.full_name).toUpperCase(), counts: d.counts, noticed: d.noticed, buttons: [{ label: "Open Home", style: "secondary", href: "/" }] }];
   if (cov) blocks.push({ type: "notice", tone: "info", title: "What this plan can see", body: cov.text, buttons: [{ label: "See connections", style: "secondary", href: "/settings/connections" }] });
   return reply(`Here's your day. ${today}${cov ? `\n\n${cov.text}` : ""}`, blocks);
@@ -380,8 +401,14 @@ export async function contactFieldUpdateHandler(ctx: Ctx, text: string): Promise
   const saved = out?.ok ? await ctx.store.get("contacts", ctx.userId, c.id) : null;
   const key = Object.keys(patch)[0] as keyof Contact;
   if (!saved || saved[key] == null) return reply(`I couldn't save that for ${c.name}. Nothing was changed.`, [], "smalltalk");
+  // the saved search follows the new budget, so the profile never shows two different budgets
+  if (key === "budget_max" && patch.budget_max) {
+    for (const m of await listMemories(ctx, { scope: "contact", subject_id: c.id })) {
+      if (/^(?:search|selling) criteria$/i.test(m.key) && /~\$[\d,]+/.test(m.value)) await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: m.key, value: m.value.replace(/~\$[\d,]+/, `~${fullMoney(patch.budget_max)}`), source: "user_stated" });
+    }
+  }
   ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
-  return reply(`Updated ${c.name}'s ${field === "number" || field === "cell" || field === "mobile" ? "phone" : field} to ${shown}${was ? ` (was ${was})` : ""}.`, [], "chat_simple");
+  return reply(`Updated ${c.name}'s ${field == "number" || field === "cell" || field === "mobile" ? "phone" : field} to ${shown}${was ? ` (was ${was})` : ""}.`, [], "chat_simple");
 }
 
 

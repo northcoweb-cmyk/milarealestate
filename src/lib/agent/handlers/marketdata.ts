@@ -121,11 +121,16 @@ export async function newListingsHandler(ctx: Ctx, text: string): Promise<Handle
   ctx.steps.push("Checking new listings");
   if ((await usageFor(ctx.userId)).listingApiRequests >= tierLimits(await tierOf(ctx.userId)).listingSearches) return reply("You've used this month's listing searches on your plan. They reset on the 1st, or you can upgrade for more.", [], "smalltalk");
   let cards: ListingCard[];
-  try { cards = await newListings({ city: city ?? undefined, state: state ?? undefined, zip: zip ?? undefined, beds, minPrice: money.min ?? undefined, maxPrice: money.max ?? undefined, propertyType: type, days, limit: 7 }); }
+  try { cards = await newListings({ city: city ?? undefined, state: state ?? undefined, zip: zip ?? undefined, beds, minPrice: money.min ?? undefined, maxPrice: money.max ?? undefined, propertyType: type, days, limit: 15 }); }
   catch (e) {
     const code = e instanceof RentcastError ? e.code : "network";
     return reply(code === "limit" ? "I've hit the listing-data limit for now. Try again a little later." : code === "auth" ? "Listing search isn't working right now. Try again a little later." : "I couldn't reach the listing data just now. Try again in a minute.", [], "smalltalk");
   }
+  // the number asked for ("find me 3 homes") is the number shown, and land, lots and 0-bed shells are left out of a buyer search unless that is what was asked for
+  const WORDN: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 };
+  const wantN = (() => { const m = /\b(?:find|show|give|get|pull|send)(?: me)?\s+(\d{1,2}|one|two|three|four|five|six|seven)\b/i.exec(text); return m ? Math.max(1, Math.min(10, WORDN[m[1].toLowerCase()] ?? Number(m[1]))) : 7; })();
+  if (!/\b(?:land|lots?|acre|commercial|investment|multi)\b/i.test(text)) cards = cards.filter((c) => !/land|lot|farm|commercial/i.test(String(c.type ?? "")) && !(c.beds === 0 && !/condo|studio|apartment/i.test(String(c.type ?? ""))));
+  cards = cards.slice(0, wantN);
   await trackApi({ userId: ctx.userId, provider: "rentcast", endpoint: "listings/sale", success: true, units: 1, estCostUsd: Number(process.env.MILA_RENTCAST_COST_PER_REQUEST) || 0.074 });
   const where = loc || zip || "your area";
   if (!cards.length) return reply(`I don't see any new listings in ${where} in the last ${days === 1 ? "day" : `${days} days`}${beds ? ` with ${beds}+ beds` : ""}${money.max ? ` under ${fullMoney(money.max)}` : ""}. Want me to widen the search?`, [{ type: "choice", title: "Widen it", buttons: [{ label: "Last 30 days", style: "primary", action: { type: "prompt", text: `New listings in ${where} in the last 30 days` } }, ...(beds || money.max ? [{ label: "Drop my filters", style: "secondary" as const, action: { type: "prompt", text: `New listings in ${where}` } }] : [])] }], "new_listings");
