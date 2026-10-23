@@ -73,7 +73,12 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   const plan: WorkflowRun["plan"] = [];
   const run = await ctx.store.insert("workflow_runs", ctx.userId, { workflow_key: wf.key, title: name, subtitle: null, status: "running", params: { text }, plan: [], outputs: {} });
 
+  // same name but a different phone number is a different person (or a new lead for the same name): a new contact, never an overwrite
+  const digits = (x: string | null | undefined) => (x ?? "").replace(/\D/g, "").slice(-10);
+  const sameName = phone ? (await ctx.store.list("contacts", ctx.userId)).filter((c) => c.name.toLowerCase() === name.toLowerCase()) : [];
+  const differentPerson = !!phone && sameName.length > 0 && sameName.every((c) => digits(c.phone) && digits(c.phone) !== digits(phone));
   const out = await invoke(ctx, "create_contact", {
+    force: differentPerson || undefined,
     name, type, email, phone, location, timeline, budget_max: money$.max, budget_min: money$.min,
     preferences: { ...(beds ? { beds_min: beds } : {}), ...(baths ? { baths_min: baths } : {}), ...(features.length ? { features } : {}) },
     status: "new", source: "Mila", next_action: type === "seller" ? null : "Intro call / confirm search criteria", next_action_at: type === "seller" ? null : new Date(ctx.now.getTime() + 24 * 3_600_000).toISOString(),

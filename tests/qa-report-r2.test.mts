@@ -86,3 +86,22 @@ test("launch-eve: 'never mind' / 'nvm' is a free, calm cancel", async () => {
   const r2 = await a.say("nvm");
   assert.match(r2.milaMessage.content, /No problem/);
 });
+
+test("round 3: a new lead with a different phone is a new contact, the old record is untouched", async () => {
+  const a = await fresh();
+  await a.say("Add renter QA TEST Priya Shah 240-555-0142 budget 3200/month near Bethesda Metro");
+  await a.say("I got a new lead from Zillow, QA TEST Priya Shah, wants 3 bed under 700k in Germantown, her number is 301-555-0166");
+  const cs = await store.list("contacts", a.id);
+  assert.equal(cs.length, 2);
+  assert.ok(cs.some((c: any) => c.type === "rental" && /555-0142/.test(c.phone)));
+  assert.ok(cs.some((c: any) => c.type === "lead" && /555-0166/.test(c.phone) && c.budget_max === 700000));
+});
+
+test("round 3: 'no hashtags' is honoured in the caption", async () => {
+  const a = await fresh();
+  await a.say("Write an Instagram caption for a coming soon at 18 Maple Ct, Germantown MD 20874, no hashtags");
+  const p = (await store.list("social_posts", a.id))[0];
+  assert.ok(p);
+  assert.doesNotMatch(p.caption, /#\w/);
+  assert.deepEqual(p.hashtags, []);
+});

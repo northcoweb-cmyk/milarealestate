@@ -122,8 +122,10 @@ export async function createPosts(ctx: Ctx, input: CreateInput): Promise<CreateR
       caption = fitToPlatform(platform, polished, []).caption; // keeps it inside the platform limit
     }
     caption = withSignature(caption, buildSignature(ctx.profile), platformLimit(platform)); // every public caption ends with who you are
+    const noTags = /\b(?:no|without|skip|leave off|drop|remove)\s+(?:any\s+|the\s+)?hashtags?\b|\bdon'?t (?:add|use|include|put)\s+(?:any\s+)?hashtags?\b/i.test(ctx.userText ?? ""); // "no hashtags" is an instruction, not a suggestion
+    if (noTags) caption = caption.replace(/(?:^|\s)#[\p{L}\p{N}_]+/gu, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
     const post = await ctx.store.insert("social_posts", ctx.userId, {
-      platform, caption, hashtags: built.hashtags, slides: withDesign(built.slides, photos, input.category, seed), status: "draft", category: input.category, variant,
+      platform, caption, hashtags: noTags ? [] : built.hashtags, slides: withDesign(built.slides, photos, input.category, seed), status: "draft", category: input.category, variant,
       property_id: prop?.id ?? null, event_id: null, workflow_run_id: null, scheduled_for: input.scheduledFor ?? null, stale: false, stale_reason: null, posted_at: null,
     } as never);
     out.push(post);
