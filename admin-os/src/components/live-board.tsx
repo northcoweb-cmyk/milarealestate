@@ -41,6 +41,10 @@ export function LiveBoard() {
   useEffect(() => { load(); const a = setInterval(load, 5000), b = setInterval(() => setTick(Date.now()), 1000); return () => { clearInterval(a); clearInterval(b); }; }, [load]);
   const toGo = d ? new Date(d.launchAt).getTime() - tick : 0;
   const fmtGo = () => { const s = Math.max(0, Math.floor(toGo / 1000)), dd = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60; return `${dd ? dd + "d " : ""}${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`; };
+  const launchedNow = !!d && (d.launched || toGo <= 0);
+  const [burst, setBurst] = useState(0); const wasLive = useRef<boolean | null>(null);
+  useEffect(() => { if (!d) return; if (wasLive.current === false && launchedNow) setBurst((b) => b + 1); wasLive.current = launchedNow; }, [launchedNow, d]);
+  const secs = Math.ceil(toGo / 1000);
   const maxH = Math.max(1, ...(d?.perHour ?? []).map((x) => x.n));
   const tiles: [string, number | string, string, string?][] = d ? [
     ["Accounts created", d.accounts, "#6ea8ff", `${d.accountsToday} today`], ["Finished setup", d.setup, "#4fd1a1", `${d.accounts ? Math.round((d.setup / d.accounts) * 100) : 0}% of accounts`],
@@ -52,13 +56,14 @@ export function LiveBoard() {
   return (
     <div className="live">
       <style>{CSS}</style>
-      <header className="lhead">
+      {burst > 0 && <Confetti key={burst} />}
+      <div className="wrap"><header className="lhead">
         <div className="lbrand">Mila<span>Live</span></div>
         <div className="lstatus"><i className={err ? "dot bad" : "dot"} />{err || "Live"}<a href="/">Mila OS</a></div>
       </header>
       {!d ? <p className="lmute" style={{ textAlign: "center", marginTop: 120 }}>{err || "Loading…"}</p> : <>
-        {!d.launched ? (
-          <section className="hero"><p className="lmute">Mila opens in</p><p className="bigtime">{fmtGo()}</p><p className="lmute">Friday, Oct 23 · {clock} ET · {d.waitlist.toLocaleString()} on the waitlist</p></section>
+        {!launchedNow ? (
+          <section className="hero"><p className="lmute">Mila opens in</p>{secs > 0 && secs <= 10 ? <p key={secs} className="final">{secs}</p> : <p className="bigtime">{fmtGo()}</p>}<p className="lmute">Friday, Oct 23 · {clock} ET · {d.waitlist.toLocaleString()} on the waitlist</p></section>
         ) : (
           <section className="hero"><p className="lmute">Accounts created</p><p className="bignum"><Count to={d.accounts} /></p><p className="lmute">{d.seatsLeft > 0 ? `${d.seatsLeft} of ${d.seatCap} seats left` : "All seats taken"} · opened {clock} ET</p></section>
         )}
@@ -78,31 +83,39 @@ export function LiveBoard() {
           </div>
         </section>
       </>}
-    </div>
+    </div></div>
   );
 }
 
+function Confetti() {
+  const bits = Array.from({ length: 160 }, (_, i) => ({ i, x: Math.random() * 100, d: Math.random() * 1.2, s: 7 + Math.random() * 9, c: ["#6ea8ff", "#a78bfa", "#f5a97f", "#4fd1a1", "#f2c94c", "#ffffff"][i % 6], r: Math.random() * 360 }));
+  return <div className="confetti" aria-hidden>{bits.map((b) => <i key={b.i} style={{ left: `${b.x}%`, width: b.s, height: b.s * 1.5, background: b.c, animationDelay: `${b.d}s`, transform: `rotate(${b.r}deg)` }} />)}</div>;
+}
+
 const CSS = `
-.live{position:fixed;inset:0;overflow:auto;background:#0b0e1a;color:#f2f4fb;font-family:-apple-system,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:clamp(18px,2.6vw,44px);-webkit-font-smoothing:antialiased}
+.final{font-size:clamp(90px,min(16vw,26vh),240px);font-weight:700;line-height:1;margin:.05em 0;color:#fff;animation:pop 1s ease-out}@keyframes pop{from{transform:scale(1.25);opacity:.2}to{transform:scale(1);opacity:1}}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}.confetti i{position:absolute;top:-20px;border-radius:2px;animation:fall 3.8s cubic-bezier(.3,.6,.4,1) forwards}@keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:.8}}
+.live{position:fixed;inset:0;overflow:auto;background:#0b0e1a;color:#f2f4fb;font-family:-apple-system,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:clamp(16px,2vw,32px);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto}
 .live p,.live h2,.live ul{margin:0}
 .lhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:clamp(10px,2vh,28px)}
-.lbrand{font-size:clamp(22px,2.2vw,32px);font-weight:700;letter-spacing:-.02em}.lbrand span{font-size:clamp(10px,.85vw,12px);font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#8b93b8;margin-left:12px}
+.lbrand{font-size:clamp(20px,1.6vw,26px);font-weight:700;letter-spacing:-.02em}.lbrand span{font-size:clamp(10px,.85vw,12px);font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#8b93b8;margin-left:12px}
 .lstatus{display:flex;align-items:center;gap:8px;font-size:clamp(12px,1vw,15px);color:#aab1d1}.lstatus a{color:#6b7398;margin-left:16px;text-decoration:none}
 .dot{width:8px;height:8px;border-radius:50%;background:#4fd1a1}.dot.bad{background:#ff7a7a}
-.hero{text-align:center;padding:clamp(8px,3vh,48px) 10px clamp(18px,4vh,56px)}.lmute{color:#8b93b8;font-size:clamp(13px,1.3vw,20px)}.lmute.sm{font-size:14px}
-.bigtime,.bignum{font-size:clamp(64px,min(12vw,20vh),190px);font-weight:700;letter-spacing:-.04em;line-height:1;margin:.12em 0;font-variant-numeric:tabular-nums;color:#fff}
+.hero{text-align:center;padding:clamp(8px,2.5vh,32px) 10px clamp(16px,3vh,36px)}.lmute{color:#8b93b8;font-size:clamp(13px,1vw,16px)}.lmute.sm{font-size:14px}
+.bigtime,.bignum{font-size:clamp(48px,min(7vw,12vh),104px);font-weight:700;letter-spacing:-.04em;line-height:1;margin:.12em 0;font-variant-numeric:tabular-nums;color:#fff}
 .tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:clamp(10px,1.1vw,16px);margin-bottom:clamp(12px,1.6vw,22px)}
-.tile{border-radius:16px;padding:clamp(14px,1.5vw,24px);background:#131830;border:1px solid #1e2547}
+.tile{border-radius:16px;padding:clamp(14px,1.2vw,20px);background:#131830;border:1px solid #1e2547}
 .tl{font-size:clamp(10px,.85vw,12px);font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8b93b8}
-.tn{font-size:clamp(32px,min(3.8vw,6.5vh),64px);font-weight:700;letter-spacing:-.03em;line-height:1.1;color:var(--c,#fff);margin-top:.18em;font-variant-numeric:tabular-nums}.tn.sm{font-size:clamp(24px,2.4vw,38px);color:#fff}
+.tn{font-size:clamp(26px,min(2.6vw,4.4vh),40px);font-weight:700;letter-spacing:-.03em;line-height:1.1;color:var(--c,#fff);margin-top:.18em;font-variant-numeric:tabular-nums}.tn.sm{font-size:clamp(20px,1.7vw,28px);color:#fff}
 .ts{color:#6b7398;font-size:clamp(11px,.9vw,14px);margin-top:4px}
 .cols{display:grid;grid-template-columns:1.3fr 1fr;gap:clamp(10px,1.1vw,16px)}
 .panel{border-radius:16px;padding:clamp(16px,1.6vw,26px);background:#131830;border:1px solid #1e2547}.panel h2{font-size:clamp(10px,.85vw,12px);font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8b93b8;margin-bottom:14px}
 .feed ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
-.ev{display:flex;align-items:center;gap:14px;padding:clamp(9px,1vw,14px) 4px;border-bottom:1px solid #1e2547;font-size:clamp(13px,1.2vw,18px)}.ev:last-child{border-bottom:0}
+.ev{display:flex;align-items:center;gap:14px;padding:clamp(9px,1vw,14px) 4px;border-bottom:1px solid #1e2547;font-size:clamp(13px,1vw,15px)}.ev:last-child{border-bottom:0}
 .pip{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}.ev .tx{flex:1;min-width:0;color:#e4e8f6}.ev .tm{color:#6b7398;font-size:.82em;white-space:nowrap}
 .ev.new{animation:fade .8s ease-out}@keyframes fade{from{background:#1c2450;opacity:.4}to{background:transparent;opacity:1}}
-.bars{display:flex;align-items:flex-end;gap:clamp(4px,.6vw,10px);height:clamp(110px,20vh,240px)}.bw{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;height:100%;font-size:clamp(9px,.8vw,12px);color:#6b7398}
+.bars{display:flex;align-items:flex-end;gap:clamp(4px,.6vw,10px);height:clamp(100px,18vh,170px)}.bw{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;height:100%;font-size:clamp(9px,.8vw,12px);color:#6b7398}
 .bar{width:100%;border-radius:6px 6px 2px 2px;background:#6ea8ff;position:relative;transition:height .6s}.bar b{position:absolute;top:-1.5em;left:0;right:0;text-align:center;color:#e4e8f6;font-weight:600}
 .mini{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:clamp(14px,2vw,28px);padding-top:clamp(12px,1.4vw,20px);border-top:1px solid #1e2547}
 @media (max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.cols{grid-template-columns:1fr}}
