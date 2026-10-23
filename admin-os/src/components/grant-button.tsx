@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 /** Gives one waitlist person access now: sends them the "access granted" email with their login link. */
-export function GrantButton({ id, email, disabled }: { id: string; email: string; disabled?: boolean }) {
+export function GrantButton({ id, email, disabled, label = "Grant access" }: { id: string; email: string; disabled?: boolean; label?: string }) {
   const [state, setState] = useState<"idle" | "busy" | "done" | "err">("idle");
   const [msg, setMsg] = useState("");
   async function go() {
@@ -15,5 +15,5 @@ export function GrantButton({ id, email, disabled }: { id: string; email: string
     } catch { setState("err"); setMsg("Network error."); }
   }
   if (state === "done") return <span className="mute" title={msg}>✓ Sent</span>;
-  return <><button className="btn" disabled={disabled || state === "busy"} onClick={go}>{state === "busy" ? "Sending…" : "Grant access"}</button>{state === "err" && <span className="mute" style={{ marginLeft: 6 }}>{msg}</span>}</>;
+  return <><button className="btn" disabled={disabled || state === "busy"} onClick={go}>{state === "busy" ? "Sending…" : label}</button>{state === "err" && <span className="mute" style={{ marginLeft: 6 }}>{msg}</span>}</>;
 }

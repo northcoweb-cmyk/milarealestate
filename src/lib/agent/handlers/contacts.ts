@@ -95,6 +95,9 @@ export async function newContactHandler(ctx: Ctx, text: string): Promise<Handler
   if (existing) {
     // merge new facts into the existing record rather than duplicating
     const patch: Partial<Contact> = { preferences: { ...(beds ? { beds_min: beds } : {}), ...(baths ? { baths_min: baths } : {}), ...(features.length ? { features } : {}) } };
+    if (phone && !contact.phone) patch.phone = phone; // the details just given are saved on the person, never dropped
+    if (email && !contact.email) patch.email = email;
+    if (contact.status === "inactive") patch.status = "new"; // adding someone who was set aside brings them back
     if (location) patch.location = location;
     if (timeline) patch.timeline = timeline;
     if (money$.max) patch.budget_max = money$.max;

@@ -128,3 +128,20 @@ test("round 3: commission on a saved address uses its price", async () => {
   const r = await a.say("What is the commission on 22 Birch Lane at 2.5%?");
   assert.match(r.milaMessage.content, /\$15,625/);
 });
+
+test("round 3: a price-reduction draft never changes the saved price", async () => {
+  const a = await fresh();
+  await store.insert("properties", a.id, { address: "22 Birch Lane", city: "Gaithersburg", state: "MD", zip: "20877", list_price: 625000, beds: 4, baths: 3, sqft: 2400, verified: true });
+  const r = await a.say("Make a price reduction post for 22 Birch Lane, new price $599k");
+  assert.equal((await store.list("properties", a.id))[0].list_price, 625000);
+  assert.match(JSON.stringify(r.milaMessage.blocks), /599,000/);
+});
+
+test("round 3: re-adding a set-aside contact brings them back and saves the phone", async () => {
+  const a = await fresh();
+  await C(a, "QA TEST Nia Brooks", { status: "inactive" });
+  await a.say("Add buyer QA TEST Nia Brooks 240-555-0190 budget 380k looking in Frederick");
+  const c = (await store.list("contacts", a.id))[0];
+  assert.equal(c.status, "new");
+  assert.match(String(c.phone), /555-0190/);
+});

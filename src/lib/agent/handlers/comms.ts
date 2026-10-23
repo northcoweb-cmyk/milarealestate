@@ -138,8 +138,11 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   const stated = extractListingFacts(text);
   if (hasAnyFact(stated)) {
     const patch: Record<string, unknown> = {};
-    for (const k of ["list_price", "beds", "baths", "sqft"] as const) if (stated[k] != null && stated[k] !== prop[k]) patch[k] = stated[k];
+    // "price reduction … new price $599k" is a draft's wording, never a change to the saved home: the post shows the new price, the record keeps the real one until the agent changes it
+    const priceTalk = /\b(?:price (?:reduction|drop|cut|improvement|change)|reduc\w*|new price|lower\w* the price|drop\w* the price)\b/i.test(text);
+    for (const k of ["list_price", "beds", "baths", "sqft"] as const) if (stated[k] != null && stated[k] !== prop[k] && !(k === "list_price" && priceTalk)) patch[k] = stated[k];
     if (Object.keys(patch).length) prop = (await ctx.store.update("properties", ctx.userId, prop.id, { ...patch, verified: true } as never)) ?? prop;
+    if (priceTalk && stated.list_price != null) prop = { ...prop, list_price: stated.list_price };
   }
   // a post is only as good as its facts: when the home has no beds, baths, size or price yet, look them up once (cached) instead of posting an address alone
   if (prop.beds == null && prop.baths == null && !prop.sqft && !prop.list_price && prop.city && prop.state && !/\b(commercial|land|lot|retail|office)\b/i.test(`${prop.description ?? ""}`)) {
