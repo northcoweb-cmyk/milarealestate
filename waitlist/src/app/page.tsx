@@ -2,7 +2,6 @@ import Link from "next/link";
 import { CalendarCheck, HouseLine, ImagesSquare, InstagramLogo, Key, Microphone, NotePencil, PaperPlaneTilt, SunHorizon, UsersThree, XLogo } from "@phosphor-icons/react/dist/ssr";
 import { ContainerScroll } from "@/components/ui/container-scroll-animation";
 import PhoneMockupBasic from "@/components/ui/phone-mockups-1";
-import FlipClock from "@/components/ui/flip-clock";
 import { LogoCloud } from "@/components/ui/logo-cloud-2";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { Clouds } from "@/components/clouds";
@@ -56,11 +55,11 @@ export default function Page() {
           </div>
         </div>
         <HeroParallax className="relative z-10 mx-auto flex max-w-4xl flex-col items-center pt-14 text-center sm:pt-20">
-          <p className="glass mb-6 inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold text-zinc-900 sm:text-[13.5px]"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden /><span className="sm:hidden">Launching Oct 23 · 7-day free trial</span><span className="hidden sm:inline">Launching October 23 · 7-day free trial</span></p>
+          <p className="glass mb-6 inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold text-zinc-900 sm:text-[13.5px]"><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden /><span className="sm:hidden">Now live · 7-day free trial</span><span className="hidden sm:inline">Mila is live · 7-day free trial</span></p>
           <h1 className="display text-balance text-[clamp(46px,9vw,92px)] [text-shadow:0_2px_30px_rgba(80,50,200,.35)]">Your AI operations manager for real estate.</h1>
           <p className="mt-6 max-w-2xl text-balance text-[clamp(17px,2.4vw,21px)] leading-relaxed text-white [text-shadow:0_1px_18px_rgba(80,50,200,.45)]">Tell Mila what you need. She preps your listings, writes your posts and emails, sets up open houses and follow-ups, and asks before anything goes out.</p>
           <div id="join" className="mt-10 w-full scroll-mt-10"><WaitlistForm id="hero" /></div>
-          <div className="mt-12 w-full max-w-[22rem] rounded-3xl bg-[#1d1450]/80 px-3 py-5 shadow-[0_20px_50px_-20px_rgba(40,20,120,.6)] ring-1 ring-white/15 sm:mt-14 sm:max-w-none sm:bg-transparent sm:p-0 sm:shadow-none sm:ring-0"><FlipClock to={LAUNCH_AT} label="Doors open in" /></div>
+          <div className="mt-12 w-full max-w-[22rem] rounded-3xl bg-[#1d1450]/80 px-3 py-5 shadow-[0_20px_50px_-20px_rgba(40,20,120,.6)] ring-1 ring-white/15 sm:mt-14 sm:max-w-none sm:bg-transparent sm:p-0 sm:shadow-none sm:ring-0"><div className="flex flex-col items-center gap-3 text-center"><p className="display text-4xl text-white">Mila is live.</p><p className="mx-auto max-w-md text-[15.5px] text-white/90">We&apos;re letting people in a few at a time. Join the queue below and watch your email: your access link is on its way as soon as a spot opens.</p></div></div>
         </HeroParallax>
       </section>
 
@@ -176,8 +175,8 @@ export default function Page() {
       <section className="sky grain relative isolate overflow-hidden px-5 py-28 text-center text-white sm:py-36">
         <Clouds />
         <Reveal className="relative z-10 mx-auto max-w-3xl">
-          <h2 className="display text-balance text-[clamp(42px,8vw,84px)]">Be first in on October 23.</h2>
-          <p className="mx-auto mt-5 max-w-xl text-balance text-[18px] text-white/90">We&apos;ll email your personal link the day we open. Your 7-day free trial starts then.</p>
+          <h2 className="display text-balance text-[clamp(42px,8vw,84px)]">Be next in line.</h2>
+          <p className="mx-auto mt-5 max-w-xl text-balance text-[18px] text-white/90">Join the queue and watch your email. Your personal access link arrives as soon as a spot opens, and your 7-day free trial starts then.</p>
           <div className="mt-10 flex justify-center"><ScrollToJoin className="h-[56px] w-72 border-black/10 text-[16px] text-zinc-900" /></div>
         </Reveal>
       </section>
