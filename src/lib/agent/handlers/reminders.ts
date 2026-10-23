@@ -64,6 +64,15 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
     }
   }
   const recurring = /\b(every|each|daily|weekly|monthly|annually|yearly|recurring|repeat(?:ing)?)\b/i.test(text);
+  if (!when && recurring) { // "every Monday at 8am": the first one is the next Monday at 8
+    const t2 = text.replace(/\bevery\s+(?:day|weekday|week|morning|evening)\b/gi, "").replace(/\b(?:every|each|weekly|daily|weekdays)\b/gi, "");
+    const w = parseWhen(t2, ctx.now, ctx.tz);
+    if (w.start) when = w.start;
+    else if (w.time) { const p = partsIn(ctx.now, ctx.tz); when = zonedToUtc(p.y, p.m, p.d, w.time.start.h, w.time.start.mi, ctx.tz); if (when.getTime() <= ctx.now.getTime()) when = new Date(when.getTime() + 86_400_000); }
+  }
+  if (when && recurring && /\bweekdays?\b/i.test(text)) { // the first one lands on a working day
+    for (let i = 0; i < 2; i++) { const d = new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, weekday: "short" }).format(when); if (d === "Sat" || d === "Sun") when = addDays(when, 1, ctx.tz); }
+  }
   if (!when) return askBack(ctx, "reminder", text, "time", `When should I remind you?${recurring ? " (I can only set one-time reminders for now, not repeating ones.)" : ""}`);
   if (when) when = rollPastWeekday(when, text, ctx.now, ctx.tz);
   if (when.getTime() <= ctx.now.getTime()) return askBack(ctx, "reminder", text, "time", "That time has already passed — what other time should I use?");
@@ -84,9 +93,23 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   const out = await invoke(ctx, "create_reminder", { title, remind_at: when.toISOString(), event_id: eventId });
   if (out.status === "needs_approval") return reply("Ready to set that reminder.", [{ type: "notice", tone: "info", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: "Set reminder", style: "primary", approvalId: out.approval.id }] }]);
   if (!out.result.ok) return reply(out.result.message);
+  // "every Monday at 8am": the next occurrences are set as ordinary reminders (about 3 months of them), so the schedule keeps going without a repeat engine
+  const every = recurring ? (/\b(?:every\s+month|monthly)\b/i.test(text) ? { step: 0, count: 6, skipWeekend: false, label: "every month for the next six months" } : /\b(?:every\s+(?:day|morning|evening)|daily)\b/i.test(text) ? { step: 1, count: 14, skipWeekend: false, label: "every day for the next two weeks" } : /\bevery\s+weekday\b|\bweekdays\b/i.test(text) ? { step: 1, count: 20, skipWeekend: true, label: "every weekday for the next four weeks" } : /\b(?:every\s+(?:week|(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?)|weekly|each\s+(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?)\b/i.test(text) ? { step: 7, count: 12, skipWeekend: false, label: "every week for the next 12 weeks" } : null) : null;
+  let moreSet = 0;
+  if (every) {
+    let cursor = when;
+    for (let i = 1; i < every.count; i++) {
+      if (every.step === 0) { const p0 = partsIn(when, ctx.tz); const mm = p0.m - 1 + i; cursor = zonedToUtc(p0.y + Math.floor(mm / 12), (mm % 12) + 1, p0.d, p0.h, p0.mi, ctx.tz); }
+      else cursor = addDays(cursor, every.step, ctx.tz);
+      const dow = Number(new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, weekday: "narrow" }).format(cursor) && ({ Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as Record<string, number>)[new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, weekday: "short" }).format(cursor)]);
+      if (every.skipWeekend && (dow === 0 || dow === 6)) continue;
+      const more = await invoke(ctx, "create_reminder", { title, remind_at: cursor.toISOString(), event_id: null });
+      if (more.status !== "needs_approval" && more.result.ok) moreSet++;
+    }
+  }
   const far = when.getTime() - ctx.now.getTime() > 5 * 86_400_000; // a weekday a week or more away carries its date, so "Thursday" can't mean today's Thursday
   const whenLabel = far ? fmtDayTime(when, ctx.tz).replace(" • ", `, ${new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, month: "short", day: "numeric" }).format(when)} at `) : fmtDayTime(when, ctx.tz).replace(" • ", " at ");
-  return reply(`I'll remind you ${whenLabel}: ${title}.${recurring ? " Heads up: I can only set one-time reminders for now, so this won't repeat. Tell me again after it goes off and I'll set the next one." : ""}`);
+  return reply(`I'll remind you ${whenLabel}: ${title}.${every ? ` I set it ${every.label} (${moreSet + 1} reminders). They are all in your reminders list if you want to remove any.` : recurring ? " Heads up: I can only set one-time reminders for now, so this won't repeat. Tell me again after it goes off and I'll set the next one." : ""}`);
 }
 
 /** "Cancel the reminder to call Dana": find it by its words and day, show exactly which one, and only remove it after a tap. */

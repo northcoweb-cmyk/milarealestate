@@ -1,0 +1,7 @@
+import { newAgent, store } from "./harness.mts";
+const a = await newAgent({ now: new Date("2026-10-23T19:00:00Z"), tz: "America/New_York", seed: false });
+const C = (name: string, o: any = {}) => store.insert("contacts", a.id, { name, email: null, phone: null, type: "buyer", status: "active", tags: [], notes: null, preferences: {}, location: null, budget_min: null, budget_max: null, timeline: null, source: null, importance: 2, last_contact_at: null, next_action: null, next_action_at: null, avatar_color: "#888", ...o });
+await C("QA TEST Liam Cho", { phone: "301-555-0177" }); await C("QA TEST Kevin Moore", { type: "seller", phone: "240-555-0131" });
+for (const q of JSON.parse(process.argv[2])) { try { const r = await a.say(q); console.log("Q:", q, "\nA:", r.milaMessage.content.replace(/\n+/g, " ⏎ ").slice(0, 260), "|", r.milaMessage.blocks.map((b:any)=>b.type).join(",")); } catch (e) { console.log("Q:", q, "THROW", (e as Error).message); } }
+console.log("CT", JSON.stringify((await store.list("contacts", a.id)).map((c:any)=>[c.name,c.phone,c.budget_max,c.location,c.timeline])));
+console.log("NOTES", JSON.stringify((await store.list("contact_notes", a.id)).map((n:any)=>n.body.slice(0,60))), "EV", JSON.stringify((await store.list("calendar_events", a.id)).map((e:any)=>[e.title,e.start_at])), "REM", JSON.stringify((await store.list("reminders", a.id)).map((r:any)=>[r.title,r.remind_at])));

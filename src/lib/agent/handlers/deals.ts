@@ -236,6 +236,11 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   body = body.replace(/^about\s+/i, "following up about ");
   if (!body) body = "just checking in — do you have a few minutes to talk?";
   body = body.replace(/(?<!\b(?:send|give|show|get|bring|tell|email|text|owe|offer|ask)\s)\b(?:her|his|their)\s+(?=[a-z])/gi, "your ").replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);
+  // "Text him that I found 2 condos he'll like": the message is TO the person, so he/she/they becomes you
+  body = body.replace(/\b(?:he|she|they)(?:'ll| will)\b/gi, "you'll").replace(/\b(?:he|she|they)(?:'s| is)\b/gi, "you're").replace(/\b(?:he|she|they)(?:'d| would)\b/gi, "you'd").replace(/\b(?:he|she|they)\b(?=\s+(?:can|could|should|wants?|needs?|likes?|loves?|will|would|may|might|has|have|had|was|were)\b)/gi, "you");
+  // a bare weekday ("Tuesday at 4") carries its date, so the text can't be misread a week later
+  { const wd = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b(?!,?\s+(?:oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)\w*\s+\d)/i.exec(body);
+    if (wd) { const d = parseDate(wd[1], ctx.now, ctx.tz); if (d) body = body.replace(wd[0], `${wd[0]}, ${new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, month: "short", day: "numeric" }).format(zonedToUtc(d.y, d.m, d.d, 12, 0, ctx.tz))}`); } }
   // "text Maya to confirm tomorrow's showings": say which showings, when and where
   if (c && /\bconfirm\w*\b/i.test(body)) {
     const evs = (await upcomingWith(ctx, c)).filter((e) => e.kind === "showing" || /showing|tour/i.test(e.title)).slice(0, 4);

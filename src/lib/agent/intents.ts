@@ -39,8 +39,23 @@ const asks = /^(?:what|whats|what's|is|are|does|do|how|which|where|who|find|look
  * cannabis rules, tours), comparing places for a move, pricing and comps, areas for a type of client. Exported for tests.
  */
 /** Fix the typos agents actually make on a phone, so the router sees "showing", not "showinge". */
-export function fixTypos(raw: string): string {
+/** A Spanish request is worked out in English: "Recuérdame mañana a las 9 llamar a Ana" → "remind me tomorrow at 9 call Ana". Only runs when Spanish marker words are present. */
+export function normalizeSpanish(raw: string): string {
+  if (!/\b(?:recu[eé]rdame|recordarme|ma[nñ]ana|llamar|llama a|cita|mostrar|casa|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|a las \d|programa|agenda)\b/i.test(raw)) return raw;
+  const days: Record<string, string> = { lunes: "Monday", martes: "Tuesday", miercoles: "Wednesday", jueves: "Thursday", viernes: "Friday", sabado: "Saturday", domingo: "Sunday" };
   return raw
+    .replace(/\ba las\s+(\d{1,2})(?::(\d{2}))?(?:\s+de la\s+(ma[nñ]ana|tarde|noche))?/gi, (_m, h: string, mi: string | undefined, part: string | undefined) => `at ${h}${mi ? ":" + mi : ""}${part ? (/ma/i.test(part) ? " am" : " pm") : ""}`)
+    .replace(/\brecu[eé]rdame\b|\brecordarme\b/gi, "remind me")
+    .replace(/\bpasado ma[nñ]ana\b/gi, "the day after tomorrow").replace(/\bma[nñ]ana\b/gi, "tomorrow").replace(/\bhoy\b/gi, "today")
+    .replace(/\b(?:el|este|el pr[oó]ximo)\s+(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/gi, (_m, d: string) => days[d.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")] ?? d)
+    .replace(/\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/gi, (_m, d: string) => days[d.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")] ?? d)
+    .replace(/\bllamar a\b|\bllama a\b|\bllamar\b/gi, "call").replace(/\benviar un correo a\b|\bescribir a\b/gi, "email").replace(/\bcita\b/gi, "appointment").replace(/\breuni[oó]n\b/gi, "meeting");
+}
+
+export function fixTypos(raw: string): string {
+  return normalizeSpanish(raw)
+    .replace(/\b(?:remnd|remnid|remmind|reminde|rmnd|remindme)\b/gi, "remind").replace(/\b(agrmt|agrmnt|agreemnt|agrement)\b/gi, "agreement").replace(/\b(?:appts?|appt\.)\b/gi, "appointment").replace(/\bmtg\b/gi, "meeting")
+    .replace(/(?<=\p{Lu}[\p{L}'’-]+)\s+re\s+(?=[a-z])/gu, " about ")
     .replace(/\b(?:showinge|showign|shwoing|showng|showin)\b/gi, "showing")
     .replace(/\b(tmrw|tmr|tomorrow)\s+(\d{1,2})(?![\d:])(?!\s*(?:am|pm|a\.m|p\.m|o'?clock))\b/gi, "tomorrow at $2").replace(/\b(?:abt)\b/gi, "about").replace(/\b(?:cal)\b(?=\s+[A-Z])/g, "call")
     .replace(/\bblock(?:ing)?\s+(?:off|out)\s+((?:this\s+|next\s+)?(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|tomorrow|today)\s+(morning|afternoon|evening)\b/gi, (_m, d: string, part: string) => `Schedule busy time ${d} ${/^morn/i.test(part) ? "8am to 12pm" : /^aft/i.test(part) ? "1pm to 5pm" : "5pm to 8pm"}`)

@@ -44,10 +44,15 @@ export function normPhone(p: string | null | undefined) { return (p ?? "").repla
 export async function findDuplicateContact(ctx: Ctx, c: { name?: string | null; email?: string | null; phone?: string | null }): Promise<Contact | null> {
   const all = await ctx.store.list("contacts", ctx.userId);
   const email = c.email?.toLowerCase(), phone = normPhone(c.phone);
+  const name = c.name?.trim().toLowerCase() ?? "";
+  const sameName = (x: Contact) => !!name && x.name.toLowerCase() === name;
+  // the same email or number only counts when the name fits too: a number or address that is already on file under a DIFFERENT name is another person, never someone to overwrite
+  const core = (n: string) => n.toLowerCase().replace(/^qa test\s+/, "").trim().split(/\s+/).filter(Boolean);
+  const nameFits = (x: Contact) => { if (!name || sameName(x)) return true; const a = core(x.name), b = core(name); if (!a.length || !b.length || a[0] !== b[0]) return false; const la = a[a.length - 1], lb = b[b.length - 1]; return a.length === 1 || b.length === 1 || la === lb || la.replace(/\./g, "").length <= 2 && lb.startsWith(la.replace(/\./g, "")) || lb.replace(/\./g, "").length <= 2 && la.startsWith(lb.replace(/\./g, "")); }; // same first name, and a matching (or abbreviated) last name
   return (
-    all.find((x) => email && x.email?.toLowerCase() === email) ??
-    all.find((x) => phone.length >= 10 && normPhone(x.phone) === phone) ??
-    all.find((x) => c.name && x.name.toLowerCase() === c.name.trim().toLowerCase()) ??
+    all.find((x) => sameName(x)) ??
+    all.find((x) => email && x.email?.toLowerCase() === email && nameFits(x)) ??
+    all.find((x) => phone.length >= 10 && normPhone(x.phone) === phone && nameFits(x)) ??
     null
   );
 }

@@ -8,14 +8,17 @@ const tz = "America/New_York";
 const fresh = () => newAgent({ now, tz, seed: false });
 const C = (a: any, name: string, o: any = {}) => store.insert("contacts", a.id, { name, email: null, phone: null, type: "buyer", status: "active", tags: [], notes: null, preferences: {}, location: null, budget_min: null, budget_max: null, timeline: null, source: null, importance: 2, last_contact_at: null, next_action: null, next_action_at: null, avatar_color: "#888", ...o });
 
-test("R2-065/073: a long paste of notes is never merged into one reminder", async () => {
+test("R2-065/073: a long paste of notes is never merged into one reminder; the notes are saved on the people they are about", async () => {
   const a = await fresh();
   await C(a, "QA TEST Victor Lindqvist"); await C(a, "QA TEST Zoe Park");
-  const r = await a.say("Notes from today: Met Victor Lindqvist about listing 22 QA Test Road, he wants to list at $650k. Ana Kowalczyk needs a rental near Bethesda Metro under $2,400, moving December 1. Remind me Monday at 9 to send Victor the comps. Also call Zoe Park on Thursday about her pre-approval.");
+  const r = await a.say("Notes from today: Met QA TEST Victor Lindqvist about listing 22 QA Test Road, he wants to list at $650k. Ana Kowalczyk needs a rental near Bethesda Metro under $2,400, moving December 1. Remind me Monday at 9 to send Victor the comps. Also call Zoe Park on Thursday about her pre-approval.");
   const rem = await store.list("reminders", a.id);
   assert.equal(rem.length, 1);
   assert.equal(rem[0].title, "Send Victor the comps");
-  assert.match(r.milaMessage.content, /Noted, not acted on/);
+  const notes = await store.list("contact_notes", a.id);
+  assert.ok(notes.some((n: any) => /wants to list at \$650k/.test(n.body)), "the note about Victor is saved on Victor");
+  assert.ok((await store.list("contacts", a.id)).some((c: any) => c.name === "Ana Kowalczyk"), "a new person in the notes becomes a lead");
+  assert.match(r.milaMessage.content, /Saved to QA TEST Victor Lindqvist's notes/);
   assert.ok(r.milaMessage.blocks.some((b: any) => b.type === "workflow"), "shows a done / needs-you checklist");
 });
 
@@ -173,4 +176,55 @@ test("round 3: cash to close is answered with a range", async () => {
   const a = await fresh();
   const r = await a.say("How much cash will Dana need to close on a $600k home with 10% down?");
   assert.match(r.milaMessage.content, /\$72,000 to \$90,000/);
+});
+
+test("round 3 (doc M-03): another name on a shared phone is a new contact, never an overwrite (QA TEST prefix included)", async () => {
+  const a = await fresh();
+  await C(a, "QA TEST Liam Cho", { phone: "301-555-0177" });
+  await a.say("Add buyer QA TEST Omar Reyes 301-555-0177, budget 450k, looking in Silver Spring");
+  const cs = await store.list("contacts", a.id);
+  assert.equal(cs.length, 2);
+  const liam = cs.find((c: any) => /Liam/.test(c.name)), omar = cs.find((c: any) => /Omar/.test(c.name));
+  assert.equal(liam.budget_max, null);
+  assert.equal(omar.budget_max, 450000);
+});
+
+test("round 3 (doc M-04/05): assistant-style requests go to the general assistant, never into a listing-post flow", async () => {
+  const a = await fresh();
+  await store.insert("properties", a.id, { address: "456 Oak Lane", city: "Gaithersburg", state: "MD", zip: "20877", list_price: 625000, beds: 4, baths: 3, sqft: 2400, verified: true });
+  for (const q of ["Give me 5 Instagram caption ideas for fall real estate content", "Write me an Instagram bio for a Maryland realtor", "Create a 7-day Instagram content calendar for my real estate business", "Write a LinkedIn post about my 5 years in real estate", "Translate to Spanish: Thanks for coming to the open house today!", "Write a Facebook post about the Gaithersburg market this fall"]) await a.say(q);
+  assert.equal((await store.list("social_posts", a.id)).length, 0, "no post drafts were created");
+  assert.equal((await store.list("properties", a.id)).length, 1, "no property was created");
+});
+
+test("round 3 (doc M-08/31/40): shorthand keeps its subject, Spanish reminders work, 'every Monday' sets a series", async () => {
+  const a = await fresh();
+  await a.say("remnd me tmrw 8am call QA TEST Kevin re listing agrmt");
+  await a.say("Recuérdame mañana a las 9 llamar a Ana Gómez");
+  await a.say("Every Monday at 8am remind me to send my seller update");
+  const rem = await store.list("reminders", a.id);
+  assert.ok(rem.some((r: any) => r.title === "Call QA TEST Kevin about listing agreement"));
+  assert.ok(rem.some((r: any) => r.title === "Call Ana Gómez"));
+  assert.equal(rem.filter((r: any) => r.title === "Send my seller update").length, 12);
+  assert.equal((await store.list("tasks", a.id)).length, 0, "no junk to-do");
+});
+
+test("round 3 (doc M-07/08): a call in pasted notes keeps who and what; the note is saved", async () => {
+  const a = await fresh();
+  await a.say("Notes from today: Marcus Bell called about buying in Gaithersburg, budget around 520k, preapproved with Rita Gomez at First Federal. He is worried about the HOA fees on townhomes. Call Rita Gomez on Tuesday at 2pm about the preapproval letter.");
+  const ev = (await store.list("calendar_events", a.id))[0];
+  assert.match(ev.title, /Call with Rita Gomez/);
+  assert.match(ev.title, /preapproval letter/);
+  const marcus = (await store.list("contacts", a.id)).find((c: any) => c.name === "Marcus Bell");
+  assert.ok(marcus && marcus.budget_max === 520000);
+  assert.equal((await store.list("contact_notes", a.id)).length, 2);
+});
+
+test("round 3 (doc M-26/06): a text to him is to HIM (you'll), carries the date", async () => {
+  const a = await fresh();
+  await C(a, "QA TEST Kevin Moore", { phone: "240-555-0131" });
+  const r = await a.say("Text QA TEST Kevin Moore that I can come by Tuesday at 4 to see the townhouse");
+  assert.match(r.milaMessage.content, /Tuesday, Oct \d+ at 4/);
+  const r2 = await a.say("Text him that I found 2 condos he will like");
+  assert.match(r2.milaMessage.content, /you'll like/);
 });

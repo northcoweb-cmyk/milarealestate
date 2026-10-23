@@ -1072,7 +1072,7 @@ test("Y. a recurring reminder is not silently made one-time", async () => {
     const a = await fresh(r);
     await scenario(`Y "${msg}"`, a, async (bad) => {
       const out = await say(a, msg);
-      bad(/one-time|once|doesn't repeat|can't repeat|not recurring|only set one/i.test(out), `silent about recurrence: ${out.slice(0, 140)}`);
+      bad(/one-time|once|doesn't repeat|can't repeat|not recurring|only set one|(?:every|each) (?:day|week|weekday|month)|\d+ reminders/i.test(out), `silent about recurrence: ${out.slice(0, 140)}`);
     });
   }
 });

@@ -355,7 +355,10 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
     if (hits.length === 1) who = hits[0];
   }
   if (who) ctx.state.last_contact_ids = [who.id]; // "email her the details" right after "lunch with Dana" means Dana
-  const finalTitle = title ? (namedFromText && addr && !title.toLowerCase().includes(addr.toLowerCase()) ? `${title} — ${addr}` : title) : `${nounTitle ?? label(kind)}${who || withWho ? ` with ${who?.name ?? withWho}` : ""}${addr ? ` — ${addr}` : ""}`;
+  // "Call Rita Gomez on Tuesday at 2pm about the preapproval letter": who it is with and what it is about stay in the title, even when Rita is not saved yet
+  const callWho = !who && !withWho ? /\b(?:[Cc]all|[Rr]ing|[Pp]hone|[Mm]eet|[Vv]isit|[Tt]ext|[Zz]oom|[Ff]ace[Tt]ime)\s+((?:\p{Lu}[\p{L}'’-]+)(?:\s+\p{Lu}[\p{L}'’-]+){0,2})/u.exec(text)?.[1] : undefined;
+  const topic = /\babout\s+((?:the |my |her |his |their )?[a-z][a-z' -]{2,48}?)(?=\s+(?:on|at|this|next|tomorrow|today|tonight)\b|[.,;!?]|$)/i.exec(text)?.[1]?.trim().replace(/^(?:the|my|her|his|their)\s+/i, "");
+  const finalTitle = title ? (namedFromText && addr && !title.toLowerCase().includes(addr.toLowerCase()) ? `${title} — ${addr}` : title) : `${nounTitle ?? label(kind)}${who || withWho || callWho ? ` with ${who?.name ?? withWho ?? callWho}` : ""}${topic && !addr ? ` (${topic})` : ""}${addr ? ` — ${addr}` : ""}`;
   const args = { title: finalTitle, kind, start_at: start.toISOString(), end_at: end.toISOString(), location: addr, contact_id: contactId ?? who?.id ?? null, property_id: propertyId ?? prop?.id ?? null };
   return scheduleWithConflictCheck(ctx, args);
 }
@@ -413,8 +416,9 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
     if (lic && st && /^[A-Z]{2}$/.test(st) && st !== lic && US_STATES.has(st)) ahead.note += `\n\n⚠️ This one is in ${st}, and your profile says you're licensed in ${lic}. Check with your broker whether you can show or list there, or need a local agent and a referral.`;
   }
   // an event more than a week out says its date ("Tuesday, Oct 27 • 3:00 PM"), so "Tuesday" can never mean the wrong one
-  const farOut = new Date(ev.start_at).getTime() - ctx.now.getTime() > 6 * 86_400_000;
-  const whenLabel = farOut ? `${fmtDay(ev.start_at, ctx.tz)}, ${fmtShortDate(ev.start_at, ctx.tz)} • ${fmtTime(ev.start_at, ctx.tz)}` : fmtDayTime(ev.start_at, ctx.tz);
+  // the date is always said (a weekday alone is ambiguous), and a block of an hour or more says when it ends
+  const longer = new Date(ev.end_at).getTime() - new Date(ev.start_at).getTime() >= 60 * 60_000;
+  const whenLabel = `${fmtDay(ev.start_at, ctx.tz)}, ${fmtShortDate(ev.start_at, ctx.tz)} • ${fmtTime(ev.start_at, ctx.tz)}${longer ? ` to ${fmtTime(ev.end_at, ctx.tz)}` : ""}`;
   return reply(`Added: ${ev.title}, ${whenLabel}.${syncPending ? " It is saved in Mila, but it is not on your Google Calendar yet because Google didn't confirm it." : ""}${ahead.note}`, [eventCard(ctx, ev, syncPending ? "Saved · sync pending" : "Added"), ...unsynced, ...ahead.blocks]);
 }
 

@@ -1,0 +1,21 @@
+/**
+ * Requests that are plain assistant work (explain, rewrite, translate, brainstorm, write a script, bio, calendar, plan, quiz…) with nothing in the
+ * agent's own data to act on. They go straight to the general assistant instead of being forced into a calendar, contact or listing-post flow.
+ * Pure text test: the caller adds the "does it name a saved person or a street address" check.
+ */
+const START = /^\s*(?:(?:please|pls|hey|ok|okay|can you|could you|would you|mila)[,\s]+)*(?:explain|define|describe how|teach me|walk me through|translate|rewrite|rephrase|reword|proofread|paraphrase|summari[sz]e|brainstorm|quiz me|give me (?:\d+|a few|some|three|five|ten)\b|what(?:'s| is| are) (?:a|an|the)\b.{0,70}\b(?:difference|meaning|mean)\b|what(?:'s| is| are) an? [a-z' -]{3,40}\??$|what does .{3,40} mean|what should i (?:say|tell|do)|how (?:should|do|can) i (?:respond|reply|handle|answer|explain|price|approach|talk|prepare|prospect|get|win|grow)|how do (?:you|agents)|why (?:do|does|is|are)|write (?:me )?(?:a |an |the |my |some )?(?:\d+[- ]day |cold[- ]call(?:ing)? |listing presentation |)?(?:script|bio|about(?: me)? |tagline|slogan|speech|poem|blog|newsletter|linkedin|facebook|content calendar|marketing plan|plan|checklist|template|pitch|talking points)|create (?:me )?(?:a |an )?(?:\d+[- ]day |30[- ]day |7[- ]day |weekly |monthly )?(?:content calendar|marketing plan|plan|checklist|template|script|schedule|budget)|(?:draft|write|make) (?:me )?(?:a |an )?(?:\d+[- ]day |30[- ]day |7[- ]day )?(?:marketing plan|content calendar|business plan|checklist|template)|make it (?:shorter|longer|friendlier|warmer|more (?:professional|casual|formal|concise|direct)|less (?:formal|salesy|pushy))|shorten (?:it|that|this)|(?:the )?answer (?:to|for) (?:question|q)\s*\d+|my answer is [a-d]\b)/i;
+const CONTENT = /\b(?:caption ideas?|instagram bio|ig bio|linkedin (?:post|bio|headline|summary)|facebook (?:post|ad)|tiktok (?:script|ideas?)|content calendar|marketing plan|blog post|newsletter|elevator pitch|listing presentation|cold[- ]call(?:ing)? script|expired listings? script|fsbo script|objection handling|exam (?:questions?|prep)|practice questions?|quiz)\b/i;
+/** The words that mean "do something in my CRM": a request with any of them is not general assistant work. */
+const CRM_ACT = /\b(?:remind me|set a reminder|schedule|book|reschedule|cancel|add (?:a |an |the )?(?:buyer|seller|renter|lead|contact|listing|property|task|note|client)|save (?:a |the )?(?:contact|listing)|mark .* as|put .* on my calendar|log (?:a )?call|open house|showing|just listed|just sold|coming soon|price (?:reduction|drop|improvement)|offer accepted|under contract|out of (?:town|office)|time off|vacation|block off|approve|delete|remove)\b/i;
+
+/** "Translate to Spanish: …" / "Rewrite this: …": the words after the colon are the text to work on, whatever they mention. */
+export const isEditText = (t: string) => /^\s*(?:(?:please|can you|could you)\s+)?(?:translate|rewrite|rephrase|reword|proofread|paraphrase|shorten|summari[sz]e)\b[^:]{0,60}:\s*.{10,}/i.test(t);
+
+export function looksGeneral(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 6 || t.length > 1500) return false;
+  if (isEditText(t)) return true;
+  if (CRM_ACT.test(t)) return false;
+  if (/\b(?:the|that|this|my|your) (?:post|caption|draft|carousel|slide|flyer|listing description)\b/i.test(t)) return false; // an artifact Mila already made: the edit flow handles it
+  return START.test(t) || CONTENT.test(t) || /\b(?:all|every|each) (?:of )?(?:my )?(?:buyers|sellers|clients|leads|contacts|past clients)\b/i.test(t) && /\b(?:text|email|message|note|post|announce)\b/i.test(t) || /\b(?:weekly|monthly) (?:seller|buyer|client) update\b|\bfeedback request\b|\bshowing feedback\b/i.test(t);
+}

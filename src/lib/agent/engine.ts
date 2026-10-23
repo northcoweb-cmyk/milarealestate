@@ -27,6 +27,7 @@ import { newListingsHandler, prepPropertyHandler, saveListingCard, saveRentalCar
 import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
 import { addListingHandler, resolveProperty, listingChecklist, propertyFactHandler, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
+import { isEditText, looksGeneral } from "./general-gate";
 import { decideApproval } from "./tools";
 import { correctReplacement, replaceCancel, replaceEventHandler, replaceOverlap, replacePick, replaceSlot, replaceSlotOptions } from "./handlers/replace";
 import { petCheckHandler, setPets } from "./handlers/pets";
@@ -255,7 +256,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     const mm = /\b(phone|call|voicemail|meeting|in[- ]person|face[- ]to[- ]face|text|sms|email)\b/i.exec(text);
     if (mm) { ctx.state.script_ask = null; await persistState(ctx); return { out: await generalHandler(ctx, `${sa.base}. Write it as a ${/phone|call|voicemail/i.test(mm[1]) ? "phone call" : /meeting|person|face/i.test(mm[1]) ? "in-person meeting" : mm[1].toLowerCase()} script. ${text}`), intent: "general" }; }
   }
-  if (!ctx.state.pending && /^(?:please |can you |could you |hey )?(?:give|write|draft|make|create|get|help)\s+me\s+(?:a |an |some |with )?(?:script|talking points|word ?track|pitch)\b|\bwhat (?:do|should|can) i say\b/i.test(text)) {
+  if (!aiAvailable() && !ctx.state.pending && /^(?:please |can you |could you |hey )?(?:give|write|draft|make|create|get|help)\s+me\s+(?:a |an |some |with )?(?:script|talking points|word ?track|pitch)\b|\bwhat (?:do|should|can) i say\b/i.test(text)) {
     const medium = /\b(phone|call|voicemail|meeting|in[- ]person|face[- ]to[- ]face|text|sms|email|presentation)\b/i.test(text);
     if (medium) return { out: await generalHandler(ctx, text), intent: "general" };
     const base = text.replace(/[.?!\s]+$/, "");
@@ -403,13 +404,35 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   const outs: HandlerOut[] = [];
   let lastIntent: Intent = "general";
   for (const [ci, clause] of clauses.entries()) {
-    if (clause.startsWith("\u0001")) { outs.push(reply(`Noted, not acted on: ${clause.slice(1).slice(0, 120)}`, [], "smalltalk")); continue; }
+    if (clause.startsWith("\u0001")) {
+      // a descriptive sentence from pasted notes: it is saved on the person it is about (created as a lead when they are new), never turned into a booking or a property edit
+      const note = clause.slice(1).trim();
+      let known = await mentionedContacts(ctx, note);
+      if (!known.length && /^(?:he|she|they)\b/i.test(note) && ctx.state.last_contact_ids?.length === 1) { const c0 = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]); if (c0) known = [c0]; } // "He is worried about the HOA": the person just described
+      if (known.length === 1) {
+        const c = known[0];
+        await ctx.store.insert("contact_notes", ctx.userId, { contact_id: c.id, body: note.slice(0, 1000) } as never);
+        await ctx.store.insert("contact_events", ctx.userId, { contact_id: c.id, kind: "note", title: "Note added", detail: note.slice(0, 200), occurred_at: ctx.now.toISOString() } as never);
+        ctx.state.last_contact_ids = [c.id];
+        outs.push(reply(`Saved to ${c.name}'s notes: “${note.slice(0, 160)}”`, [], "smalltalk")); continue;
+      }
+      const who = !known.length ? capitalisedNames(note).find((n) => n.split(/\s+/).length >= 2 && !/^(?:Notes|Met|Called|Spoke|Talked)\b/.test(n)) : null;
+      if (who && /\b(?:wants?|needs?|looking|budget|pre-?approv\w*|met|called|spoke|talked|interested|moving|selling|buying|listing|under|over)\b/i.test(note)) {
+        const made = await dispatch(ctx, "new_contact", `Add lead ${who}. ${note}`, true);
+        const nc = (await ctx.store.list("contacts", ctx.userId)).find((c) => c.name.toLowerCase() === who.toLowerCase());
+        if (nc) { await ctx.store.insert("contact_notes", ctx.userId, { contact_id: nc.id, body: note.slice(0, 1000) } as never); ctx.state.last_contact_ids = [nc.id]; }
+        outs.push(reply(`${made.text.split("\n")[0]} I kept the note on ${who}.`, made.blocks.slice(0, 1), "smalltalk")); continue;
+      }
+      outs.push(reply(`Noted, not saved to a contact (I couldn't tell who it's about): ${note.slice(0, 120)}`, [], "smalltalk")); continue;
+    }
     if (ci > 0 && /^(?:and |then |also |please )?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?ready|get (?:me )?prepared)\b.{0,30}\b(?:it|that|this|them|the showing)\b/i.test(clause.trim()) && ctx.state.last_event_id) {
       const ev = await ctx.store.get("calendar_events", ctx.userId, ctx.state.last_event_id);
       const place = ev?.location || (ev ? parseAddress(ev.title) : null);
       if (place) { lastIntent = "prep_property"; outs.push(await dispatch(ctx, "prep_property", `prep ${place}`, true)); continue; }
     }
     let d = ci === 0 && forced ? { intent: forced, declared: false } : detectIntent(clause);
+    // plain assistant work (explain, rewrite, translate, scripts, bios, plans, quizzes) goes to the general assistant instead of being forced into a calendar, contact or listing-post flow
+    if (!forced && GENERAL_STEALS.has(d.intent) && (d.intent !== "revise_draft" || isEditText(clause)) && looksGeneral(clause) && !parseAddress(clause) && !(await mentionedContacts(ctx, clause)).length) d = { intent: "general", declared: false };
     if (d.intent === "general") {
       const c = await llmClassify(ctx, clause);
       // a question never writes: if the AI guesses a data-changing intent for a question, treat it as plain chat
@@ -468,6 +491,8 @@ async function armTypedYes(ctx: Ctx, outs: HandlerOut[]) {
   if (ap?.status === "pending" && /^(?:(?:create|update|cancel|replace)_calendar_event|shift_calendar_events)$/.test(ap.payload.tool)) ctx.state.pending = { kind: "approval", approval_id: ap.id, label: ap.title };
 }
 
+/** Intents that wrongly swallow assistant-style requests (the listing-post flow, "who is it for?", "what would you like to know?"). */
+const GENERAL_STEALS = new Set<Intent>(["general", "social_post", "draft_email", "draft_text", "describe_home", "product_help", "save_memory", "recall", "find_property", "what_missing", "another_version", "rewrite_post", "unsure_who", "vague_bulk", "smalltalk", "add_task", "open_house", "revise_draft"]);
 const firstSentence = (t: string) => t.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0]?.slice(0, 140) ?? "";
 /** What a handler's answer means for the reconciliation card. */
 function subtaskState(o: HandlerOut): "done" | "pending" | "needs_approval" | "failed" {

@@ -19,7 +19,7 @@ test("'Text her that…' goes to the client we were just talking about, not a st
   await say(a, "I have a new buyer Maria Gonzales, 301-555-0188, wants a 3 bed");
   const out = await say(a, "Text her that I have a showing Saturday at 11 at 9 Elm Court Rockville");
   assert.match(out, /text to Maria/);
-  assert.match(out, /Hi Maria! I have a showing Saturday at 11/);
+  assert.match(out, /Hi Maria! I have a showing Saturday, Oct \d+ at 11/);
 });
 
 test("telling someone a showing moved is a message, not a calendar change", async () => {
@@ -43,7 +43,7 @@ test("two bookings in one sentence become two events on the right days", async (
 test("a listing appointment is a calendar event, not a new listing", async () => {
   const a = await fresh();
   const out = await say(a, "Put me down for a listing appointment with the Hendersons at 22 Birch St Frederick Tuesday at 6pm");
-  assert.match(out, /Added: .*22 Birch Street, Tuesday • 6:00 PM/);
+  assert.match(out, /Added: .*22 Birch Street, Tuesday, Oct \d+ • 6:00 PM/);
   assert.equal((await store.list("properties", a.id)).length, 0);
 });
 
