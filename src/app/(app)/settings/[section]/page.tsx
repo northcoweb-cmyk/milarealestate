@@ -48,7 +48,8 @@ function useSave() {
   return async (body: Record<string, unknown>) => { try { await jfetch("/api/me", { method: "PATCH", json: body }); await refresh(); toast("Saved.", "success"); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't save.", "error"); } };
 }
 
-function Card({ children, title, sub }: { children: React.ReactNode; title?: string; sub?: string }) {
+function Card({ children, title, sub, collapsible }: { children: React.ReactNode; title?: string; sub?: string; collapsible?: boolean }) {
+  if (collapsible && title) return <details className="glass mb-5 p-5 sm:p-6"><summary className="h2 cursor-pointer select-none list-none">{title} <span className="faint text-[14px] font-normal">· tap to open</span></summary><div className="mt-3">{sub && <p className="muted mb-4 text-[14.5px]">{sub}</p>}{children}</div></details>;
   return <section className="glass mb-5 p-5 sm:p-6">{title && <p className="h2 mb-0.5">{title}</p>}{sub && <p className="muted mb-4 text-[14.5px]">{sub}</p>}{children}</section>;
 }
 
@@ -322,7 +323,7 @@ function Credits() {
         <PlanCards plans={data.plans} currentName={data.status === "active" ? data.plan?.name ?? null : null} billingConfigured={data.billingConfigured} onBuy={(k) => buy({ kind: "plan", plan_key: k })} />
       </Card>
       {data.billingConfigured && data.status === "active" && <BillingCard planName={data.plan?.name ?? "Mila"} used={data.spentThisPeriod} toast={toast} />}
-      <Card title="Usage history">
+      <Card title="Credits breakdown" collapsible>
         {data.history.length ? <><ul className="divide-y" style={{ borderColor: "var(--line)" }}>{data.history.filter((h) => h.credits !== 0).slice(0, showAll ? 300 : 25).map((h) => <li key={h.id} className="flex items-center justify-between py-2.5 text-[14.5px]"><span>{h.credits < 0 ? (h.label === "Credit top-up" ? "Credits added (top-up)" : h.label.replace(/^turn:/, "").replace(/_/g, " ")) : (OP[h.label] ?? h.label.replace(/^turn:/, "").replace(/_/g, " "))}<span className="faint ml-2 text-[12.5px]">{new Date(h.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></span><span className="font-semibold" style={h.credits < 0 ? { color: "var(--ok, #0a7d4f)" } : undefined}>{h.credits < 0 ? `+${-h.credits}` : `−${h.credits}`}{h.balanceAfter != null && <span className="faint ml-2 text-[12px] font-normal">→ {h.balanceAfter}</span>}</span></li>)}</ul>{!showAll && data.history.filter((h) => h.credits !== 0).length > 25 && <button className="btn btn-quiet btn-sm mt-2" onClick={() => setShowAll(true)}>Show everything</button>}</> : <p className="muted">No usage yet.</p>}
       </Card>
     </>

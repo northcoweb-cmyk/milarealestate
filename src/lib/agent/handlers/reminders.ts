@@ -107,7 +107,7 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
       if (more.status !== "needs_approval" && more.result.ok) moreSet++;
     }
   }
-  const far = when.getTime() - ctx.now.getTime() > 5 * 86_400_000; // a weekday a week or more away carries its date, so "Thursday" can't mean today's Thursday
+  const far = when.getTime() - ctx.now.getTime() > 5 * 86_400_000 || (/\bnext\s+(?:mon|tues?|wed|thu|fri|sat|sun)/i.test(text) && !/^(?:today|tomorrow)/i.test(fmtDayTime(when, ctx.tz))); // a weekday a week or more away carries its date, so "Thursday" can't mean today's Thursday
   const whenLabel = far ? fmtDayTime(when, ctx.tz).replace(" • ", `, ${new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, month: "short", day: "numeric" }).format(when)} at `) : fmtDayTime(when, ctx.tz).replace(" • ", " at ");
   return reply(`I'll remind you ${whenLabel}: ${title}.${every ? ` I set it ${every.label} (${moreSet + 1} reminders). They are all in your reminders list if you want to remove any.` : recurring ? " Heads up: I can only set one-time reminders for now, so this won't repeat. Tell me again after it goes off and I'll set the next one." : ""}`);
 }

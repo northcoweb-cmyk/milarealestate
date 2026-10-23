@@ -7,6 +7,7 @@ import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost, S
 import { type Ctx, firstName, fullMoney } from "../context";
 import { openHouseSocial, signature, verifiedFacts } from "../comms";
 import { createPosts, designSlides } from "../../content/service";
+import { buildSignature, stripSignature } from "../../signature";
 import { llmDraftEmail } from "../llm";
 import { contactFacts } from "../memory";
 import { capitalisedNames, parseAddress, parseDate, parseTime } from "../nlu";
@@ -179,7 +180,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     }
   }
   // the same request twice is one post: show the one already waiting instead of stacking a second draft and a second approval
-  if (!/\b(another|again|new one|different|redo|second|more|options?|variations?|versions?)\b/i.test(text) && requestedCount(text) <= 1) {
+  if (!/\b(another|again|new one|different|redo|second|more|options?|variations?|versions?)\b/i.test(text) && requestedCount(text) <= 1 && !/\bhashtags?\b|\bsign(?:ed)?\s+(?:it|this|as|off)\b|\bsignature\b|\$\s?\d|\bprice (?:reduction|drop|cut)\b|\breduced\b|\bshorter\b|\bwarmer\b|\bformal\b|\bfunny\b|\bemoji/i.test(text)) { // an explicit instruction (tags, signature, a price) is a new request, not a repeat
     const want = /open\s*house/i.test(text) ? "open house" : /\bprice\b/i.test(text) ? "price" : /\b(sold|congrat\w*|just closed)\b/i.test(text) ? "sold" : "just listed";
     const dup = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.property_id === prop.id && p.platform === platform && ["draft", "pending_approval", "ready"].includes(p.status) && Math.abs(ctx.now.getTime() - new Date(p.created_at).getTime()) < 48 * 3_600_000 * 4 && p.caption.toLowerCase().replace(/[^a-z ]/g, " ").includes(want) ).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
     if (dup) {
@@ -191,11 +192,26 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   const count = requestedCount(text);
   const blocks: Block[] = [];
   const made: SocialPost[] = [];
-  const attach = async (post: SocialPost) => {
+  const attach = async (post0: SocialPost) => {
+    let post = post0;
+    // "no hashtags" and "sign it X" are honoured on the caption itself
+    const signAs = /\bsign(?:ed)?\s+(?:it|this|the post)?\s*(?:as|off as|with)?\s+([A-Za-z][\w .'-]{1,40}?)(?=[,.;]|$)/i.exec(text)?.[1]?.trim();
+    const noTags = /\bno\s+hashtags?\b|\bwithout\s+hashtags?\b/i.test(text);
+    if (signAs || noTags) {
+      let cap = post.caption;
+      if (noTags) cap = cap.replace(/(?:^|\s)#\w+/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+      if (signAs) { const sig = buildSignature(ctx.profile); const base = stripSignature(cap, sig); cap = `${base.trim()}\n\n${signAs}`; }
+      post = (await ctx.store.update("social_posts", ctx.userId, post.id, { caption: cap, ...(noTags ? { hashtags: [] } : {}) })) ?? post;
+    }
     const pub = await invoke(ctx, "publish_social_post", { postId: post.id });
     if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
     blocks.push({ type: "draft_social", postId: post.id, category: post.category ?? undefined, platform, caption: post.caption, slides: post.slides, status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined });
     made.push(post);
+    // a newer version of the same post replaces the older unsent one, so drafts waiting for approval don't pile up
+    for (const old of (await ctx.store.list("social_posts", ctx.userId)).filter((o) => o.id !== post.id && o.property_id === post.property_id && o.platform === post.platform && (o.category ?? null) === (post.category ?? null) && ["draft", "pending_approval"].includes(o.status))) {
+      await ctx.store.update("social_posts", ctx.userId, old.id, { status: "archived" });
+      for (const ap of (await ctx.store.list("approvals", ctx.userId)).filter((x) => x.status === "pending" && (x.payload?.args as { postId?: string } | undefined)?.postId === old.id)) await ctx.store.update("approvals", ctx.userId, ap.id, { status: "rejected", decided_at: ctx.now.toISOString() });
+    }
   };
   if (count > 1) {
     const facts = verifiedFacts(prop);

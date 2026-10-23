@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { store } from "./qa/harness.mts";
 import { createProfile } from "../src/lib/auth.ts";
-import { creditsForAiCost, exhaustTrialCredits, getBalance, grantCredits, usdPerCredit } from "../src/lib/credits.ts";
+import { healNegativeBalance, creditsForAiCost, exhaustTrialCredits, getBalance, grantCredits, usdPerCredit } from "../src/lib/credits.ts";
 
 const NOW = new Date("2026-10-12T14:00:00Z");
 let n = 0;
@@ -28,5 +28,13 @@ test("when a trial's allowance is used up, its credits go to zero", async () => 
   await grantCredits(a.id, 60, "grant", "test");
   assert.ok((await getBalance(a.id)) >= 60);
   await exhaustTrialCredits(a.id);
+  assert.equal(await getBalance(a.id), 0);
+});
+
+test("a balance never stays below zero: a charge that raced the trial cap is written back as a correction", async () => {
+  const a = await trialUser();
+  await store.insert("credit_transactions", a.id, { kind: "spend", delta: -100000, balance_after: -50, reason: "chat", usage_id: null } as never);
+  assert.ok((await getBalance(a.id)) < 0);
+  await healNegativeBalance(a.id);
   assert.equal(await getBalance(a.id), 0);
 });

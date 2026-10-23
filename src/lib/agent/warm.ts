@@ -15,7 +15,7 @@ export function warmText(first: string, bodyIn: string, me: string): string {
   } else if (/\b(see you|looking forward|on my way|i'?m here|i'?m outside|just arrived)\b/.test(lower)) {
     mid = `${cap(body)}!`;
   } else if (/\b(thank|thanks|appreciate)\b/.test(lower)) {
-    mid = `${cap(body)}! It was really great working with you.`;
+    mid = `${cap(body)}! Let me know if there is anything I can help with.`;
   } else if (/\?$/.test(bodyIn.trim())) {
     mid = cap(body.replace(/\?+$/, "")) + "?";
   } else if (/\b(just checking in|checking in|touch base|follow(?:ing)? up)\b/.test(lower)) {

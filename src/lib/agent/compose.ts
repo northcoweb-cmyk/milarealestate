@@ -166,7 +166,7 @@ export function bodyOf(spec: Spec): string {
     case "thanks": {
       const r = rest.replace(/^(?:thank(?:ing|s|ed)?|appreciat\w+)\s+(?:her|him|them|you)\s*/i, "thank you ").replace(/^thank you\s+(?!for\b)/i, "thank you for ");
       const showing = /\b(?:showing|tour|open house|visit)\b/i.test(r);
-      parts.push(sentence(toYou(r || "thank you")), showing ? "I'd love to hear what you thought of the home and what you'd like to see next." : "It was great working with you.");
+      parts.push(sentence(toYou(r || "thank you")), showing ? "I'd love to hear what you thought of the home and what you'd like to see next." : "Please reach out any time if I can help with anything.");
       break;
     }
     default: parts.push(rest ? `I wanted to follow up about ${atWord(toYou(rest).replace(/[.!?]+$/, ""), 160)}.` : `I wanted to follow up${a ? ` about ${a}` : ""}.`, "Let me know a good time to talk.");

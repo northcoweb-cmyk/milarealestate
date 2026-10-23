@@ -1,3 +1,4 @@
+import { contactForPronoun } from "../gender";
 import { askWhichPerson, ambiguousFirstName } from "./entity";
 import { warmText } from "../warm";
 import { addDays, fmtDay, fmtShortDate, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
@@ -225,7 +226,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   const stripped = text.replace(/^\s*(?:(?:please|pls|can you|could you|hey mila|mila)[,\s]+)*(?:(?:draft|write|compose|make|send|prepare)\s+(?:me\s+)?(?:an?|the)\s+(?:[\w-]+\s+){0,2}?(?:text|sms)(?:\s+message)?\s+(?:to|for)|text|txt|sms|message|msg|tell)\s+/i, "").trim();
   const pron = /^(her|him|them)\b\s*/i.exec(stripped);
   const lastId = ctx.state.last_contact_ids?.[0];
-  const known = pron && lastId ? [await ctx.store.get("contacts", ctx.userId, lastId)].filter((x): x is Contact => !!x) : await mentionedContacts(ctx, stripped);
+  const known = pron && lastId ? [await contactForPronoun(ctx, pron[1])].filter((x): x is Contact => !!x) : await mentionedContacts(ctx, stripped);
   const amb = pron ? null : ambiguousFirstName(stripped, known); if (amb) return askWhichPerson(text, amb);
   const c = known[0] ?? null;
   const name = c?.name ?? (pron ? "" : capitalisedNames(stripped).find((n) => !/^(Text|Message|Tell|Send)$/i.test(n)) ?? "");

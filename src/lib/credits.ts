@@ -37,6 +37,13 @@ export async function getBalance(userId: string): Promise<number> {
   return tx.reduce((n, t) => n + t.delta, 0);
 }
 
+/** Two charges that read the balance at the same moment can both land and push it below zero (it once showed -100 with no use). A balance never stays negative: the shortfall is written back as a visible correction. */
+export async function healNegativeBalance(userId: string): Promise<void> {
+  if (await testerTopupOn(userId)) return;
+  const bal = await getBalance(userId);
+  if (bal < 0) await getStore().insert("credit_transactions", userId, { kind: "adjust", delta: -bal, balance_after: 0, reason: "Balance correction", usage_id: null });
+}
+
 /**
  * Annual subscribers pay once a year, so Stripe only tells us about the renewal. Their credits still arrive every month:
  * when a monthly window has passed, the subscription is checked with Stripe (still active?) and the allowance is refilled.
@@ -99,6 +106,7 @@ export async function testerTopupOn(userId: string): Promise<boolean> {
 export async function ensureCredits(userId: string, needed: number) {
   if (needed <= 0) return;
   await refillAnnual(userId);
+  await healNegativeBalance(userId);
   // a finished trial with no plan locks EVERY account, testers included: nothing paid runs (existing data stays visible)
   { const s0 = (await getStore().list("subscriptions", userId))[0]; if (subLocked(s0)) throw s0?.status === "canceled" ? new TrialEnded("Your plan has ended. Choose a plan to use Mila again.") : new TrialEnded(); }
   // test accounts never run dry on credits: top them up when they get low
@@ -159,6 +167,7 @@ export async function exhaustTrialCredits(userId: string): Promise<void> {
   if (sub?.status !== "trial") return;
   const bal = await getBalance(userId);
   if (bal > 0) await store.insert("credit_transactions", userId, { kind: "adjust", delta: -bal, balance_after: 0, reason: "Trial allowance used", usage_id: null });
+  await healNegativeBalance(userId); // a charge that landed at the same moment must not leave it below zero
 }
 
 export async function recordUsage(u: UsageInput): Promise<{ usage: UsageRow; credits: number }> {
@@ -183,6 +192,7 @@ export async function recordUsage(u: UsageInput): Promise<{ usage: UsageRow; cre
     await store.insert("credit_transactions", u.userId, {
       kind: "spend", delta: -credits, balance_after: bal - credits, reason: u.operation, usage_id: usage.id,
     });
+    if (bal - credits < 0) await healNegativeBalance(u.userId);
   }
   return { usage, credits };
 }
@@ -212,6 +222,7 @@ export async function ensureSubscription(userId: string, cfg?: AppConfig): Promi
 export async function creditSummary(userId: string) {
   const store = getStore();
   await refillAnnual(userId);
+  await healNegativeBalance(userId);
   const [sub, tx, usage, cfg] = await Promise.all([
     ensureSubscription(userId),
     store.list("credit_transactions", userId),

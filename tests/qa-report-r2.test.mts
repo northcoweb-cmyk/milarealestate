@@ -325,3 +325,19 @@ test("past calendar items count as done; 'I didn't do the 2pm showing' reverts i
   assert.match(r2.milaMessage.content, /checked off again/);
   assert.equal((await notDoneIds(store, a.id)).size, 0);
 });
+
+test("retest 4: 'text her' picks the woman, an explicit post request is never refused as a repeat, 'sign it' and 'no hashtags' are honoured, next Tuesday carries its date", async () => {
+  const a = await fresh();
+  await a.say("Add a new buyer Rhea Chen, phone 301-555-0111");
+  await a.say("Add a new buyer Tobias Reed, phone 301-555-0122");
+  assert.match((await a.say("Text her to confirm Saturday's showing")).milaMessage.content, /text to Rhea/);
+  await a.say("Add a listing at 9 Pine Court Gaithersburg MD 20877 for 600000");
+  await a.say("Instagram post for 9 Pine Court");
+  const r = await a.say("Instagram post for 9 Pine Court, no hashtags, sign it QA TEST Agent");
+  assert.doesNotMatch(r.milaMessage.content, /already have/);
+  const posts = (await store.list("social_posts", a.id)).sort((x: any, y: any) => y.created_at.localeCompare(x.created_at));
+  assert.match(posts[0].caption, /QA TEST Agent$/);
+  assert.deepEqual(posts[0].hashtags, []);
+  assert.equal(posts.filter((p: any) => ["draft", "pending_approval"].includes(p.status)).length, 1, "the older unsent version is replaced, not piled up");
+  assert.match((await a.say("Remind me next Tuesday at 9am to call Dana")).milaMessage.content, /Tuesday, Oct 27 at 9:00 AM/);
+});
