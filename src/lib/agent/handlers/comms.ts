@@ -23,7 +23,7 @@ import { extractListingFacts, hasAnyFact } from "../listing";
 import { ambiguousFirstName, askWhichPerson } from "./entity";
 import { mentionedContacts } from "./contacts";
 import { firstNameOf } from "../../names";
-import { STAGE_KEY } from "../../property-stage";
+import { STAGE_KEY, buildCard } from "../../property-stage";
 
 const COUNT_WORDS: Record<string, number> = { one: 1, a: 1, an: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
 /** "make me 3 posts", "three captions", "a post" → how many the agent asked for (1-6). */
@@ -50,6 +50,14 @@ function postAngles(prop: Property, facts: string[], images: string[], ctx: Ctx)
     { name: "Save it", caption: [`Save this one for later. 🔖`, "", where, "", "Know someone looking in the area? Send them my way."].join("\n"), slides: [hero("Save for later"), hi("Know someone looking in the area?", 1), cta] },
     { name: "Ask me", caption: [`Questions about ${prop.address}?`, "", "I'm happy to walk you through it — message me anytime. 💬"].join("\n"), slides: [hero("Ask me anything"), hi("I will walk you through it", 1), cta] },
   ];
+}
+
+/** Where a home really is (manual stage first, else worked out from its offer, events and closing), so no post advertises a home that is under contract or sold. */
+async function stageOfProperty(ctx: Ctx, prop: Property): Promise<string | undefined> {
+  const mems = await ctx.store.list("memories", ctx.userId);
+  const manual = mems.find((m) => m.scope === "property" && m.subject_id === prop.id && m.key === STAGE_KEY)?.value;
+  if (manual) return manual;
+  try { const evs = await ctx.store.list("calendar_events", ctx.userId); return buildCard(prop, mems, evs, [], ctx.now).stage; } catch { return undefined; }
 }
 
 export async function socialPostHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
@@ -172,7 +180,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     const want = /open\s*house/i.test(text) ? "open house" : /\bprice\b/i.test(text) ? "price" : /\b(sold|congrat\w*|just closed)\b/i.test(text) ? "sold" : "just listed";
     const dup = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.property_id === prop.id && p.platform === platform && ["draft", "pending_approval", "ready"].includes(p.status) && Math.abs(ctx.now.getTime() - new Date(p.created_at).getTime()) < 48 * 3_600_000 * 4 && p.caption.toLowerCase().replace(/[^a-z ]/g, " ").includes(want) ).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
     if (dup) {
-      const stage0 = (await ctx.store.list("memories", ctx.userId)).find((m) => m.scope === "property" && m.subject_id === prop!.id && m.key === STAGE_KEY)?.value;
+      const stage0 = await stageOfProperty(ctx, prop);
       const warn: Block[] = want === "just listed" && (stage0 === "under_contract" || stage0 === "sold" || stage0 === "upcoming") ? [{ type: "notice", tone: "warn", title: "Check the wording", body: `${prop.address} is saved as ${stage0 === "under_contract" ? "under contract" : stage0 === "sold" ? "sold" : "coming soon (not live yet)"}, so the “Just Listed” draft waiting may not be accurate.`, buttons: stage0 === "sold" ? [{ label: "Make a Just Sold post", style: "secondary", action: { type: "prompt", text: `Make a Just Sold post for ${prop.address}` } }] : stage0 === "upcoming" ? [{ label: "Make it a Coming Soon post", style: "secondary", action: { type: "prompt", text: `Make a Coming Soon post for ${prop.address}` } }] : undefined }] : [];
       return reply(`You already have ${/^[aeiou]/i.test(want) ? "an" : "a"} ${want} post for ${prop.address} waiting. I didn't make a second one.`, [...warn, { type: "choice", title: "What next?", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${dup.id}` }, { label: "Make another version", style: "secondary", action: { type: "prompt", text: `Make another ${want} post for ${prop.address}` } }] }], "smalltalk");
     }
@@ -240,10 +248,10 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   await attach(post);
   // advertising a home that is under contract, sold or not live yet as "Just Listed" is a false advertisement: say so
   if (post.category !== "open_house" && !/open\s*house/i.test(text)) {
-    const stage = (await ctx.store.list("memories", ctx.userId)).find((m) => m.scope === "property" && m.subject_id === prop!.id && m.key === STAGE_KEY)?.value;
+    const stage = await stageOfProperty(ctx, prop);
     if (stage === "under_contract" || stage === "sold" || stage === "upcoming") {
       const label = stage === "under_contract" ? "under contract" : stage === "sold" ? "sold" : "coming soon (not live yet)";
-      blocks.push({ type: "notice", tone: "warn", title: "Check the wording", body: `${prop.address} is saved as ${label}, so “Just Listed” may not be accurate. Review it before you approve.`, buttons: stage === "upcoming" ? [{ label: "Make it a Coming Soon post", style: "secondary", action: { type: "prompt", text: `Make a Coming Soon post for ${prop.address}` } }] : stage === "sold" ? [{ label: "Make a Just Sold post", style: "secondary", action: { type: "prompt", text: `Make a Just Sold post for ${prop.address}` } }] : undefined });
+      blocks.push({ type: "notice", tone: "warn", title: "Check the wording", body: `${prop.address} is saved as ${label}, so ${post.category === "price_improvement" ? "a price reduction" : "“Just Listed”"} may not be accurate${stage === "under_contract" ? " (an offer was accepted, so a lower public price is misleading)" : ""}. Review it before you approve.`, buttons: stage === "upcoming" ? [{ label: "Make it a Coming Soon post", style: "secondary", action: { type: "prompt", text: `Make a Coming Soon post for ${prop.address}` } }] : stage === "sold" ? [{ label: "Make a Just Sold post", style: "secondary", action: { type: "prompt", text: `Make a Just Sold post for ${prop.address}` } }] : undefined });
     }
   }
   if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (use your own photos, or ones you have permission to use) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });

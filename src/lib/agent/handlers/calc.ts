@@ -27,7 +27,7 @@ export function calcKind(text: string): CalcKind | null {
   if (/\breduction (?:percent|percentage|%)|\bpercent(?:age)? (?:off|reduction|drop|decrease)|\bhow much (?:of a )?(?:drop|reduction)\b/.test(t) && amounts(text).length >= 2) return "reduction";
   if (/\b(?:effective )?net price\b/.test(t) && /\b(?:credit|concession)\b/.test(t)) return "net_price";
   if (/\b(?:seller )?net sheet\b|\bseller(?:'s)? (?:net|gross|proceeds)\b|\bnet proceeds\b|\bnet (?:to|for) (?:my |the |a )?(?:seller|client|owner)\b|\bwhat (?:will|would|does) (?:the )?seller (?:net|walk away)/.test(t) && (amounts(text).length >= 1 || /\bnet sheet\b/.test(t))) return "net_sheet";
-  if (/\bcommission\b/.test(t) && percents(text).length && amounts(text).length) return "commission";
+  if (/\bcommission\b/.test(t) && percents(text).length && (amounts(text).length || /\b\d{1,6}\s+[a-z]/.test(t))) return "commission";
   if (/\b(?:monthly )?(?:payment|piti|mortgage|principal and interest|p&i)\b/.test(t) && (amounts(text).length || /\bpiti\b/.test(t)) && !/\b(?:late|missed|reminder|due)\b/.test(t)) return "payment";
   if (/\b(?:afford|affordable)\b/.test(t) && !/\bwhat (?:is|are) the/.test(t)) return "affordable";
   if (/\b(?:which|what|list|show|who)\b.{0,30}\b(?:buyers?|clients?|leads?|sellers?)\b.{0,40}\b(?:under|below|over|above|more than|less than)\s+\$?\d/.test(t)) return "budget_filter";
@@ -77,8 +77,10 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       return reply(`Effective net price: ${fullMoney(price)} − ${fullMoney(credit)} = ${fullMoney(price - credit)}. A seller credit usually covers the buyer's closing costs rather than lowering the contract price, so the recorded price stays ${fullMoney(price)}.`, [], "chat_simple");
     }
     case "commission": {
-      const price = nums[0], pct = pcts[0];
-      return reply(`${pct}% of ${fullMoney(price)} is ${fullMoney(Math.round(price * pct / 100))}.`, [], "chat_simple");
+      let price = nums[0]; const pct = pcts[0]; let on = "";
+      if (!price) { const p = await resolveProperty(ctx, text, true).catch(() => null); if (p?.list_price) { price = p.list_price; on = ` (${p.address}, listed at ${fullMoney(p.list_price)}; give me the sale price if it differs)`; } }
+      if (!price) return reply("What's the sale price? Give me the price and the commission, like “commission on 479k at 2.5%”.", [], "chat_simple");
+      return reply(`${pct}% of ${fullMoney(price)} is ${fullMoney(Math.round(price * pct / 100))}${on}.`, [], "chat_simple");
     }
     case "net_sheet": {
       let price = nums[0];

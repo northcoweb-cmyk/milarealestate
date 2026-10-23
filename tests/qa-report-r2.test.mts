@@ -105,3 +105,26 @@ test("round 3: 'no hashtags' is honoured in the caption", async () => {
   assert.doesNotMatch(p.caption, /#\w/);
   assert.deepEqual(p.hashtags, []);
 });
+
+test("round 3: a price-reduction post for a home under contract warns that an offer was accepted", async () => {
+  const a = await fresh();
+  await a.say("Offer accepted on 22 Birch Lane at $610,000 closing December 15");
+  const r = await a.say("Make a price reduction post for 22 Birch Lane, new price $599k");
+  const warn = r.milaMessage.blocks.find((b: any) => b.type === "notice" && /under contract/.test(b.body ?? ""));
+  assert.ok(warn, "a warning notice about the contract");
+});
+
+test("round 3: 'Silver Spring' is a place, not a spring timeline", async () => {
+  const a = await fresh();
+  await a.say("Add buyer QA TEST Omar Reyes 301-555-0177, budget 450k, looking in Silver Spring");
+  const c = (await store.list("contacts", a.id))[0];
+  assert.equal(c.location, "Silver Spring, MD");
+  assert.ok(!c.timeline);
+});
+
+test("round 3: commission on a saved address uses its price", async () => {
+  const a = await fresh();
+  await store.insert("properties", a.id, { address: "22 Birch Lane", city: "Gaithersburg", state: "MD", zip: "20877", list_price: 625000, beds: 4, baths: 3, sqft: 2400, verified: true });
+  const r = await a.say("What is the commission on 22 Birch Lane at 2.5%?");
+  assert.match(r.milaMessage.content, /\$15,625/);
+});

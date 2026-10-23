@@ -410,7 +410,13 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       if (place) { lastIntent = "prep_property"; outs.push(await dispatch(ctx, "prep_property", `prep ${place}`, true)); continue; }
     }
     let d = ci === 0 && forced ? { intent: forced, declared: false } : detectIntent(clause);
-    if (d.intent === "general") d = (await llmClassify(ctx, clause)) ?? d;
+    if (d.intent === "general") {
+      const c = await llmClassify(ctx, clause);
+      // a question never writes: if the AI guesses a data-changing intent for a question, treat it as plain chat
+      const WRITES = new Set<Intent>(["property_status", "update_listing", "list_date", "delete_data", "cancel_event", "move_event", "replace_event", "contact_field_update", "deactivate_contact", "client_lost", "closed_deal", "transaction", "offer_received", "property_note", "property_fact", "time_off", "create_event", "reminder", "add_task", "new_contact", "add_listing"]);
+      const isQ = /^\s*(?:how many|how much|what|which|who|when|where|why|is|are|do|does|did|can|could|should|will|would)\b/i.test(clause) || /\?\s*$/.test(clause);
+      if (c && !(isQ && WRITES.has(c.intent))) d = c;
+    }
     lastIntent = d.intent;
     outs.push(await dispatch(ctx, d.intent, clause, !!d.declared));
   }

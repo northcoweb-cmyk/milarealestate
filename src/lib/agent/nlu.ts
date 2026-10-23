@@ -350,13 +350,14 @@ export function parseBaths(text: string): number | null {
 }
 
 export function parseTimeline(text: string): string | null {
-  const t = text.toLowerCase();
+  let t = text.toLowerCase();
   const m = /\b(?:in|within|over|during)?\s*(?:the\s+)?next\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+(day|week|month|year)s?\b/.exec(t)
     ?? /\bwithin\s+(\d+|one|two|three|four|five|six|twelve)\s+(day|week|month|year)s?\b/.exec(t)
     ?? /\bin\s+(?:about\s+|around\s+)?(\d+|one|two|three|four|five|six|twelve)\s+(month|week|year)s?\b/.exec(t);
   if (m) { const n = numWord(m[1]); return `Next ${n} ${m[2]}${n === 1 ? "" : "s"}`; }
   if (/\basap\b|\bright away\b|\bimmediately\b/.test(t)) return "ASAP";
   // "thinking of listing in the spring" / "wants to buy by summer" / "moving next fall" / "closing in March"
+  t = t.replace(/\b(?:silver|hot|palm|colorado|cedar|sugar|warm|green|rocky|spring)\s+springs?\b|\bsprings?\s+(?:hill|valley|lake|grove|garden|house|park|city)\b/g, " "); // place names are not seasons
   const season = /\b(?:(next|this|early|late)\s+)?(spring|summer|fall|autumn|winter)\b/.exec(t);
   if (season && /\b(?:in|by|before|this|next|early|late|for|during)\b/.test(t.slice(Math.max(0, (season.index ?? 0) - 14), season.index ?? 0) + " " + (season[1] ?? ""))) return `${season[1] ? season[1][0].toUpperCase() + season[1].slice(1) + " " : ""}${season[2][0].toUpperCase() + season[2].slice(1)}`;
   const mon = /\b(?:in|by|before|around)\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b(?!\s+\d)/.exec(t);
