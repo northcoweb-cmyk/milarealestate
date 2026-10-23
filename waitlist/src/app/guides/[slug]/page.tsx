@@ -27,7 +27,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
       <div className="mt-6 space-y-5 text-[16px] leading-relaxed text-foreground/85 [&_h2]:mt-8 [&_h2]:text-[22px] [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-foreground [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5">
         {g.sections.map((s) => <section key={s.h}><h2>{s.h}</h2>{s.p?.map((t) => <p key={t} className="mt-2">{t}</p>)}{s.ul && <ul className="mt-2">{s.ul.map((t) => <li key={t}>{t}</li>)}</ul>}</section>)}
       </div>
-      <p className="mt-12 text-[16px]"><Link href="/" className="font-semibold underline">Join the Mila waitlist: 7-day free trial at launch, October 23.</Link></p>
+      <p className="mt-12 text-[16px]"><Link href="/" className="font-semibold underline">Join the Mila queue: 7-day free trial, no card.</Link></p>
     </main>
   );
 }

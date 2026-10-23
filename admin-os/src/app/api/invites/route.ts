@@ -26,6 +26,15 @@ export async function POST(req: Request) {
       await sendInvite(e);
       return NextResponse.json({ ok: true, message: `Access granted. Login link sent to ${e.email}.` });
     }
+    if (b.action === "grant_next") {
+      // the owner picks how many: the oldest people still waiting get their access email now, whatever the seat cap says
+      const n = Math.max(1, Math.min(BATCH, Math.floor(Number((b as { count?: number }).count ?? 5)) || 5));
+      const batch = await nextBatch(n);
+      let sent = 0; const failed: string[] = [];
+      for (const e of batch) { try { await sendInvite(e); sent++; } catch (err) { failed.push(`${e.email}: ${err instanceof Error ? err.message : "failed"}`); } }
+      const c = await counts();
+      return NextResponse.json({ ok: failed.length === 0 || sent > 0, sent, failed, message: `Access granted to ${sent} ${sent === 1 ? "person" : "people"}.${failed.length ? ` ${failed.length} failed: ${failed[0]}` : ""} ${c?.pending ?? 0} still waiting.` });
+    }
     if (b.action === "send") {
       if (b.confirm !== "SEND") return NextResponse.json({ error: 'Type SEND to confirm.' }, { status: 400 });
       const before = await counts();

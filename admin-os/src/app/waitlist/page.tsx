@@ -4,6 +4,7 @@ import { Bars, Missing, Section, Stat } from "@/components/ui";
 import { ago, fmt } from "@/lib/data";
 import { NoKeys, load } from "@/lib/page";
 import { GrantButton } from "@/components/grant-button";
+import { GrantNext } from "@/components/grant-next";
 import { DeleteWaitlistButton } from "@/components/delete-waitlist-button";
 
 const STATUS: Record<string, string> = { waiting: "On the list", queued: "Queued", invited: "Access granted", joined: "Has account" };
@@ -25,9 +26,10 @@ export default async function Waitlist() {
         <Section title="Signups per day"><div className="card"><Bars data={r.waitByDay} /></div></Section>
         <Section title="Where they came from"><div className="card">{r.waitSources.length ? r.waitSources.map(([s, n]) => <p key={s} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}><span>{s}</span><b>{n}</b></p>) : <p className="mute">No signups yet. Pass ?src=instagram (or tiktok, x) on your link so you can see which post works.</p>}</div></Section>
       </div>
+      <Section title="Let people in"><GrantNext waiting={r.wait.filter((w) => !w.claimed_at && w.status !== "invited").length} /></Section>
       <Section title="People">
         <div className="tw"><table><thead><tr><th>Email</th><th>Name</th><th>Source</th><th>Status</th><th>Joined</th><th></th></tr></thead><tbody>
-          {r.wait.slice(0, 300).map((w) => <tr key={w.id}><td>{w.email}</td><td>{w.name ?? <span className="mute">—</span>}</td><td>{w.source ?? "direct"}</td><td>{w.claimed_at ? STATUS.joined : STATUS[w.status ?? "waiting"] ?? w.status}</td><td title={fmt(w.created_at)}>{ago(w.created_at, r.now)}</td><td style={{ whiteSpace: "nowrap" }}>{!w.claimed_at && <GrantButton id={w.id} email={w.email} />} <DeleteWaitlistButton id={w.id} email={w.email} /></td></tr>)}
+          {[...r.wait].sort((a, b) => Number(!!a.claimed_at || a.status === "invited") - Number(!!b.claimed_at || b.status === "invited") || a.created_at.localeCompare(b.created_at)).slice(0, 300).map((w) => <tr key={w.id}><td>{w.email}</td><td>{w.name ?? <span className="mute">—</span>}</td><td>{w.source ?? "direct"}</td><td>{w.claimed_at ? STATUS.joined : STATUS[w.status ?? "waiting"] ?? w.status}</td><td title={fmt(w.created_at)}>{ago(w.created_at, r.now)}</td><td style={{ whiteSpace: "nowrap" }}>{!w.claimed_at && <GrantButton id={w.id} email={w.email} />} <DeleteWaitlistButton id={w.id} email={w.email} /></td></tr>)}
           {!r.wait.length && <tr><td colSpan={6} className="mute">Empty for now. Once the waitlist page is live, signups land here instantly.</td></tr>}
         </tbody></table></div>
         <p className="mute" style={{ marginTop: 10, fontSize: 13 }}>Showing the latest 300. <Link href="/api/waitlist-csv" style={{ textDecoration: "underline" }}>Download everyone</Link>.</p>
