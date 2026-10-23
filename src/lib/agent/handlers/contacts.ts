@@ -512,3 +512,50 @@ export async function pastClientNoteHandler(ctx: Ctx, text: string): Promise<Han
   ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
   return reply(`Saved to ${c.name}: past client${when ? `, closed ${when}` : ""}${refers ? ", may refer a friend" : ""}.`, [{ type: "choice", title: "Next", buttons: [{ label: "Set an anniversary reminder", style: "secondary", action: { type: "prompt", text: `Make a home-anniversary post for ${c.name}` } }, { label: "Open profile", style: "quiet", href: `/contacts/${c.id}` }] }], "chat_simple");
 }
+
+/** "I'm meeting a new buyer couple, the Alvarezes, Friday at 2pm. Budget around $520k in Rockville, close to I-270": one saved household with what was said, and the meeting on the calendar. */
+export async function newClientMeetingHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const type = /\bseller|listing appointment\b/i.test(text) ? "seller" : /\brenter|tenant\b/i.test(text) ? "renter" : "buyer";
+  let surname = "";
+  const plural = /\bthe\s+(\p{Lu}[\p{L}'’-]{3,})\b/u.exec(text);
+  if (plural && /s$/i.test(plural[1])) surname = /(?:zes|ses|xes|ches|shes)$/i.test(plural[1]) ? plural[1].slice(0, -2) : plural[1].slice(0, -1);
+  else if (plural) surname = plural[1];
+  const named = /\b(?:named|called|name is)\s+(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)/u.exec(text)?.[1];
+  const name = named ?? (surname ? `${surname} Family` : "");
+  if (!name) return reply("What's their name? Tell me and I'll save them and put the meeting on your calendar.", [], "smalltalk");
+  const budget = /\bbudget\b/i.test(text) ? parseMoney(text).max : null;
+  const loc = parseLocation(text.replace(/\bclose to\b/gi, "near"));
+  const near = /\b(?:close to|near|by)\s+((?:the\s+)?[A-Za-z0-9][\w\- ]{1,30}?)(?=\s*(?:[,.;!?]|$|\band\b|\bwith\b|\bfor\b))/i.exec(text)?.[1]?.trim();
+  const out = await TOOLS.create_contact.run(ctx, { name, type, status: "new", budget_max: budget ?? null, location: loc ?? null, source: "Meeting", notes: null }) as any;
+  const contact = out?.ok ? out.data.contact : null;
+  if (!contact) return reply(`I couldn't save ${name}, so nothing was changed.`, [], "smalltalk");
+  if (near && !out.data.existing) await saveMemory(ctx, { scope: "contact", subject_id: contact.id, key: "Wants to be near", value: near.replace(/^the\s+/i, ""), source: "user_stated" });
+  if (budget && !out.data.existing) await saveMemory(ctx, { scope: "contact", subject_id: contact.id, key: "Budget", value: `around ${fullMoney(budget)}`, source: "user_stated" });
+  ctx.state.last_contact_ids = [contact.id]; await persistState(ctx);
+  const when = /\b(?:today|tomorrow|tonight|(?:this |next |on )?(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)[a-z]*)\b(?:\s+(?:at|around)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i.exec(text)?.[0] ?? "";
+  const saved = `${out.data.existing ? `${contact.name} was already saved` : `Saved ${contact.name} as a new ${type}`}${budget ? `, budget around ${fullMoney(budget)}` : ""}${loc ? `, looking in ${loc}` : ""}${near ? `, wants to be near ${near.replace(/^the\s+/i, "")}` : ""}.`;
+  if (!when) return reply(`${saved} When is the meeting?`, [], "smalltalk");
+  const { createEventHandler } = await import("./calendar");
+  const ev = await createEventHandler(ctx, `Schedule a meeting with ${contact.name} ${when}`, "meeting", `Meeting with ${contact.name}`, contact.id);
+  return { ...ev, text: `${saved}\n${ev.text}` };
+}
+
+/** "What's their budget again?" / "What did I say they wanted to be close to?": the person just talked about, answered from what is saved about them. */
+export async function contactQuestionHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const named = await mentionedContacts(ctx, text);
+  const c = named.length === 1 ? named[0] : ctx.state.last_contact_ids?.[0] ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
+  if (!c) return reply("Who do you mean? Tell me their name.", [], "smalltalk");
+  const first = firstName(c.name);
+  const t = text.toLowerCase();
+  const direct: string[] = [];
+  if (/\bbudget\b/.test(t)) direct.push(c.budget_max ? `${first}'s budget is ${c.budget_min ? `${fullMoney(c.budget_min)} to ` : "around "}${fullMoney(c.budget_max)}.` : `I don't have a budget saved for ${c.name}.`);
+  if (/\b(?:phone|number|cell)\b/.test(t)) direct.push(c.phone ? `${first}'s phone is ${c.phone}.` : `I don't have a phone number for ${c.name}.`);
+  if (/\be-?mail\b/.test(t)) direct.push(c.email ? `${first}'s email is ${c.email}.` : `I don't have an email for ${c.name}.`);
+  if (/\b(?:area|areas|location|where|looking in)\b/.test(t) && !/\b(?:close|near)\b/.test(t)) direct.push(c.location ? `${first} is looking in ${c.location}.` : `I don't have an area saved for ${c.name}.`);
+  if (direct.length) return reply(direct.join(" "), [], "chat_simple");
+  const facts = await contactFacts(ctx, c);
+  const words = (t.match(/[a-z]{4,}/g) ?? []).filter((w) => !/^(?:what|that|they|them|their|wanted|want|said|tell|remind|about|have|does|were|with|again|close)$/.test(w));
+  const hits = facts.filter((f) => words.some((w) => f.toLowerCase().includes(w.slice(0, 5))) || (/\b(?:close|near)\b/.test(t) && /\bnear\b/i.test(f)));
+  if (hits.length) return reply(`${first}: ${hits.slice(0, 4).join("; ")}.`, [], "chat_simple");
+  return reply(facts.length ? `I don't have that saved for ${first}. What I do have: ${facts.slice(0, 5).join("; ")}.` : `I don't have anything saved for ${first} yet.`, [], "chat_simple");
+}

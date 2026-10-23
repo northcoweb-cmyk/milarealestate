@@ -39,7 +39,7 @@ import { moveDayHandler, eventOutcomeHandler, agendaHandler, oooQueryHandler, oo
 import { fmtDayTime } from "../time";
 import { rewritePostHandler, reviseDraftHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
-import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, contactFactsHandler, pastClientNoteHandler, factCueCount, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
+import { contactQuestionHandler, newClientMeetingHandler, debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, contactFactsHandler, pastClientNoteHandler, factCueCount, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
@@ -579,11 +579,18 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "calc": return calcHandler(ctx, text);
     case "inbox_query": return inboxHandler();
     case "describe_home": return describeHomeHandler(ctx, text);
-    case "advice": return adviceHandler(ctx, text);
+    case "advice": {
+      const r = await adviceHandler(ctx, text);
+      // the licensing note is only for licensing questions; any other advice question goes to the assistant instead of getting it
+      if (aiConfigured() && /^Real estate licences are state by state/.test(r.text) && !/\b(?:licen[cs]e|licensed|another state|other state|out[- ]of[- ]state|referral)\b/i.test(text)) return generalHandler(ctx, text);
+      return r;
+    }
     case "basics": return basicsHandler(ctx, text);
     case "past_client_note": return pastClientNoteHandler(ctx, text);
     case "refuse_injection": return refuseInjectionHandler(text);
     case "move_day": return moveDayHandler(ctx, text);
+    case "contact_question": return contactQuestionHandler(ctx, text);
+    case "client_meeting": return newClientMeetingHandler(ctx, text);
     case "event_outcome": return eventOutcomeHandler(ctx, text);
     case "client_summary": {
       const people = await mentionedContacts(ctx, text);
@@ -611,7 +618,12 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "ooo_edit": return oooEditHandler(ctx, text);
     case "list_reminders": return listRemindersHandler(ctx, text);
     case "reminder_done": return reminderDoneHandler(ctx, text);
-    case "revise_draft": return reviseDraftHandler(ctx, text);
+    case "revise_draft": {
+      const r = await reviseDraftHandler(ctx, text);
+      // no saved draft: the text to change is Mila's own last answer in this chat (a bio, a script, a list), so the assistant reworks that
+      if (aiConfigured() && /^I don't have a draft from this chat/.test(r.text)) return generalHandler(ctx, `Take your previous reply in this chat and change it as asked: ${text}. Give only the new version.`);
+      return r;
+    }
     case "related_contact": return relatedContactHandler(ctx, text);
     case "add_task": return addTaskHandler(ctx, text);
     case "rewrite_post": return rewritePostHandler(ctx, text);

@@ -408,6 +408,8 @@ export interface ConversationState {
   last_draft_at?: number;
   last_text?: { to: ID | null; name: string; text: string; at: number } | null;
   last_event_id?: ID | null;
+  /** the last payment worked out, so "what if rates drop to 6.25%?" reruns it with one number changed */
+  last_calc?: { price: number; down: number; rate: number; term: number; label: string; at: number } | null;
   last_property_id?: ID | null;
   /** the street Mila last asked a city/state for: a second pass for the same street never asks again */
   asked_location?: string | null;

@@ -4,6 +4,7 @@
  * budgets already saved on contacts ("which buyers are under $600k", "compare Desmond's budget to Corinne's").
  * Every answer says which assumptions it used. Nothing is saved.
  */
+import { persistState } from "../conversation";
 import { type Ctx, fullMoney } from "../context";
 import { aiConfigured as aiAvailable } from "../../ai/configured";
 import { parseAddress, parseMoney } from "../nlu";
@@ -19,7 +20,7 @@ const amounts = (text: string): number[] =>
     .filter((n) => n >= 1000);
 const percents = (text: string): number[] => [...text.matchAll(/(\d+(?:\.\d+)?)\s?%(?:\s*\/\s*(\d+(?:\.\d+)?))?/g)].flatMap((m) => (m[2] ? [parseFloat(m[1]), parseFloat(m[2])] : [parseFloat(m[1])]));
 
-export type CalcKind = "recap" | "payment" | "net_sheet" | "net_price" | "reduction" | "commission" | "affordable" | "budget_filter" | "budget_compare" | "unknown_fact" | "cash_to_close";
+export type CalcKind = "recap" | "payment" | "net_sheet" | "net_price" | "reduction" | "commission" | "affordable" | "budget_filter" | "budget_compare" | "unknown_fact" | "cash_to_close" | "recalc";
 
 
 /** The amount written right before or after a label ("$380,000 payoff", "payoff of $380k", "payoff: 380000"). */
@@ -39,6 +40,9 @@ function labelledPct(text: string, labels: string): number | null {
 export function calcKind(text: string): CalcKind | null {
   const t = text.toLowerCase();
   if (/^\s*(?:add|new|create|schedule|book|remind|draft|write|email|text)\b/.test(t)) return null;
+  if (/\b(?:summari[sz]e|recap|sum up|go over|list)\b.{0,25}\b(?:everything|all|what)\b.{0,20}\b(?:we|i|you)\b.{0,20}\b(?:did|done|covered|got done|worked on)\b/.test(t)) return "recap";
+  if (/^\s*(?:and\s+|ok(?:ay)?[,\s]+)?(?:what if|how about|what about|and if|try)\b.{0,50}\b(?:rates?|interest|\d+(?:\.\d+)?\s?%|\d{2}[- ]?(?:year|yr)s?|years?)\b/.test(t)) return "recalc";
+  if (/\b(?:monthly )?payment\b/.test(t) && percents(text).length && !amounts(text).length && /\b(?:what|how much|what's|whats)\b/.test(t)) return "payment";
   if (/^\s*(?:(?:ok|so|and|hey)[,\s]+)*(?:what|which)\b.{0,25}\b(?:did i|have i|did we|have we)\b.{0,30}\b(?:get done|do|done|finish|finished|accomplish\w*|complete\w*|add\w*)\b.{0,25}\b(?:today|this week|so far|yesterday)\b|^\s*(?:daily |weekly )?recap\b/.test(t) && !/\bwhat did i (?:say|tell|promise)\b/.test(t)) return "recap";
   if (/\breduction (?:percent|percentage|%)|\bpercent(?:age)? (?:off|reduction|drop|decrease)|\bhow much (?:of a )?(?:drop|reduction)\b/.test(t) && amounts(text).length >= 2) return "reduction";
   if (/\b(?:effective )?net price\b/.test(t) && /\b(?:credit|concession)\b/.test(t)) return "net_price";
@@ -147,6 +151,22 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       if (payoff !== null) lines.push(`• Loan payoff: −${fullMoney(payoff)}`);
       return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n${lines.join("\n")}\n• ${payoff !== null ? "Estimated net to the seller" : "Estimated net before mortgage payoff"}: ${fullMoney(net)}${payoff === null ? "\nSubtract the loan payoff and any credits for the real number. Tell me the payoff and I'll rerun it." : "\nThe title company's settlement statement has the final number."}`, [], "chat_simple");
     }
+    case "recalc": {
+      const lc = ctx.state.last_calc;
+      if (!lc) return reply("Re-run what? Give me the price, down payment and rate, like “payment on 520k, 10% down at 6.25%”.", [], "chat_simple");
+      const t0 = text.toLowerCase();
+      const pctsHere = percents(text);
+      let { down, rate, term } = lc;
+      const yrs0 = /(\d{2})\s*[- ]?(?:years?|yrs?)\b/i.exec(text);
+      if (yrs0) term = Math.min(40, Math.max(5, parseInt(yrs0[1], 10)));
+      if (pctsHere.length) { if (/\bdown\b/.test(t0)) down = pctsHere[0]; else rate = pctsHere[0]; }
+      const price0 = nums[0] ?? lc.price;
+      const loan = price0 * (1 - down / 100), pi = monthlyPI(loan, rate, term);
+      ctx.state.last_calc = { ...lc, price: price0, down, rate, term, at: Date.now() }; await persistState(ctx);
+      const before = monthlyPI(lc.price * (1 - lc.down / 100), lc.rate, lc.term);
+      const diff = Math.round(pi - before);
+      return reply(`Payment${lc.label} on ${fullMoney(price0)}, ${down}% down at ${rate}% for ${term} years:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month${diff ? ` (${diff < 0 ? "down" : "up"} ${fullMoney(Math.abs(diff))} from before)` : ""}\nTaxes, insurance and any HOA come on top.`, [], "chat_simple");
+    }
     case "payment":
     case "affordable": {
       let price = nums[0];
@@ -166,6 +186,11 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
           return reply(`${verdict} With 20% down at 6.75% for 30 years, principal and interest would be about ${fullMoney(Math.round(pay))}/month (taxes, insurance and HOA not included). Income and debts decide the real answer, so ask ${c.name.split(" ")[0]} for their pre-approval.`, [], "chat_simple");
         }
       }
+      if (!price) { // "if they put 10% down on that": the price already talked about in this chat, or the buyer's budget
+        const lc = ctx.state.last_calc;
+        if (lc && Date.now() - lc.at < 2 * 3_600_000) { price = lc.price; label = lc.label; }
+        else { const c0 = ctx.state.last_contact_ids?.[0] ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null; if (c0?.budget_max) { price = c0.budget_max; label = ` (${c0.name}'s budget)`; } }
+      }
       if (!price) return reply("What's the price? Give me the price, down payment and rate, like “payment on 615k, 20% down at 6.75%”.", [], "chat_simple");
       // explicit words win: "6.5% for 30 years with 10% down", "20% down at 6.75%", "at a 7% rate"
       const dExp = /(\d+(?:\.\d+)?)\s?%\s*(?:down|as a down payment)|down(?: payment)?(?: of)?\s*(\d+(?:\.\d+)?)\s?%/i.exec(text);
@@ -184,6 +209,7 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       const loan = price * (1 - dp / 100);
       const pi = monthlyPI(loan, rateUsed, term);
       const tax = (price * 0.0094) / 12, ins = (price * 0.0035) / 12;
+      ctx.state.last_calc = { price, down: dp, rate: rateUsed, term, label, at: Date.now() }; await persistState(ctx);
       if (isLoan) return reply(`Payment on a ${fullMoney(price)} loan at ${rateUsed}%${rate === undefined ? " (assumed)" : ""} for ${term} years:\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• Add property tax, insurance, any HOA and mortgage insurance for the full monthly cost. Give me the home price and I'll estimate those too.`, [], "chat_simple");
       const assumed = [down === undefined && rate === undefined ? "20% down and 6.75% assumed" : down === undefined ? "20% down assumed" : rate === undefined ? "6.75% rate assumed" : ""].filter(Boolean)[0];
       return reply(`Payment${label} on ${fullMoney(price)}, ${dp}% down at ${rateUsed}% for ${term} years${assumed ? ` (${assumed})` : ""}:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• With estimated taxes (~0.94%) and insurance (~0.35%): about ${fullMoney(Math.round(pi + tax + ins))}/month, before any HOA or mortgage insurance.`, [], "chat_simple");

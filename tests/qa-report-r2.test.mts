@@ -369,3 +369,23 @@ test("round 5 edits: several fields in one message save together (7-digit phone,
   assert.equal(ev.start_at, "2026-10-24T18:00:00.000Z"); assert.equal(ev.end_at, "2026-10-24T20:00:00.000Z");
   assert.doesNotMatch((await a.say("what's on my plate this week")).milaMessage.content, /gone quiet/);
 });
+
+test("round 6: a whole morning in one chat keeps its context (couple saved with what was said, math follow-ups, 'them' questions, no verbs or acronyms taken as names)", async () => {
+  const a = await newAgent({ now: new Date("2026-10-23T13:00:00Z"), tz, seed: false });
+  const say = async (t: string) => (await a.say(t)).milaMessage.content;
+  const first = await say("Good morning, I'm meeting a new buyer couple, the Alvarezes, on Friday at 2pm. They're looking in Rockville with a budget around $520k and want to be close to I-270.");
+  assert.match(first, /Saved Alvarez Family as a new buyer/);
+  const c = (await store.list("contacts", a.id)) as any[];
+  assert.equal(c.length, 1); assert.equal(c[0].budget_max, 520000); assert.match(c[0].location, /Rockville/);
+  assert.match(await say("If they put 10% down on that, what's the monthly payment at 7%?"), /\$3,114\/month/);
+  assert.match(await say("What if rates drop to 6.25%?"), /\$468,000[\s\S]*\$2,882\/month/);
+  assert.match(await say("Remind me an hour before"), /Friday at 1:00 PM/);
+  assert.match(await say("What's their budget again?"), /\$520,000/);
+  assert.match(await say("What did I say they wanted to be close to?"), /I-270/);
+  await say("Add them as a buyer contact with those details");
+  await say("Draft an email to them confirming Friday and what to bring (pre-approval letter, ID)");
+  const names = ((await store.list("contacts", a.id)) as any[]).map((x) => x.name);
+  assert.deepEqual(names, ["Alvarez Family"], "no verb, pronoun or acronym became a contact");
+  const drafts = (await store.list("email_drafts", a.id)) as any[];
+  assert.ok(drafts.every((d) => !/^ID\b|^Turn\b|^Add\b/.test(String(d.to_name ?? d.to ?? ""))));
+});

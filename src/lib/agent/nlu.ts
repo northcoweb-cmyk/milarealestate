@@ -375,7 +375,8 @@ export function parsePhone(text: string): string | null {
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : null;
 }
 
-const NAME_STOP = new Set(["Is","Are","Does","Do","Did","Was","Were","What","When","Where","Who","How","Why","Which","Can","Could","Should","Would","Will","Hi","Hello","Dear","Hey","Now","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","January","February","March","April","May","June","July","August","September","October","November","December","Mila","Give","Write","Make","Draft","Create","Send","Show","Find","Pull","Get","Set","Help","Please","Can","Could","Would","Should","Open","House","Showing","Main","Street","I","I'm","And","The","She","He","They","Montgomery","County"]);
+const NAME_STOP = new Set(["Is","Are","Does","Do","Did","Was","Were","What","When","Where","Who","How","Why","Which","Can","Could","Should","Would","Will","Hi","Hello","Dear","Hey","Now","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","January","February","March","April","May","June","July","August","September","October","November","December","Mila","Give","Write","Make","Draft","Create","Send","Show","Find","Pull","Get","Set","Help","Please","Can","Could","Would","Should","Open","House","Showing","Main","Street","I","I'm","And","The","She","He","They","Montgomery","County","Add","Turn","Remind","Text","Email","Call","Plan","Summarize","Summarise","Tell","Put","Update","Change","Move","Cancel","Delete","Remove","Check","Review","Prep","Prepare","Schedule","Book","Ask","Share","Pull","List","Show","Let","Lets","Let's","Also","Then","Next","Okay","Ok","Sure","Thanks","Thank","Yes","No","If","Whats","What's","Who's","How's","That's","It's","There","Here","This","That","These","Those","Their","Them","His","Her","Our","My","Your","ID","MLS","HOA","FHA","VA","ARM","PDF","CMA","IRS","ASAP","DC","MD","VA","PA","DM","PM","AM","LLC","CRM","FSBO","REALTOR","Realtor","Zillow","Redfin","Google","Instagram","Facebook","TikTok","LinkedIn","Halloween","Thanksgiving","Christmas"]);
+const stopWord = (w: string) => NAME_STOP.has(w) || NAME_STOP.has(w.replace(/['’]s$/i, ""));
 
 /** Keeps the whole typed name (up to four words when it starts with two ALL-CAPS tags, else three) and drops trailing day/month words. */
 function tidyName(raw: string): string {
@@ -444,8 +445,8 @@ export function capitalisedNames(text: string): string[] {
   const re = /(?<![\p{L}])(\p{Lu}[\p{L}'’-]+)(?:\s+(\p{Lu}[\p{L}'’-]+))?/gu;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
-    if (NAME_STOP.has(m[1])) continue;
-    out.push(m[2] && !NAME_STOP.has(m[2]) ? `${m[1]} ${m[2]}` : m[1]);
+    if (stopWord(m[1])) continue;
+    out.push(m[2] && !stopWord(m[2]) ? `${m[1]} ${m[2]}` : m[1]);
   }
   return out;
 }
