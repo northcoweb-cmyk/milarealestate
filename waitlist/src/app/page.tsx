@@ -14,7 +14,7 @@ import { HeroParallax } from "@/components/hero-parallax";
 import { TryMila } from "@/components/try-mila";
 import { Faq } from "@/components/faq";
 
-const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T10:00:00-04:00";
+const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T14:00:00-04:00";
 
 const PLANS = [
   { name: "Mila", price: "$39", per: "/month", blurb: "For the agent who wants their day handled.", hot: true, cta: "join", points: ["Calendar, follow-ups, posts and emails", "Listing and open house posts with your photos", "Market and property research", "Monthly credits included", "7-day free trial, cancel any time"] },
@@ -177,7 +177,7 @@ export default function Page() {
         <Clouds />
         <Reveal className="relative z-10 mx-auto max-w-3xl">
           <h2 className="display text-balance text-[clamp(42px,8vw,84px)]">Be first in on October 23.</h2>
-          <p className="mx-auto mt-5 max-w-xl text-balance text-[18px] text-white/90">We&apos;ll email your personal link the morning we open. Your 7-day free trial starts then.</p>
+          <p className="mx-auto mt-5 max-w-xl text-balance text-[18px] text-white/90">We&apos;ll email your personal link the day we open. Your 7-day free trial starts then.</p>
           <div className="mt-10 flex justify-center"><ScrollToJoin className="h-[56px] w-72 border-black/10 text-[16px] text-zinc-900" /></div>
         </Reveal>
       </section>
