@@ -14,9 +14,7 @@ export async function POST(req: Request) {
   const inv = await inviteFor(token);
   if (!inv.ok) return NextResponse.json({ error: inv.reason === "used" ? "This link was already used. Sign in with your email and password." : inv.reason === "expired" ? "This link has expired. Write to support@milarealestate.app to your invite email and we'll send a new one." : "This link isn't valid. Check you opened the newest email from Mila." }, { status: 400 });
   const { entry } = inv;
-  // backstop for the seat cap: even a valid link can't push the number of accounts past the launch limit
-  const cap = Number(process.env.SEAT_CAP ?? 20);
-  if (Number.isFinite(cap)) { const joined = (await getStore().list("waitlist", NIL_USER)).filter((w) => w.claimed_at).length; if (joined >= cap) return NextResponse.json({ error: "We're letting people in a few at a time to keep Mila fast. You're still in line and we'll email you when your spot opens." }, { status: 403 }); }
+  // a valid invite link is the owner's decision to let this person in (sent from Mila OS "Grant access" or a batch), so the launch cap does not block it here
   const seat = await trialAdmissionOpen();
   if (!seat.open) {
     await logError({ source: "api", level: "warn", message: `Trial admissions paused: ${seat.admitted} admitted trial users reserve $${seat.reservedUsd.toFixed(2)} of the $${seat.poolUsd.toFixed(2)} pool`, route: "POST /api/auth/claim" });

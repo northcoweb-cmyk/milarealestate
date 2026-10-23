@@ -49,7 +49,7 @@ export function LiveBoard() {
   const tiles: [string, number | string, string, string?][] = d ? [
     ["Accounts created", d.accounts, "#6ea8ff", `${d.accountsToday} today`], ["Finished setup", d.setup, "#4fd1a1", `${d.accounts ? Math.round((d.setup / d.accounts) * 100) : 0}% of accounts`],
     ["Using Mila", d.usingMila, "#a78bfa", `${d.activeNow} active right now`], ["Paying", d.paid, "#f5a97f", `${d.trials} on trial`],
-    ["Seats left", d.seatsLeft, "#f2c94c", `of ${d.seatCap}`], ["On the waitlist", d.waitlist, "#8b93b8", "waiting to get in"],
+    ["Seats left", d.seatsLeft, "#f2c94c", `of ${d.seatCap}`], ["In the queue", d.queued, "#8b93b8", `${d.invitedWaiting} invited, not in yet · ${d.claimed} joined`],
   ] : [];
 
   const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(d ? new Date(d.launchAt) : new Date());

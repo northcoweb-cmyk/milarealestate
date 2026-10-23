@@ -7,7 +7,7 @@ const short = (full: string, email: string) => { const parts = (full || email.sp
 export interface LiveEvent { id: string; at: string; kind: "signup" | "setup" | "first_message" | "paid"; who: string; detail?: string }
 export interface LiveData {
   now: string; launchAt: string; launched: boolean;
-  waitlist: number; accounts: number; accountsToday: number; setup: number; usingMila: number; activeNow: number; trials: number; paid: number; seatCap: number; seatsLeft: number;
+  waitlist: number; queued: number; invitedWaiting: number; claimed: number; accounts: number; accountsToday: number; setup: number; usingMila: number; activeNow: number; trials: number; paid: number; seatCap: number; seatsLeft: number;
   aiTodayUsd: number; creditsToday: number; perHour: { hour: string; n: number }[]; events: LiveEvent[];
 }
 
@@ -20,7 +20,7 @@ export async function buildLive(): Promise<LiveData> {
     table<{ user_id: string; plan_key: string; status: string; period_start: string; period_end: string; stripe_subscription_id: string | null }>("subscriptions", { select: "user_id,plan_key,status,period_start,period_end,stripe_subscription_id", max: 5000 }),
     table<{ user_id: string; created_at: string }>("messages", { select: "user_id,created_at", filter: `role=eq.user&created_at=gte.${encodeURIComponent(dayAgo)}`, order: "created_at.desc", max: 5000 }),
     table<{ est_cost_usd: number; credits: number; created_at: string }>("usage", { select: "est_cost_usd,credits,created_at", filter: `created_at=gte.${encodeURIComponent(dayAgo)}`, max: 20000 }),
-    table<{ id: string }>("waitlist", { select: "id", max: 20000 }),
+    table<{ id: string; invited_at: string | null; claimed_at: string | null }>("waitlist", { select: "id,invited_at,claimed_at", max: 20000 }),
   ]);
   const real = (profiles ?? []).filter((p) => !isTest(p.email, p.is_demo));
   const ids = new Set(real.map((p) => p.id));
@@ -44,7 +44,7 @@ export async function buildLive(): Promise<LiveData> {
   const today = (usage ?? []).filter((u) => new Date(u.created_at).getTime() >= startOfDay);
   return {
     now: new Date(now).toISOString(), launchAt: new Date(launch).toISOString(), launched: now >= launch,
-    waitlist: wait?.length ?? 0, accounts: real.length, accountsToday: real.filter((p) => new Date(p.created_at).getTime() >= Math.max(startOfDay, launch - 12 * 3_600_000)).length,
+    waitlist: wait?.length ?? 0, queued: (wait ?? []).filter((w) => !w.invited_at && !w.claimed_at).length, invitedWaiting: (wait ?? []).filter((w) => w.invited_at && !w.claimed_at).length, claimed: (wait ?? []).filter((w) => w.claimed_at).length, accounts: real.length, accountsToday: real.filter((p) => new Date(p.created_at).getTime() >= Math.max(startOfDay, launch - 12 * 3_600_000)).length,
     setup: real.filter((p) => p.onboarded).length, usingMila: firstMsg.size, activeNow: [...lastMsgAt.values()].filter((t) => now - t < 15 * 60_000).length,
     trials: real.filter((p) => !paidSubs.some((s) => s.user_id === p.id)).length, paid: paidSubs.length, seatCap: cap, seatsLeft: Math.max(0, cap - real.length),
     aiTodayUsd: today.reduce((n, u) => n + Number(u.est_cost_usd || 0), 0), creditsToday: today.reduce((n, u) => n + Number(u.credits || 0), 0), perHour: hours, events: events.slice(0, 40),
