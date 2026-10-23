@@ -26,9 +26,9 @@ export function calcKind(text: string): CalcKind | null {
   if (/^\s*(?:(?:ok|so|and|hey)[,\s]+)*(?:what|which)\b.{0,25}\b(?:did i|have i|did we|have we)\b.{0,30}\b(?:get done|do|done|finish|finished|accomplish\w*|complete\w*|add\w*)\b.{0,25}\b(?:today|this week|so far|yesterday)\b|^\s*(?:daily |weekly )?recap\b/.test(t) && !/\bwhat did i (?:say|tell|promise)\b/.test(t)) return "recap";
   if (/\breduction (?:percent|percentage|%)|\bpercent(?:age)? (?:off|reduction|drop|decrease)|\bhow much (?:of a )?(?:drop|reduction)\b/.test(t) && amounts(text).length >= 2) return "reduction";
   if (/\b(?:effective )?net price\b/.test(t) && /\b(?:credit|concession)\b/.test(t)) return "net_price";
-  if (/\b(?:seller )?net sheet\b|\bseller(?:'s)? (?:net|gross|proceeds)\b|\bnet proceeds\b|\bwhat (?:will|would|does) (?:the )?seller (?:net|walk away)/.test(t) && (amounts(text).length >= 1 || /\bnet sheet\b/.test(t))) return "net_sheet";
+  if (/\b(?:seller )?net sheet\b|\bseller(?:'s)? (?:net|gross|proceeds)\b|\bnet proceeds\b|\bnet (?:to|for) (?:my |the |a )?(?:seller|client|owner)\b|\bwhat (?:will|would|does) (?:the )?seller (?:net|walk away)/.test(t) && (amounts(text).length >= 1 || /\bnet sheet\b/.test(t))) return "net_sheet";
   if (/\bcommission\b/.test(t) && percents(text).length && amounts(text).length) return "commission";
-  if (/\b(?:monthly )?(?:payment|piti|mortgage)\b/.test(t) && (amounts(text).length || /\bpiti\b/.test(t)) && !/\b(?:late|missed|reminder|due)\b/.test(t)) return "payment";
+  if (/\b(?:monthly )?(?:payment|piti|mortgage|principal and interest|p&i)\b/.test(t) && (amounts(text).length || /\bpiti\b/.test(t)) && !/\b(?:late|missed|reminder|due)\b/.test(t)) return "payment";
   if (/\b(?:afford|affordable)\b/.test(t) && !/\bwhat (?:is|are) the/.test(t)) return "affordable";
   if (/\b(?:which|what|list|show|who)\b.{0,30}\b(?:buyers?|clients?|leads?|sellers?)\b.{0,40}\b(?:under|below|over|above|more than|less than)\s+\$?\d/.test(t)) return "budget_filter";
   if (/\bcompare\b.{0,40}\bbudgets?\b|\bbudget\b.{0,40}\bcompare\b|\bhow does\b.{0,40}\bbudget\b.{0,30}\bcompare\b/.test(t)) return "budget_compare";
@@ -87,8 +87,10 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       if (!price) return reply("What's the sale price? Give me the price and the commission, like “net sheet 479k at 5.5%”.", [], "chat_simple");
       const pct = pcts[0] ?? 5.5;
       const comm = Math.round(price * pct / 100);
-      const closing = Math.round(price * 0.015); // seller-side closing costs and transfer taxes, rough
-      return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n• Gross sale price: ${fullMoney(price)}\n• Commission (${pct}%${pcts.length ? "" : ", assumed"}): −${fullMoney(comm)}\n• Closing costs and transfer taxes (about 1.5%, estimated): −${fullMoney(closing)}\n• Estimated net before mortgage payoff: ${fullMoney(price - comm - closing)}\nSubtract the loan payoff and any credits for the real number. Tell me the commission or payoff and I'll rerun it.`, [], "chat_simple");
+      const ccm = /\$\s?(\d[\d,]*(?:\.\d+)?\s?k?)\s*(?:in |of )?closing(?: costs)?|closing(?: costs)?(?: of| at|:)?\s*\$\s?(\d[\d,]*(?:\.\d+)?\s?k?)/i.exec(text);
+      const given = ccm ? parseMoney(`$${(ccm[1] ?? ccm[2]).replace(/\s/g, "")}`).max : null;
+      const closing = given ?? Math.round(price * 0.015); // closing costs as given, else a rough 1.5% for seller-side costs and transfer taxes
+      return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n• Gross sale price: ${fullMoney(price)}\n• Commission (${pct}%${pcts.length ? "" : ", assumed"}): −${fullMoney(comm)}\n• Closing costs${given ? " (as you gave them)" : " and transfer taxes (about 1.5%, estimated)"}: −${fullMoney(closing)}\n• ${given ? "Net to the seller before mortgage payoff" : "Estimated net before mortgage payoff"}: ${fullMoney(price - comm - closing)}\nSubtract the loan payoff and any credits for the real number. Tell me the commission or payoff and I'll rerun it.`, [], "chat_simple");
     }
     case "payment":
     case "affordable": {
@@ -109,14 +111,23 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
         }
       }
       if (!price) return reply("What's the price? Give me the price, down payment and rate, like “payment on 615k, 20% down at 6.75%”.", [], "chat_simple");
-      const down = pcts.find((x) => x >= 3 && x <= 60 && !/\b(?:rate|interest|apr)\b/.test(text.toLowerCase().slice(Math.max(0, text.indexOf(`${x}%`) - 10), text.indexOf(`${x}%`)))) ;
-      const rate = pcts.find((x) => x !== down && x > 0 && x < 15) ?? 6.75;
+      // explicit words win: "6.5% for 30 years with 10% down", "20% down at 6.75%", "at a 7% rate"
+      const dExp = /(\d+(?:\.\d+)?)\s?%\s*(?:down|as a down payment)|down(?: payment)?(?: of)?\s*(\d+(?:\.\d+)?)\s?%/i.exec(text);
+      const rExp = /(?:\bat|rate(?: of)?|@|interest(?: of)?)\s*(\d+(?:\.\d+)?)\s?%(?!\s*down)/i.exec(text) ?? /(\d+(?:\.\d+)?)\s?%\s*(?:rate|interest|apr)\b/i.exec(text) ?? /(\d+(?:\.\d+)?)\s?%\s*(?:for|over)\s*\d+\s*(?:years?|yrs?)/i.exec(text);
+      const yrs = /(\d{2})\s*[- ]?(?:years?|yrs?)\b/i.exec(text);
+      let down = dExp ? parseFloat(dExp[1] ?? dExp[2]) : undefined;
+      let rate = rExp ? parseFloat(rExp[1]) : undefined;
+      if (down === undefined && rate === undefined) { const guessDown = pcts.find((x) => x >= 3 && x <= 60); down = guessDown; rate = pcts.find((x) => x !== guessDown && x > 0 && x < 15); }
+      else if (down === undefined) down = pcts.find((x) => x !== rate && x >= 3 && x <= 60);
+      else if (rate === undefined) rate = pcts.find((x) => x !== down && x > 0 && x < 15);
+      const term = yrs ? Math.min(40, Math.max(5, parseInt(yrs[1], 10))) : 30;
+      const rateUsed = rate ?? 6.75;
       const dp = down ?? 20;
       const loan = price * (1 - dp / 100);
-      const pi = monthlyPI(loan, rate);
+      const pi = monthlyPI(loan, rateUsed, term);
       const tax = (price * 0.0094) / 12, ins = (price * 0.0035) / 12;
-      const assumed = [!pcts.length ? "20% down and 6.75% assumed" : down === undefined ? "20% down assumed" : pcts.filter((x) => x !== down).length ? "" : "6.75% rate assumed"].filter(Boolean)[0];
-      return reply(`Payment${label} on ${fullMoney(price)}, ${dp}% down at ${rate}% for 30 years${assumed ? ` (${assumed})` : ""}:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• With estimated taxes (~0.94%) and insurance (~0.35%): about ${fullMoney(Math.round(pi + tax + ins))}/month, before any HOA or mortgage insurance.`, [], "chat_simple");
+      const assumed = [down === undefined && rate === undefined ? "20% down and 6.75% assumed" : down === undefined ? "20% down assumed" : rate === undefined ? "6.75% rate assumed" : ""].filter(Boolean)[0];
+      return reply(`Payment${label} on ${fullMoney(price)}, ${dp}% down at ${rateUsed}% for ${term} years${assumed ? ` (${assumed})` : ""}:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• With estimated taxes (~0.94%) and insurance (~0.35%): about ${fullMoney(Math.round(pi + tax + ins))}/month, before any HOA or mortgage insurance.`, [], "chat_simple");
     }
     case "budget_filter": {
       const t = text.toLowerCase();

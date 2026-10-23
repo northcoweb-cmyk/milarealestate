@@ -221,7 +221,7 @@ export async function logInteractionHandler(ctx: Ctx, text: string): Promise<Han
 
 export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   // "Text Dana I'm running late" / "text her that the showing moved": drop the verb first so it can't be mistaken for a name
-  const stripped = text.replace(/^\s*(?:(?:please|pls|can you|could you|hey mila|mila)[,\s]+)*(?:text|txt|sms|message|msg|tell)\s+/i, "").trim();
+  const stripped = text.replace(/^\s*(?:(?:please|pls|can you|could you|hey mila|mila)[,\s]+)*(?:(?:draft|write|compose|make|send|prepare)\s+(?:me\s+)?(?:an?|the)\s+(?:[\w-]+\s+){0,2}?(?:text|sms)(?:\s+message)?\s+(?:to|for)|text|txt|sms|message|msg|tell)\s+/i, "").trim();
   const pron = /^(her|him|them)\b\s*/i.exec(stripped);
   const lastId = ctx.state.last_contact_ids?.[0];
   const known = pron && lastId ? [await ctx.store.get("contacts", ctx.userId, lastId)].filter((x): x is Contact => !!x) : await mentionedContacts(ctx, stripped);
@@ -230,10 +230,12 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   const name = c?.name ?? (pron ? "" : capitalisedNames(stripped).find((n) => !/^(Text|Message|Tell|Send)$/i.test(n)) ?? "");
   const first = firstNameOf(name);
   if (!first) return askBack(ctx, "draft_text", text, "name", "Who should I text?");
-  let body = (pron ? stripped.slice(pron[0].length) : stripped.replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+(?!I\\b|I\'|a\\b)\\p{Lu}\\p{L}+)?\\s*`, "iu"), "")).replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
+  const afterName = c ? stripped.replace(new RegExp(`^${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`, "i"), "") : stripped;
+  let body = (pron ? stripped.slice(pron[0].length) : afterName.replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+${(c ? c.name.split(/\s+/).slice(1).pop() ?? "" : "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") || "(?!)"})?\\s*`, "iu"), "")).replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
   body = body.replace(/^follow-?\s?ups?\s+(?:from|after|on|about|to)\s+/i, "following up on ");
+  body = body.replace(/^about\s+/i, "following up about ");
   if (!body) body = "just checking in — do you have a few minutes to talk?";
-  body = body.replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);
+  body = body.replace(/(?<!\b(?:send|give|show|get|bring|tell|email|text|owe|offer|ask)\s)\b(?:her|his|their)\s+(?=[a-z])/gi, "your ").replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);
   // "text Maya to confirm tomorrow's showings": say which showings, when and where
   if (c && /\bconfirm\w*\b/i.test(body)) {
     const evs = (await upcomingWith(ctx, c)).filter((e) => e.kind === "showing" || /showing|tour/i.test(e.title)).slice(0, 4);

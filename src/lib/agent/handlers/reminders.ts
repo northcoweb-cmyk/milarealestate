@@ -20,7 +20,10 @@ function relativeAhead(text: string): number | null {
 export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   // everything after "remind me" / "set a reminder": a head (when) and a tail (what), in either order
   const body = text.replace(/^.*?\b(?:remind me|set (?:a )?reminder)\b/i, "");
-  const split = /\b(?:to|about|that)\b\s*/i.exec(body);
+  let split = /\b(?:to|about|that)\b\s*/i.exec(body);
+  // "remind me tomorrow at 2 call Victor about the listing": no "to", but a verb starts what it is about (the weak "about" never cuts the sentence in half)
+  { const verb = /\b(?:call|text|email|send|follow up|check|ask|meet|review|prepare|order|renew|pick up|drop off|schedule|book|confirm)\b/i.exec(body);
+    if (verb && (!split || (/^(?:about|that)\b/i.test(split[0]) && verb.index < split.index))) split = Object.assign([verb[0].match(/^/)?.[0] ?? ""], { index: verb.index, input: body }) as unknown as RegExpExecArray; }
   // "set a reminder for the roof repair response deadline, Monday at 5": the words right after "for" are what it is about
   const forTail = !split ? /^\s*for\s+(.+)$/i.exec(body)?.[1] : null;
   const head = split ? body.slice(0, split.index) : body;
@@ -81,7 +84,9 @@ export async function reminderHandler(ctx: Ctx, text: string): Promise<HandlerOu
   const out = await invoke(ctx, "create_reminder", { title, remind_at: when.toISOString(), event_id: eventId });
   if (out.status === "needs_approval") return reply("Ready to set that reminder.", [{ type: "notice", tone: "info", title: out.approval.title, body: out.approval.summary ?? undefined, buttons: [{ label: "Set reminder", style: "primary", approvalId: out.approval.id }] }]);
   if (!out.result.ok) return reply(out.result.message);
-  return reply(`I'll remind you ${fmtDayTime(when, ctx.tz).replace(" • ", " at ")}: ${title}.${recurring ? " Heads up: I can only set one-time reminders for now, so this won't repeat. Tell me again after it goes off and I'll set the next one." : ""}`);
+  const far = when.getTime() - ctx.now.getTime() > 5 * 86_400_000; // a weekday a week or more away carries its date, so "Thursday" can't mean today's Thursday
+  const whenLabel = far ? fmtDayTime(when, ctx.tz).replace(" • ", `, ${new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, month: "short", day: "numeric" }).format(when)} at `) : fmtDayTime(when, ctx.tz).replace(" • ", " at ");
+  return reply(`I'll remind you ${whenLabel}: ${title}.${recurring ? " Heads up: I can only set one-time reminders for now, so this won't repeat. Tell me again after it goes off and I'll set the next one." : ""}`);
 }
 
 /** "Cancel the reminder to call Dana": find it by its words and day, show exactly which one, and only remove it after a tap. */

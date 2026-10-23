@@ -406,6 +406,8 @@ export function parsePersonName(text: string): string | null {
   if (asA && !NAME_STOP.has(asA[1].split(" ")[0])) return tidyName(asA[1]);
   const addAs = new RegExp(`\\b[Aa]dd\\s+${NM}\\s+as\\b`, "u").exec(text);
   if (addAs) return tidyName(addAs[1]);
+  const addRole = new RegExp(`\\b[Aa]dd\\s+${NM}\\s+(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\b`, "u").exec(text); // "add Zoe Park buyer 301-555-0177"
+  if (addRole && !NAME_STOP.has(addRole[1].split(" ")[0])) return tidyName(addRole[1]);
   const addBare = new RegExp(`^\\s*(?:please\\s+)?[Aa]dd\\s+(?:a\\s+|another\\s+)?(?:new\\s+)?(?:contact\\s+|person\\s+)?(?:named\\s+|called\\s+)?${NM}\\s*[.!]*$`, "u").exec(text);
   if (addBare && !NAME_STOP.has(addBare[1].split(" ")[0])) return tidyName(addBare[1]);
   return lowercaseName(text);
@@ -467,11 +469,21 @@ export function parseContactType(text: string): ContactTypeGuess {
 /** Split compound requests ("remind me Friday to call Sarah and also move my showing to three"). */
 export function splitClauses(text: string): string[] {
   text = text.slice(0, 6000); // bounded first: the patterns below are not linear on huge input
+  // a single question ("What's Victor's phone, email and budget?") is one request, even though its list contains words like "email"
+  if (/^\s*(?:what|who|which|when|where|how|is|are|do|does|did|can|could)\b/i.test(text) && /\?\s*$/.test(text) && !/[;]|\?.+\?/.test(text)) return [text];
+  // a long paste of notes (several sentences) is separate requests, one per sentence, never one merged reminder
+  if (text.length > 160) { const sents = text.replace(/^\s*(?:my\s+)?notes?(?:\s+(?:from|on)\s+[^:.]{1,30})?\s*:\s*/i, "").split(/(?<=[.!?])\s+(?=[A-Z])/).map((x) => x.trim().replace(/^(?:also|and|then)[, ]+/i, "")).filter(Boolean);
+    const ACT = /^(?:remind|call|text|txt|email|e-mail|schedule|book|add|set up|setup|create|cancel|move|reschedule|draft|send|follow up|make|put|log|update|mark|open house|showing|prep|write|ask)\b|\bremind me\b/i;
+    // sentences that only describe something are shown as "noted", never turned into a booking, reminder or property edit
+    if (sents.length >= 3 && sents.length <= 14 && !(text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) ?? []).length && sents.some((x) => ACT.test(x))) return sents.map((x) => (ACT.test(x) ? x : `\u0001${x}`)); }
   // a pasted list of people ("Ann ann@x.com; Bob bob@y.com") is one request, not several
   if ((text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) ?? []).length >= 2) return [text];
   // "Book a showing at 5 and another at 5:30" → two showings
   const another = /^(.*?\b(showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)s?\b.*?)\s+and\s+(?:another|one more|a second)\s+(?:(?:showing|meeting|call|appointment|inspection|tour|lunch|walkthrough)\s+)?(.+)$/i.exec(text.trim());
   if (another) return [another[1].trim(), `${another[2]} ${another[3]}`.trim()];
+  // "showing at 101 Oak Lane tomorrow at 2pm, lunch Friday at noon": a comma before a second booking that has its own day or time is a second request
+  { const pieces = text.split(/,\s+(?=(?:an?\s+|another\s+)?(?:showing|meeting|call|appointment|inspection|tour|lunch|dinner|coffee|walkthrough|closing|open house)\b)/i);
+    if (pieces.length > 1 && pieces.every((x) => /\b\d{1,2}(?::\d\d)?\s*(?:am|pm)\b|\bnoon\b|\bat\s+\d/i.test(x))) return pieces.map((x) => x.trim()).filter(Boolean); }
   const parts = text
     .split(/\s*(?:;|,\s*(?:and\s+)?(?=(?:remind me|email|e-mail|text|draft|add|book|schedule|cancel|move|reschedule|set up|create)\b(?!\s*(?:is\s+|address\s+|:\s*)?(?:[\w.+-]+@|\d)))|\band also\b|\balso,?\s+(?=(?:remind|move|schedule|add|draft|email|text|set|create|cancel|delete|remove|find|make))|\band then\b(?=\s+(?:remind|move|reschedule|schedule|cancel|add|book|draft|email|text|send|set|create|call|follow|make|find|put|log|update|mark)\b)|,\s*then\b|[.!]\s+(?=(?:please\s+)?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?(?:ready|prepared))\b)|[.!]\s+(?=(?:what(?:'s| is)|what am i|anything)\b[^.?!]*\bmissing\b))\s*/i)
     .map((s) => s.trim())

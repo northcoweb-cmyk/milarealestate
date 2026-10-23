@@ -50,6 +50,7 @@ export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> 
   const saved: Learned[] = [];
   try {
     if (!text || text.length < 12 || text.length > 1500) return saved;
+    if (/\?\s*$/.test(text.trim())) return saved; // a message that ends in a question is asked, not told: nothing in it is saved about anyone
     const known = await listMemories(ctx);
     const have = (scope: string, subject: string | null, key: string, value: string) =>
       known.some((m) => m.scope === scope && (m.subject_id ?? null) === subject && m.key === key && m.value.toLowerCase() === value.toLowerCase());

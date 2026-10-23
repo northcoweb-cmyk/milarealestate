@@ -268,7 +268,14 @@ export async function mentionedContacts(ctx: Ctx, text: string): Promise<Contact
 
 export async function recallHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const found = await mentionedContacts(ctx, text);
-  const wantsEmail = /\b(e-?mail)\b/i.test(text), wantsPhone = /\b(phone|number|cell|mobile)\b/i.test(text);
+  const wantsEmail = /\b(e-?mail)\b/i.test(text), wantsPhone = /\b(phone|number|cell|mobile)\b/i.test(text), wantsBudget = /\bbudget\b/i.test(text);
+  // "What's Victor's phone, email and budget?": every field asked for gets an answer, and a missing one says "not saved"
+  if (found.length === 1 && wantsBudget && (wantsEmail || wantsPhone)) {
+    const c = found[0];
+    const bits = [wantsPhone ? (c.phone ? `phone ${c.phone}` : "no phone saved") : null, wantsEmail ? (c.email ? `email ${c.email}` : "no email saved") : null, `${c.type === "seller" ? "asking" : "budget"} ${c.budget_max ? fullMoney(c.budget_max) : "not saved"}`].filter(Boolean);
+    ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
+    return reply(`${c.name}: ${bits.join(" · ")}.`, [{ type: "contacts", title: c.name, contacts: [{ id: c.id, name: c.name, type: label(c.type), reason: c.location ?? undefined, color: c.avatar_color }], buttons: [{ label: "Open profile", style: "quiet", href: `/contacts/${c.id}` }] }], "chat_simple");
+  }
   if (found.length === 1 && (wantsEmail || wantsPhone)) {
     const c = found[0];
     const bits = [wantsPhone ? (c.phone ? `phone ${c.phone}` : null) : null, wantsEmail ? (c.email ? `email ${c.email}` : null) : null].filter(Boolean);
@@ -441,4 +448,24 @@ export async function contactFactsHandler(ctx: Ctx, text: string): Promise<Handl
   if (Object.keys(patch).length) await TOOLS.update_contact.run(ctx, { id: c.id, patch, eventTitle: "Details updated", eventDetail: saved.join("; "), eventKind: "note" });
   ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
   return reply(`Saved to ${firstNameOf(c.name)}'s profile:\n${saved.map((x) => `• ${x}`).join("\n")}`, [{ type: "choice", title: `Next for ${firstNameOf(c.name)}`, buttons: [{ label: "Open profile", style: "quiet", href: `/contacts/${c.id}` }] }], "chat_simple");
+}
+
+/** "Hollis & Mae Brandt closed on their home two years ago and might refer a friend": they are past clients; the note and the referral hint are saved on them. */
+export async function pastClientNoteHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const people = await mentionedContacts(ctx, text);
+  if (people.length !== 1) {
+    const nm = capitalisedNames(text)[0];
+    return reply(people.length > 1 ? `Which one: ${people.slice(0, 4).map((c) => c.name).join(", ")}?` : `I don't have ${nm ?? "them"} saved yet. Say “add ${nm ?? "their name"} as a past client” and I'll save this on them.`, [], "smalltalk");
+  }
+  const c = people[0];
+  const when = /\b(\d+|a|one|two|three|four|five|last|several|a few)\s+(years?|months?)\s+ago\b/i.exec(text)?.[0] ?? null;
+  const refers = /\b(?:might|may|could|will|would)\s+refer\b|\brefer(?:s|ral)?\b/i.test(text);
+  const patch: Partial<Contact> = { tags: [...new Set([...(c.tags ?? []), "past client"])] };
+  if (["seller", "buyer", "lead"].includes(c.type)) patch.type = "past_client";
+  await TOOLS.update_contact.run(ctx, { id: c.id, patch, eventTitle: "Marked as a past client", eventDetail: text.slice(0, 200), eventKind: "note" });
+  await ctx.store.insert("contact_notes", ctx.userId, { contact_id: c.id, body: text.replace(/\s+/g, " ").slice(0, 400) } as never);
+  if (when) await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: "Closed", value: when, source: "user_stated" });
+  if (refers) await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: "Referral", value: "may refer a friend", source: "user_stated" });
+  ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
+  return reply(`Saved to ${c.name}: past client${when ? `, closed ${when}` : ""}${refers ? ", may refer a friend" : ""}.`, [{ type: "choice", title: "Next", buttons: [{ label: "Set an anniversary reminder", style: "secondary", action: { type: "prompt", text: `Make a home-anniversary post for ${c.name}` } }, { label: "Open profile", style: "quiet", href: `/contacts/${c.id}` }] }], "chat_simple");
 }

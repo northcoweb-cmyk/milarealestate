@@ -6,22 +6,25 @@
 import { type Ctx, fullMoney } from "../context";
 import { classifyNotes } from "../comms";
 import { amountsIn } from "./calc";
+import { capitalisedNames, plausibleName } from "../nlu";
 import { mentionedContacts } from "./contacts";
 import { type HandlerOut, reply } from "./types";
 
-export type AdviceTopic = "one_oh_three_one" | "transfer_tax" | "md_docs" | "appraisal_gap" | "offer_check" | "price_opinion" | "stale_listing" | "confidential" | "hottest_lead" | "licence";
+export type AdviceTopic = "nar_rules" | "price_strategy" | "one_oh_three_one" | "transfer_tax" | "md_docs" | "appraisal_gap" | "offer_check" | "price_opinion" | "stale_listing" | "confidential" | "hottest_lead" | "licence";
 
 export function adviceTopic(text: string): AdviceTopic | null {
   const t = text.toLowerCase();
   if (/^\s*(?:add|new|create|schedule|book|remind|draft|write|email|text|make|set)\b/.test(t) && !/\?/.test(t)) return null;
   if (/\b1031\b/.test(t)) return "one_oh_three_one";
+  if (/\b(?:nar|realtor association)\b.{0,60}\b(?:rules?|settlement|buyer (?:agreement|representation)|compensation)\b|\bbuyer (?:agreement|representation)s?\b.{0,40}\b(?:rules?|required|need|before)\b|\b(?:written )?buyer(?:'s)? (?:agreement|representation)\b.{0,30}\b(?:tour|showing)/.test(t)) return "nar_rules";
+  if (/\b(?:list(?:ing)? price|pricing) strategy\b|\bhow (?:should|do) i price\b|\bwhat should (?:my |the )?list price be\b/.test(t) && /\?|\bwhat\b|\bhow\b/.test(t)) return "price_strategy";
   if (/\b(?:transfer|recordation)\s+tax(?:es)?\b/.test(t)) return "transfer_tax";
   if (/\b(?:md|maryland)\b.{0,30}\b(?:listing (?:documents|docs|forms|disclosures)|required (?:forms|documents|disclosures))\b|\blisting (?:documents|docs)\b|\b(?:list|listing)\b.{0,30}\b(?:md|maryland)\b.{0,30}\b(?:documents?|docs|forms|paperwork|disclosures?)\b|\b(?:documents?|docs|forms|paperwork|disclosures?)\b.{0,40}\b(?:list|listing)\b.{0,30}\b(?:md|maryland)\b/.test(t) && /\?|\b(?:what|which|list|need)\b/.test(t)) return "md_docs";
   if (/\bappraisal\b.{0,80}\b(?:under|below|short|came in|low|gap)\b|\bappraisal gap\b|\bappraised (?:low|under|at)\b/.test(t) && /\?|\boptions?\b|\bwhat (?:do|can|should)\b/.test(t)) return "appraisal_gap";
   if (/\b(?:is|would|was)\s+\$?\d[\d,.]*\s?k?\s+(?:a\s+)?(?:reasonable|good|fair|decent|too low|too high|realistic)\b|\b(?:reasonable|fair|good) offer\b|\bwants? to (?:make an? )?offer\b.{0,100}\?/.test(t)) return "offer_check";
   if (/\b(?:seems?|feels?|looks?|too)\s+(?:high|low|overpriced|underpriced|steep)\b/.test(t) && /\b(?:what do you think|thoughts|opinion|agree|right)\b|\?/.test(t) && /\$\s?\d/.test(t)) return "price_opinion";
   if (/\b(?:sitting|been (?:listed|on the market)|on the market for|no (?:offers?|showings?|traffic)|not selling|stale)\b/.test(t) && /\b\d+\s*(?:days?|weeks?|months?)\b|\bhow (?:should|do) i (?:handle|price|reduce)\b/.test(t) && /\?|\bhow\b|\bwhat\b/.test(t)) return "stale_listing";
-  if (/\b(?:share|tell|give|send|release|disclose)\b.{0,60}\b(?:sale price|price|financials?|financial|information|details|numbers)\b.{0,60}\b(?:son|daughter|husband|wife|spouse|mother|mom|father|dad|brother|sister|neighbou?r|friend|relative|family|third party|their lawyer|accountant)\b|\bshould i share\b|\bis it (?:ok|okay|fine|allowed) to share\b/.test(t)) return "confidential";
+  if (/\b(?:tell|share|give|send)\b.{0,50}\b(?:son|daughter|husband|wife|spouse|mother|mom|father|dad|brother|sister|neighbou?r|friend|relative)\b.{0,60}\b(?:sold|sale|price|paid|financ\w*|numbers|details)\b/.test(t) || /\b(?:share|tell|give|send|release|disclose)\b.{0,60}\b(?:sale price|price|financials?|financial|information|details|numbers)\b.{0,60}\b(?:son|daughter|husband|wife|spouse|mother|mom|father|dad|brother|sister|neighbou?r|friend|relative|family|third party|their lawyer|accountant)\b|\bshould i share\b|\bis it (?:ok|okay|fine|allowed) to share\b/.test(t)) return "confidential";
   if (/\bhottest (?:lead|prospect|buyer)\b|\bwhich\b.{0,40}\b(?:lead|buyer|visitor|prospect)s?\b.{0,30}\b(?:hottest|most serious|most likely|best|ready)\b/.test(t)) return "hottest_lead";
   if (/\b(?:licen[cs]ed|licen[cs]e)\b.{0,30}\b(?:in|for)\b.{0,20}\b(?:texas|tx|virginia|va|dc|florida|fl|another state|other state)\b/.test(t)) return "licence";
   return null;
@@ -53,14 +56,35 @@ export async function adviceHandler(ctx: Ctx, text: string): Promise<HandlerOut>
     }
     case "price_opinion":
       return reply(`I can't call a price high or low without comparable sales, and I won't guess. What decides it: recent sales of similar homes (age, size, condition, updates like the kitchen), how long comparable listings sat, and the price per square foot in that neighborhood. If you tell me the address I can compare it with homes you've saved, or you can pull a CMA from your MLS. ${CAVEAT}`, [], "chat_simple");
-    case "stale_listing":
-      return reply(`A listing at 60 days with little activity is usually a price or presentation problem. A sensible order:\n1. Look at the numbers: showings per week, feedback, and how many comparable homes sold or reduced since you listed.\n2. If showings are low, the price or photos are the problem; if showings are high but no offers, it's price or condition.\n3. A reduction that matters is typically 3-5% (small cuts of 1% rarely move buyers), and it works best when timed with fresh photos and a new MLS push.\n4. Talk to the seller about the next price point before you change it, and put their approval in writing.\nIf you tell me the list price and the feedback you've had, I'll write up the options for the seller. ${CAVEAT}`, [], "chat_simple");
+    case "stale_listing": {
+      const days = /(\d+)\s*(days?|weeks?|months?)/i.exec(text); const span = days ? `${days[1]} ${days[2].toLowerCase()}` : "60 days";
+      return reply(`A listing at ${span} with little activity is usually a price or presentation problem. A sensible order:\n1. Look at the numbers: showings per week, feedback, and how many comparable homes sold or reduced since you listed.\n2. If showings are low, the price or photos are the problem; if showings are high but no offers, it's price or condition.\n3. A reduction that matters is typically 3-5% (small cuts of 1% rarely move buyers), and it works best when timed with fresh photos and a new MLS push.\n4. Talk to the seller about the next price point before you change it, and put their approval in writing.\nTell me the feedback you've had and I'll write up the options for the seller. Please check any price move with your broker. ${CAVEAT}`, [], "chat_simple");
+    }
+    case "nar_rules":
+      return reply(`Since the 2024 NAR settlement, in most places: (1) you need a written buyer representation agreement signed BEFORE you tour a home with a buyer; (2) it must state your compensation clearly, as an amount or rate and not open-ended; (3) offers of compensation can no longer be shown in the MLS, so compensation is negotiated outside it; (4) you can't be paid more than the agreement says. Maryland wording and forms come from your brokerage and Maryland REALTORS®, so use their current agreement and ask your broker what applies. ${CAVEAT}`, [], "chat_simple");
+    case "price_strategy":
+      return reply(`How I'd build a list-price strategy:\n1. Pull 3 to 6 comparable SOLD homes from the last 90 days within about half a mile (similar size, age and condition).\n2. Find their price per square foot, then adjust for updates, lot and condition.\n3. Look at the active competition and how long it has sat: that shows where buyers push back.\n4. Choose a range, not one number. The top of the range leaves room to reduce; the middle tends to draw offers faster.\n5. Plan the first 14 days (photos, launch, open house), when a listing gets the most attention.\nGive me the comps or the saved list price and I'll lay the numbers out. Confirm the final price with your broker. ${CAVEAT}`, [], "chat_simple");
     case "confidential": {
       const c = (await mentionedContacts(ctx, text))[0];
       const who = c ? c.name.split(" ")[0] : "your client";
       return reply(`Don't share it yet. A client's sale price and finances are confidential, and a family member isn't entitled to them without ${who}'s written permission (your agency and confidentiality duties, and your brokerage's policy). The safe move: ask ${who} first, get the permission in writing, then share only what they approve. If the price is already in public records after closing, that's different, but it's still ${who}'s call. Check with your broker if you're unsure.`, [{ type: "choice", title: "Want me to help?", buttons: [{ label: `Draft a note asking ${who} for permission`, style: "secondary", action: { type: "prompt", text: `Draft an email to ${c?.name ?? "my client"} asking permission before I share sale details with a family member` } }, { label: "Remind me to get it in writing", style: "quiet", action: { type: "prompt", text: `Remind me tomorrow at 9 to get written permission from ${c?.name ?? "my client"}` } }] }], "chat_simple");
     }
     case "hottest_lead": {
+      // people named in the question itself are ranked from what the question says about each of them
+      const named = capitalisedNames(text).map((n) => n.replace(/^QA TEST\s+/, "")).filter((n, i, a) => a.indexOf(n) === i && plausibleName(n) && !/^(?:One|Two|Three|Four|Five|Six|Seven|Who|My|The|Open|Which)$/.test(n));
+      if (named.length >= 2) {
+        const parts = text.split(new RegExp(`(?=\\b(?:${named.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b)`));
+        const ranked = named.map((n) => {
+          const chunk = parts.filter((x) => new RegExp(`^${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(x)).join(" ").toLowerCase();
+          const why: string[] = []; let score = 0;
+          if (/pre-?approv/.test(chunk)) { score += 3; why.push("pre-approved"); }
+          if (/(?:move|moving|buy|close)\b.{0,20}\b(?:in )?(?:\d+|a few|two|three) (?:days?|weeks?)|\bthis month\b|\basap\b|\bready (?:to|now)\b|\bwants to move\b/.test(chunk)) { score += 3; why.push("wants to move soon"); }
+          if (/\bsell\b.{0,30}\bfirst\b|\bhouse to sell\b|\bhas to sell\b/.test(chunk)) { score += 1; why.push("has a home to sell first"); }
+          if (/just looking|browsing|early stages|no rush|someday/.test(chunk)) { score -= 1; why.push("just looking"); }
+          return { n, score, why };
+        }).sort((a, b) => b.score - a.score);
+        if (ranked.some((x) => x.why.length)) return reply(`From what you just told me, ${ranked[0].n} is your hottest lead${ranked[0].why.length ? `: ${ranked[0].why.join(", ")}` : ""}.\n${ranked.map((x, i) => `${i + 1}. ${x.n}: ${x.why.join(", ") || "nothing said"}`).join("\n")}\nI haven't saved any of this to their profiles. Say "save that" and I will.`, [], "chat_simple");
+      }
       const all = (await ctx.store.list("contacts", ctx.userId)).filter((c) => ["buyer", "lead", "rental", "investor"].includes(c.type) && c.status !== "inactive");
       const recent = all.filter((c) => Date.now() - new Date(c.created_at).getTime() < 14 * 86_400_000);
       const pool = (recent.length >= 2 ? recent : all);

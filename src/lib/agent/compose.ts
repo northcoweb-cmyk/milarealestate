@@ -51,7 +51,7 @@ export function purposeOf(t: string): Purpose {
 /** The channel the words ask for; a saved "text only" preference decides when the words don't say. */
 export function channelOf(request: string, preferences: string[]): Channel {
   const s = request.toLowerCase();
-  if (/^\s*(?:(?:please|pls|can you|could you|hey|mila)[,\s]+)*(?:text|txt|sms)\b/.test(s) || /\b(?:a|an|the|short|quick)\s+(?:text|txt|sms)(?:\s+message)?\b/.test(s) || /\btext message\b|\bsms\b/.test(s)) return "text";
+  if (/^\s*(?:(?:please|pls|can you|could you|hey|mila)[,\s]+)*(?:text|txt|sms)\b/.test(s) || /\b(?:a|an|the|short|quick)\s+(?:text|txt|sms)(?:\s+message)?\b/.test(s) || /\btext message\b|\bsms\b/.test(s) || /\b(?:a|an|the)\s+(?:[\w-]+\s+){0,2}?(?:text|txt|sms)\s+(?:to|for)\b/.test(s)) return "text";
   if (/\be-?mail\b/.test(s)) return "email";
   return preferences.some((p) => /\btext(?:s|ing)?\s+only\b|\bby text\b|\bprefers? (?:a )?text\b/i.test(p)) ? "text" : "email";
 }
@@ -60,10 +60,11 @@ export function channelOf(request: string, preferences: string[]): Channel {
 export function contentOf(request: string, recipientWords: string[] = []): string {
   let t = request.replace(/\s+/g, " ").trim();
   t = t.replace(/^\s*(?:(?:yah|yeah|yep|yes|ok|okay|sure|and|then|now|please|pls|can you|could you|go ahead|hey|mila)[,.!\s]+)+/i, "");
-  t = t.replace(/^(?:draft|write|compose|prepare|make|send|text|txt|email|e-mail|message|sms)\b\s*(?:me\s+)?(?:(?:a|an|the|that|this|another|new|short|quick|brief)\s+)*(?:(?:counter\s*offer|counter|welcome|follow.?up|thank.?you|seller update|repair request|update|confirmation|reminder|new)\s+)*(?:e-?mail|text(?:\s+message)?|txt|sms|message|note|reply)?\b\s*/i, "");
+  t = t.replace(/^(?:draft|write|compose|prepare|make|send|text|txt|email|e-mail|message|sms)\b\s*(?:me\s+)?(?:(?:a|an|the|that|this|another|new|short|quick|brief)\s+)*(?:(?:counter\s*offer|counter|welcome|follow.?up|thank.?you|seller update|repair request|update|confirmation|reminder|new|price[- ]?(?:drop|reduction|change|cut)|pricing|check.?in|intro(?:duction)?)\s+)*(?:e-?mail|text(?:\s+message)?|txt|sms|message|note|reply)?\b\s*/i, "");
   t = t.replace(/^(?:to|for)\s+/i, "");
   // drop the recipient: a typed address, an "x, the listing agent for …" apposition, then names
   t = t.replace(/^[\w.+-]+@[\w-]+\.[\w.-]+\s*/, "");
+  t = t.replace(/^(?:[A-Z]{2,5}\s+){1,3}(?=\p{Lu})/u, ""); // a test or team tag in front of the name ("QA TEST Victor") is not part of what to say
   for (const w of recipientWords.filter(Boolean).sort((a, b) => b.length - a.length)) t = t.replace(new RegExp(`^${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:['’]s)?\\b[,.]?\\s*`, "i"), "");
   t = t.replace(/^(?:the\s+)?(?:listing agent|buyer'?s?\s+agent|sellers?|buyers?)(?:\s+(?:for|of|on)\s+[^,.]{3,60})?[,.]?\s*/i, "");
   t = t.replace(/^(?:(?:for|about|on|at|regarding)\s+)?[\d]{1,6}\s+[A-Za-z0-9.' ]{3,40}?\s(?:street|st|road|rd|avenue|ave|lane|ln|court|ct|drive|dr|way|boulevard|blvd|place|pl|circle|cir|terrace)\b[.,]?\s*/i, "");
@@ -90,7 +91,13 @@ export function subjectOf(spec: Spec): string {
     case "price_change": return `Price update${a ? `: ${a}` : ""}`;
     case "visit": return `${/open house/i.test(spec.content) ? "Open house" : "Showing"}${a ? `: ${a}` : ""}`;
     case "thanks": return "Thank you";
-    default: { const t = cleanTopic(spec.content); return t ? `About ${atWord(t.replace(/^(?:the|a|an)\s+/i, "").replace(/[.!?]+$/, ""), 46)}` : `Following up${a ? `: ${a}` : ""}`; }
+    default: {
+      const lc = spec.content.toLowerCase();
+      if (/pricing strategy/.test(lc)) return `Pricing strategy${a ? ` for ${a}` : ""}`;
+      if (/\bprice[- ]?(?:drop|reduction|cut)\b/.test(lc)) return `Price reduction${a ? `: ${a}` : ""}`;
+      if (/home[- ]?buying tips|\b(?:three|3|few) tips\b/.test(lc)) return "Home-buying tips";
+      if (/rental (?:ideas|options|suggestions)/.test(lc)) return "Rental options";
+      const t = cleanTopic(spec.content); return t ? `About ${atWord(t.replace(/^(?:the|a|an)\s+/i, "").replace(/[.!?]+$/, ""), 46)}` : `Following up${a ? `: ${a}` : ""}`; }
   }
 }
 
@@ -104,6 +111,27 @@ export function bodyOf(spec: Spec): string {
   const nums = amounts(c);
   const rest = cleanTopic(c);
   const parts: string[] = [];
+  // topics with real content of their own: written out, never the request pasted back
+  const lc = c.toLowerCase();
+  if (/\bprice[- ]?(?:drop|reduction|cut|change)\b|\breduc\w*\b.*\bfrom\s+\$?\d/.test(lc) && nums.length >= 2 && spec.purpose !== "counter") {
+    const hiN = Math.max(nums[0], nums[1]), loN = Math.min(nums[0], nums[1]);
+    parts.push(`I'd like to talk through lowering the price${a ? ` of ${a}` : ""} from ${money(hiN)} to ${money(loN)}, a ${(((hiN - loN) / hiN) * 100).toFixed(1)}% reduction.`, "A reduction puts the home in front of buyers who filter by price and signals that we are ready to deal, and it works best when we pair it with fresh photos and a new push on the listing.", "I'd like your OK before we update anything. Do you have time for a quick call this week?");
+    return [hi, "", ...parts.flatMap((x) => [x, ""])].join("\n").trim();
+  }
+  if (/pricing strategy/.test(lc)) {
+    parts.push(`Here's how I'd approach pricing${a ? ` ${a}` : " your home"}:`, "1. Compare it with recent sales of similar homes within about half a mile, adjusted for size, age and condition.", "2. Look at the competing homes on the market now and how long they have sat.", "3. Choose a price range rather than a single number, so we have room to adjust.", "4. Plan the first two weeks (photos, launch, open house), when a listing gets the most attention.", "I'll bring the comparable sales to our next conversation. When is a good time to talk?");
+    return [hi, "", ...parts.flatMap((x, i) => [x, i === 0 || i === parts.length - 2 ? "" : ""])].join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  if (/home[- ]?buying tips|\b(?:three|3|few) tips\b/.test(lc)) {
+    const budget = nums[0];
+    parts.push(`Here are three tips to keep in mind${budget ? ` with a ${money(budget)} budget` : ""}:`, "1. Get a full pre-approval, not just a pre-qualification, so your offer is taken seriously.", "2. Budget for closing costs and moving expenses on top of the down payment.", "3. Compare homes by total monthly cost (payment, taxes, insurance, any HOA), not just the price.", "I'm glad to walk through any of these. Want to set up a quick call?");
+    return [hi, "", ...parts.flatMap((x) => [x, ""])].join("\n").trim();
+  }
+  if (/rental (?:ideas|options|suggestions)/.test(lc)) {
+    const near = /(?:near|around|in)\s+([A-Z][\w .'-]{2,40}?)(?:[.,]|$)/.exec(c)?.[1];
+    parts.push(`I'm putting together rental options${near ? ` near ${near}` : ""} that fit what you're looking for.`, "To make them as close as possible, let me know your must-haves (pets, parking, commute) and your move-in date.", "I'll send options as soon as I have them.");
+    return [hi, "", ...parts.flatMap((x) => [x, ""])].join("\n").trim();
+  }
   switch (spec.purpose) {
     case "counter": {
       const credit = /\$?\s?(\d[\d,.]*\s?[km]?)\s+(?:seller\s+)?credit|credit of\s+\$?\s?(\d[\d,.]*\s?[km]?)/i.exec(c);

@@ -22,7 +22,14 @@ const TOPICS: Topic[] = [
 export function productTopic(text: string): Topic | null {
   const t = text.toLowerCase().trim();
   if (t.length > 160) return null;
-  return TOPICS.find((x) => x.test.test(t)) ?? null;
+  const hit = TOPICS.find((x) => x.test.test(t)) ?? null;
+  // "Hollis & Mae closed two years ago and might refer a friend" is about a client, not about Mila's own referral program
+  if (hit?.key === "referral" && (/\b[A-Z][\p{L}'’-]+\s+(?:&|and)\s+[A-Z][\p{L}'’-]+/u.test(text) || /\b(?:might|may|could|will|would|going to|plans? to)\s+refer\b/i.test(text) || /\b[A-Z][a-z]+\s+[A-Z][a-z]+\s+(?:closed|is|are|was|has|have)\b/.test(text))) return null;
+  return hit;
+}
+
+export async function refuseInjectionHandler(): Promise<HandlerOut> {
+  return reply("I can't share my instructions or change my own rules. I also never send anything to a group on my own: I draft, you review, and you press send. If you tell me what to say, I'll write the message for you to check.", [], "smalltalk");
 }
 
 export async function productHelpHandler(_ctx: Ctx, text: string): Promise<HandlerOut> {

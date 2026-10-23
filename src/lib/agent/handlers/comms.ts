@@ -22,6 +22,7 @@ import { enrichProperty, resolveAddress } from "../property-lookup";
 import { extractListingFacts, hasAnyFact } from "../listing";
 import { ambiguousFirstName, askWhichPerson } from "./entity";
 import { mentionedContacts } from "./contacts";
+import { firstNameOf } from "../../names";
 import { STAGE_KEY } from "../../property-stage";
 
 const COUNT_WORDS: Record<string, number> = { one: 1, a: 1, an: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
@@ -59,8 +60,10 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     const all = await ctx.store.list("contacts", ctx.userId);
     const fam = /\bthe\s+([\p{Lu}][\p{L}'’-]+?)s?\b/u.exec(text)?.[1]?.toLowerCase();
     const hits = (await mentionedContacts(ctx, text)).concat(fam ? all.filter((c) => c.name.toLowerCase().split(/\s+/).pop() === fam || c.name.toLowerCase().split(/\s+/).pop() === `${fam}s`) : []);
-    const firsts = [...new Set(hits.map((c) => c.name.split(/\s+/)[0]))].slice(0, 3);
+    const firsts = [...new Set(hits.map((c) => (/\s(?:&|and)\s/i.test(c.name) ? c.name.replace(/^QA TEST\s+/i, "").split(/\s+/).slice(0, -1).join(" ").replace(/\s+and\s+/i, " & ") : firstNameOf(c.name))))].slice(0, 3);
     const client = firsts.length ? firsts.join(" & ") : (/\bfor\s+(?:the\s+)?([\p{Lu}][\p{L}'’-]+)/u.exec(text)?.[1] ?? null);
+    const prior = (await ctx.store.list("social_posts", ctx.userId)).find((p) => p.category === "anniversary" && ["draft", "pending_approval", "ready"].includes(p.status) && client && p.caption.includes(client) && Date.now() - new Date(p.created_at).getTime() < 7 * 86_400_000);
+    if (prior) return reply(`You already have a home-anniversary post for ${client} waiting. I didn't make a second one.`, [{ type: "choice", title: "What next?", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${prior.id}` }] }], "smalltalk");
     const made = await createPosts(ctx, { category: "anniversary", platforms: [platform], topic: null, client });
     if (made.ok) {
       const bl: Block[] = [];
@@ -168,7 +171,11 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
   if (!/\b(another|again|new one|different|redo|second|more|options?|variations?|versions?)\b/i.test(text) && requestedCount(text) <= 1) {
     const want = /open\s*house/i.test(text) ? "open house" : /\bprice\b/i.test(text) ? "price" : /\b(sold|congrat\w*|just closed)\b/i.test(text) ? "sold" : "just listed";
     const dup = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => p.property_id === prop.id && p.platform === platform && ["draft", "pending_approval", "ready"].includes(p.status) && Math.abs(ctx.now.getTime() - new Date(p.created_at).getTime()) < 48 * 3_600_000 * 4 && p.caption.toLowerCase().replace(/[^a-z ]/g, " ").includes(want) ).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-    if (dup) return reply(`You already have ${/^[aeiou]/i.test(want) ? "an" : "a"} ${want} post for ${prop.address} waiting. I didn't make a second one.`, [{ type: "choice", title: "What next?", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${dup.id}` }, { label: "Make another version", style: "secondary", action: { type: "prompt", text: `Make another ${want} post for ${prop.address}` } }] }], "smalltalk");
+    if (dup) {
+      const stage0 = (await ctx.store.list("memories", ctx.userId)).find((m) => m.scope === "property" && m.subject_id === prop!.id && m.key === STAGE_KEY)?.value;
+      const warn: Block[] = want === "just listed" && (stage0 === "under_contract" || stage0 === "sold" || stage0 === "upcoming") ? [{ type: "notice", tone: "warn", title: "Check the wording", body: `${prop.address} is saved as ${stage0 === "under_contract" ? "under contract" : stage0 === "sold" ? "sold" : "coming soon (not live yet)"}, so the “Just Listed” draft waiting may not be accurate.`, buttons: stage0 === "sold" ? [{ label: "Make a Just Sold post", style: "secondary", action: { type: "prompt", text: `Make a Just Sold post for ${prop.address}` } }] : stage0 === "upcoming" ? [{ label: "Make it a Coming Soon post", style: "secondary", action: { type: "prompt", text: `Make a Coming Soon post for ${prop.address}` } }] : undefined }] : [];
+      return reply(`You already have ${/^[aeiou]/i.test(want) ? "an" : "a"} ${want} post for ${prop.address} waiting. I didn't make a second one.`, [...warn, { type: "choice", title: "What next?", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${dup.id}` }, { label: "Make another version", style: "secondary", action: { type: "prompt", text: `Make another ${want} post for ${prop.address}` } }] }], "smalltalk");
+    }
   }
   const count = requestedCount(text);
   const blocks: Block[] = [];
@@ -191,7 +198,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
       made.push(post);
     }
     blocks.push({ type: "post_set", title: `${options.length} ${platform === "instagram_story" || platform === "tiktok" ? "story" : "post"} options`, options });
-    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add your photos", body: "I don't have photos for this home yet. Add yours (Zillow and Redfin are good places to find them) and every option updates.", buttons: [{ label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] });
+    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Add your photos", body: "I don't have photos for this home yet. Add yours (use your own photos, or ones you have permission to use) and every option updates.", buttons: [{ label: "Add photos", style: "quiet", href: `/properties/${prop.id}` }] });
     return reply(`Here are ${options.length} ${platform === "instagram_story" || platform === "tiktok" ? "stories" : "posts"} for ${prop.address}. Swipe to compare, then pick the one you like. Nothing posts until you approve it.`, blocks, "social_generation");
   }
   // "make another version": a genuinely different angle, never a word-for-word copy of what's already there
@@ -215,7 +222,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
     ctx.state.pending = { kind: "clarify", intent: "open_house", slots: { text: `open house at ${prop.address}${prop.city ? `, ${prop.city}` : ""}${prop.state ? ` ${prop.state}` : ""}` }, missing: "date" }; // her next message ("Saturday 1 to 4") books it
     await persistState(ctx);
     blocks.push({ type: "notice", tone: "info", title: "Add the day and time", body: `Tell me when it is (like "Saturday 1 to 4") and I'll put the open house on your calendar and add the date to the post.` });
-    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (Zillow and Redfin are good places to find them) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
+    if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (use your own photos, or ones you have permission to use) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
     return reply(`Here's an Instagram carousel for the open house at ${prop.address}.`, blocks, "social_generation");
   }
   if (ev && /open house|carousel/i.test(text) || (ev && !/just listed|price/i.test(text))) {
@@ -239,7 +246,7 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
       blocks.push({ type: "notice", tone: "warn", title: "Check the wording", body: `${prop.address} is saved as ${label}, so “Just Listed” may not be accurate. Review it before you approve.`, buttons: stage === "upcoming" ? [{ label: "Make it a Coming Soon post", style: "secondary", action: { type: "prompt", text: `Make a Coming Soon post for ${prop.address}` } }] : stage === "sold" ? [{ label: "Make a Just Sold post", style: "secondary", action: { type: "prompt", text: `Make a Just Sold post for ${prop.address}` } }] : undefined });
     }
   }
-  if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (Zillow and Redfin are good places to find them) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
+  if (!images.length) blocks.push({ type: "notice", tone: "info", title: "Want real photos in this?", body: "Add photos of the home on its property page (use your own photos, or ones you have permission to use) and I'll use them. I never use stock images for a real property.", buttons: [{ label: "Add your own instead", style: "quiet", href: `/properties/${prop.id}` }] });
   return reply(platform === "tiktok" ? `Here's a TikTok cover for ${prop.address}.` : platform === "instagram_story" ? `Here's an Instagram story for ${prop.address}.` : `Here's an Instagram carousel for ${prop.address}.`, blocks, "social_generation");
 }
 
@@ -400,5 +407,9 @@ export async function rewritePostHandler(ctx: Ctx, text: string): Promise<Handle
   const slides = post.slides.map((s) => ({ ...s, headline: strip(s.headline), sub: s.sub ? strip(s.sub) : s.sub }));
   const saved = await ctx.store.update("social_posts", ctx.userId, post.id, { caption, slides } as never);
   if (!saved) return reply("I couldn't save that edit, so the post is unchanged.", [], "smalltalk");
-  return reply(`Edited your existing post${prop ? ` for ${prop.address}` : ""} (still ${post.category ? post.category.replace(/_/g, " ") : "the same type"}; no new draft). ${drop.length ? `Removed ${drop.length > 1 ? `${drop.slice(0, -1).join(", ")} and ${drop[drop.length - 1]}` : drop[0]}.` : ""}${shorter ? " Shortened it." : ""}`, [{ type: "choice", title: "Your post", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${post.id}` }] }], "chat_simple");
+  // verify the edit really took before saying it did, and show the result
+  const after = await ctx.store.get("social_posts", ctx.userId, post.id);
+  const leftover = after && drop.includes("the price") && /\$\s?\d/.test(`${after.caption} ${after.slides.map((x) => `${x.headline} ${x.sub ?? ""}`).join(" ")}`);
+  if (!after || leftover) return reply(`I tried to take ${drop.join(" and ") || "that"} out of the post${prop ? ` for ${prop.address}` : ""}, but it still shows a price. Open the post and edit the text directly, or tell me exactly which line to change.`, [{ type: "choice", title: "Your post", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${post.id}` }] }], "smalltalk");
+  return reply(`Edited your existing post${prop ? ` for ${prop.address}` : ""} (still ${post.category ? post.category.replace(/_/g, " ") : "the same type"}; no new draft). ${drop.length ? `Removed ${drop.length > 1 ? `${drop.slice(0, -1).join(", ")} and ${drop[drop.length - 1]}` : drop[0]}.` : ""}${shorter ? " Shortened it." : ""}`, [{ type: "choice", title: "Your post", buttons: [{ label: "Open it", style: "primary", href: `/content?post=${post.id}` }] }, { type: "draft_social", postId: post.id, category: post.category ?? undefined, platform: post.platform, caption, slides, status: "Draft" }], "chat_simple");
 }

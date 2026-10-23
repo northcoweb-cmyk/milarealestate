@@ -1,5 +1,6 @@
 import { createPosts } from "../content/service";
 import { buildClientBrief } from "./client-brief";
+import { basicsHandler } from "./handlers/basics";
 import { adviceHandler } from "./handlers/advice";
 import { calcHandler } from "./handlers/calc";
 import { randomUUID } from "node:crypto";
@@ -8,7 +9,7 @@ import { followUpBlock } from "./followups";
 import { friendlyAiError, leaksProviderDetail } from "../ai/friendly";
 import { detailsFollowupHandler, listDateHandler, offerHandler, propertyNoteHandler, propertyStatusHandler, inboxHandler, openHouseAttendanceHandler, describeHomeHandler } from "./handlers/property-ops";
 import { FAIR_HOUSING_REPLY, fairHousingBlock } from "./fair-housing";
-import { portalRequestHandler, productHelpHandler, vagueBulkHandler, unsureWhoHandler } from "./handlers/product-help";
+import { portalRequestHandler, refuseInjectionHandler, productHelpHandler, vagueBulkHandler, unsureWhoHandler } from "./handlers/product-help";
 import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCredits, exhaustTrialCredits, getBalance, recordUsage, takeTurnAiCost, usdPerCredit } from "../credits";
 import { aiAvailable } from "../ai/provider";
 import type { ActionButton, Block, PendingQuestion, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
@@ -36,7 +37,7 @@ import { agendaHandler, oooQueryHandler, oooEditHandler, applyMove, undoHandler,
 import { fmtDayTime } from "../time";
 import { rewritePostHandler, reviseDraftHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
-import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, contactFactsHandler, factCueCount, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
+import { debriefHandler, deleteHandler, mentionedContacts, findContactsHandler, findPropertyForContactHandler, contactFieldUpdateHandler, contactFactsHandler, pastClientNoteHandler, factCueCount, relatedContactHandler, newContactHandler, prioritiesHandler, recallHandler, saveMemoryHandler } from "./handlers/contacts";
 import { batchFollowUpHandler, handleAttachments, importResultReply, pastedListHandler } from "./handlers/followups";
 import { openHouseHandler, openHouseRecapHandler } from "./handlers/openhouse";
 import { clientLostHandler, deactivateContactHandler, preDepartureHandler } from "./handlers/lifecycle";
@@ -46,7 +47,7 @@ import { type HandlerOut, reply } from "./handlers/types";
 import { marketResearch } from "./research";
 import { clientSearchHandler } from "./handlers/search";
 import { importCandidates } from "./ingest";
-import { plausibleName, dropNegatedDate, invalidDateToken, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
+import { capitalisedNames, plausibleName, dropNegatedDate, invalidDateToken, invalidTimeToken, overrideWhen, parseAddress, parseDate, parseLocation, parseTime } from "./nlu";
 import { firstNameOf } from "../names";
 
 export type Action = { type: string; [k: string]: any };
@@ -222,7 +223,7 @@ async function recentHistory(ctx: Ctx) {
 
 async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{ out: HandlerOut; intent: Intent }> {
   ctx.userText = textIn;
-  let text = fixTypos(textIn);
+  let text = fixTypos(textIn).replace(/[\p{Extended_Pictographic}\uFE0F]+\s*(?=(?:add|new|create|remind|call|text|email|schedule|book|\d|\$))/giu, " ").replace(/\s{2,}/g, " ").trim(); // list-style emoji ("🏠 add Zoe… 💰 450k") are decoration, not part of a name
   // "prep 9 muddy branch" / "open house post for kentlands": a saved home named by its street (no number or suffix) is that home, so everything downstream sees its full address
   if (!parseAddress(text) && /\b[a-z]{4,}\b/i.test(text) && !/\b(?:has|have)\s+\d+(?:\.\d)?\s*(?:bed|bath|bd|ba)/i.test(text)) {
     const ref = await resolveProperty(ctx, text, false).catch(() => null);
@@ -309,7 +310,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     // "They said 2" / "2" / "around 2:30" answering "what time?": pull the number out and read it as a time (2 means 2 PM)
     const WORDNUM: Record<string, string> = { two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10", eleven: "11", twelve: "12" };
     const numText = miss === "time" ? text.replace(/\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/gi, (w) => WORDNUM[w.toLowerCase()]) : text;
-    const numTime = miss === "time" && words <= 8 && (d.intent === "general" || d.intent === "smalltalk" || d.intent === pend.intent) && !/\d\s*(?:[ap]\.?m|o.?clock)|\d:\d\d/i.test(text) ? /(?:^|[^\d:])(1[0-2]|[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?(?![\d:]|\s*(?:st|nd|rd|th|people|bed|bath|min|hour|hr|day|week))/i.exec(numText) : null;
+    const numTime = miss === "time" && words <= 8 && (d.intent === "general" || d.intent === "smalltalk" || d.intent === pend.intent) && !/\d\s*(?:[ap]\.?m|o.?clock)|\d:\d\d|\d\s*(?:to|-|–|until|till)\s*\d/i.test(text) ? /(?:^|[^\d:])(1[0-2]|[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)?(?![\d:]|\s*(?:st|nd|rd|th|people|bed|bath|min|hour|hr|day|week))/i.exec(numText) : null;
     if (numTime) text = `at ${numTime[1]}${numTime[2] ? ":" + numTime[2] : ""}${numTime[3] ?? (/\b(afternoon|evening|night)\b/i.test(text) ? "pm" : /\bmorning\b/i.test(text) ? "am" : "")}`;
     // a different street address typed while a date or time is being asked for is a correction of the address: swap it into the open request
     let addrFixed = false;
@@ -321,7 +322,9 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
       } }
     // a fresh "set up an open house…" with no address is a NEW request, not the answer to an old question about another home
     const freshOpenHouse = pend.intent === "open_house" && words > 3 && /open\s*house/i.test(text) && !parseAddress(text);
-    const looksLikeAnswer = !addrFixed && !freshOpenHouse && !(words <= 3 && NOT_AN_ANSWER.test(text.trim())) && (d.intent === pend.intent && sameThread(String((pend.slots as { text?: string }).text ?? ""), text)
+    // "add Liam Cho as a buyer and remind me…" while Mila waits for a name is its own request: it never merges with the old question
+    const ownRequest = pend.intent === "new_contact" && /^\s*(?:add|new|create|put)\b/i.test(text) && capitalisedNames(text).length > 0;
+    const looksLikeAnswer = !addrFixed && !freshOpenHouse && !ownRequest && !(words <= 3 && NOT_AN_ANSWER.test(text.trim())) && (d.intent === pend.intent && sameThread(String((pend.slots as { text?: string }).text ?? ""), text)
       || ((d.intent === "general" || d.intent === "smalltalk") && (words <= 3 || (miss === "time" || miss === "date" ? timeLike : miss === "location" || miss === "address" || miss === "details" ? words <= 8 || !!parseAddress(text) : timeLike)))
       || (words <= 4 && timeLike));
     if (addrFixed) { /* handled above */ } else if (looksLikeAnswer && !/\?\s*$/.test(text)) {
@@ -400,6 +403,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   const outs: HandlerOut[] = [];
   let lastIntent: Intent = "general";
   for (const [ci, clause] of clauses.entries()) {
+    if (clause.startsWith("\u0001")) { outs.push(reply(`Noted, not acted on: ${clause.slice(1).slice(0, 120)}`, [], "smalltalk")); continue; }
     if (ci > 0 && /^(?:and |then |also |please )?(?:get me |help me |can you |could you )?(?:prep(?:are)?|get (?:me )?ready|get (?:me )?prepared)\b.{0,30}\b(?:it|that|this|them|the showing)\b/i.test(clause.trim()) && ctx.state.last_event_id) {
       const ev = await ctx.store.get("calendar_events", ctx.userId, ctx.state.last_event_id);
       const place = ev?.location || (ev ? parseAddress(ev.title) : null);
@@ -436,7 +440,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   }
   if (outs.length > 1) {
     // never silently omit a subtask: say exactly what was done, drafted, waiting on a yes, blocked or failed
-    const items = outs.map((o, i) => ({ label: clauses[i]?.replace(/\s+/g, " ").slice(0, 70) || `Part ${i + 1}`, state: subtaskState(o), detail: firstSentence(o.text) }));
+    const items = outs.map((o, i) => ({ label: clauses[i]?.replace(/^\u0001/, "").replace(/\s+/g, " ").slice(0, 70) || `Part ${i + 1}`, state: subtaskState(o), detail: firstSentence(o.text) }));
     ctx.state.last_workflow = { at: Date.now(), items };
     const waiting = items.filter((x) => x.state !== "done").length;
     outs.push({ text: "", blocks: [{ type: "workflow", runId: "", kicker: "WHAT I DID", title: `${items.length} things`, subtitle: waiting ? `${items.length - waiting} done, ${waiting} need${waiting === 1 ? "s" : ""} you` : "All done", items: items as never }], creditKey: undefined });
@@ -532,6 +536,9 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "inbox_query": return inboxHandler();
     case "describe_home": return describeHomeHandler(ctx, text);
     case "advice": return adviceHandler(ctx, text);
+    case "basics": return basicsHandler(ctx, text);
+    case "past_client_note": return pastClientNoteHandler(ctx, text);
+    case "refuse_injection": return refuseInjectionHandler();
     case "client_summary": {
       const people = await mentionedContacts(ctx, text);
       const c = people.length === 1 ? people[0] : !people.length && ctx.state.last_contact_ids?.[0] && /\b(them|him|her|they|this client|that client)\b/i.test(text) ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
@@ -539,7 +546,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
       ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
       const b = await buildClientBrief(ctx, c);
       const list = (steps: { text: string; why?: string }[]) => steps.map((st) => `• ${st.text}${st.why ? ` (${st.why})` : ""}`).join("\n");
-      return reply(`${b.summary}${b.watch.length ? `\n\nHeads up: ${b.watch.join(" ")}` : ""}\n\nDo now:\n${list(b.now)}\n\nComing up:\n${list(b.soon)}\n\nLater:\n${list(b.later)}`, [{ type: "choice", title: `Next for ${c.name.split(" ")[0]}`, buttons: [...b.now.filter((st) => st.ask).slice(0, 2).map((st) => ({ label: st.text.slice(0, 40), style: "secondary" as const, action: { type: "prompt" as const, text: st.ask! } })), { label: "Open profile", style: "quiet" as const, href: `/contacts/${c.id}` }] }], "chat_simple");
+      return reply(`${b.summary}${b.watch.length ? `\n\nHeads up: ${b.watch.join(" ")}` : ""}\n\nDo now:\n${list(b.now)}\n\nComing up:\n${list(b.soon)}\n\nLater:\n${list(b.later)}`, [{ type: "choice", title: `Next for ${b.headline.split(" · ")[0]}`, buttons: [...b.now.filter((st) => st.ask).slice(0, 2).map((st) => ({ label: st.text.length > 38 ? `${st.text.slice(0, 36).replace(/\s+\S*$/, "")}…` : st.text, style: "secondary" as const, action: { type: "prompt" as const, text: st.ask! } })), { label: "Open profile", style: "quiet" as const, href: `/contacts/${c.id}` }] }], "chat_simple");
     }
     case "another_version": {
       const last = (await ctx.store.list("social_posts", ctx.userId)).filter((p) => !["archived", "posted"].includes(p.status)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];

@@ -11,6 +11,7 @@ import { extractListingFacts } from "../listing";
 import { saveMemory } from "../memory";
 import { parseAddress, parseDate, parseMoney } from "../nlu";
 import { TOOLS } from "../tools";
+import { mentionedContacts } from "./contacts";
 import { resolveProperty } from "./listing";
 import { transactionHandler } from "./deals";
 import { type HandlerOut, reply } from "./types";
@@ -99,6 +100,20 @@ export function propertyNoteAsk(text: string): boolean {
 }
 
 export async function propertyNoteHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  // "Add a note to QA TEST Victor: prefers texts after 5pm": a person, not a home, when the name matches a contact and no address is given
+  if (!parseAddress(text)) {
+    const target = text.replace(/^\s*(?:(?:please|ok|okay|hey)[,\s]+)*(?:add|log|save|put|record)\s+(?:a\s+)?note\s+(?:on|to|for|about)\s+/i, "").split(":")[0];
+    const people = await mentionedContacts(ctx, target);
+    if (people.length === 1) {
+      const c = people[0];
+      const body = text.replace(/^[^:]*:\s*/, "").trim();
+      if (!body || body === text.trim()) return reply(`What should the note on ${c.name} say?`, [], "smalltalk");
+      await ctx.store.insert("contact_notes", ctx.userId, { contact_id: c.id, body: body.slice(0, 1000) } as never);
+      await ctx.store.insert("contact_events", ctx.userId, { contact_id: c.id, kind: "note", title: "Note added", detail: body.slice(0, 200), occurred_at: ctx.now.toISOString() } as never);
+      ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
+      return reply(`Saved to ${c.name}'s notes: “${body.slice(0, 200)}”.`, [{ type: "choice", title: "Next", buttons: [{ label: "Open profile", style: "quiet", href: `/contacts/${c.id}` }] }], "chat_simple");
+    }
+  }
   const prop = await homeOf(ctx, text);
   const body = text.replace(/^\s*(?:(?:please|ok|okay|hey)[,\s]+)*(?:add|log|save|put|record)\s+(?:a\s+)?note\s+(?:on|to|for|about)\s+[^:]{2,60}:\s*/i, "").trim();
   if (!prop) return reply("Which home is the note for? I couldn't tell, so nothing was saved.", [], "smalltalk");

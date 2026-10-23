@@ -405,9 +405,10 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
   const unsynced: Block[] = syncPending ? [{ type: "notice", tone: "warn", title: "Saved in Mila, not on Google Calendar yet", body: `${syncNote ?? "Google Calendar didn't answer."} Nothing is lost, and asking again won't create a second copy.`, buttons: [{ label: "Retry sync", style: "primary", action: { type: "sync_event", eventId: ev.id } }] }] : [];
   // a showing or open house in another state than the one the agent is licensed in: say so before it becomes a problem
   if (["showing", "open_house", "meeting"].includes(ev.kind) || /showing|open house/i.test(ev.title)) {
-    const lic = ((await ctx.store.list("businesses", ctx.userId))[0] as { license_state?: string | null } | undefined)?.license_state?.toUpperCase() || null;
+    const home = (ctx.profile.primary_market || ctx.profile.location || "") as string;
+    const lic = ((await ctx.store.list("businesses", ctx.userId))[0] as { license_state?: string | null } | undefined)?.license_state?.toUpperCase() || /,\s*([A-Z]{2})\b/.exec(home)?.[1] || /\b([A-Z]{2})\b/.exec(home.replace(/County/g, ""))?.[1] || null; // the licence state, else the state of the agent's own market
     const evProp = ev.property_id ? await ctx.store.get("properties", ctx.userId, ev.property_id) : null;
-    const st = evProp?.state?.toUpperCase() ?? new RegExp("(?:,\\s*|\\s)([A-Z]{2})(?:\\s+\\d{5})?\\b").exec(`${ev.location ?? ""} ${ev.title}`.replace(/\b(?:AM|PM|OH)\b/g, ""))?.[1];
+    const st = evProp?.state?.toUpperCase() ?? /,\s*[A-Za-z .]{2,30},?\s+([A-Z]{2})\b(?:\s+\d{5})?/.exec(`${ev.location ?? ""} ${ctx.userText ?? ""}`)?.[1] ?? new RegExp("(?:,\\s*|\\s)([A-Z]{2})(?:\\s+\\d{5})?\\b").exec(`${ev.location ?? ""} ${ev.title}`.replace(/\b(?:AM|PM|OH)\b/g, ""))?.[1];
     if (lic && st && /^[A-Z]{2}$/.test(st) && st !== lic && US_STATES.has(st)) ahead.note += `\n\n⚠️ This one is in ${st}, and your profile says you're licensed in ${lic}. Check with your broker whether you can show or list there, or need a local agent and a referral.`;
   }
   // an event more than a week out says its date ("Tuesday, Oct 27 • 3:00 PM"), so "Tuesday" can never mean the wrong one
