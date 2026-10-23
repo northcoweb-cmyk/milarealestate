@@ -160,9 +160,18 @@ class SupabaseStore implements Store {
   }
 
   async list<K extends TableName>(table: K, userId: string) {
-    const { data, error } = await this.sb.from(table).select("*").eq(this.col(table), userId).limit(5000);
-    this.fail(error, `list ${table}`);
-    return (data ?? []) as TableMap[K][];
+    return (await this.all(table, (q: any) => q.eq(this.col(table), userId), `list ${table}`)) as TableMap[K][];
+  }
+  /** Every matching row, page by page: the database caps one answer at 1,000 rows, so a busy account (lots of messages or properties) would otherwise silently lose the rest. */
+  private async all(table: TableName, filter: (q: any) => any, what: string): Promise<unknown[]> {
+    const PAGE = 1000, out: unknown[] = [];
+    for (let from = 0; from < 50_000; from += PAGE) {
+      const { data, error } = await filter(this.sb.from(table).select("*")).order("id", { ascending: true }).range(from, from + PAGE - 1);
+      this.fail(error, what);
+      out.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+    }
+    return out;
   }
   async get<K extends TableName>(table: K, userId: string, id: string) {
     const { data, error } = await this.sb.from(table).select("*").eq("id", id).eq(this.col(table), userId).maybeSingle();
@@ -225,9 +234,7 @@ class SupabaseStore implements Store {
     this.fail(error, "set config");
   }
   async listAll<K extends TableName>(table: K) {
-    const { data, error } = await this.sb.from(table).select("*").limit(50000);
-    this.fail(error, `listAll ${table}`);
-    return (data ?? []) as TableMap[K][];
+    return (await this.all(table, (q: any) => q, `listAll ${table}`)) as TableMap[K][];
   }
 }
 

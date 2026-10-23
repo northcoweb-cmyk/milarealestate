@@ -10,12 +10,14 @@ export function WelcomeForm({ mode, localAllowed, codeRequired = true }: { mode:
   useEffect(() => { try { const q = new URLSearchParams(window.location.search).get("ref"); if (q) sessionStorage.setItem("mila_ref", q.toUpperCase().slice(0, 12)); setRef(sessionStorage.getItem("mila_ref") ?? ""); } catch { /* private mode */ } }, []);
   const [inviter, setInviter] = useState<string | null>(null);
   useEffect(() => { if (!ref) return; fetch(`/api/referral/lookup?code=${encodeURIComponent(ref)}`).then((r) => r.json()).then((j) => setInviter(j.valid ? j.name : null)).catch(() => setInviter(null)); }, [ref]);
+  const [verify, setVerify] = useState<{ token: string } | null>(null); const [digits, setDigits] = useState("");
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [info, setInfo] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError(null); setInfo(null);
     try {
-      const r = await jfetch<{ onboarded?: boolean; confirm?: boolean; message?: string }>(signIn ? "/api/auth/login" : "/api/auth/signup", { method: "POST", json: { name, email, password, code, ref } });
+      const r = await jfetch<{ onboarded?: boolean; confirm?: boolean; verify?: boolean; codeToken?: string; message?: string }>(signIn ? "/api/auth/login" : "/api/auth/signup", { method: "POST", json: { name, email, password, code, ref, ...(verify ? { codeToken: verify.token, emailCode: digits } : {}) } });
+      if (r.verify && r.codeToken) { setVerify({ token: r.codeToken }); setDigits(""); setInfo(r.message ?? "We emailed you a 6-digit code."); return; }
       if (r.confirm) { setInfo(r.message ?? "Check your email."); return; }
       // full page load: the client router cache may still hold the signed-out redirect to /welcome
       window.location.replace(signIn || r.onboarded ? "/" : "/onboarding"); return;
@@ -27,9 +29,26 @@ export function WelcomeForm({ mode, localAllowed, codeRequired = true }: { mode:
     try { await jfetch("/api/auth/demo", { method: "POST" }); window.location.replace("/"); }
     catch (e) { setError(e instanceof Error ? e.message : "Demo isn't available."); setBusy(false); }
   }
+  async function resend() {
+    setBusy(true); setError(null); setInfo(null);
+    try {
+      const r = await jfetch<{ verify?: boolean; codeToken?: string; message?: string }>("/api/auth/signup", { method: "POST", json: { name, email, password, code, ref } });
+      if (r.verify && r.codeToken) { setVerify({ token: r.codeToken }); setDigits(""); setInfo("New code sent. Check your inbox."); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Couldn't send a new code."); }
+    finally { setBusy(false); }
+  }
   if (!localAllowed) return <div className="glass p-6 text-center"><p className="font-semibold">Sign-in isn't available right now.</p><p className="muted mt-1 text-[14.5px]">Please try again in a little while.</p></div>;
   return (
     <form onSubmit={submit} className="glass-strong space-y-4 p-6" style={{ borderRadius: 32 }}>
+      {verify ? <>
+        <h1 className="h2 text-center">Check your email</h1>
+        <p className="muted text-center text-[14.5px]">We sent a 6-digit code to <b>{email}</b>. It expires in 10 minutes.</p>
+        <div><label className="lbl" htmlFor="vc">6-digit code</label><input id="vc" className="field text-center" style={{ fontSize: 28, letterSpacing: "0.4em" }} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={digits} onChange={(e) => setDigits(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="••••••" autoFocus required /></div>
+        {error && <p role="alert" className="text-[14.5px]" style={{ color: "var(--danger)" }}>{error}</p>}
+        {info && <p className="text-[14.5px]" style={{ color: "var(--ok)" }}>{info}</p>}
+        <button className="btn btn-primary w-full" disabled={busy || digits.length !== 6}>{busy ? "One moment…" : "Verify and continue"}</button>
+        <div className="flex gap-2"><button type="button" className="btn btn-quiet flex-1" onClick={resend} disabled={busy}>Send a new code</button><button type="button" className="btn btn-quiet flex-1" onClick={() => { setVerify(null); setDigits(""); setError(null); setInfo(null); }} disabled={busy}>Change email</button></div>
+      </> : <>
       <h1 className="h2 text-center">{signIn ? "Welcome back" : "Create your account"}</h1>
       {!signIn && inviter && <p className="rounded-2xl px-4 py-3 text-center text-[14.5px] font-semibold" style={{ background: "color-mix(in srgb, var(--accent) 12%, transparent)" }}>🎉 {inviter} invited you. You'll get bonus credits when you subscribe.</p>}
       {!signIn && <div><label className="lbl" htmlFor="n">Your name</label><input id="n" className="field" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Sarah Carter" required /></div>}
@@ -56,6 +75,7 @@ export function WelcomeForm({ mode, localAllowed, codeRequired = true }: { mode:
           <div className="hairline pt-4"><button type="button" className="btn w-full" onClick={demo} disabled={busy}>Explore with demo data</button><p className="faint mt-2 text-center text-[12.5px]">Local development mode: accounts have no password. Demo data is fictional.</p></div>
         </>
       )}
+      </>}
     </form>
   );
 }

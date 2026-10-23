@@ -4,6 +4,8 @@ import { AuthError, authMode, createProfile, localSignIn, setSupabaseSession } f
 import { trialAdmissionOpen } from "@/lib/ai/budget";
 import { seatsLeft } from "@/lib/seats";
 import { queueSignup, QUEUED_MSG } from "@/lib/queue-signup";
+import { checkChallenge, codeEmail, emailCodeRequired, makeChallenge } from "@/lib/email-code";
+import { sendEmailNotification } from "@/lib/notify";
 import { logError } from "@/lib/server/errors";
 import { getStore } from "@/lib/db/store";
 import { onSignup } from "@/lib/referral";
@@ -12,7 +14,7 @@ import { codeLocked, codeMatches, recordBadCode, requiredCode } from "@/lib/acce
 
 export async function POST(req: Request) {
   if (!hit(`signup:${clientIp(req)}`, 10, 10 * 60_000)) return NextResponse.json({ error: "Too many attempts. Try again in a few minutes." }, { status: 429 });
-  const { email, name, password, code, ref } = (await req.json().catch(() => ({}))) as { email?: string; name?: string; password?: string; code?: string; ref?: string };
+  const { email, name, password, code, ref, codeToken, emailCode } = (await req.json().catch(() => ({}))) as { email?: string; name?: string; password?: string; code?: string; ref?: string; codeToken?: string; emailCode?: string };
   const ip = clientIp(req);
   if (requiredCode() !== null) {
     if (codeLocked(ip)) return NextResponse.json({ error: "Too many wrong codes from this connection. Try again in 30 minutes, or join the waitlist for an invite." }, { status: 429 });
@@ -25,6 +27,21 @@ export async function POST(req: Request) {
   if (!seat.open) {
     await logError({ source: "api", level: "warn", message: `Trial admissions paused: ${seat.admitted} admitted trial users reserve $${seat.reservedUsd.toFixed(2)} of the $${seat.poolUsd.toFixed(2)} pool`, route: "POST /api/auth/signup" });
     await queueSignup(email, name); return NextResponse.json({ error: QUEUED_MSG, queued: true }, { status: 503 });
+  }
+  // new accounts prove they own the email: a 6-digit code is emailed first, and the account is only created once it is entered
+  if (emailCodeRequired(authMode() === "supabase")) {
+    if (typeof password !== "string" || password.length < 8) return NextResponse.json({ error: "Use a password of at least 8 characters." }, { status: 400 });
+    if (!emailCode) {
+      if (!hit(`codesend:${email.toLowerCase()}`, 5, 15 * 60_000)) return NextResponse.json({ error: "We've sent several codes already. Check your inbox (and spam), or try again in a few minutes." }, { status: 429 });
+      const ch = makeChallenge(email);
+      const m = codeEmail(ch.code, name);
+      const sent = await sendEmailNotification(email, m.subject, m.text, m.html).catch(() => false);
+      if (!sent) return NextResponse.json({ error: "We couldn't send your code. Check the email address and try again." }, { status: 502 });
+      return NextResponse.json({ verify: true, codeToken: ch.token, message: `We emailed a 6-digit code to ${email}. Enter it to finish.` });
+    }
+    if (!hit(`codetry:${email.toLowerCase()}`, 8, 10 * 60_000)) return NextResponse.json({ error: "Too many wrong codes. Request a new code in a few minutes." }, { status: 429 });
+    const chk = checkChallenge(email, codeToken, emailCode);
+    if (chk !== "ok") return NextResponse.json({ error: chk === "expired" ? "That code has expired. Request a new one." : "That code isn't right. Check the email and try again." }, { status: 400 });
   }
   try {
     if (authMode() === "supabase") {

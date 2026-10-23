@@ -47,6 +47,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   const lockedRef = useRef(locked); lockedRef.current = locked;
   const [messages, setMessages] = useState<Message[]>([]);
   const [isOpen, setOpen] = useState(false);
+  const [draft, setDraft] = useState(""); // "Ask Mila" links fill the box and wait: nothing is sent, and no credit is spent, until the person taps send
   const vvBox = useVisualViewport(isOpen);
   useScrollLock(isOpen);
   const [loaded, setLoaded] = useState(false);
@@ -155,14 +156,14 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
       if (!a) return;
       e.preventDefault(); e.stopPropagation();
       const q = new URL(a.href, location.origin).searchParams.get("ask");
-      if (q) void ask(q);
+      if (q) { setDraft(q); setOpen(true); }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [ask]);
+  }, []);
   useEffect(() => { // deep link: /?ask=… opened from outside
     const q = new URLSearchParams(window.location.search).get("ask");
-    if (q) { window.history.replaceState(null, "", window.location.pathname); void ask(q); }
+    if (q) { window.history.replaceState(null, "", window.location.pathname); setDraft(q); setOpen(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -296,7 +297,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
                 {messages.map((m, i) => <MessageView key={(m as Message & { ck?: string }).ck ?? m.id} last={i === messages.length - 1} m={m} onAction={onAction} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
                 {busy && <Thinking steps={steps} />}
               </div>
-              <div className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"><PromptInput onSubmit={(t, f) => ask(t, f)} disabled={busy} locked={locked} placeholder="Ask Mila anything…" onError={(m) => toast(m, "error")} /></div>
+              <div className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"><PromptInput value={draft} onChange={setDraft} onSubmit={(t, f) => ask(t, f)} disabled={busy} locked={locked} placeholder="Ask Mila anything…" onError={(m) => toast(m, "error")} /></div>
             </motion.div>
           </div>
         )}
