@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { AuthError, authMode, createProfile, localSignIn, setSupabaseSession } from "@/lib/auth";
 import { trialAdmissionOpen } from "@/lib/ai/budget";
 import { seatsLeft } from "@/lib/seats";
+import { queueSignup, QUEUED_MSG } from "@/lib/queue-signup";
 import { logError } from "@/lib/server/errors";
 import { getStore } from "@/lib/db/store";
 import { onSignup } from "@/lib/referral";
@@ -19,11 +20,11 @@ export async function POST(req: Request) {
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
   if (typeof name !== "string" || !name.trim() || name.length > 120) return NextResponse.json({ error: "Enter your name." }, { status: 400 });
-  { const room = await seatsLeft(); if (!room.open) return NextResponse.json({ error: "Mila is full for the launch group right now. You're still on the list, and we'll email you when more seats open." }, { status: 503 }); }
+  { const room = await seatsLeft(); if (!room.open) { await queueSignup(email, name); return NextResponse.json({ error: QUEUED_MSG, queued: true }, { status: 503 }); } }
   const seat = await trialAdmissionOpen();
   if (!seat.open) {
     await logError({ source: "api", level: "warn", message: `Trial admissions paused: ${seat.admitted} admitted trial users reserve $${seat.reservedUsd.toFixed(2)} of the $${seat.poolUsd.toFixed(2)} pool`, route: "POST /api/auth/signup" });
-    return NextResponse.json({ error: "Mila is full for free trials right now. You're still on the list, and we'll email you when a seat opens." }, { status: 503 });
+    await queueSignup(email, name); return NextResponse.json({ error: QUEUED_MSG, queued: true }, { status: 503 });
   }
   try {
     if (authMode() === "supabase") {

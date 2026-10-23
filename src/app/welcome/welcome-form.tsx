@@ -19,7 +19,7 @@ export function WelcomeForm({ mode, localAllowed, codeRequired = true }: { mode:
       if (r.confirm) { setInfo(r.message ?? "Check your email."); return; }
       // full page load: the client router cache may still hold the signed-out redirect to /welcome
       window.location.replace(signIn || r.onboarded ? "/" : "/onboarding"); return;
-    } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); }
+    } catch (e) { const m = e instanceof Error ? e.message : "Something went wrong."; if (/^You.re in the queue/.test(m)) setInfo(m); else setError(m); }
     finally { setBusy(false); }
   }
   async function demo() {

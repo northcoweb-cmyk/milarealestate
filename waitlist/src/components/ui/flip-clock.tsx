@@ -31,7 +31,7 @@ export default function FlipClock({ to, label }: { to: string; label?: string })
   return (
     <div className="flex flex-col items-center gap-3" role="timer" aria-label={launched ? "Mila has launched" : `${d} days ${h} hours ${m} minutes until launch`}>
       {label && !launched && <p className="mb-1 text-[12px] font-semibold uppercase tracking-[.2em] text-white sm:text-[12.5px]">{label}</p>}
-      {launched ? <p className="display text-4xl text-white">We&apos;re live.</p> : (
+      {launched ? <div className="flex flex-col items-center gap-4"><p className="display text-4xl text-white">Mila is live.</p><a href="https://app.milarealestate.app/welcome" className="rounded-full bg-white px-8 py-4 text-[16px] font-semibold text-zinc-900 transition hover:opacity-90">Start your free trial</a><p className="text-[13.5px] text-white/80">7 days free, no card. If we're at capacity you'll join the queue and get your access link by email.</p></div> : (
         <div className="flex items-start justify-center gap-1 sm:gap-4">
           <Group label="Days" value={d} /><span className="pt-3 text-lg font-bold text-white/60">:</span>
           <Group label="Hours" value={h} /><span className="pt-3 text-lg font-bold text-white/60">:</span>
