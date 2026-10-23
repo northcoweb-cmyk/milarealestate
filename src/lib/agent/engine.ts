@@ -87,7 +87,7 @@ const LEAD = "(?:(?:wait|actually|oh|hmm+|um+|ok(?:ay)?|so|well|alright|sorry|ho
 const TAIL = "(?:[,.!\\s]+(?:please|pls|thanks|thank you|now|it|that|this|do it|go ahead|for me))*[.!\\s]*$";
 const isYes = (t: string) => t.trim().split(/\s+/).length <= 6 && !parseTime(t) && !parseDate(t, new Date(), "UTC") && new RegExp(`^${LEAD}(?:yes|yep|yeah|yup|sure|do it|please do|update (?:it|them)|go ahead|go for it|confirm(?:ed)?|approve(?:d)?|sounds good|that'?s right|ok|okay)${TAIL}`, "i").test(t.trim());
 const NO_TAIL = "(?:[,.!\\s]+(?:please|pls|thanks|thank you|now|it|that|this|keep (?:it|them|this|that)|leave (?:it|them|this|that)|don'?t|do not|cancel (?:it|that)|for now|not now|never ?mind))*[.!\\s]*$";
-const isNo = (t: string) => t.trim().split(/\s+/).length <= 6 && !parseTime(t) && !parseDate(t, new Date(), "UTC") && new RegExp(`^${LEAD}(?:no|nope|nah|leave (?:it|them)|keep (?:it|them)|don'?t|do not|never ?mind|nvm|cancel that|stop|not now|scratch that)${NO_TAIL}`, "i").test(t.trim());
+const isNo = (t: string) => t.trim().split(/\s+/).length <= 6 && !parseTime(t) && !parseDate(t, new Date(), "UTC") && new RegExp(`^${LEAD}(?:no|nope|nah|(?:no|nope|nah)[,.]?\\s+(?:keep|leave|don'?t|do not)\\b[\\w' ]{0,20}|leave (?:it|them|her|him)|keep (?:it|them|her|him)|don'?t|do not|never ?mind|nvm|cancel that|stop|not now|scratch that)${NO_TAIL}`, "i").test(t.trim());
 
 export function handleTurn(profile: Profile, input: TurnInput): Promise<TurnOutput> {
   return runInAiScope(profile.id, () => handleTurnInner(profile, input)); // AI spend during this turn is metered to this person
@@ -498,7 +498,7 @@ async function armTypedYes(ctx: Ctx, outs: HandlerOut[]) {
   const ids = [...new Set(outs.flatMap((o) => o.blocks.flatMap((b) => ("buttons" in b ? (b.buttons ?? []) : []))).map((b) => b.approvalId).filter(Boolean) as string[])];
   if (ids.length !== 1) return;
   const ap = await ctx.store.get("approvals", ctx.userId, ids[0]);
-  if (ap?.status === "pending" && /^(?:(?:create|update|cancel|replace)_calendar_event|shift_calendar_events)$/.test(ap.payload.tool)) ctx.state.pending = { kind: "approval", approval_id: ap.id, label: ap.title };
+  if (ap?.status === "pending" && /^(?:(?:create|update|cancel|replace)_calendar_event|shift_calendar_events|delete_contact)$/.test(ap.payload.tool)) ctx.state.pending = { kind: "approval", approval_id: ap.id, label: ap.title };
 }
 
 /** Intents that wrongly swallow assistant-style requests (the listing-post flow, "who is it for?", "what would you like to know?"). */
@@ -685,6 +685,7 @@ export function adviceCard(ask: string, answer: string, who?: { name: string; ph
   // a paragraph that is really a bulleted or emoji-checked list becomes one row per line, not one blob
   const paras = rawParas.flatMap((x) => { const lines = x.split(/\n/).map((l) => l.trim()).filter(Boolean); return lines.length >= 3 && lines.filter((l) => BULLET.test(l)).length >= lines.length - 1 ? lines : [x]; });
   if (answer.length < 380 || paras.length < 3) return null;
+  if ((answer.match(/^\s*[A-Da-d][.)]\s+\S/gm) ?? []).length >= 3) return null; // a quiz or any multiple-choice text stays as written, never squeezed into step cards
   const script = /\b(script|what (?:do|should|can) i say|negotiat|talking points)\b/i.test(ask);
   const lead = paras[0].length <= 220 && paras[0] === rawParas[0] && !/^\s*(?:[-•*]|\d{1,2}[.)])\s/.test(paras[0]) ? paras[0] : script ? "Here's a script you can use." : "Here's the short version.";
   const rest = lead === paras[0] ? paras.slice(1) : paras;

@@ -301,3 +301,12 @@ test("round 3 (doc M-26): a thank-you email is a thank-you for the showing, with
   assert.match(d.body, /Hi Dana,\n\nThank you for the showing\./);
   assert.doesNotMatch(d.body, /Whitfield|thanking/i);
 });
+
+test("round 3 (doc G5b): 'no, keep her' after a delete preview declines it, and nothing is deleted", async () => {
+  const a = await fresh();
+  await C(a, "QA TEST Nia Brooks", { phone: "240-555-0190" });
+  await a.say("Delete QA TEST Nia Brooks");
+  const r = await a.say("no, keep her");
+  assert.match(r.milaMessage.content, /I won't do that/);
+  assert.equal((await store.list("contacts", a.id)).length, 1);
+});
