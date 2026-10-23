@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/daily-summary",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/daily-summary?mode=evening",
+      "schedule": "30 22 * * *"
     }
   ],
   "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ] || git diff --quiet HEAD^ HEAD -- . ':!waitlist' ':!admin-os' ':!docs'",
