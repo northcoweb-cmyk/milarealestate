@@ -391,24 +391,30 @@ export async function contactFieldUpdateHandler(ctx: Ctx, text: string): Promise
   if (!found.length && /\b(?:her|his|their)\b/i.test(text) && ctx.state.last_contact_ids?.length === 1) { const c0 = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]); if (c0) found = [c0]; }
   if (found.length !== 1) return reply(found.length ? `Which one: ${found.slice(0, 4).map((c) => c.name).join(", ")}?` : "Which contact is that for? Tell me their name.", [], "smalltalk");
   const c = found[0];
-  let patch: Partial<Contact> | null = null, shown = "", was = "";
-  if (/phone|number|cell|mobile/.test(field)) { const v = parsePhone(text); if (v) { patch = { phone: v }; shown = v; was = c.phone ?? ""; } }
-  else if (/mail/.test(field)) { const v = parseEmail(text); if (v) { patch = { email: v }; shown = v; was = c.email ?? ""; } }
-  else if (field === "budget") { const v = parseMoney(text).max; if (v) { patch = { budget_max: v }; shown = fullMoney(v); was = c.budget_max ? fullMoney(c.budget_max) : ""; } }
-  else { const v = parseLocation(text); if (v) { patch = { location: v }; shown = v; was = c.location ?? ""; } }
-  if (!patch) return reply(`What should ${firstName(c.name)}'s ${field === "number" || field === "cell" || field === "mobile" ? "phone" : field} be? I didn't catch a value, so I haven't changed anything.`, [], "smalltalk");
-  const out = await TOOLS.update_contact.run(ctx, { id: c.id, patch, eventTitle: "Details updated", eventDetail: `${field}: ${shown}`, eventKind: "note" }) as any;
+  // one message can change several fields: "phone to X and email to Y", "budget to 550k and add Brookeville"
+  const patch: Partial<Contact> = {}; const done: string[] = [];
+  const hasPhone = /\b(?:phone|number|cell|mobile)\b/i.test(text), hasMail = /\be-?mail\b/i.test(text) || !!parseEmail(text), hasBudget = /\bbudget\b/i.test(text);
+  if (hasPhone) { const v = parsePhone(text) ?? /\b(?:phone|number|cell|mobile)\b(?:\s*(?:to|is|=|:|as))?\s*(\d{3}[\s.-]?\d{4})\b/i.exec(text)?.[1]?.replace(/[\s.]/g, "-") ?? null; if (v) { patch.phone = v; done.push(`phone to ${v}${c.phone ? ` (was ${c.phone})` : ""}`); } }
+  if (hasMail) { const v = parseEmail(text); if (v) { patch.email = v; done.push(`email to ${v}${c.email ? ` (was ${c.email})` : ""}`); } }
+  if (hasBudget) { const v = parseMoney(text).max; if (v) { patch.budget_max = v; done.push(`budget to ${fullMoney(v)}${c.budget_max ? ` (was ${fullMoney(c.budget_max)})` : ""}`); } }
+  const addArea = /\badd\s+((?:[A-Z][\w.'-]+)(?:\s+[A-Z][\w.'-]+){0,2})(?=\s*(?:[,.;!?]|$|\bto\b|\bas\b|\band\b))/.exec(text);
+  if (addArea && (hasBudget || /\b(?:area|areas|location|looking in|search)\b/i.test(text)) && !/\bnote\b/i.test(text) && addArea[1].toLowerCase() !== c.name.split(" ")[0].toLowerCase()) {
+    const have = (c.location ?? "").split(/;\s*/).filter(Boolean);
+    if (!have.some((x) => x.toLowerCase().startsWith(addArea[1].toLowerCase()))) { patch.location = [...have, addArea[1]].join("; "); done.push(`search area: added ${addArea[1]}${c.location ? ` (now ${patch.location})` : ""}`); }
+  } else if (!hasPhone && !hasMail && !hasBudget || /\b(?:location|area|city)\s+(?:to|is)\b/i.test(text)) { const v = parseLocation(text); if (v) { patch.location = v; done.push(`area to ${v}${c.location ? ` (was ${c.location})` : ""}`); } }
+  if (!done.length) return reply(`What should ${firstName(c.name)}'s ${field === "number" || field === "cell" || field === "mobile" ? "phone" : field} be? I didn't catch a value, so I haven't changed anything.`, [], "smalltalk");
+  const out = await TOOLS.update_contact.run(ctx, { id: c.id, patch, eventTitle: "Details updated", eventDetail: done.join("; "), eventKind: "note" }) as any;
   const saved = out?.ok ? await ctx.store.get("contacts", ctx.userId, c.id) : null;
-  const key = Object.keys(patch)[0] as keyof Contact;
-  if (!saved || saved[key] == null) return reply(`I couldn't save that for ${c.name}. Nothing was changed.`, [], "smalltalk");
+  if (!saved || (Object.keys(patch) as (keyof Contact)[]).some((k) => saved[k] == null)) return reply(`I couldn't save that for ${c.name}. Nothing was changed.`, [], "smalltalk");
   // the saved search follows the new budget, so the profile never shows two different budgets
-  if (key === "budget_max" && patch.budget_max) {
+  if (patch.budget_max) {
     for (const m of await listMemories(ctx, { scope: "contact", subject_id: c.id })) {
       if (/^(?:search|selling) criteria$/i.test(m.key) && /~\$[\d,]+/.test(m.value)) await saveMemory(ctx, { scope: "contact", subject_id: c.id, key: m.key, value: m.value.replace(/~\$[\d,]+/, `~${fullMoney(patch.budget_max)}`), source: "user_stated" });
     }
   }
   ctx.state.last_contact_ids = [c.id]; await persistState(ctx);
-  return reply(`Updated ${c.name}'s ${field == "number" || field === "cell" || field === "mobile" ? "phone" : field} to ${shown}${was ? ` (was ${was})` : ""}.`, [], "chat_simple");
+  return reply(`Updated ${c.name}: ${done.join("; ")}.`, [], "chat_simple");
+
 }
 
 

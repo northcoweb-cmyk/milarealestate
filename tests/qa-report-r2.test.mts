@@ -341,3 +341,31 @@ test("retest 4: 'text her' picks the woman, an explicit post request is never re
   assert.equal(posts.filter((p: any) => ["draft", "pending_approval"].includes(p.status)).length, 1, "the older unsent version is replaced, not piled up");
   assert.match((await a.say("Remind me next Tuesday at 9am to call Dana")).milaMessage.content, /Tuesday, Oct 27 at 9:00 AM/);
 });
+
+test("round 5 math: net sheet uses every figure given, a stated loan is not reduced by an assumed down payment, cash minus closing costs is the down payment", async () => {
+  const a = await fresh();
+  const net = (await a.say("Seller net sheet: $650,000 sale, $380,000 payoff, 5.5% commission, 1% taxes, $2,000 other costs")).milaMessage.content;
+  assert.match(net, /Taxes and transfer costs \(1%\): −\$6,500/);
+  assert.match(net, /Loan payoff: −\$380,000/);
+  assert.match(net, /\$225,750/);
+  const pay = (await a.say("Monthly payment on a $480,000 loan at 7% for 30 years")).milaMessage.content;
+  assert.match(pay, /\$3,193\/month/);
+  assert.doesNotMatch(pay, /20% down/);
+  const down = (await a.say("$90k cash, 3% closing costs on a $500k home, how much can they put down?")).milaMessage.content;
+  assert.match(down, /\$75,000/);
+});
+
+test("round 5 edits: several fields in one message save together (7-digit phone, email, budget, added area); a time range moves both ends; a contact made today has not 'gone quiet'", async () => {
+  const a = await fresh();
+  await a.say("Add a new buyer Rhea Voss, phone 240-555-0141, budget 500k, looking in Bethesda");
+  const r = (await a.say("Update Rhea's phone to 555-0142 and email to rhea@example.com")).milaMessage.content;
+  assert.doesNotMatch(r, /draft/i);
+  await a.say("Update Rhea's budget to $550k and add Brookeville");
+  const c = (await store.list("contacts", a.id))[0] as any;
+  assert.equal(c.phone, "555-0142"); assert.equal(c.email, "rhea@example.com"); assert.equal(c.budget_max, 550000); assert.match(c.location, /Brookeville/);
+  await a.say("Schedule an open house at 12 Oak Lane Saturday at 4pm");
+  await a.say("Move the open house to 2 to 4pm");
+  const ev = (await store.list("calendar_events", a.id)).find((e: any) => /Open House —/.test(e.title)) as any;
+  assert.equal(ev.start_at, "2026-10-24T18:00:00.000Z"); assert.equal(ev.end_at, "2026-10-24T20:00:00.000Z");
+  assert.doesNotMatch((await a.say("what's on my plate this week")).milaMessage.content, /gone quiet/);
+});

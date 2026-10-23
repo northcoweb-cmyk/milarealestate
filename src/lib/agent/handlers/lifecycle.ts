@@ -71,7 +71,7 @@ export async function preDepartureHandler(ctx: Ctx): Promise<HandlerOut> {
   const tasks = (await ctx.store.list("tasks", ctx.userId)).filter((t) => t.status === "open" && (!t.due_at || new Date(t.due_at) < w.end));
   const approvals = (await ctx.store.list("approvals", ctx.userId)).filter((a) => a.status === "pending");
   const rems = (await ctx.store.list("reminders", ctx.userId)).filter((r) => r.status === "pending" && new Date(r.remind_at) >= w.start && new Date(r.remind_at) < w.end);
-  const quiet = (await ctx.store.list("contacts", ctx.userId)).filter((c) => !["inactive", "closed"].includes(c.status) && (!c.last_contact_at || w.start.getTime() - new Date(c.last_contact_at).getTime() > 10 * 86_400_000)).slice(0, 3);
+  const quiet = (await ctx.store.list("contacts", ctx.userId)).filter((c) => !["inactive", "closed"].includes(c.status) && w.start.getTime() - new Date(c.last_contact_at ?? c.created_at).getTime() > 10 * 86_400_000).slice(0, 3);
   const when = `${fmtDay(w.start, ctx.tz)} to ${fmtDay(w.end, ctx.tz)}`;
   const items: string[] = [];
   if (during.length) items.push(`${during.length} ${during.length === 1 ? "event is" : "events are"} booked while you're away. Move or cancel ${during.length === 1 ? "it" : "them"}.`);

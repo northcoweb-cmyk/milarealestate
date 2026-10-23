@@ -21,6 +21,21 @@ const percents = (text: string): number[] => [...text.matchAll(/(\d+(?:\.\d+)?)\
 
 export type CalcKind = "recap" | "payment" | "net_sheet" | "net_price" | "reduction" | "commission" | "affordable" | "budget_filter" | "budget_compare" | "unknown_fact" | "cash_to_close";
 
+
+/** The amount written right before or after a label ("$380,000 payoff", "payoff of $380k", "payoff: 380000"). */
+function labelled(text: string, labels: string): number | null {
+  const money = String.raw`\$?\s?(\d[\d,]*(?:\.\d+)?\s?[km]?)`;
+  const before = new RegExp(String.raw`\$\s?(\d[\d,]*(?:\.\d+)?\s?[km]?)\s*(?:in |for |of )?(?:${labels})\b`, "i").exec(text);
+  const after = new RegExp(String.raw`\b(?:${labels})\b(?:\s*(?:of|at|is|are|was|=|:|-))?\s*${money}(?!\s?%)`, "i").exec(text);
+  const raw = before?.[1] ?? after?.[1];
+  return raw ? parseMoney(`$${raw.replace(/\s/g, "")}`).max ?? null : null;
+}
+/** The percent written next to a label ("5.5% commission", "commission of 5.5%", "1% taxes"). */
+function labelledPct(text: string, labels: string): number | null {
+  const m = new RegExp(String.raw`(\d+(?:\.\d+)?)\s?%\s*(?:in |for |of )?(?:${labels})\b|\b(?:${labels})\b(?:\s*(?:of|at|is|=|:))?\s*(\d+(?:\.\d+)?)\s?%`, "i").exec(text);
+  return m ? parseFloat(m[1] ?? m[2]) : null;
+}
+
 export function calcKind(text: string): CalcKind | null {
   const t = text.toLowerCase();
   if (/^\s*(?:add|new|create|schedule|book|remind|draft|write|email|text)\b/.test(t)) return null;
@@ -83,6 +98,16 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       return reply(`Effective net price: ${fullMoney(price)} − ${fullMoney(credit)} = ${fullMoney(price - credit)}. A seller credit usually covers the buyer's closing costs rather than lowering the contract price, so the recorded price stays ${fullMoney(price)}.`, [], "chat_simple");
     }
     case "cash_to_close": {
+      if (/\b(?:put down|down payment (?:can|could|would)|can (?:they|he|she|i|we) (?:put|afford) down|how much (?:down|can))\b/i.test(text) && /\b(?:cash|saved|savings|has|have|got)\b/i.test(text)) {
+        const cash = labelled(text, "cash|saved|savings") ?? nums[0];
+        const home = labelled(text, "home|house|property|purchase|price") ?? nums.find((n) => n !== cash);
+        const cpct = labelledPct(text, "closing(?: costs?)?|costs?");
+        if (cash && home && cpct !== null) {
+          const closingAmt = Math.round(home * cpct / 100), downAmt = cash - closingAmt;
+          if (downAmt <= 0) return reply(`${fullMoney(cash)} doesn't cover ${cpct}% closing costs (${fullMoney(closingAmt)}) on a ${fullMoney(home)} home, so there is nothing left for a down payment yet.`, [], "chat_simple");
+          return reply(`With ${fullMoney(cash)} in cash on a ${fullMoney(home)} home:\n• Closing costs (${cpct}%): ${fullMoney(closingAmt)}\n• Left for the down payment: ${fullMoney(downAmt)}, which is ${(downAmt / home * 100).toFixed(1)}% down.\nA lender may also want reserves, so confirm with the Loan Estimate.`, [], "chat_simple");
+        }
+      }
       const price = nums[0]; const down = pcts[0] ?? 20;
       if (!price) return reply("What's the purchase price? Give me the price and the down payment, like “cash to close on 600k with 10% down”.", [], "chat_simple");
       const dp = Math.round(price * down / 100), lo = Math.round(price * 0.02), hi = Math.round(price * 0.05);
@@ -101,20 +126,31 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       return reply(`${pct}% of ${fullMoney(price)} is ${fullMoney(Math.round(price * pct / 100))}${on}.`, [], "chat_simple");
     }
     case "net_sheet": {
-      let price = nums[0];
+      let price = labelled(text, "sale|sales price|sale price|sold|price|offer") ?? nums[0];
       let label = "";
       if (!price) { const p = await resolveProperty(ctx, text, true).catch(() => null); if (p?.list_price) { price = p.list_price; label = ` for ${p.address}`; } }
       if (!price) return reply("What's the sale price? Give me the price and the commission, like “net sheet 479k at 5.5%”.", [], "chat_simple");
-      const pct = pcts[0] ?? 5.5;
+      const commPct = labelledPct(text, "commissions?|comm|agent fees?|realtor fees?") ?? pcts[0] ?? null;
+      const taxPct = labelledPct(text, "taxes|tax|transfer taxes?|transfer tax|closing(?: costs?)?");
+      const payoff = labelled(text, "payoff|pay off|mortgage|loan balance|loan payoff|owed?|lien");
+      const other = labelled(text, "other costs?|other fees?|other expenses|repairs?|credits?|concessions?|closing costs?|costs?|fees?");
+      const pct = commPct ?? 5.5;
       const comm = Math.round(price * pct / 100);
-      const ccm = /\$\s?(\d[\d,]*(?:\.\d+)?\s?k?)\s*(?:in |of )?closing(?: costs)?|closing(?: costs)?(?: of| at|:)?\s*\$\s?(\d[\d,]*(?:\.\d+)?\s?k?)/i.exec(text);
-      const given = ccm ? parseMoney(`$${(ccm[1] ?? ccm[2]).replace(/\s/g, "")}`).max : null;
-      const closing = given ?? Math.round(price * 0.015); // closing costs as given, else a rough 1.5% for seller-side costs and transfer taxes
-      return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n• Gross sale price: ${fullMoney(price)}\n• Commission (${pct}%${pcts.length ? "" : ", assumed"}): −${fullMoney(comm)}\n• Closing costs${given ? " (as you gave them)" : " and transfer taxes (about 1.5%, estimated)"}: −${fullMoney(closing)}\n• ${given ? "Net to the seller before mortgage payoff" : "Estimated net before mortgage payoff"}: ${fullMoney(price - comm - closing)}\nSubtract the loan payoff and any credits for the real number. Tell me the commission or payoff and I'll rerun it.`, [], "chat_simple");
+      const taxes = taxPct !== null ? Math.round(price * taxPct / 100) : null;
+      const otherAmt = other && other !== payoff ? other : null;
+      const assumedClosing = taxes === null && otherAmt === null ? Math.round(price * 0.015) : 0; // nothing given: a rough 1.5% for seller-side costs and transfer taxes
+      const net = price - comm - (taxes ?? 0) - (otherAmt ?? 0) - assumedClosing - (payoff ?? 0);
+      const lines = [`• Gross sale price: ${fullMoney(price)}`, `• Commission (${pct}%${commPct === null ? ", assumed" : ""}): −${fullMoney(comm)}`];
+      if (taxes !== null) lines.push(`• Taxes and transfer costs (${taxPct}%): −${fullMoney(taxes)}`);
+      if (otherAmt !== null) lines.push(`• Other costs: −${fullMoney(otherAmt)}`);
+      if (assumedClosing) lines.push(`• Closing costs and transfer taxes (about 1.5%, estimated): −${fullMoney(assumedClosing)}`);
+      if (payoff !== null) lines.push(`• Loan payoff: −${fullMoney(payoff)}`);
+      return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n${lines.join("\n")}\n• ${payoff !== null ? "Estimated net to the seller" : "Estimated net before mortgage payoff"}: ${fullMoney(net)}${payoff === null ? "\nSubtract the loan payoff and any credits for the real number. Tell me the payoff and I'll rerun it." : "\nThe title company's settlement statement has the final number."}`, [], "chat_simple");
     }
     case "payment":
     case "affordable": {
       let price = nums[0];
+      const isLoan = /\$\s?\d[\d,.]*\s?[km]?\s+(?:loan|mortgage)\b|\b(?:loan|mortgage) (?:amount )?(?:of|for|is) \$/i.test(text) && !/\b\d+(?:\.\d+)?\s?%\s*down\b/i.test(text); // "payment on a $480,000 loan": that IS the loan, nothing to subtract
       let label = "";
       const p = price ? null : await resolveProperty(ctx, text, true).catch(() => null);
       if (p?.list_price) { price = p.list_price; label = ` for ${p.address}`; }
@@ -144,10 +180,11 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       else if (rate === undefined) rate = pcts.find((x) => x !== down && x > 0 && x < 15);
       const term = yrs ? Math.min(40, Math.max(5, parseInt(yrs[1], 10))) : 30;
       const rateUsed = rate ?? 6.75;
-      const dp = down ?? 20;
+      const dp = isLoan ? 0 : down ?? 20;
       const loan = price * (1 - dp / 100);
       const pi = monthlyPI(loan, rateUsed, term);
       const tax = (price * 0.0094) / 12, ins = (price * 0.0035) / 12;
+      if (isLoan) return reply(`Payment on a ${fullMoney(price)} loan at ${rateUsed}%${rate === undefined ? " (assumed)" : ""} for ${term} years:\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• Add property tax, insurance, any HOA and mortgage insurance for the full monthly cost. Give me the home price and I'll estimate those too.`, [], "chat_simple");
       const assumed = [down === undefined && rate === undefined ? "20% down and 6.75% assumed" : down === undefined ? "20% down assumed" : rate === undefined ? "6.75% rate assumed" : ""].filter(Boolean)[0];
       return reply(`Payment${label} on ${fullMoney(price)}, ${dp}% down at ${rateUsed}% for ${term} years${assumed ? ` (${assumed})` : ""}:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• With estimated taxes (~0.94%) and insurance (~0.35%): about ${fullMoney(Math.round(pi + tax + ins))}/month, before any HOA or mortgage insurance.`, [], "chat_simple");
     }

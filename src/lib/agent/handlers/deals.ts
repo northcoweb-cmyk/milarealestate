@@ -285,7 +285,7 @@ export async function weekOverviewHandler(ctx: Ctx, text = ""): Promise<HandlerO
   const deadlines = week.filter((e) => e.notes === TX_NOTE);
   const overdue = rng.future ? [] : tasks.filter((t) => t.status === "open" && t.due_at && new Date(t.due_at).getTime() < t0 - 3_600_000);
   const dueSoon = tasks.filter((t) => t.status === "open" && t.due_at && new Date(t.due_at).getTime() >= t0 - 3_600_000 && new Date(t.due_at).getTime() < t7 && t.subtitle?.startsWith(TX_NOTE) !== true);
-  const quiet = rng.future ? [] : contacts.filter((c) => !["inactive", "closed"].includes(c.status) && (!c.last_contact_at || t0 - new Date(c.last_contact_at).getTime() > 14 * 86_400_000)).sort((a, b) => b.importance - a.importance).slice(0, 3);
+  const quiet = rng.future ? [] : contacts.filter((c) => !["inactive", "closed"].includes(c.status) && t0 - new Date(c.last_contact_at ?? c.created_at).getTime() > 14 * 86_400_000).sort((a, b) => b.importance - a.importance).slice(0, 3);
   const cName = new Map(contacts.map((c) => [c.id, c.name]));
   const pAddr = new Map(props.map((p) => [p.id, p.address]));
   const sections: BriefSection[] = [...byDay].map(([day, es]) => ({

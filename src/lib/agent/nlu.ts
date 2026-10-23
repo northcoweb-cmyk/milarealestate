@@ -475,6 +475,8 @@ export function splitClauses(text: string): string[] {
   text = text.slice(0, 6000); // bounded first: the patterns below are not linear on huge input
   // a single question ("What's Victor's phone, email and budget?") is one request, even though its list contains words like "email"
   if (/^\s*(?:what|who|which|when|where|how|is|are|do|does|did|can|could)\b/i.test(text) && /\?\s*$/.test(text) && !/[;]|\?.+\?/.test(text)) return [text];
+  // "Update Rhea's phone to X and email to Y" / "budget to 550k and add Brookeville": several fields of one person are one request
+  if (/^\s*(?:please\s+|can you\s+)?(?:update|change|set|edit|fix|correct)\b/i.test(text) && /\b(?:phone|number|cell|mobile|e-?mail|budget|area|location)\b/i.test(text) && !/[;]/.test(text) && !/\b(?:remind|schedule|draft|text her|text him)\b/i.test(text)) return [text];
   // a long paste of notes (several sentences) is separate requests, one per sentence, never one merged reminder
   if (text.length > 160) { const sents = text.replace(/^\s*(?:my\s+)?notes?(?:\s+(?:from|on)\s+[^:.]{1,30})?\s*:\s*/i, "").split(/(?<=[.!?])\s+(?=[A-Z])/).map((x) => x.trim().replace(/^(?:also|and|then)[, ]+/i, "")).filter(Boolean);
     const ACT = /^(?:remind|call|text|txt|email|e-mail|schedule|book|add|set up|setup|create|cancel|move|reschedule|draft|send|follow up|make|put|log|update|mark|open house|showing|prep|write|ask)\b|\bremind me\b/i;

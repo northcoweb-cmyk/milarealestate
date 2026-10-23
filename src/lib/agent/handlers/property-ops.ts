@@ -170,11 +170,15 @@ export async function openHouseAttendanceHandler(ctx: Ctx, text: string): Promis
 
 /** "Describe the home itself" / "write a listing description for 77 Kentlands": a plain, compliant description built only from the facts saved on the home. */
 export function describeHomeAsk(text: string): boolean {
-  return !/\?\s*$/.test(text) && /\b(?:(?:write|draft|create|give me|make)\s+(?:me\s+)?(?:a\s+|the\s+)?(?:listing|property|home|house)\s+description|describe the (?:home|house|property)(?: itself)?|listing description from the property facts|(?:make|create|write|draft|design)\s+(?:me\s+)?(?:a\s+|the\s+)?(?:property\s+|listing\s+)?flyer)\b/i.test(text);
+  return !/\?\s*$/.test(text) && /\b(?:(?:write|draft|create|give me|make|generate)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:(?:mls|full|new|short|compelling|catchy)\s+)*(?:listing|property|home|house)?\s*description|describe the (?:home|house|property)(?: itself)?|listing description from the property facts|(?:make|create|write|draft|design)\s+(?:me\s+)?(?:a\s+|the\s+)?(?:property\s+|listing\s+)?flyer)\b/i.test(text);
 }
 
 export async function describeHomeHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   let prop = await homeOf(ctx, text);
+  if (!prop) { // a description for an address that isn't saved yet: the home is kept so the facts given here aren't lost
+    const addr = parseAddress(text);
+    if (addr) { const made = (await TOOLS.create_property.run(ctx, { address: addr, city: null, state: null, zip: null, county: null, list_price: null, beds: null, baths: null, sqft: null }).catch(() => null)) as { data?: { property?: Property } } | null; prop = made?.data?.property ?? null; }
+  }
   if (!prop) {
     const all = (await ctx.store.list("properties", ctx.userId)).filter((p) => !p.is_demo);
     if (all.length === 1) prop = all[0];

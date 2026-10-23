@@ -1,6 +1,7 @@
 import { createPosts } from "../content/service";
 import { buildClientBrief } from "./client-brief";
 import { basicsHandler } from "./handlers/basics";
+import { aiConfigured } from "../ai/configured";
 import { adviceHandler } from "./handlers/advice";
 import { calcHandler } from "./handlers/calc";
 import { randomUUID } from "node:crypto";
@@ -441,7 +442,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     }
     let d = ci === 0 && forced ? { intent: forced, declared: false } : detectIntent(clause);
     // plain assistant work (explain, rewrite, translate, scripts, bios, plans, quizzes) goes to the general assistant instead of being forced into a calendar, contact or listing-post flow
-    if (!forced && GENERAL_STEALS.has(d.intent) && (d.intent !== "revise_draft" || isEditText(clause)) && looksGeneral(clause) && !parseAddress(clause) && !(await mentionedContacts(ctx, clause)).length) d = { intent: "general", declared: false };
+    if (!forced && GENERAL_STEALS.has(d.intent) && (d.intent !== "advice" || aiConfigured()) && (d.intent !== "revise_draft" || isEditText(clause)) && looksGeneral(clause) && (isEditText(clause) || (!parseAddress(clause) && !(await mentionedContacts(ctx, clause)).length))) d = { intent: "general", declared: false };
     if (d.intent === "general") {
       const c = await llmClassify(ctx, clause);
       // a question never writes: if the AI guesses a data-changing intent for a question, treat it as plain chat
@@ -473,9 +474,11 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   const pressable = outs.some((o) => o.blocks.some((b) => b.type === "questions" || (("buttons" in b) && Array.isArray((b as { buttons?: unknown[] }).buttons) && ((b as { buttons?: unknown[] }).buttons?.length ?? 0) > 0)));
   // a question left open for hours is stale: it stops reappearing above unrelated answers
   if (ctx.state.parked?.length) ctx.state.parked = ctx.state.parked.filter((x) => Date.now() - x.at < 20 * 60_000);
-  if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable && lastIntent !== "general" && lastIntent !== "smalltalk") { // an unrelated chat answer or a thank-you never carries an old question along
+  if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable && lastIntent !== "general" && lastIntent !== "smalltalk" && lastIntent !== "calc" && lastIntent !== "basics" && lastIntent !== "advice") { // an unrelated chat answer or a thank-you never carries an old question along
     const p0 = ctx.state.parked[0];
-    reminder.push({ type: "choice", title: `Still open: ${p0.label}`, body: ASK_BY_MISSING[p0.missing] ?? "I still need one detail to finish that.", buttons: [{ label: "Continue it", style: "primary", action: { type: "resume_parked", index: 0 } }, { label: "Drop it", style: "quiet", action: { type: "drop_parked", index: 0 } }] });
+    const seen = ((p0 as { shown?: number }).shown ?? 0) + 1; (p0 as { shown?: number }).shown = seen; // an old question is offered at most twice, then it is let go
+    if (seen > 2) ctx.state.parked = ctx.state.parked.slice(1);
+    if (seen <= 2) reminder.push({ type: "choice", title: `Still open: ${p0.label}`, body: ASK_BY_MISSING[p0.missing] ?? "I still need one detail to finish that.", buttons: [{ label: "Continue it", style: "primary", action: { type: "resume_parked", index: 0 } }, { label: "Drop it", style: "quiet", action: { type: "drop_parked", index: 0 } }] });
   }
   if (outs.length > 1) {
     // never silently omit a subtask: say exactly what was done, drafted, waiting on a yes, blocked or failed
@@ -502,7 +505,7 @@ async function armTypedYes(ctx: Ctx, outs: HandlerOut[]) {
 }
 
 /** Intents that wrongly swallow assistant-style requests (the listing-post flow, "who is it for?", "what would you like to know?"). */
-const GENERAL_STEALS = new Set<Intent>(["general", "social_post", "draft_email", "draft_text", "describe_home", "product_help", "save_memory", "recall", "find_property", "what_missing", "another_version", "rewrite_post", "unsure_who", "vague_bulk", "smalltalk", "add_task", "open_house", "revise_draft"]);
+const GENERAL_STEALS = new Set<Intent>(["general", "advice", "client_summary", "week_overview", "market", "add_listing", "social_post", "draft_email", "draft_text", "describe_home", "product_help", "save_memory", "recall", "find_property", "what_missing", "another_version", "rewrite_post", "unsure_who", "vague_bulk", "smalltalk", "add_task", "open_house", "revise_draft"]);
 const firstSentence = (t: string) => t.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0]?.slice(0, 140) ?? "";
 /** What a handler's answer means for the reconciliation card. */
 function subtaskState(o: HandlerOut): "done" | "pending" | "needs_approval" | "failed" {
