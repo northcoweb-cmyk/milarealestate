@@ -408,6 +408,9 @@ export function parsePersonName(text: string): string | null {
   if (addAs) return tidyName(addAs[1]);
   const addRole = new RegExp(`\\b[Aa]dd\\s+${NM}\\s+(?:buyer|seller|renter|tenant|investor|lead|client|prospect)\\b`, "u").exec(text); // "add Zoe Park buyer 301-555-0177"
   if (addRole && !NAME_STOP.has(addRole[1].split(" ")[0])) return tidyName(addRole[1]);
+  // "new lead from Zillow, Priya Shah, wants 3 bed…" / "got a new buyer lead: Tom Lee"
+  const leadFrom = new RegExp(`\\b(?:lead|prospect|buyer|seller|client)s?\\s*(?:(?:from|via|on)\\s+[A-Za-z.]+\\s*)?[,:\\-]\\s*${NM}`, "u").exec(text);
+  if (leadFrom && !NAME_STOP.has(leadFrom[1].split(" ")[0])) return tidyName(leadFrom[1]);
   const addBare = new RegExp(`^\\s*(?:please\\s+)?[Aa]dd\\s+(?:a\\s+|another\\s+)?(?:new\\s+)?(?:contact\\s+|person\\s+)?(?:named\\s+|called\\s+)?${NM}\\s*[.!]*$`, "u").exec(text);
   if (addBare && !NAME_STOP.has(addBare[1].split(" ")[0])) return tidyName(addBare[1]);
   return lowercaseName(text);

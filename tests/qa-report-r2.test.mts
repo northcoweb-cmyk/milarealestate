@@ -45,3 +45,20 @@ test("R2: a price-reduction email has a real body and subject, not the request e
   assert.match(d.subject, /Price (?:update|reduction)/);
   assert.doesNotMatch(d.body, /draft an email/i);
 });
+
+test("launch-eve: 'I got a new lead from Zillow, Name, wants...' adds a lead, not a listing", async () => {
+  const a = await fresh();
+  const r = await a.say("I got a new lead from Zillow, Priya Shah, wants 3 bed under 700k in Germantown, her number is 301-555-0166");
+  assert.doesNotMatch(r.milaMessage.content, /new listing/i);
+  const c = (await store.list("contacts", a.id))[0];
+  assert.equal(c.name, "Priya Shah");
+  assert.equal(c.budget_max, 700000);
+  assert.match(String(c.phone), /555-0166/);
+});
+
+test("launch-eve: 'payment 550k 20% 6.5' uses the 6.5 rate", async () => {
+  const a = await fresh();
+  const r = await a.say("payment 550k 20% 6.5");
+  assert.match(r.milaMessage.content, /6\.5% for 30 years/);
+  assert.match(r.milaMessage.content, /\$2,781\/month/);
+});

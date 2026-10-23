@@ -117,6 +117,8 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       const yrs = /(\d{2})\s*[- ]?(?:years?|yrs?)\b/i.exec(text);
       let down = dExp ? parseFloat(dExp[1] ?? dExp[2]) : undefined;
       let rate = rExp ? parseFloat(rExp[1]) : undefined;
+      // "payment 550k 20% 6.5": a bare number of 2 to 12 after the down percent is the rate
+      if (rate === undefined && pcts.length === 1) { const bare = /%\s*[\/,]?\s*(\d{1,2}(?:\.\d+)?)\s*$/.exec(text.trim()); if (bare && +bare[1] >= 2 && +bare[1] <= 12) rate = parseFloat(bare[1]); }
       if (down === undefined && rate === undefined) { const guessDown = pcts.find((x) => x >= 3 && x <= 60); down = guessDown; rate = pcts.find((x) => x !== guessDown && x > 0 && x < 15); }
       else if (down === undefined) down = pcts.find((x) => x !== rate && x >= 3 && x <= 60);
       else if (rate === undefined) rate = pcts.find((x) => x !== down && x > 0 && x < 15);
