@@ -97,7 +97,8 @@ export async function openHouseHandler(ctx: Ctx, text: string): Promise<HandlerO
       buttons: [
         { label: `Keep ${nm}`, style: "secondary", action: { type: "conflict", choice: "keep" } },
         { label: `Move ${nm}`, style: "secondary", action: { type: "conflict", choice: "move" } },
-        { label: "Find another time", style: "primary", action: { type: "conflict", choice: "find" } },
+        { label: "Keep both", style: "primary", action: { type: "conflict", choice: "both" } },
+        { label: "Find another time", style: "secondary", action: { type: "conflict", choice: "find" } },
       ],
     }]);
   }

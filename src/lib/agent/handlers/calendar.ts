@@ -278,7 +278,7 @@ export function namedThing(text: string): string | null {
 const US_STATES = new Set("AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split(" "));
 export async function createEventHandler(ctx: Ctx, text: string, kindHint?: CalendarEvent["kind"], title?: string, contactId?: string | null, propertyId?: string | null): Promise<HandlerOut> {
   text = text.replace(/\bw\/\s*/gi, "with ").replace(/(?<!\d )\bw\s+(?=\p{L}{2})/giu, "with ");
-  const w = parseWhen(text, ctx.now, ctx.tz);
+  let w = parseWhen(text, ctx.now, ctx.tz);
   const noun = /\b(inspection|walk-?through|consult(?:ation)?|appointment|dinner|coffee|breakfast|closing|lunch|call|meeting|showing|tour)\b/i.exec(text)?.[1];
   const kind = kindHint ?? KIND_WORDS.find(([re]) => re.test(text))?.[1] ?? "meeting";
   if (!w.time && !w.date) return askBack(ctx, "create_event", text, "date", "What day and time works?");
@@ -310,7 +310,7 @@ export async function createEventHandler(ctx: Ctx, text: string, kindHint?: Cale
   } else if (!w.time) {
     return askBack(ctx, "create_event", text, "time", `What time on ${fmtDay(start, ctx.tz)}?`);
   }
-  start = rollPastWeekday(start, text, ctx.now, ctx.tz);
+  { const before = start.getTime(); start = rollPastWeekday(start, text, ctx.now, ctx.tz); if (w.end && start.getTime() !== before) w = { ...w, end: new Date(w.end.getTime() + (start.getTime() - before)) }; } // a rolled start carries its end with it
   const endNow = w.end ?? new Date(start.getTime() + (kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30) * 60_000);
   if (start.getTime() < ctx.now.getTime() - 60_000 && endNow.getTime() <= ctx.now.getTime()) return askBack(ctx, "create_event", text, "time", `That time has already passed (${fmtDayTime(start, ctx.tz)}). What later time did you mean?`);
   const durMin = kind === "open_house" ? 120 : kind === "showing" ? 45 : kind === "lunch" ? 60 : 30;
@@ -381,7 +381,8 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
       buttons: [
         { label: `Keep ${c.title.split(/[,—-]/)[0].trim()}`, style: "secondary", action: { type: "conflict", choice: "keep" } },
         { label: `Move ${c.title.split(/[,—-]/)[0].trim()}`, style: "secondary", action: { type: "conflict", choice: "move" } },
-        { label: "Find another time", style: "primary", action: { type: "conflict", choice: "find" } },
+        { label: "Keep both", style: "primary", action: { type: "conflict", choice: "both" } },
+        { label: "Find another time", style: "secondary", action: { type: "conflict", choice: "find" } },
       ],
     }]);
   }
@@ -463,13 +464,18 @@ export async function eventReminder(ctx: Ctx, eventId: string, minutes: number, 
 }
 
 /** User answered a calendar conflict question. */
-export async function resolveConflict(ctx: Ctx, choice: "keep" | "move" | "find"): Promise<HandlerOut> {
+export async function resolveConflict(ctx: Ctx, choice: "keep" | "both" | "move" | "find"): Promise<HandlerOut> {
   const p = ctx.state.pending?.kind === "calendar_conflict" ? ctx.state.pending : null;
   if (!p) return reply("That question has already been answered.");
   const draft = p.draft as Record<string, any>;
   const conflict = await ctx.store.get("calendar_events", ctx.userId, p.conflict_ids[0]);
   const dur = new Date(draft.end_at).getTime() - new Date(draft.start_at).getTime();
 
+  if (choice === "both") {
+    ctx.state.pending = null; await persistState(ctx);
+    if (draft.__openHouse) { const { continueOpenHouse } = await import("./openhouse"); return continueOpenHouse(ctx, draft, new Date(draft.start_at), new Date(draft.end_at)); }
+    return scheduleWithConflictCheck(ctx, draft, true);
+  }
   if (choice === "keep") {
     ctx.state.pending = null; await persistState(ctx);
     return reply(`Okay — I kept ${conflict?.title ?? "it"} and didn't add the new event.`);

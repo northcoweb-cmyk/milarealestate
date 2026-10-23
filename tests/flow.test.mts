@@ -85,7 +85,7 @@ test("priorities use real data", async () => {
 test("calendar conflict is detected, never double-booked", async () => {
   const o = await say("Schedule a showing at 1 PM today");
   assert.match(o.milaMessage.content, /already have Lunch with John Smith/);
-  assert.equal(blocks(o, "choice")[0].buttons.length, 3);
+  assert.equal(blocks(o, "choice")[0].buttons.length, 4); // Keep X / Keep both / Move X / Find another time
   assert.equal((await store.list("calendar_events", p.id)).filter((e) => e.title.startsWith("Showing") && e.start_at.startsWith("2026-10-01T17")).length, 0);
 });
 

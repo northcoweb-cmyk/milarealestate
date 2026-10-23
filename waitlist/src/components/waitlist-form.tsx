@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { cn } from "@/lib/cn";
+import { useLive } from "@/lib/use-live";
 
 export function WaitlistForm({ id, tone = "light", className }: { id: string; tone?: "light" | "dark"; className?: string }) {
+  const live = useLive();
   const [email, setEmail] = useState(""); const [name, setName] = useState(""); const [hp, setHp] = useState("");
   const [state, setState] = useState<"idle" | "busy" | "done">("idle"); const [already, setAlready] = useState(false); const [error, setError] = useState<string | null>(null);
   const [src, setSrc] = useState("");
@@ -25,7 +27,7 @@ export function WaitlistForm({ id, tone = "light", className }: { id: string; to
   if (state === "done") return (
     <div role="status" className={cn("mx-auto flex w-full max-w-xl items-start gap-3 rounded-3xl p-5 text-left", dark ? "glass-dark text-white" : "glass text-foreground", className)}>
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"><Check size={18} /></span>
-      <div><p className="text-[17px] font-semibold">{already ? "You're already on the list." : "You're on the list."}</p><p className={cn("text-[15px]", dark ? "text-white/75" : "text-muted-foreground")}>{already ? "We have your email. Watch your inbox on launch day." : "Check your inbox for a confirmation. On launch day we'll email your personal link."}</p></div>
+      <div><p className="text-[17px] font-semibold">{live ? (already ? "You're already in the queue." : "You're in the queue.") : already ? "You're already on the list." : "You're on the list."}</p><p className={cn("text-[15px]", dark ? "text-white/75" : "text-muted-foreground")}>{live ? "Watch your email: your access link is coming as soon as a spot opens. You don't need to do anything else." : already ? "We have your email. Watch your inbox on launch day." : "Check your inbox for a confirmation. On launch day we'll email your personal link."}</p></div>
     </div>
   );
   const field = cn("min-h-[52px] w-full rounded-2xl px-4 text-[16px] outline-none transition placeholder:opacity-60 focus-visible:ring-2 focus-visible:ring-iris", dark ? "bg-white/10 text-white ring-1 ring-white/20 placeholder:text-white" : "bg-white/80 text-foreground ring-1 ring-black/10 placeholder:text-zinc-500");
@@ -38,7 +40,7 @@ export function WaitlistForm({ id, tone = "light", className }: { id: string; to
         <input id={`${id}-email`} className={field} type="email" inputMode="email" placeholder="you@brokerage.com" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} />
       </div>
       <div className="absolute -left-[9999px]" aria-hidden><label htmlFor={`${id}-web`}>Website</label><input id={`${id}-web`} tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} /></div>
-      <InteractiveHoverButton type="submit" disabled={state === "busy"} text={state === "busy" ? "Joining…" : "Join the waitlist"} className={cn("mt-3 h-[54px] w-full text-[16px]", "border-black/10 text-zinc-900")} />
+      <InteractiveHoverButton type="submit" disabled={state === "busy"} text={state === "busy" ? "Joining…" : live ? "Join the queue" : "Join the waitlist"} className={cn("mt-3 h-[54px] w-full text-[16px]", "border-black/10 text-zinc-900")} />
       {error && <p role="alert" className={cn("mt-3 text-[14.5px]", dark ? "text-red-300" : "text-red-600")}>{error}</p>}
       <p className={cn("mt-3 text-center text-[13px]", dark ? "text-white/70" : "font-medium text-[#2d2170]")}>7-day free trial at launch. No card. No spam.</p>
     </form>

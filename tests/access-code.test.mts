@@ -4,15 +4,15 @@ const env = process.env as Record<string, string | undefined>;
 const { codeMatches, requiredCode, codeLocked, recordBadCode, resetCodeLimits } = await import("../src/lib/access-code");
 
 test("production requires the launch code unless SIGNUP_ACCESS_CODE overrides it", () => {
-  const was = { n: env.NODE_ENV, c: env.SIGNUP_ACCESS_CODE };
+  const was = { n: env.NODE_ENV, c: env.SIGNUP_ACCESS_CODE, o: env.ACCESS_CODE_OFF_AT };
   try {
-    env.NODE_ENV = "production"; delete env.SIGNUP_ACCESS_CODE;
+    env.NODE_ENV = "production"; delete env.SIGNUP_ACCESS_CODE; env.ACCESS_CODE_OFF_AT = "2099-01-01T00:00:00-04:00"; // pinned: this test is about the code, not the launch clock
     assert.equal(requiredCode(), "3725");
     assert.equal(codeMatches("3725"), true); assert.equal(codeMatches(" 3725 "), true);
     for (const bad of ["", "3724", "37250", undefined, null, 3725, "abcd"]) assert.equal(codeMatches(bad), false, String(bad));
     env.SIGNUP_ACCESS_CODE = "99-open";
     assert.equal(codeMatches("3725"), false); assert.equal(codeMatches("99-open"), true);
-  } finally { env.NODE_ENV = was.n; if (was.c === undefined) delete env.SIGNUP_ACCESS_CODE; else env.SIGNUP_ACCESS_CODE = was.c; }
+  } finally { env.NODE_ENV = was.n; if (was.c === undefined) delete env.SIGNUP_ACCESS_CODE; else env.SIGNUP_ACCESS_CODE = was.c; if (was.o === undefined) delete env.ACCESS_CODE_OFF_AT; else env.ACCESS_CODE_OFF_AT = was.o; }
 });
 
 test("local development has no gate, so demos and tests keep working", () => {
