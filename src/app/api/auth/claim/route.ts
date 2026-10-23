@@ -15,11 +15,9 @@ export async function POST(req: Request) {
   if (!inv.ok) return NextResponse.json({ error: inv.reason === "used" ? "This link was already used. Sign in with your email and password." : inv.reason === "expired" ? "This link has expired. Write to support@milarealestate.app to your invite email and we'll send a new one." : "This link isn't valid. Check you opened the newest email from Mila." }, { status: 400 });
   const { entry } = inv;
   // a valid invite link is the owner's decision to let this person in (sent from Mila OS "Grant access" or a batch), so the launch cap does not block it here
-  const seat = await trialAdmissionOpen();
-  if (!seat.open) {
-    await logError({ source: "api", level: "warn", message: `Trial admissions paused: ${seat.admitted} admitted trial users reserve $${seat.reservedUsd.toFixed(2)} of the $${seat.poolUsd.toFixed(2)} pool`, route: "POST /api/auth/claim" });
-    return NextResponse.json({ error: "Mila is full for free trials right now. You keep your place on the list, and we'll email you when a seat opens." }, { status: 503 });
-  }
+  // a granted person is let in by the owner's own decision, so the free-trial pool never turns their link away; it is only logged so the pool can be raised
+  { const seat = await trialAdmissionOpen().catch(() => null);
+    if (seat && !seat.open) await logError({ source: "api", level: "warn", message: `A granted sign-up went ahead although the trial pool is full (${seat.admitted} trials reserve $${seat.reservedUsd.toFixed(2)} of $${seat.poolUsd.toFixed(2)}). Raise MILA_TRIAL_POOL_USD to match the number of people you let in.`, route: "POST /api/auth/claim" }); }
   const name = (entry.name || entry.email.split("@")[0]).slice(0, 120);
   try {
     if (authMode() === "supabase") {

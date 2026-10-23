@@ -36,12 +36,14 @@ export async function POST(req: Request) {
       const ch = makeChallenge(email);
       const m = codeEmail(ch.code, name);
       const sent = await sendEmailNotification(email, m.subject, m.text, m.html).catch(() => false);
-      if (!sent) return NextResponse.json({ error: "We couldn't send your code. Check the email address and try again." }, { status: 502 });
-      return NextResponse.json({ verify: true, codeToken: ch.token, message: `We emailed a 6-digit code to ${email}. Enter it to finish.` });
+      if (sent) return NextResponse.json({ verify: true, codeToken: ch.token, message: `We emailed a 6-digit code to ${email}. Enter it to finish.` });
+      // the email service did not take the message: never lock a real person out over it. The sign-up goes ahead, and Mila OS shows the failure so it can be fixed.
+      await logError({ source: "api", level: "error", message: "Sign-up code email could not be sent; the account was created without the code check. Check RESEND_API_KEY and the milarealestate.app sender domain.", route: "POST /api/auth/signup" });
+    } else {
+      if (!hit(`codetry:${email.toLowerCase()}`, 8, 10 * 60_000)) return NextResponse.json({ error: "Too many wrong codes. Request a new code in a few minutes." }, { status: 429 });
+      const chk = checkChallenge(email, codeToken, emailCode);
+      if (chk !== "ok") return NextResponse.json({ error: chk === "expired" ? "That code has expired. Request a new one." : "That code isn't right. Check the email and try again." }, { status: 400 });
     }
-    if (!hit(`codetry:${email.toLowerCase()}`, 8, 10 * 60_000)) return NextResponse.json({ error: "Too many wrong codes. Request a new code in a few minutes." }, { status: 429 });
-    const chk = checkChallenge(email, codeToken, emailCode);
-    if (chk !== "ok") return NextResponse.json({ error: chk === "expired" ? "That code has expired. Request a new one." : "That code isn't right. Check the email and try again." }, { status: 400 });
   }
   try {
     if (authMode() === "supabase") {
