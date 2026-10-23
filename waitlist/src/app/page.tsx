@@ -60,7 +60,7 @@ export default function Page() {
           <h1 className="display text-balance text-[clamp(46px,9vw,92px)] [text-shadow:0_2px_30px_rgba(80,50,200,.35)]">Your AI operations manager for real estate.</h1>
           <p className="mt-6 max-w-2xl text-balance text-[clamp(17px,2.4vw,21px)] leading-relaxed text-white [text-shadow:0_1px_18px_rgba(80,50,200,.45)]">Tell Mila what you need. She preps your listings, writes your posts and emails, sets up open houses and follow-ups, and asks before anything goes out.</p>
           <div id="join" className="mt-10 w-full scroll-mt-10"><WaitlistForm id="hero" /></div>
-          <div className="mt-12 w-full max-w-[22rem] rounded-3xl bg-[#1d1450]/80 px-3 py-5 shadow-[0_20px_50px_-20px_rgba(40,20,120,.6)] ring-1 ring-white/15 sm:mt-14 sm:max-w-none sm:bg-transparent sm:p-0 sm:shadow-none sm:ring-0"><p className="mb-4 text-[12px] font-semibold uppercase tracking-[.2em] text-white sm:text-[12.5px]">Doors open in</p><FlipClock to={LAUNCH_AT} /></div>
+          <div className="mt-12 w-full max-w-[22rem] rounded-3xl bg-[#1d1450]/80 px-3 py-5 shadow-[0_20px_50px_-20px_rgba(40,20,120,.6)] ring-1 ring-white/15 sm:mt-14 sm:max-w-none sm:bg-transparent sm:p-0 sm:shadow-none sm:ring-0"><FlipClock to={LAUNCH_AT} label="Doors open in" /></div>
         </HeroParallax>
       </section>
 

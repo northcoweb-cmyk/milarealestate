@@ -20,15 +20,17 @@ function Group({ label, value, pad = 2 }: { label: string; value: number; pad?: 
 }
 
 /** Countdown to the launch moment. Renders zeros on the server and starts ticking on the client, so there is no hydration mismatch. */
-export default function FlipClock({ to }: { to: string }) {
+export default function FlipClock({ to, label }: { to: string; label?: string }) {
   const target = new Date(to).getTime();
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => { setNow(Date.now()); const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i); }, []);
   const left = now === null ? 0 : Math.max(0, target - now);
   const d = Math.floor(left / 86_400_000), h = Math.floor(left / 3_600_000) % 24, m = Math.floor(left / 60_000) % 60, s = Math.floor(left / 1000) % 60;
   const launched = now !== null && left === 0;
+  if (now === null) return <div className="min-h-[96px]" aria-hidden />; // nothing until the real time is known, so it never flashes zeros
   return (
     <div className="flex flex-col items-center gap-3" role="timer" aria-label={launched ? "Mila has launched" : `${d} days ${h} hours ${m} minutes until launch`}>
+      {label && !launched && <p className="mb-1 text-[12px] font-semibold uppercase tracking-[.2em] text-white sm:text-[12.5px]">{label}</p>}
       {launched ? <p className="display text-4xl text-white">We&apos;re live.</p> : (
         <div className="flex items-start justify-center gap-1 sm:gap-4">
           <Group label="Days" value={d} /><span className="pt-3 text-lg font-bold text-white/60">:</span>
