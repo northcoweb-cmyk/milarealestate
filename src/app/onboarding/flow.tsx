@@ -33,7 +33,7 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
   const [picked, setPicked] = useState<PickedPlace | null>(null);
   const [pickedText, setPickedText] = useState("");
   const [placesOn, setPlacesOn] = useState(false);
-  useEffect(() => { fetch("/api/places/autocomplete?q=ab").then((r) => r.json()).then((j) => setPlacesOn(j.available === true)).catch(() => {}); }, []);
+  useEffect(() => { fetch("/api/places/autocomplete?mode=city&q=ab").then((r) => r.json()).then((j) => setPlacesOn(j.available === true)).catch(() => {}); }, []);
   const locVerified = !!picked && f.location === pickedText;
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState<Record<string, boolean>>({});
@@ -79,7 +79,7 @@ export function OnboardingFlow({ name, googleConfigured, allowSample = true }: {
   }
 
   const next = () => { setError(null); setStep((s) => Math.min(s + 1, total - 1)); };
-  const canNext = screen === 0 ? f.full_name.trim().length > 1 : screen === 1 ? (placesOn ? locVerified : f.location.trim().length > 1) : true;
+  const canNext = screen === 0 ? f.full_name.trim().length > 1 : screen === 1 ? f.location.trim().length > 1 : true; // picking a suggestion is nicer (it checks the place), but typing your city is always enough to continue
 
   return (
     <main className="mx-auto flex min-h-[100svh] w-full max-w-xl flex-col justify-center px-5 py-8">

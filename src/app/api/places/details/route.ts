@@ -1,13 +1,15 @@
 import { rateLimit } from "@/lib/server/rate-limit";
 import { api, bad } from "@/lib/server/route";
 import { isValidTz } from "@/lib/time";
+import { fallbackPlace } from "@/lib/places-fallback";
 
 // Resolves a picked suggestion into a verified place: address, city/state, coordinates, time zone.
 export const GET = api(async ({ url, profile }) => {
   rateLimit(`places:${profile.id}`, 120);
+  const id = url.searchParams.get("id") ?? "";
+  if (id.startsWith("static:")) { const p = fallbackPlace(id); if (!p) throw bad("That place isn't valid."); return { place: p }; }
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) throw bad("Place search isn't set up on this server.");
-  const id = url.searchParams.get("id") ?? "";
   if (!/^[\w-]{10,200}$/.test(id)) throw bad("That place isn't valid.");
   const r = await fetch(`https://places.googleapis.com/v1/places/${id}?sessionToken=${encodeURIComponent((url.searchParams.get("t") ?? "").slice(0, 36))}`, { headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": "id,displayName,formattedAddress,location,addressComponents" }, signal: AbortSignal.timeout(6000) });
   if (!r.ok) throw bad("Couldn't look that place up.");
