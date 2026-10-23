@@ -166,7 +166,9 @@ export async function applyMove(ctx: Ctx, event: CalendarEvent, start: Date, end
   const data = out.result.data as { event: CalendarEvent; before: CalendarEvent; syncNote?: string };
   if (data.before.start_at !== data.event.start_at || data.before.end_at !== data.event.end_at) ctx.state.last_action = { type: "move", event_id: data.event.id, start_at: data.before.start_at, end_at: data.before.end_at };
   const stale = await markCommsStale(ctx, data.before, data.event);
-  return reply(`Moved to ${fmtDay(data.event.start_at, ctx.tz)} at ${fmtTime(data.event.start_at, ctx.tz)}.`, [
+  // a reminder that now falls inside the moved event gets a soft heads-up (never a block)
+  const clashRem = (await ctx.store.list("reminders", ctx.userId)).filter((r) => r.status === "pending" && new Date(r.remind_at) >= new Date(data.event.start_at) && new Date(r.remind_at) < new Date(data.event.end_at))[0];
+  return reply(`Moved to ${fmtDay(data.event.start_at, ctx.tz)}, ${fmtShortDate(data.event.start_at, ctx.tz)} at ${fmtTime(data.event.start_at, ctx.tz)}.${clashRem ? ` Heads up: your ${fmtTime(clashRem.remind_at, ctx.tz)} reminder “${clashRem.title}” now falls during it.` : ""}`, [
     eventCard(ctx, data.event, "Updated"),
     ...(data.syncNote ? [{ type: "notice", tone: "warn", title: data.syncNote } as Block] : []),
     ...stale,

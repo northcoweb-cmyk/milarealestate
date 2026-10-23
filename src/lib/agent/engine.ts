@@ -470,8 +470,8 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   // one set of buttons per reply: if this answer already offers something to press, the old question waits for a quieter moment
   const pressable = outs.some((o) => o.blocks.some((b) => b.type === "questions" || (("buttons" in b) && Array.isArray((b as { buttons?: unknown[] }).buttons) && ((b as { buttons?: unknown[] }).buttons?.length ?? 0) > 0)));
   // a question left open for hours is stale: it stops reappearing above unrelated answers
-  if (ctx.state.parked?.length) ctx.state.parked = ctx.state.parked.filter((x) => Date.now() - x.at < 6 * 3_600_000);
-  if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable) {
+  if (ctx.state.parked?.length) ctx.state.parked = ctx.state.parked.filter((x) => Date.now() - x.at < 20 * 60_000);
+  if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable && lastIntent !== "general" && lastIntent !== "smalltalk") { // an unrelated chat answer or a thank-you never carries an old question along
     const p0 = ctx.state.parked[0];
     reminder.push({ type: "choice", title: `Still open: ${p0.label}`, body: ASK_BY_MISSING[p0.missing] ?? "I still need one detail to finish that.", buttons: [{ label: "Continue it", style: "primary", action: { type: "resume_parked", index: 0 } }, { label: "Drop it", style: "quiet", action: { type: "drop_parked", index: 0 } }] });
   }

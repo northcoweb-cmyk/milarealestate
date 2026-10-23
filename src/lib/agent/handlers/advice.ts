@@ -33,7 +33,7 @@ export function adviceTopic(text: string): AdviceTopic | null {
   return null;
 }
 
-const CAVEAT = "This is general information, not legal or tax advice.";
+const CAVEAT = "This is general information, not legal or tax advice. Check with your broker, and an attorney or CPA for legal and tax questions, before you act.";
 
 export async function adviceHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const topic = adviceTopic(text);

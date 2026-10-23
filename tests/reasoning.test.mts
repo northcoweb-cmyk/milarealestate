@@ -15,7 +15,7 @@ test("a bare time right after booking changes that event", async () => {
   const a = await newAgent({ now, tz: "America/New_York", seed: false });
   await a.say("Showing at 456 Oak Lane tomorrow at 3 PM");
   const r = await a.say("Actually make that 4");
-  assert.match(r.milaMessage.content, /Moved to Sunday at 4:00 PM/);
+  assert.match(r.milaMessage.content, /Moved to Sunday, Oct \d+ at 4:00 PM/);
   const ev = (await store.list("calendar_events", a.id)).filter((e: any) => /456 Oak/.test(e.title));
   assert.equal(ev.length, 1);
 });

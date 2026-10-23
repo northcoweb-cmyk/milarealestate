@@ -193,6 +193,10 @@ export const TOOLS: Record<string, ToolDef> = {
     gate: async (ctx, a) => (a.internal ? null : { key: "tasks", risk: "normal", action: "other", title: a.title, summary: a.subtitle ?? a.title }),
     run: async (ctx, a) => {
       const contact = a.contact_id ? await ctx.store.get("contacts", ctx.userId, a.contact_id) : null;
+      // the same open to-do twice (same words, same due time, same person) is one to-do
+      { const key = (x: string) => String(x ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+        const dup = (await ctx.store.list("tasks", ctx.userId)).find((t) => t.status === "open" && t.kind !== "approval" && key(t.title) === key(a.title) && (t.due_at ?? null) === (a.due_at ?? null) && (t.contact_id ?? null) === (a.contact_id ?? null));
+        if (dup && a.kind !== "approval") return ok({ task: dup }); }
       const draft: Omit<Task, "id" | "user_id" | "created_at" | "updated_at"> = {
         kind: (a.kind as TaskKind) ?? "task", title: a.title, subtitle: a.subtitle ?? null,
         priority: "low", priority_reason: null, status: "open", due_at: a.due_at ?? null,
@@ -222,6 +226,10 @@ export const TOOLS: Record<string, ToolDef> = {
     gate: async (ctx, a) => (a.internal ? null : { key: "reminders", risk: "normal", action: "other", title: `Remind you: ${a.title}`, summary: `${a.title} — ${fmtDayTime(a.remind_at, ctx.tz)}` }),
     run: async (ctx, a) => {
       if (!a.remind_at || Number.isNaN(new Date(a.remind_at).getTime())) return fail("invalid", "I need a valid time for that reminder.");
+      // the same reminder twice (same words, same minute) is one reminder
+      { const key = (x: string) => String(x).trim().toLowerCase().replace(/\s+/g, " "), min = Math.floor(new Date(a.remind_at).getTime() / 60_000);
+        const dup = (await ctx.store.list("reminders", ctx.userId)).find((r) => r.status === "pending" && key(r.title) === key(a.title) && Math.floor(new Date(r.remind_at).getTime() / 60_000) === min);
+        if (dup) return ok({ reminder: dup }); }
       const prefs = ctx.profile.settings.notifications.channels;
       const channels: Reminder["channels"] = [prefs.pwa && "pwa", prefs.browser && "browser", prefs.email && "email"].filter(Boolean) as Reminder["channels"];
       const r = await ctx.store.insert("reminders", ctx.userId, {

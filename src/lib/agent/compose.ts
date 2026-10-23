@@ -43,7 +43,7 @@ export function purposeOf(t: string): Purpose {
   if (/\bconfirm\w*\b/.test(s)) return "confirm";
   if (/\bseller update|update on (?:your|the) listing|(?:sitting|on the market)\b.{0,20}\bdays\b/.test(s)) return "seller_update";
   if (/\bexplain\w*|walks? (?:them|you|her|him) through|launch plan|the plan\b/.test(s)) return "plan";
-  if (/\b(?:thank|thanks)\b/.test(s)) return "thanks";
+  if (/\b(?:thank(?:s|ing|ed)?|appreciat(?:e|ed|ing))\b/.test(s)) return "thanks";
   if (/\b(?:open house|showing|tour)\b/.test(s)) return "visit";
   return "generic";
 }
@@ -65,7 +65,8 @@ export function contentOf(request: string, recipientWords: string[] = []): strin
   // drop the recipient: a typed address, an "x, the listing agent for …" apposition, then names
   t = t.replace(/^[\w.+-]+@[\w-]+\.[\w.-]+\s*/, "");
   t = t.replace(/^(?:[A-Z]{2,5}\s+){1,3}(?=\p{Lu})/u, ""); // a test or team tag in front of the name ("QA TEST Victor") is not part of what to say
-  for (const w of recipientWords.filter(Boolean).sort((a, b) => b.length - a.length)) t = t.replace(new RegExp(`^${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:['’]s)?\\b[,.]?\\s*`, "i"), "");
+  const words = [...new Set(recipientWords.filter(Boolean).flatMap((w) => [w, w.replace(/^(?:[A-Z]{2,5}\s+){1,3}/, "")]).filter(Boolean))]; // the saved name with and without a "QA TEST" tag
+  for (const w of words.sort((a, b) => b.length - a.length)) t = t.replace(new RegExp(`^${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:['’]s)?\\b[,.]?\\s*`, "i"), "");
   t = t.replace(/^(?:the\s+)?(?:listing agent|buyer'?s?\s+agent|sellers?|buyers?)(?:\s+(?:for|of|on)\s+[^,.]{3,60})?[,.]?\s*/i, "");
   t = t.replace(/^(?:(?:for|about|on|at|regarding)\s+)?[\d]{1,6}\s+[A-Za-z0-9.' ]{3,40}?\s(?:street|st|road|rd|avenue|ave|lane|ln|court|ct|drive|dr|way|boulevard|blvd|place|pl|circle|cir|terrace)\b[.,]?\s*/i, "");
   t = t.replace(/\b(?:draft only|just a draft|don'?t send(?: it)?|do not send(?: it)?)\b[.,]?/gi, "");
@@ -162,7 +163,12 @@ export function bodyOf(spec: Spec): string {
     case "price_change": parts.push(`I wanted to let you know about a price update${a ? ` on ${a}` : ""}${nums.length ? `: ${nums.length > 1 ? `from ${money(nums[0])} to ${money(nums[1])}` : `now ${money(nums[0])}`}` : ""}.`, "Let me know if you'd like to talk about what it means for you."); break;
     case "offer": parts.push(`I wanted to update you on the offer${a ? ` on ${a}` : ""}${nums.length ? `: ${money(nums[0])}${nums[1] ? `, with room to go up to ${money(nums[1])}` : ""}` : ""}.`, rest && nums.length === 0 ? sentence(toYou(rest)) : "", "Let me know if you have any questions."); break;
     case "visit": parts.push(sentence(toYou(rest || c)), "Let me know if you have any questions."); break;
-    case "thanks": parts.push(sentence(toYou(rest || "thank you")), "It was great working with you."); break;
+    case "thanks": {
+      const r = rest.replace(/^(?:thank(?:ing|s|ed)?|appreciat\w+)\s+(?:her|him|them|you)\s*/i, "thank you ").replace(/^thank you\s+(?!for\b)/i, "thank you for ");
+      const showing = /\b(?:showing|tour|open house|visit)\b/i.test(r);
+      parts.push(sentence(toYou(r || "thank you")), showing ? "I'd love to hear what you thought of the home and what you'd like to see next." : "It was great working with you.");
+      break;
+    }
     default: parts.push(rest ? `I wanted to follow up about ${atWord(toYou(rest).replace(/[.!?]+$/, ""), 160)}.` : `I wanted to follow up${a ? ` about ${a}` : ""}.`, "Let me know a good time to talk.");
   }
   const core = parts.filter(Boolean).join(" ");

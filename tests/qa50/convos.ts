@@ -2,7 +2,7 @@
 // "expect" is a loose check on the LAST turn's reply (regex source) or on saved data ("events:n", "contacts:n", "tasks>=n").
 export interface Convo { id: string; turns: string[]; expect?: string[] }
 export const CONVOS: Convo[] = [
-  { id: "01 showing then move", turns: ["Showing at 1227 Main Street Gaithersburg MD tomorrow at 2pm with the Turners", "move it to 4", "make it saturday instead"], expect: ["Added", "Moved to Friday at 4", "Moved to Saturday"] },
+  { id: "01 showing then move", turns: ["Showing at 1227 Main Street Gaithersburg MD tomorrow at 2pm with the Turners", "move it to 4", "make it saturday instead"], expect: ["Added", "Moved to Friday, \\w+ \\d+ at 4", "Moved to Saturday"] },
   { id: "02 two bookings", turns: ["Lunch with Priya Wednesday at noon and a showing at 99 Oak Ave Germantown Thursday 5:30pm"], expect: ["events:2"] },
   { id: "03 open house", turns: ["Open house at 14 Chestnut Ln Bethesda MD 20814 this Sunday 1-3pm", "what did I just schedule?"], expect: ["prepared your open house", "14 Chestnut Lane"] },
   { id: "04 offer accepted", turns: ["Offer accepted on 7712 Old Georgetown Rd Bethesda, closing Nov 20, inspection in 10 days, financing contingency Nov 5"], expect: ["built the timeline"] },

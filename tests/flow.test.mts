@@ -50,7 +50,7 @@ test("open house end-to-end", async () => {
 
 test("moving the open house marks comms stale, then updates them", async () => {
   const o = await say("I moved the open house to Saturday at 2");
-  assert.match(o.milaMessage.content, /Moved to Saturday at 2:00 PM/);
+  assert.match(o.milaMessage.content, /Moved to Saturday, Oct \d+ at 2:00 PM/);
   const choice = blocks(o, "choice")[0];
   assert.match(choice.title, /mention Sunday/);
   const ev = (await store.list("calendar_events", p.id)).find((e) => e.kind === "open_house")!;
@@ -65,7 +65,7 @@ test("moving the open house marks comms stale, then updates them", async () => {
 
 test("a direct move command is done immediately, with an Undo", async () => {
   const o = await say("Move my showing at 123 Main Street to Friday at 3");
-  assert.match(o.milaMessage.content, /Moved to Friday at 3:00 PM/);
+  assert.match(o.milaMessage.content, /Moved to Friday, Oct \d+ at 3:00 PM/);
   const undo = blocks(o, "choice").find((b: any) => b.title === "Wrong?");
   assert.ok(undo, "offers undo");
   const back = await act(undo.buttons[0].action);
