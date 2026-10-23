@@ -45,4 +45,4 @@ A public question box that answers ONLY about Mila.
 iPhone Safari ignores `overflow-x: hidden` on body, so the tilted 3D card made the page pan sideways. Fixed with `overflow-x: clip` on html, body and the sections with transformed content. Always check scrollWidth equals the viewport at 320, 360, 390 and 430px.
 
 ## Launch time
-Countdown, emails and the assistant all use `NEXT_PUBLIC_LAUNCH_AT` (default Oct 23, 2026, 10:00 AM Eastern). If it is set in Vercel, update it there too.
+Countdown, emails and the assistant all use `NEXT_PUBLIC_LAUNCH_AT` (default Oct 23, 2026, 2:00 PM Eastern). If it is set in Vercel, update it there too.
