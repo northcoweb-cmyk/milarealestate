@@ -10,6 +10,7 @@ import { capitalisedNames, parseAddress, parseDate, parseTime, parseWhen, rollPa
 import { TOOLS, eventConflicts, freeSlots, invoke, logContactEvent, rebindApproval } from "../tools";
 import { type HandlerOut, reply } from "./types";
 import { askBack } from "./ask";
+import { setEventNotDone } from "../../event-outcome";
 import { resolveProperty } from "./listing";
 
 const KIND_WORDS: [RegExp, CalendarEvent["kind"]][] = [
@@ -830,4 +831,32 @@ export async function moveDayHandler(ctx: Ctx, text: string): Promise<HandlerOut
   if (!day.length) return reply(`You don't have anything on ${fmtDay(a, ctx.tz)}, so there is nothing to move.`, [], "smalltalk");
   const target = zonedToUtc(to.y, to.m, to.d, 12, 0, ctx.tz);
   return shiftEvents(ctx, day.map((e) => e.id), addDays(target, -1, ctx.tz).toISOString(), target);
+}
+
+/** "I didn't do the 2pm showing" crosses the check off; "mark it done" puts it back. Past items are shown as done by default. */
+export async function eventOutcomeHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  const t = text.toLowerCase();
+  const undo = /\b(?:did|actually did)\s+happen\b|\bas\s+done\b|\bmark\s+.+\s+done\b/.test(t) && !/\bnot done\b/.test(t);
+  const past = (await ctx.store.list("calendar_events", ctx.userId))
+    .filter((e) => e.status === "confirmed" && new Date(e.end_at).getTime() <= ctx.now.getTime() && new Date(e.end_at).getTime() > ctx.now.getTime() - 7 * 86_400_000)
+    .sort((a, b) => b.start_at.localeCompare(a.start_at));
+  if (!past.length) return reply("I don't see anything on your calendar that's already passed this week.", [], "smalltalk");
+  const kind = KIND_WORDS.find(([re]) => re.test(t))?.[1];
+  const tm = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/.exec(t);
+  const words = (t.match(/[a-z]{4,}/g) ?? []).filter((w) => !/^(?:didn|didnt|that|this|with|have|happen|take|place|mark|done|actually|skipped|never|went|ahead|through|today|yesterday|undone|again)$/.test(w));
+  const score = (e: CalendarEvent) => {
+    let n = 0;
+    if (kind && e.kind === kind) n += 2;
+    if (tm) { const p = partsIn(new Date(e.start_at), ctx.tz); let h = Number(tm[1]) % 12; if (tm[3] === "pm") h += 12; if (p.h === h && p.mi === Number(tm[2] ?? 0)) n += 3; }
+    const hay = `${e.title} ${e.location ?? ""}`.toLowerCase();
+    for (const w of words) if (hay.includes(w)) n += 1;
+    return n;
+  };
+  const ranked = past.map((e) => ({ e, s: score(e) })).sort((a, b) => b.s - a.s);
+  const best = ranked[0], tie = ranked[1] && ranked[1].s === best.s;
+  const todays = past.filter((e) => partsIn(new Date(e.start_at), ctx.tz).d === partsIn(ctx.now, ctx.tz).d);
+  const pick = best.s > 0 && !tie ? best.e : best.s === 0 && todays.length === 1 && !tie ? todays[0] : null;
+  if (!pick) return reply(`Which one? ${ranked.slice(0, 4).map((r) => `“${r.e.title}” (${fmtDayTime(new Date(r.e.start_at), ctx.tz)})`).join(", ")}.`, [], "smalltalk");
+  await setEventNotDone(ctx.store, ctx.userId, pick.id, !undo);
+  return reply(undo ? `Done. “${pick.title}” is checked off again.` : `Got it. “${pick.title}” is marked as didn't happen. Say “mark it done” to put the check back.`, [], "smalltalk");
 }

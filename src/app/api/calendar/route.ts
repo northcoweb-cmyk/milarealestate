@@ -4,6 +4,7 @@ import { getGoogle } from "@/lib/integrations/google";
 import { bad, readJson } from "@/lib/server/route";
 import { buildCtx } from "@/lib/agent/engine";
 import { TOOLS, eventConflicts } from "@/lib/agent/tools";
+import { notDoneIds } from "@/lib/event-outcome";
 import { editEventDirect } from "@/lib/agent/handlers/calendar";
 import type { CalendarEventKind } from "@/lib/types";
 
@@ -17,7 +18,8 @@ export const GET = api(async ({ profile, url }) => {
   const people = Object.fromEntries(contacts.filter((c) => ids.has(c.id)).map((c) => [c.id, { name: c.name, phone: c.phone, email: c.email, type: c.type }]));
   const places = Object.fromEntries(props.filter((p) => ids.has(p.id)).map((p) => [p.id, { address: p.address, city: p.city, state: p.state, list_price: p.list_price, beds: p.beds, baths: p.baths, sqft: p.sqft, verified: p.verified }]));
   const reminders = (await getStore().list("reminders", profile.id)).filter((r) => r.status === "pending" && (!from || r.remind_at >= from) && (!to || r.remind_at <= to)).sort((a, b) => a.remind_at.localeCompare(b.remind_at)).map((r) => ({ id: r.id, title: r.title, remind_at: r.remind_at, event_id: r.event_id }));
-  return { people, places, events, reminders, link: ics ? { connected: true, host: ics.account_label } : { connected: false }, google: g ? { connected: true, account: g.account_label, calendar: g.hasScope("calendar") } : { connected: false } };
+  const not_done = [...(await notDoneIds(getStore(), profile.id))].filter((id) => events.some((e) => e.id === id));
+  return { people, places, events, not_done, reminders, link: ics ? { connected: true, host: ics.account_label } : { connected: false }, google: g ? { connected: true, account: g.account_label, calendar: g.hasScope("calendar") } : { connected: false } };
 });
 
 const KINDS: CalendarEventKind[] = ["showing", "open_house", "call", "meeting", "lunch", "closing", "other"];

@@ -34,7 +34,7 @@ import { petCheckHandler, setPets } from "./handlers/pets";
 import { listingAgreementHandler, saveWorksheet, worksheetForm } from "./handlers/worksheet";
 import { saveAnswers } from "./handlers/contacts";
 import { ambiguousFirstName, askWhichPerson } from "./handlers/entity";
-import { moveDayHandler, agendaHandler, oooQueryHandler, oooEditHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, syncEventHandler, eventReminder, eventCard } from "./handlers/calendar";
+import { moveDayHandler, eventOutcomeHandler, agendaHandler, oooQueryHandler, oooEditHandler, applyMove, undoHandler, cancelEvent, cancelEventHandler, createEventHandler, findTimeForEvent, moveEventHandler, pickSlot, resolveConflict, resolveStale, timeOffHandler, shiftEvents, syncEventHandler, eventReminder, eventCard } from "./handlers/calendar";
 import { fmtDayTime } from "../time";
 import { rewritePostHandler, reviseDraftHandler, draftEmailHandler, socialPostHandler } from "./handlers/comms";
 import { emailAudienceHandler } from "./handlers/openhouse";
@@ -581,6 +581,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "past_client_note": return pastClientNoteHandler(ctx, text);
     case "refuse_injection": return refuseInjectionHandler(text);
     case "move_day": return moveDayHandler(ctx, text);
+    case "event_outcome": return eventOutcomeHandler(ctx, text);
     case "client_summary": {
       const people = await mentionedContacts(ctx, text);
       const c = people.length === 1 ? people[0] : !people.length && ctx.state.last_contact_ids?.[0] && /\b(them|him|her|they|this client|that client)\b/i.test(text) ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;

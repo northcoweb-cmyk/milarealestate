@@ -310,3 +310,18 @@ test("round 3 (doc G5b): 'no, keep her' after a delete preview declines it, and 
   assert.match(r.milaMessage.content, /I won't do that/);
   assert.equal((await store.list("contacts", a.id)).length, 1);
 });
+
+test("past calendar items count as done; 'I didn't do the 2pm showing' reverts it and 'mark it done' puts it back", async () => {
+  const { notDoneIds } = await import("../src/lib/event-outcome");
+  const a = await fresh();
+  const ev = (title: string, kind: string, start: string, end: string) => store.insert("calendar_events", a.id, { title, kind, start_at: start, end_at: end, status: "confirmed", source: "mila", location: null, notes: null, contact_id: null, property_id: null, external_id: null, synced_at: null });
+  const showing = await ev("Showing at 12 Oak Lane", "showing", "2026-10-22T14:00:00.000Z", "2026-10-22T15:00:00.000Z"); // 10am ET, already past at noon
+  await ev("Call Dana", "call", "2026-10-22T13:00:00.000Z", "2026-10-22T13:30:00.000Z");
+  assert.equal((await notDoneIds(store, a.id)).size, 0);
+  const r = await a.say("I didn't do the showing");
+  assert.match(r.milaMessage.content, /marked as didn't happen/);
+  assert.ok((await notDoneIds(store, a.id)).has((showing as any).id));
+  const r2 = await a.say("mark the showing as done");
+  assert.match(r2.milaMessage.content, /checked off again/);
+  assert.equal((await notDoneIds(store, a.id)).size, 0);
+});

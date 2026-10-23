@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, Plus } from "lucide-react";
+import { Check, CalendarPlus, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, Plus } from "lucide-react";
 import type { CalendarEvent } from "@/lib/types";
 import { Empty, PageHeader, Sheet, Skeleton, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
@@ -19,7 +19,7 @@ import { firstNameOf } from "../../../lib/names";
 
 interface Person { name: string; phone: string | null; email: string | null; type: string }
 interface Place { address: string; city: string | null; state: string | null; list_price: number | null; beds: number | null; baths: number | null; sqft: number | null; verified: boolean }
-interface Data { reminders?: { id: string; title: string; remind_at: string; event_id: string | null }[]; people: Record<string, Person>; places: Record<string, Place>; events: CalendarEvent[]; google: { connected: boolean; account?: string | null; calendar?: boolean }; link?: { connected: boolean; host?: string | null } }
+interface Data { reminders?: { id: string; title: string; remind_at: string; event_id: string | null }[]; people: Record<string, Person>; places: Record<string, Place>; events: CalendarEvent[]; not_done?: string[]; google: { connected: boolean; account?: string | null; calendar?: boolean }; link?: { connected: boolean; host?: string | null } }
 const KIND_COLOR: Record<string, string> = { open_house: "#111111", showing: "#444447", call: "#6e6e73", lunch: "#8e8e93", closing: "#111111", meeting: "#5a5a5e", other: "#a1a1a6" };
 
 export default function CalendarPage() {
@@ -47,6 +47,12 @@ export default function CalendarPage() {
   const selDate = days[Math.min(selDay, daysInMonth) - 1];
   const dayEvents = byDay.get(key(selDate)) ?? [];
   const dayReminders = (data?.reminders ?? []).filter((r) => key(new Date(r.remind_at)) === key(selDate));
+  const notDone = new Set(data?.not_done ?? []);
+  const isPast = (e: CalendarEvent) => new Date(e.end_at).getTime() <= Date.now();
+  const setOutcome = async (e: CalendarEvent, done: boolean) => {
+    try { await jfetch("/api/calendar/outcome", { method: "POST", json: { id: e.id, done } }); toast(done ? "Marked done." : "Okay, marked as didn't happen.", "success"); reload(); }
+    catch (err: any) { toast(err?.message ?? "Couldn't update it.", "error"); }
+  };
   const overlaps = (e: CalendarEvent) => dayEvents.some((o) => o.id !== e.id && new Date(o.start_at) < new Date(e.end_at) && new Date(e.start_at) < new Date(o.end_at));
 
   const isToday = isNow && selDay === nowParts.d, isTomorrow = isNow && selDay === nowParts.d + 1;
@@ -84,13 +90,17 @@ export default function CalendarPage() {
             ) : <button onClick={() => setOpenEv(e)} className="glass flex w-full gap-4 p-4 text-left" style={{ borderRadius: 24 }}>
               <div className="w-[84px] shrink-0 whitespace-nowrap"><p className="font-semibold leading-tight">{fmtTime(e.start_at, tz)}</p><p className="faint mt-0.5 text-[12.5px]">{Math.round((new Date(e.end_at).getTime() - new Date(e.start_at).getTime()) / 60000)} min</p></div>
               <div className="min-w-0 flex-1 border-l-[3px] pl-4" style={{ borderColor: KIND_COLOR[e.kind] ?? KIND_COLOR.other }}>
-                <p className="font-semibold leading-snug"><span aria-hidden>{eventEmoji(e.kind)} </span>{e.title}</p>
+                <p className="font-semibold leading-snug" style={isPast(e) && !notDone.has(e.id) ? { textDecoration: "line-through", opacity: 0.7 } : undefined}><span aria-hidden>{eventEmoji(e.kind)} </span>{e.title}</p>
                 {e.location && <p className="faint truncate text-[13.5px]">{e.location}</p>}
                 <p className="faint mt-1 text-[12px]">{syncLabel(e, { googleCalendar: !!data?.google.calendar }).text}</p>
                 {overlaps(e) && <p className="mt-1 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Overlaps another event</p>}
               </div>
               <ChevronRight size={18} className="mt-1 shrink-0 text-ink-faint" aria-hidden />
-            </button>}</li>
+            </button>}
+            {isPast(e) && (notDone.has(e.id)
+              ? <p className="mt-1.5 flex items-center gap-2 px-2 text-[13px] font-semibold" style={{ color: "var(--warn)" }}>Didn't happen<button className="chip !min-h-[30px] text-[12.5px]" onClick={() => setOutcome(e, true)}>Mark done</button></p>
+              : <p className="mt-1.5 flex items-center gap-2 px-2 text-[13px] font-semibold" style={{ color: "var(--ok, #1f9d55)" }}><Check size={15} aria-hidden />Done<button className="chip !min-h-[30px] text-[12.5px]" onClick={() => setOutcome(e, false)}>Didn't happen</button></p>)}
+            </li>
           ))}
         </ul>
       ) : <Empty title="Nothing scheduled" body="Add an event, or just tell Mila: “Schedule a showing Friday at 3.”" />}
