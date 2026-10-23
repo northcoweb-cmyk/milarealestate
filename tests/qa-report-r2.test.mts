@@ -145,3 +145,26 @@ test("round 3: re-adding a set-aside contact brings them back and saves the phon
   assert.equal(c.status, "new");
   assert.match(String(c.phone), /555-0190/);
 });
+
+test("round 3: 'her' after a note is the same person; showings next week; who haven't I talked to; status of a home", async () => {
+  const a = await fresh();
+  await C(a, "QA TEST Dana Whitfield", { last_contact_at: "2026-10-20T15:00:00Z" }); await C(a, "QA TEST Kevin Moore", { last_contact_at: "2026-09-30T15:00:00Z" });
+  await store.insert("properties", a.id, { address: "22 Birch Lane", city: "Gaithersburg", state: "MD", zip: "20877", list_price: 625000, beds: 4, baths: 3, sqft: 2400, verified: true });
+  await a.say("Add a note to Dana: loves the backyard");
+  await a.say("Actually bump her budget to 600k");
+  assert.equal((await store.list("contacts", a.id)).find((c: any) => /Dana/.test(c.name)).budget_max, 600000);
+  const w = await a.say("Who haven't I talked to in a while?");
+  assert.match(w.milaMessage.content, /Kevin Moore: \d+ days ago[\s\S]*Dana Whitfield/);
+  await a.say("Showing at 11 QA Test Way, Rockville MD Tuesday at 11am");
+  const s = await a.say("Do I have any showings next week?");
+  assert.match(s.milaMessage.content, /Tuesday/);
+  const st = await a.say("What's the status of 22 Birch Lane?");
+  assert.match(st.milaMessage.content, /22 Birch Lane is /);
+});
+
+test("round 3: 'sign it X' closes the email and is not read as the recipient", async () => {
+  const a = await fresh();
+  await C(a, "QA TEST Dana Whitfield", { email: "d@example.com" });
+  const r = await a.say("Draft an email to Dana thanking her for the showing, under 50 words, sign it QA TEST Agent");
+  assert.match(r.milaMessage.content, /draft for Dana/);
+});

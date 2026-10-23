@@ -262,6 +262,9 @@ export async function socialPostHandler(ctx: Ctx, text: string): Promise<Handler
 }
 
 export async function draftEmailHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
+  // "…, sign it QA TEST Agent": the name the agent asked for closes the email, and it is not a recipient
+  const signAs = /[,.;]?\s*\bsign(?:ed)?(?:\s+(?:it|this|the (?:email|message)|off))?(?:\s+(?:as|with|off as))?\s+([^,.;]{2,60}?)\s*[.!]?\s*$/i.exec(text)?.[1]?.trim();
+  if (signAs) { text = text.replace(/[,.;]?\s*\bsign(?:ed)?(?:\s+(?:it|this|the (?:email|message)|off))?(?:\s+(?:as|with|off as))?\s+[^,.;]{2,60}?\s*[.!]?\s*$/i, "").trim(); ctx = { ...ctx, profile: { ...ctx.profile, full_name: signAs } }; }
   text = text.replace(/^\s*(?:(?:yah|yeah|yep|yes|ok|okay|sure|and|then|go ahead)[,.!\s]+)+/i, "");
   const addrIn = parseAddress(text);
   const typedEmail = /[\w.+-]+@[\w-]+\.[\w.-]+/.exec(text)?.[0] ?? null;

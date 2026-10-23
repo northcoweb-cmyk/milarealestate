@@ -6,6 +6,8 @@ const KIND: Record<LiveEvent["kind"], { icon: string; text: (e: LiveEvent) => st
   signup: { icon: "", text: (e) => `${e.who} created an account`, color: "#6ea8ff" },
   setup: { icon: "", text: (e) => `${e.who} finished setup`, color: "#4fd1a1" },
   first_message: { icon: "", text: (e) => `${e.who} sent Mila their first message`, color: "#a78bfa" },
+  queued: { icon: "", text: (e) => `${e.who} joined the queue`, color: "#8b93b8" },
+  granted: { icon: "", text: (e) => `${e.who} was granted access${e.detail ? ` · ${e.detail}` : ""}`, color: "#4fd1a1" },
   paid: { icon: "", text: (e) => `${e.who} subscribed${e.detail ? ` · ${e.detail}` : ""}`, color: "#f5a97f" },
 };
 
@@ -73,7 +75,7 @@ export function LiveBoard() {
         <section className="cols">
           <div className="panel feed"><h2>Activity</h2>
             {d.events.length === 0 && <p className="lmute sm">Waiting for the first account…</p>}
-            <ul>{d.events.slice(0, 8).map((e) => { const k = KIND[e.kind]; return (
+            <ul>{d.events.slice(0, 10).map((e) => { const k = KIND[e.kind]; return (
               <li key={e.id} className={fresh.has(e.id) ? "ev new" : "ev"} style={{ ["--c" as string]: k.color }}><i className="pip" /><span className="tx">{k.text(e)}</span><span className="tm">{when(e.at, tick)}</span></li>
             ); })}</ul>
           </div>

@@ -7,14 +7,17 @@ import { fmtDayTime, startOfDay } from "../../time";
 import { parseMoney } from "../nlu";
 import { type HandlerOut, reply } from "./types";
 
-export type BasicsKind = "count_contacts" | "count_properties" | "next_open_house" | "next_showing" | "tasks_today" | "percent_of" | "chat_recap";
+export type BasicsKind = "count_contacts" | "count_properties" | "next_open_house" | "next_showing" | "showings_range" | "stale_contacts" | "status_of" | "tasks_today" | "percent_of" | "chat_recap";
 
 export function basicsKind(text: string): BasicsKind | null {
   const t = text.toLowerCase().trim();
   if (/^\s*(?:what(?:'s| is)|how much is|calculate|whats)\s+\d+(?:\.\d+)?\s?%\s+of\s+\$?\d/.test(t)) return "percent_of";
   if (/\bhow many (?:contacts|clients|buyers|sellers|leads|people)\b.{0,25}\b(?:do i have|are there|have i got|in my)\b|\bhow many (?:contacts|clients|buyers|sellers|leads) do i\b/.test(t)) return "count_contacts";
-  if (/\bhow many (?:properties|listings|homes|houses)\b/.test(t)) return "count_properties";
+  if (/\bhow many (?:(?:active|live|current|upcoming|sold|pending)\s+)?(?:properties|listings|homes|houses)\b/.test(t)) return "count_properties";
   if (/\b(?:what(?:'s| is)|when(?:'s| is)|show me) (?:my )?next open house\b/.test(t)) return "next_open_house";
+  if (/\b(?:any|which|what|how many|show me|list)\b.{0,25}\bshowings?\b.{0,25}\b(?:next week|this week|tomorrow|today)\b|\bshowings?\b.{0,12}\b(?:next week|this week)\b/.test(t)) return "showings_range";
+  if (/\bwho (?:haven'?t|have not|hasn'?t) i (?:talked|spoken|reached|been in touch|contacted|heard)\b|\bwho (?:have i )?(?:not|n'?t) (?:talked|spoken|contacted)\b|\bhaven'?t (?:talked|spoken|contacted|reached out)\b.{0,30}\b(?:in a while|lately|recently|in weeks)\b|\blong time since\b.{0,20}\b(?:talked|spoke|contact)/.test(t)) return "stale_contacts";
+  if (/\b(?:what(?:'s| is)|whats) the status of\b|\bis\b.{3,40}\bstill (?:available|on the market|active|for sale)\b/.test(t)) return "status_of";
   if (/\b(?:what(?:'s| is)|when(?:'s| is)) (?:my )?next showing\b/.test(t)) return "next_showing";
   if (/\bwhat (?:are|is) (?:on )?my (?:tasks?|to-?dos?|to do list)(?: (?:for )?today)?\b|\bwhat do i have to do today\b|\bmy tasks (?:for )?today\b/.test(t)) return "tasks_today";
   if (/\bwhat did (?:we|i) (?:talk|chat|discuss|say)\b.{0,30}\b(?:chat|conversation|so far|today)\b|\brecap (?:this|our) (?:chat|conversation)\b/.test(t)) return "chat_recap";
@@ -38,6 +41,14 @@ export async function basicsHandler(ctx: Ctx, text: string): Promise<HandlerOut>
     }
     case "count_properties": {
       const all = await ctx.store.list("properties", ctx.userId);
+      const want = /\b(active|live|current)\b/i.test(text) ? "active" : /\bupcoming\b/i.test(text) ? "upcoming" : /\bsold\b/i.test(text) ? "sold" : /\b(?:pending|under contract)\b/i.test(text) ? "under_contract" : null;
+      if (want) {
+        const { buildCard } = await import("../../property-stage");
+        const mems = await ctx.store.list("memories", ctx.userId), evs = await ctx.store.list("calendar_events", ctx.userId);
+        const hit = all.filter((p) => buildCard(p, mems, evs, [], ctx.now).stage === want);
+        const word = want === "under_contract" ? "under contract" : want === "active" ? "live on the market" : want;
+        return reply(`${hit.length} of your ${all.length} propert${all.length === 1 ? "y is" : "ies are"} ${word}${hit.length ? `: ${hit.slice(0, 6).map((p) => p.address).join(", ")}` : ""}.`, [], "chat_simple");
+      }
       return reply(`You have ${all.length} propert${all.length === 1 ? "y" : "ies"} saved.`, [], "chat_simple");
     }
     case "next_open_house":
@@ -45,6 +56,34 @@ export async function basicsHandler(ctx: Ctx, text: string): Promise<HandlerOut>
       const evs = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime() && (kind === "next_open_house" ? e.kind === "open_house" : e.kind === "showing")).sort((a, b) => a.start_at.localeCompare(b.start_at));
       const e = evs[0];
       return reply(e ? `Your next ${kind === "next_open_house" ? "open house" : "showing"}: ${e.title.split(" — ").pop()}, ${fmtDayTime(e.start_at, ctx.tz)}${new Date(e.end_at).getTime() - new Date(e.start_at).getTime() > 0 ? ` to ${new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, hour: "numeric", minute: "2-digit" }).format(new Date(e.end_at))}` : ""}.` : `You don't have a ${kind === "next_open_house" ? "open house" : "showing"} on the calendar yet.`, [], "chat_simple");
+    }
+    case "showings_range": {
+      const t = text.toLowerCase();
+      const dow = Number(new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, weekday: "narrow" }).format(ctx.now) && ({ Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as Record<string, number>)[new Intl.DateTimeFormat("en-US", { timeZone: ctx.tz, weekday: "short" }).format(ctx.now)]);
+      const day0 = startOfDay(ctx.now, ctx.tz).getTime();
+      let from = day0, to = day0 + 86_400_000, label = "today";
+      if (/tomorrow/.test(t)) { from = day0 + 86_400_000; to = from + 86_400_000; label = "tomorrow"; }
+      else if (/next week/.test(t)) { from = day0 + (((8 - dow) % 7) || 7) * 86_400_000; to = from + 7 * 86_400_000; label = "next week"; }
+      else if (/this week/.test(t)) { to = day0 + (((8 - dow) % 7) || 7) * 86_400_000; label = "this week"; }
+      const evs = (await ctx.store.list("calendar_events", ctx.userId)).filter((e) => e.status === "confirmed" && e.kind === "showing" && new Date(e.start_at).getTime() >= from && new Date(e.start_at).getTime() < to).sort((a, b) => a.start_at.localeCompare(b.start_at));
+      return reply(evs.length ? `${evs.length === 1 ? "One showing" : `${evs.length} showings`} ${label}:\n${evs.map((e) => `• ${fmtDayTime(e.start_at, ctx.tz)}: ${e.title.split(" — ").pop()}`).join("\n")}` : `You don't have any showings ${label}.`, [], "chat_simple");
+    }
+    case "stale_contacts": {
+      const all = (await ctx.store.list("contacts", ctx.userId)).filter((c) => c.status !== "inactive" && c.status !== "closed");
+      const days = (c: { last_contact_at: string | null }) => (c.last_contact_at ? Math.floor((ctx.now.getTime() - new Date(c.last_contact_at).getTime()) / 86_400_000) : null);
+      const ranked = all.map((c) => ({ c, d: days(c) })).sort((a, b) => (b.d ?? 9999) - (a.d ?? 9999)).slice(0, 8);
+      if (!ranked.length) return reply("You don't have any contacts saved yet.", [], "chat_simple");
+      return reply(`The people you've gone longest without talking to:\n${ranked.map(({ c, d }) => `• ${c.name}: ${d === null ? "no contact logged yet" : d === 0 ? "today" : `${d} day${d === 1 ? "" : "s"} ago`}`).join("\n")}\nWant me to draft a check-in for any of them?`, [], "chat_simple");
+    }
+    case "status_of": {
+      const { resolveProperty } = await import("./listing");
+      const { buildCard } = await import("../../property-stage");
+      const p = await resolveProperty(ctx, text, true).catch(() => null);
+      if (!p) return reply("Which home? Give me the address and I'll tell you where it stands.", [], "chat_simple");
+      const mems = await ctx.store.list("memories", ctx.userId), evs = await ctx.store.list("calendar_events", ctx.userId);
+      const card = buildCard(p, mems, evs, [], ctx.now);
+      const closing = evs.filter((e) => e.status === "confirmed" && /closing/i.test(e.title) && e.title.toLowerCase().includes(p.address.toLowerCase())).sort((a, b) => a.start_at.localeCompare(b.start_at))[0];
+      return reply(`${p.address} is ${card.stage_label.toLowerCase()}${p.list_price ? ` (listed at ${fullMoney(p.list_price)})` : ""}${closing ? `, closing ${fmtDayTime(closing.start_at, ctx.tz)}` : ""}.${card.stage === "under_contract" ? " An offer has been accepted, so it isn't available." : ""}`, [], "chat_simple");
     }
     case "tasks_today": {
       const end = new Date(startOfDay(ctx.now, ctx.tz).getTime() + 86_400_000);

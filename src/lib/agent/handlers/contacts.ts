@@ -365,7 +365,9 @@ export { pickColor, fmtDayTime };
 /** "Update Ana's phone to 512-555-0299": change one saved field, say what it was, and read it back. */
 export async function contactFieldUpdateHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const field = /\b(phone|number|cell|mobile|email|e-?mail|budget|location|area|city)\b/i.exec(text)?.[1]?.toLowerCase() ?? "";
-  const found = await mentionedContacts(ctx, text);
+  let found = await mentionedContacts(ctx, text);
+  // "bump her budget to 600k": her/his/their is the person we were just talking about
+  if (!found.length && /\b(?:her|his|their)\b/i.test(text) && ctx.state.last_contact_ids?.length === 1) { const c0 = await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]); if (c0) found = [c0]; }
   if (found.length !== 1) return reply(found.length ? `Which one: ${found.slice(0, 4).map((c) => c.name).join(", ")}?` : "Which contact is that for? Tell me their name.", [], "smalltalk");
   const c = found[0];
   let patch: Partial<Contact> | null = null, shown = "", was = "";
