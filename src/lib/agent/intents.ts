@@ -71,6 +71,8 @@ export function detectIntent(raw: string, hasAttachments = false): Detected {
   const t = raw.toLowerCase().trim();
   if (!t && hasAttachments) return { intent: "signin_paste" };
   if (/^(help|help me|what can you do|what do you do|what can i ask( you)?|how does this work|how do i use (this|you))[\s?!.]*$/.test(t)) return { intent: "smalltalk" };
+  if (/^(?:ok(?:ay)?[,.\s]+)?(?:never ?mind|nvm|nm|forget (?:it|that)|scratch that|disregard(?: that)?|ignore that|drop it|skip it|no thanks?)[\s!.]*$/.test(t)) return { intent: "smalltalk" };
+  if (/^who (?:is|was|are) (?:the|a|an)\s/.test(t) && !/\b(?:buyer|seller|client|lead|contact|agent|broker|my)\b/.test(t)) return { intent: "general" };
   if (/^(hi|hello|hey|yo|good (morning|afternoon|evening)|thanks|thank you|thx|ok|okay|cool|great|got it)[\s!.,]*(mila)?[\s!.]*$/.test(t)) return { intent: "smalltalk" };
   if (vagueBulk(t)) return { intent: "vague_bulk" }; // "send this to everyone now": no audience and no content yet, so ask before anything is drafted
   if (unsureWho(t)) return { intent: "unsure_who" }; // "priya or dana, I forget": ask which one before anything is written

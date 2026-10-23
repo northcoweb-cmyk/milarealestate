@@ -77,3 +77,12 @@ test("launch-eve: a question about what to SAY on HOA is not answered with 'I do
   const r = await a.say("what is a good response when a buyer asks about HOA");
   assert.doesNotMatch(r.milaMessage.content, /don't have that figure/);
 });
+
+test("launch-eve: 'never mind' / 'nvm' is a free, calm cancel", async () => {
+  const a = await fresh();
+  const r = await a.say("never mind");
+  assert.match(r.milaMessage.content, /No problem/);
+  assert.doesNotMatch(r.milaMessage.content, /not sure how/);
+  const r2 = await a.say("nvm");
+  assert.match(r2.milaMessage.content, /No problem/);
+});

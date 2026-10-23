@@ -614,6 +614,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
 
 function smalltalk(ctx: Ctx, text: string): HandlerOut {
   if (/^(?:(?:please|pls|hey|ok|okay|actually|wait)[,\s]+)*(?:do ?n['’]?t|do not|never|no need to|stop)\s+(?:put|add|schedule|book|create|set up)\b/i.test(text)) return reply("Okay, I won't add that. Nothing was changed.", [], "smalltalk");
+  if (/^(?:ok(?:ay)?[,.\s]+)?(?:never ?mind|nvm|nm|forget (?:it|that)|scratch that|disregard|ignore that|drop it|skip it|no thanks?)/i.test(text.trim())) { ctx.state.pending = null; return reply("No problem. Nothing was changed.", [], "smalltalk"); }
   if (/thank|thx/i.test(text)) return reply("Anytime.", [], "smalltalk");
   if (/^(ok|okay|cool|great|got it)/i.test(text)) return reply("👍", [], "smalltalk");
   return reply(`${greetingFor(ctx.now, ctx.tz, ctx.profile.full_name)} What do you need to get done?`, [], "smalltalk");
