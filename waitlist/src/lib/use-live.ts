@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 
 export const APP_URL = "https://app.milarealestate.app/welcome";
-const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T14:00:00-04:00";
+const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T14:30:00-04:00";
 
 /** False until the launch moment (and on the server); flips by itself when the time passes, no refresh needed. */
 export function useLive(): boolean {

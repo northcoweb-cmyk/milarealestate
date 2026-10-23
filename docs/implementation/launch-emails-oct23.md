@@ -42,6 +42,6 @@ The Mila team
 Mila opens Friday, October 23 at 10 AM ET. Join the waitlist: milarealestate.app
 
 ## Env vars to check in Vercel (override the code defaults)
-- Main app project: `ACCESS_CODE_OFF_AT` (delete it, or set `2026-10-23T14:00:00-04:00`). If it still says Oct 20, sign-up opens tomorrow at 8 AM.
-- Waitlist project: `NEXT_PUBLIC_LAUNCH_AT` = `2026-10-23T14:00:00-04:00`
-- Mila OS project: `LAUNCH_AT` = `2026-10-23T14:00:00-04:00` and `LAUNCH_DATE` = `2026-10-23`
+- Main app project: `ACCESS_CODE_OFF_AT` (delete it, or set `2026-10-23T14:30:00-04:00`). If it still says Oct 20, sign-up opens tomorrow at 8 AM.
+- Waitlist project: `NEXT_PUBLIC_LAUNCH_AT` = `2026-10-23T14:30:00-04:00`
+- Mila OS project: `LAUNCH_AT` = `2026-10-23T14:30:00-04:00` and `LAUNCH_DATE` = `2026-10-23`

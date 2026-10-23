@@ -14,7 +14,7 @@ import { HeroParallax } from "@/components/hero-parallax";
 import { TryMila } from "@/components/try-mila";
 import { Faq } from "@/components/faq";
 
-const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T14:00:00-04:00";
+const LAUNCH_AT = process.env.NEXT_PUBLIC_LAUNCH_AT || "2026-10-23T14:30:00-04:00";
 
 const PLANS = [
   { name: "Mila", price: "$39", per: "/month", blurb: "For the agent who wants their day handled.", hot: true, cta: "join", points: ["Calendar, follow-ups, posts and emails", "Listing and open house posts with your photos", "Market and property research", "Monthly credits included", "7-day free trial, cancel any time"] },

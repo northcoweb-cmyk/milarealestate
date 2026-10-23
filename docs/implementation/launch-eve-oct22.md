@@ -7,7 +7,7 @@
 ## Owner checklist (nothing here can be done from code)
 1. **Google Cloud billing upgrade** (Street View, address search, geocoding) before 10 AM. Images come back on their own.
 2. **OpenAI credits + a spend limit.** Without them every research or "ask anything" reply fails.
-3. **Vercel env, all three projects (app, waitlist, Mila OS):** `ACCESS_CODE_OFF_AT=2026-10-23T14:00:00-04:00`, `NEXT_PUBLIC_LAUNCH_AT=2026-10-23T14:00:00-04:00` (waitlist). Redeploy after saving. Access code 3725 still works until 8 AM.
+3. **Vercel env, all three projects (app, waitlist, Mila OS):** `ACCESS_CODE_OFF_AT=2026-10-23T14:30:00-04:00`, `NEXT_PUBLIC_LAUNCH_AT=2026-10-23T14:30:00-04:00` (waitlist). Redeploy after saving. Access code 3725 still works until 8 AM.
 4. **App env present:** `RESEND_API_KEY`, `STRIPE_SECRET_KEY` + price IDs, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `GOOGLE_MAPS_API_KEY`, Supabase URL/anon/service keys.
 5. **Supabase** project running (not paused), migrations 0009 and 0013 applied.
 6. **Stripe:** live mode, webhook pointing at the app, one real $39 test purchase refunded afterwards (credits must appear instantly).
