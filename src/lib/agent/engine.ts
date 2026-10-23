@@ -14,7 +14,7 @@ import { InsufficientCredits, TrialEnded, creditCost, creditsForAiCost, ensureCr
 import { aiAvailable } from "../ai/provider";
 import type { ActionButton, Block, PendingQuestion, CalendarEvent, Conversation, DocumentRow, Message, Profile } from "../types";
 import { greetingFor } from "./debrief";
-import { type Ctx, firstName, plural } from "./context";
+import { type Ctx, firstName, fullMoney, plural } from "./context";
 import { appendMila, persistState } from "./conversation";
 import { type Intent, detectIntent, fixTypos } from "./intents";
 import { llmChat, llmClassify } from "./llm";
@@ -124,7 +124,7 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
     if (e instanceof TrialEnded) {
       out = reply("Your 7-day trial has ended. Pick a plan to keep going — everything you built is saved and waiting.", [{ type: "notice", tone: "info", title: "Trial ended", body: "Your listings, contacts, tasks and drafts are all still here. A plan turns Mila back on.", buttons: [{ label: "Choose a plan", style: "primary", href: "/settings/credits" }] }], "smalltalk");
     } else if (e instanceof InsufficientCredits) {
-      out = reply("You've used all your Mila credits for this period.", [{ type: "notice", tone: "warn", title: "Out of credits", body: "Add more credits to keep going. Nothing you already have is lost.", buttons: [{ label: "Add credits", style: "primary", href: "/settings/credits" }] }], "smalltalk");
+      out = reply(e.balance > 0 ? `That needs about ${e.needed} credits and you have ${e.balance} left.` : "You've used all your Mila credits for this period.", [{ type: "notice", tone: "warn", title: e.balance > 0 ? "Not enough credits for that" : "Out of credits", body: e.balance > 0 ? `You have ${e.balance} credit${e.balance === 1 ? "" : "s"}; this one needs about ${e.needed}. Add credits to run it. Shorter requests still work, and nothing you already have is lost.` : "Add more credits to keep going. Nothing you already have is lost.", buttons: [{ label: "Add credits", style: "primary", href: "/settings/credits" }] }], "smalltalk");
     } else {
       console.error("[mila] turn failed", e);
       await logError({ source: "agent", message: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack ?? null : null, route: `chat: ${text.slice(0, 120)}`, userId: profile.id, email: profile.email });
@@ -142,7 +142,7 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   const key = out.creditKey ?? (intent === "smalltalk" ? "smalltalk" : "chat_simple");
   // a short answer costs the normal amount; a big conversation that used more AI costs more credits, so heavy use is paid for fairly
   const base = await creditCost(key), byCost = creditsForAiCost(takeTurnAiCost(ctx.userId), await usdPerCredit(ctx.userId));
-  const rec = await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: key === "fallback" ? 0 : ctx.state.pending?.kind === "clarify" && base > 1 ? Math.max(1, Math.min(byCost, 2)) : Math.max(base, byCost) }); // AI work is always paid for; a question asked back with nothing delivered costs at most a couple of credits
+  const rec = await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: Math.min(out.maxCredits ?? Infinity, key === "fallback" ? 0 : ctx.state.pending?.kind === "clarify" && base > 1 ? Math.max(1, Math.min(byCost, 2)) : Math.max(base, byCost)) }); // AI work is always paid for; a question asked back with nothing delivered costs at most a couple of credits
   // a heavy turn (comps, research) says what it cost, so a big charge is never a surprise
   if (rec.credits >= 40) out = { ...out, text: `${out.text}\n\nThis used ${rec.credits} credits: research and comps cost more than a normal reply.` };
   if (limited === "user_month" || limited === "user_day") await exhaustTrialCredits(ctx.userId); // a trial that hit its allowance is out of credits too
@@ -665,9 +665,15 @@ async function marketHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   const location = loc || ctx.profile.primary_market || ctx.profile.location;
   if (!location) return reply("Which market should I look at?");
   ctx.steps.push("Searching current market data");
-  const r = await marketResearch(ctx, location, text);
+  // a CMA / price question about a home already saved: the research gets that home's own facts, so it never has to ask for a city, ZIP or size Mila already has
+  const subject = /\b(?:cma|comparative market analysis|comps?|worth|value|price)\b/i.test(text) && parseAddress(text) ? await (async () => { const { resolveProperty } = await import("./handlers/listing"); return resolveProperty(ctx, text, true).catch(() => null); })() : null;
+  const askText = subject ? `${text}\nProperty on file: ${[subject.address, subject.city, [subject.state, subject.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}${subject.beds ? `; ${subject.beds} bed` : ""}${subject.baths ? `, ${subject.baths} bath` : ""}${subject.sqft ? `, ${subject.sqft.toLocaleString("en-US")} sq ft` : ""}${subject.list_price ? `; listed at ${fullMoney(subject.list_price)}` : ""}. Use these facts. If the address can't be verified in public sources, still give a comparable-sales price range for similar homes in the area, clearly labeled as an estimate, and never ask for details already given.` : text;
+  const r = await marketResearch(ctx, subject?.city && subject?.state ? `${subject.city}, ${subject.state}` : location, askText);
   if ("error" in r) return reply("I can't give you live market numbers right now.", [{ type: "notice", tone: "warn", title: "Live data isn't available", body: r.error, buttons: r.connect ? [{ label: "See connections", style: "secondary", href: "/settings/connections" }] : undefined }], "fallback");
-  return reply(r.cached ? "Here's the latest I pulled (cached for a few hours)." : "Here's what I found.", [r.block], r.cached ? "chat_simple" : "smalltalk");
+  const out = reply(r.cached ? "Here's the latest I pulled (cached for a few hours)." : "Here's what I found.", [r.block], r.cached ? "chat_simple" : "smalltalk");
+  // research that could not verify the home and produced no numbers for it is not charged like a finished report
+  if (/could not verify|couldn.t verify|unable to verify|not able to verify|no (?:comparable|comps)/i.test(JSON.stringify(r.block))) out.maxCredits = 3;
+  return out;
 }
 
 /** A long how-to or script answer becomes a tidy card (one step per row, copy button) instead of a wall of text. */

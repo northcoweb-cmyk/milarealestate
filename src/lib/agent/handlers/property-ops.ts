@@ -180,10 +180,21 @@ export async function describeHomeHandler(ctx: Ctx, text: string): Promise<Handl
     if (all.length === 1) prop = all[0];
     else return reply(all.length ? `Which home? ${all.slice(0, 4).map((p) => p.address).join(", ")}…` : "Which home should I describe? Give me the address and what you know about it.", [], "smalltalk");
   }
+  // facts the agent gives in the request itself (beds, baths, size, price, the kind of home, features) are used and kept on the home
+  { const stated = extractListingFacts(text); const patch: Record<string, unknown> = {};
+    for (const k of ["list_price", "beds", "baths", "sqft"] as const) if (stated[k] != null && stated[k] !== prop[k]) patch[k] = stated[k];
+    if (Object.keys(patch).length) prop = (await ctx.store.update("properties", ctx.userId, prop.id, { ...patch, verified: true } as never)) ?? prop;
+    const FEATURES: [RegExp, (m: RegExpExecArray) => string][] = [
+      [/\b(finished|walk-?out|fully finished) basement\b/i, (m) => `${m[1].toLowerCase()} basement`], [/\b(?:new|updated|replaced)\s+roof(?:\s+(?:in|from)\s+(\d{4}))?|roof\s+(?:replaced|updated|new)\s*(?:in\s+)?(\d{4})?/i, (m) => `new roof${m[1] || m[2] ? ` (${m[1] || m[2]})` : ""}`],
+      [/\b(?:updated|renovated|remodeled|new)\s+kitchen\b/i, () => "updated kitchen"], [/\b(hardwood floors?|granite counters?|quartz counters?|stainless (?:steel )?appliances|fenced (?:in )?yard|fireplace|new (?:hvac|furnace|windows|siding|carpet)|2[- ]car garage|garage|deck|patio|pool|solar panels?|open floor plan|vaulted ceilings?|central air|in-?unit laundry|walk-?in closet)\b/i, (m) => m[1].toLowerCase()],
+    ];
+    const found = FEATURES.map(([re, fn]) => { const m = re.exec(text); return m ? fn(m) : null; }).filter(Boolean) as string[];
+    if (found.length) await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Note features", value: [...new Set(found)].join("; "), source: "user_stated" }); }
+  const kindWord = /\b(townhouse|townhome|condo(?:minium)?|single[- ]family|duplex|rancher|colonial|split[- ]level|co-?op)\b/i.exec(text)?.[1]?.toLowerCase().replace(/^townhome$/, "townhouse");
   const notes = (await ctx.store.list("memories", ctx.userId)).filter((m) => m.scope === "property" && m.subject_id === prop!.id && /^Note\b/.test(m.key)).map((m) => m.value).slice(0, 4);
   const bits = [prop.beds != null && `${prop.beds} bedroom${prop.beds === 1 ? "" : "s"}`, prop.baths != null && `${prop.baths} bath${prop.baths === 1 ? "" : "s"}`, prop.sqft != null && `about ${prop.sqft.toLocaleString("en-US")} square feet`].filter(Boolean) as string[];
   const place = [prop.city, prop.state].filter(Boolean).join(", ");
-  const desc = `${prop.address}${place ? `, ${place}` : ""}. ${bits.length ? `This home offers ${bits.join(", ")}.` : "Details to be added."}${prop.list_price ? ` Offered at ${fullMoney(prop.list_price)}.` : ""}${notes.length ? ` ${notes.map((n) => n.replace(/[.!\s]+$/, "") + ".").join(" ")}` : ""} Schedule a showing to see it in person.`;
+  const desc = `${prop.address}${place ? `, ${place}` : ""}. ${bits.length ? `This ${kindWord ?? "home"} offers ${bits.join(", ")}.` : kindWord ? `A ${kindWord}. Details to be added.` : "Details to be added."}${prop.list_price ? ` Offered at ${fullMoney(prop.list_price)}.` : ""}${notes.length ? ` ${notes.map((n) => { const t = n.replace(/[.!\s]+$/, ""); return t.charAt(0).toUpperCase() + t.slice(1) + "."; }).join(" ")}` : ""} Schedule a showing to see it in person.`;
   ctx.state.last_property_id = prop.id; await persistState(ctx);
   if (/\bflyer\b/i.test(text)) {
     const flyer = [prop.address.toUpperCase(), place, bits.join("  |  "), prop.list_price ? `Offered at ${fullMoney(prop.list_price)}` : "", ...notes, "", `${ctx.profile.full_name}${ctx.profile.brokerage ? ` · ${ctx.profile.brokerage}` : ""}`].filter((x, i, arr) => x !== "" || (arr[i - 1] ?? "x") !== "").join("\n");

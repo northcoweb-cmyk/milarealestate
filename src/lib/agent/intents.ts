@@ -55,7 +55,7 @@ export function normalizeSpanish(raw: string): string {
 export function fixTypos(raw: string): string {
   return normalizeSpanish(raw)
     .replace(/\b(?:remnd|remnid|remmind|reminde|rmnd|remindme)\b/gi, "remind").replace(/\b(agrmt|agrmnt|agreemnt|agrement)\b/gi, "agreement").replace(/\b(?:appts?|appt\.)\b/gi, "appointment").replace(/\bmtg\b/gi, "meeting")
-    .replace(/(?<=\p{Lu}[\p{L}'’-]+)\s+re\s+(?=[a-z])/gu, " about ")
+    .replace(/(\p{Lu}[\p{L}'’-]{0,30})\s+re\s+(?=[a-z])/gu, "$1 about ")
     .replace(/\b(?:showinge|showign|shwoing|showng|showin)\b/gi, "showing")
     .replace(/\b(tmrw|tmr|tomorrow)\s+(\d{1,2})(?![\d:])(?!\s*(?:am|pm|a\.m|p\.m|o'?clock))\b/gi, "tomorrow at $2").replace(/\b(?:abt)\b/gi, "about").replace(/\b(?:cal)\b(?=\s+[A-Z])/g, "call")
     .replace(/\bblock(?:ing)?\s+(?:off|out)\s+((?:this\s+|next\s+)?(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|tomorrow|today)\s+(morning|afternoon|evening)\b/gi, (_m, d: string, part: string) => `Schedule busy time ${d} ${/^morn/i.test(part) ? "8am to 12pm" : /^aft/i.test(part) ? "1pm to 5pm" : "5pm to 8pm"}`)

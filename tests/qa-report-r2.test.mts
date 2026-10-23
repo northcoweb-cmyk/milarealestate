@@ -259,3 +259,20 @@ test("round 3 (doc M-27): a refusal applies to its own part of a message, the re
   assert.match(r.milaMessage.content, /I'll remind you[\s\S]*can't share my instructions/);
   assert.equal((await store.list("reminders", a.id)).length, 1);
 });
+
+test("round 3 (doc M-14/M-02): commission on a home under contract uses the accepted price", async () => {
+  const a = await fresh();
+  await store.insert("properties", a.id, { address: "22 Birch Lane", city: "Gaithersburg", state: "MD", zip: "20877", list_price: 625000, beds: 4, baths: 3, sqft: 2400, verified: true });
+  await a.say("Offer accepted on 22 Birch Lane at $610,000 closing December 15");
+  const r = await a.say("What is the commission on 22 Birch Lane at 2.5%?");
+  assert.match(r.milaMessage.content, /\$15,250/);
+});
+
+test("round 3 (doc H2): a listing description uses the facts given in the request and the city that was typed", async () => {
+  const a = await fresh();
+  await a.say("Add seller QA TEST Kevin Moore 240-555-0131 townhouse 18 Maple Ct Germantown MD 20874 list in spring");
+  const r = await a.say("Write a listing description for 18 Maple Ct, 3 bed 2.5 bath townhouse, 1600 sqft, finished basement, new roof in 2023");
+  assert.match(r.milaMessage.content, /Germantown, MD/);
+  assert.match(r.milaMessage.content, /townhouse offers 3 bedrooms, 2\.5 baths, about 1,600 square feet/);
+  assert.match(r.milaMessage.content, /Finished basement; new roof \(2023\)\./);
+});

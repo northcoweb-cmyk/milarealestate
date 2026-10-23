@@ -1,3 +1,4 @@
+import { aiConfigured as aiAvailable } from "../../ai/configured";
 /**
  * Straight answers to the questions agents ask all day that don't need a lookup: offer and price reasoning, appraisal gaps,
  * confidentiality, 1031 timing, Maryland transfer tax and listing documents, hottest lead. Rule-based, so it works even when the
@@ -16,6 +17,8 @@ export function adviceTopic(text: string): AdviceTopic | null {
   const t = text.toLowerCase();
   if (/^\s*(?:add|new|create|schedule|book|remind|draft|write|email|text|make|set)\b/.test(t) && !/\?/.test(t)) return null;
   if (/\b1031\b/.test(t)) return "one_oh_three_one";
+  // a question about the rules as of a recent year or "latest" is a question for the assistant (with a dated caveat), not the canned 2024 summary
+  if (aiAvailable() && /\bnar\b|settlement/.test(t) && /\b20(?:2[5-9]|[3-9]\d)\b|\b(?:latest|currently|right now|this year|updated?|new rules)\b/.test(t)) return null;
   if (/\b(?:nar|realtor association)\b.{0,60}\b(?:rules?|settlement|buyer (?:agreement|representation)|compensation)\b|\bbuyer (?:agreement|representation)s?\b.{0,40}\b(?:rules?|required|need|before)\b|\b(?:written )?buyer(?:'s)? (?:agreement|representation)\b.{0,30}\b(?:tour|showing)/.test(t)) return "nar_rules";
   if (/\b(?:list(?:ing)? price|pricing) strategy\b|\bhow (?:should|do) i price\b|\bwhat should (?:my |the )?list price be\b/.test(t) && /\?|\bwhat\b|\bhow\b/.test(t)) return "price_strategy";
   if (/\b(?:transfer|recordation)\s+tax(?:es)?\b/.test(t)) return "transfer_tax";

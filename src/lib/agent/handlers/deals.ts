@@ -97,6 +97,7 @@ export async function transactionHandler(ctx: Ctx, text: string): Promise<Handle
   const closeAt = zonedToUtc(found.closing.y, found.closing.m, found.closing.d, closeTime?.start.h ?? 10, closeTime?.start.mi ?? 0, ctx.tz);
   const todayKey = (d: Date) => { const q = partsIn(d, ctx.tz); return q.y * 10000 + q.m * 100 + q.d; };
   if (todayKey(closeAt) < todayKey(ctx.now)) return askBack(ctx, "transaction", text, "date", `${fmtDay(closeAt, ctx.tz)} has already passed. What's the real closing date?`);
+  const offerPrice = (() => { const m = /\b(?:at|for)\s+\$\s?(\d[\d,]*(?:\.\d+)?)\s?(k|m)?\b/i.exec(text); if (!m) return null; const n = parseFloat(m[1].replace(/,/g, "")) * (/k/i.test(m[2] ?? "") ? 1000 : /m/i.test(m[2] ?? "") ? 1_000_000 : 1); return n >= 20_000 ? Math.round(n) : null; })(); // "offer accepted at $610,000"
   ctx.steps.push("Building the transaction timeline");
 
   // start clean so telling Mila again (e.g. the closing moved) replaces the timeline instead of doubling it
@@ -119,7 +120,7 @@ export async function transactionHandler(ctx: Ctx, text: string): Promise<Handle
     await invoke(ctx, "create_calendar_event", { title: `${r.label} — ${prop.address}`, kind: r.kind, start_at: r.start.toISOString(), end_at: new Date(r.start.getTime() + (r.key === "closing" ? 2 : 1) * 3_600_000).toISOString(), location: r.key === "closing" && closePlace ? `${closePlace} (${prop.address})` : prop.address, property_id: prop.id, notes: TX_NOTE, ignoreConflicts: true });
     await TOOLS.create_task.run(ctx, { kind: "task", title: `${r.label} — ${prop.address}`, subtitle: `${TX_NOTE}${r.estimated ? " · typical timing, confirm with your contract" : ""}`, property_id: prop.id, due_at: r.start.toISOString(), internal: true });
   }
-  await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Under contract · closing ${fullDate(closeAt, ctx.tz)}`, source: "user_stated" });
+  await saveMemory(ctx, { scope: "property", subject_id: prop.id, key: "Transaction", value: `Under contract${offerPrice ? ` · accepted at ${fullMoney(offerPrice)}` : ""} · closing ${fullDate(closeAt, ctx.tz)}`, source: "user_stated" });
   await persistState(ctx);
 
   const weekend = rows.filter((r) => [0, 6].includes(partsIn(r.start, ctx.tz).dow));

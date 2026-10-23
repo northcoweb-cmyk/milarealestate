@@ -5,7 +5,8 @@
  * Every answer says which assumptions it used. Nothing is saved.
  */
 import { type Ctx, fullMoney } from "../context";
-import { parseMoney } from "../nlu";
+import { aiConfigured as aiAvailable } from "../../ai/configured";
+import { parseAddress, parseMoney } from "../nlu";
 import { resolveProperty } from "./listing";
 import { mentionedContacts } from "./contacts";
 import { type HandlerOut, reply } from "./types";
@@ -33,7 +34,7 @@ export function calcKind(text: string): CalcKind | null {
   if (/\b(?:afford|affordable)\b/.test(t) && !/\bwhat (?:is|are) the/.test(t)) return "affordable";
   if (/\b(?:which|what|list|show|who)\b.{0,30}\b(?:buyers?|clients?|leads?|sellers?)\b.{0,40}\b(?:under|below|over|above|more than|less than)\s+\$?\d/.test(t)) return "budget_filter";
   if (/\bcompare\b.{0,40}\bbudgets?\b|\bbudget\b.{0,40}\bcompare\b|\bhow does\b.{0,40}\bbudget\b.{0,30}\bcompare\b/.test(t)) return "budget_compare";
-  if (/\b(?:property tax(?:es)?(?: rate)?|tax rate|hoa(?: fees?| dues)?|condo fees?|insurance rate)\b/.test(t) && /\?|^\s*(?:what|how|hoa|property tax)/.test(t) && !/\b(?:say|respond|response|reply|answer|explain|script|tell|talk|handle|objection|words?)\b/.test(t)) return "unknown_fact";
+  if (/\b(?:property tax(?:es)?(?: rate)?|tax rate|hoa(?: fees?| dues)?|condo fees?|insurance rate)\b/.test(t) && /\?|^\s*(?:what|how|hoa|property tax)/.test(t) && !/\b(?:say|respond|response|reply|answer|explain|script|tell|talk|handle|objection|words?)\b/.test(t) && !(aiAvailable() && !parseAddress(text) && !/\b(?:this|that|the|my) (?:home|house|property|listing)\b/.test(t))) return "unknown_fact"; // a county or market tax question goes to the assistant; only a saved home's own figures are "not on file"
   return null;
 }
 
@@ -89,7 +90,13 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
     }
     case "commission": {
       let price = nums[0]; const pct = pcts[0]; let on = "";
-      if (!price) { const p = await resolveProperty(ctx, text, true).catch(() => null); if (p?.list_price) { price = p.list_price; on = ` (${p.address}, listed at ${fullMoney(p.list_price)}; give me the sale price if it differs)`; } }
+      if (!price) {
+        const p = await resolveProperty(ctx, text, true).catch(() => null);
+        // a home under contract is worth its accepted price, not its list price
+        const accepted = p ? Number(/accepted at \$([\d,]+)/.exec((await ctx.store.list("memories", ctx.userId)).find((m) => m.scope === "property" && m.subject_id === p.id && m.key === "Transaction")?.value ?? "")?.[1]?.replace(/,/g, "")) || null : null;
+        if (p && accepted) { price = accepted; on = ` (${p.address}, accepted offer of ${fullMoney(accepted)}; it was listed at ${p.list_price ? fullMoney(p.list_price) : "an unsaved price"})`; }
+        else if (p?.list_price) { price = p.list_price; on = ` (${p.address}, listed at ${fullMoney(p.list_price)}; give me the sale price if it differs)`; }
+      }
       if (!price) return reply("What's the sale price? Give me the price and the commission, like “commission on 479k at 2.5%”.", [], "chat_simple");
       return reply(`${pct}% of ${fullMoney(price)} is ${fullMoney(Math.round(price * pct / 100))}${on}.`, [], "chat_simple");
     }
