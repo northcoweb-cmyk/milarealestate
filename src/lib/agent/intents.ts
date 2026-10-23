@@ -70,6 +70,7 @@ export function isResearchTask(raw: string): boolean {
 export function detectIntent(raw: string, hasAttachments = false): Detected {
   const t = raw.toLowerCase().trim();
   if (!t && hasAttachments) return { intent: "signin_paste" };
+  if (/\b(?:cma|comparative market analysis)\b/.test(t) && /\b\d{1,6}\s+[a-z]/.test(t) && !/^(?:what|how|why|explain|does|is)\b/.test(t)) return { intent: "market" };
   if (/^(help|help me|what can you do|what do you do|what can i ask( you)?|how does this work|how do i use (this|you))[\s?!.]*$/.test(t)) return { intent: "smalltalk" };
   if (/^(?:ok(?:ay)?[,.\s]+)?(?:never ?mind|nvm|nm|forget (?:it|that)|scratch that|disregard(?: that)?|ignore that|drop it|skip it|no thanks?)[\s!.]*$/.test(t)) return { intent: "smalltalk" };
   if (/^who (?:is|was|are) (?:the|a|an)\s/.test(t) && !/\b(?:buyer|seller|client|lead|contact|agent|broker|my)\b/.test(t)) return { intent: "general" };

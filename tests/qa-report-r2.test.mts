@@ -168,3 +168,9 @@ test("round 3: 'sign it X' closes the email and is not read as the recipient", a
   const r = await a.say("Draft an email to Dana thanking her for the showing, under 50 words, sign it QA TEST Agent");
   assert.match(r.milaMessage.content, /draft for Dana/);
 });
+
+test("round 3: cash to close is answered with a range", async () => {
+  const a = await fresh();
+  const r = await a.say("How much cash will Dana need to close on a $600k home with 10% down?");
+  assert.match(r.milaMessage.content, /\$72,000 to \$90,000/);
+});

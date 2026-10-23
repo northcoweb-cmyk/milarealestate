@@ -141,7 +141,7 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   const key = out.creditKey ?? (intent === "smalltalk" ? "smalltalk" : "chat_simple");
   // a short answer costs the normal amount; a big conversation that used more AI costs more credits, so heavy use is paid for fairly
   const base = await creditCost(key), byCost = creditsForAiCost(takeTurnAiCost(ctx.userId), await usdPerCredit(ctx.userId));
-  const rec = await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: key === "fallback" ? 0 : key === "smalltalk" ? base : Math.max(base, byCost) });
+  const rec = await recordUsage({ userId: ctx.userId, conversationId: ctx.conversationId, operation: `turn:${intent}`, creditKey: key, creditsOverride: key === "fallback" ? 0 : ctx.state.pending?.kind === "clarify" && base > 1 ? Math.max(1, Math.min(byCost, 2)) : Math.max(base, byCost) }); // AI work is always paid for; a question asked back with nothing delivered costs at most a couple of credits
   // a heavy turn (comps, research) says what it cost, so a big charge is never a surprise
   if (rec.credits >= 40) out = { ...out, text: `${out.text}\n\nThis used ${rec.credits} credits: research and comps cost more than a normal reply.` };
   if (limited === "user_month" || limited === "user_day") await exhaustTrialCredits(ctx.userId); // a trial that hit its allowance is out of credits too

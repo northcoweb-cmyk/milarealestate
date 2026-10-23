@@ -18,7 +18,7 @@ const amounts = (text: string): number[] =>
     .filter((n) => n >= 1000);
 const percents = (text: string): number[] => [...text.matchAll(/(\d+(?:\.\d+)?)\s?%(?:\s*\/\s*(\d+(?:\.\d+)?))?/g)].flatMap((m) => (m[2] ? [parseFloat(m[1]), parseFloat(m[2])] : [parseFloat(m[1])]));
 
-export type CalcKind = "recap" | "payment" | "net_sheet" | "net_price" | "reduction" | "commission" | "affordable" | "budget_filter" | "budget_compare" | "unknown_fact";
+export type CalcKind = "recap" | "payment" | "net_sheet" | "net_price" | "reduction" | "commission" | "affordable" | "budget_filter" | "budget_compare" | "unknown_fact" | "cash_to_close";
 
 export function calcKind(text: string): CalcKind | null {
   const t = text.toLowerCase();
@@ -27,6 +27,7 @@ export function calcKind(text: string): CalcKind | null {
   if (/\breduction (?:percent|percentage|%)|\bpercent(?:age)? (?:off|reduction|drop|decrease)|\bhow much (?:of a )?(?:drop|reduction)\b/.test(t) && amounts(text).length >= 2) return "reduction";
   if (/\b(?:effective )?net price\b/.test(t) && /\b(?:credit|concession)\b/.test(t)) return "net_price";
   if (/\b(?:seller )?net sheet\b|\bseller(?:'s)? (?:net|gross|proceeds)\b|\bnet proceeds\b|\bnet (?:to|for) (?:my |the |a )?(?:seller|client|owner)\b|\bwhat (?:will|would|does) (?:the )?seller (?:net|walk away)/.test(t) && (amounts(text).length >= 1 || /\bnet sheet\b/.test(t))) return "net_sheet";
+  if (/\b(?:cash (?:to|needed to|will .{0,25}need to) close|cash (?:needed|required)|how much (?:cash|money) .{0,40}(?:to close|at closing|to buy)|closing (?:costs|cash))\b/.test(t) && amounts(text).length) return "cash_to_close";
   if (/\bcommission\b/.test(t) && percents(text).length && (amounts(text).length || /\b\d{1,6}\s+[a-z]/.test(t))) return "commission";
   if (/\b(?:monthly )?(?:payment|piti|mortgage|principal and interest|p&i)\b/.test(t) && (amounts(text).length || /\bpiti\b/.test(t)) && !/\b(?:late|missed|reminder|due)\b/.test(t)) return "payment";
   if (/\b(?:afford|affordable)\b/.test(t) && !/\bwhat (?:is|are) the/.test(t)) return "affordable";
@@ -75,6 +76,12 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       const price = nums[0], credit = nums.find((n, i) => i > 0 && n < price) ?? 0;
       if (!price || !credit) return reply("Give me the contract price and the credit amount and I'll work it out.", [], "chat_simple");
       return reply(`Effective net price: ${fullMoney(price)} − ${fullMoney(credit)} = ${fullMoney(price - credit)}. A seller credit usually covers the buyer's closing costs rather than lowering the contract price, so the recorded price stays ${fullMoney(price)}.`, [], "chat_simple");
+    }
+    case "cash_to_close": {
+      const price = nums[0]; const down = pcts[0] ?? 20;
+      if (!price) return reply("What's the purchase price? Give me the price and the down payment, like “cash to close on 600k with 10% down”.", [], "chat_simple");
+      const dp = Math.round(price * down / 100), lo = Math.round(price * 0.02), hi = Math.round(price * 0.05);
+      return reply(`Cash to close on ${fullMoney(price)} with ${down}% down:\n• Down payment: ${fullMoney(dp)}\n• Closing costs, typically 2% to 5% of the price: ${fullMoney(lo)} to ${fullMoney(hi)} (lender fees, title, taxes and insurance set aside up front)\n• Estimated cash to close: ${fullMoney(dp + lo)} to ${fullMoney(dp + hi)}, before any earnest money already paid (it is credited at closing) and any seller credit.\nAsk the lender for a Loan Estimate for the real number.`, [], "chat_simple");
     }
     case "commission": {
       let price = nums[0]; const pct = pcts[0]; let on = "";
