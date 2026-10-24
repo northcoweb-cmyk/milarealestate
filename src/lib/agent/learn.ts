@@ -2,7 +2,7 @@ import type { Block, Contact } from "../types";
 import type { Ctx } from "./context";
 import { type HandlerOut, reply } from "./handlers/types";
 import { listMemories, saveMemory } from "./memory";
-import { firstNameOf } from "../names";
+import { firstNameOf, firstTokenOf } from "../names";
 import { parseMoney } from "./nlu";
 import { fullMoney } from "./context";
 
@@ -74,7 +74,7 @@ export async function learnDetailed(ctx: Ctx, text: string): Promise<Learned[]> 
       for (const c of contacts) {
         const first = firstNameOf(c.name);
         // two clients share this first name and the sentence doesn't say which: the fact belongs to neither until the agent says so
-        if (contacts.filter((x) => firstNameOf(x.name).toLowerCase() === first.toLowerCase()).length > 1 && !s.toLowerCase().includes(c.name.toLowerCase())) continue;
+        if (contacts.filter((x) => firstTokenOf(x.name).toLowerCase() === first.toLowerCase()).length > 1 && !s.toLowerCase().includes(c.name.toLowerCase())) continue;
         const esc = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         // short first names ("Li", "Mc") only count when written as a capitalised name, so ordinary words never match
         const hit = (first.length >= 3 ? new RegExp(`\\b${esc}\\b`, "i") : new RegExp(`(?<![\\p{L}])${esc}(?![\\p{L}])`, "u")).exec(s);

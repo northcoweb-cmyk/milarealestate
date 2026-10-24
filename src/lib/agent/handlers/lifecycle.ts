@@ -6,7 +6,7 @@ import { mentionedContacts } from "./contacts";
 import { ambiguousFirstName, askWhichPerson } from "./entity";
 import { eventCard, upcomingEvents } from "./calendar";
 import { type HandlerOut, reply } from "./types";
-import { firstNameOf } from "../../names";
+import { firstNameOf, firstTokenOf } from "../../names";
 
 const OOO = /out of office|\(all day\)|time off|vacation|away/i;
 
@@ -20,7 +20,7 @@ async function whoIsIt(ctx: Ctx, text: string): Promise<Contact | HandlerOut | n
 const isOut = (x: Contact | HandlerOut | null): x is HandlerOut => !!x && "text" in x;
 
 export async function upcomingWith(ctx: Ctx, c: Contact): Promise<CalendarEvent[]> {
-  const first = firstNameOf(c.name).toLowerCase();
+  const first = firstTokenOf(c.name).toLowerCase();
   return (await upcomingEvents(ctx)).filter((e) => e.status === "confirmed" && new Date(e.end_at).getTime() > ctx.now.getTime() && (e.contact_id === c.id || e.title.toLowerCase().includes(c.name.toLowerCase()) || (e.kind !== "other" && new RegExp(`\\b${first}\\b`, "i").test(e.title))));
 }
 

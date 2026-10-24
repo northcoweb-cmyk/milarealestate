@@ -68,7 +68,7 @@ test("P0-13/14: Mila can cancel a reminder (after a tap) and a past event by tit
 });
 
 test("P1: a tagged name resolves in one step, tasks keep their words, repeated post requests don't stack, rewrite edits in place", async () => {
-  const a = await newAgent({ now, tz: "America/New_York", seed: false });
+  const a = await newAgent({ now: new Date(), tz: "America/New_York", seed: false });
   for (const n of ["QA TEST Jordan Lee", "QA TEST Maya Ortiz", "Priya Shah"]) await store.insert("contacts", a.id, { name: n, email: null, phone: null, type: "buyer", status: "active", tags: [], notes: null, preferences: {}, location: null, budget_min: null, budget_max: null, timeline: null, source: null, importance: 2, last_contact_at: null, next_action: null, next_action_at: null, avatar_color: "#888" });
   assert.match(await say(a, "Draft a thank-you email to QA TEST Maya after the open house"), /draft for Maya/i);
   assert.match(await say(a, "Add a task for Priya Shah: send comps"), /Send comps \(Priya\)/);

@@ -235,6 +235,7 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   const afterName = c ? stripped.replace(new RegExp(`^${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`, "i"), "") : stripped;
   let body = (pron ? stripped.slice(pron[0].length) : afterName.replace(new RegExp(`^${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s+${(c ? c.name.split(/\s+/).slice(1).pop() ?? "" : "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") || "(?!)"})?\\s*`, "iu"), "")).replace(/^(?:that|saying|to say|:|-)\s*/i, "").trim().replace(/[.!\s]+$/, "");
   body = body.replace(/^follow-?\s?ups?\s+(?:from|after|on|about|to)\s+/i, "following up on ");
+  body = body.replace(/\b(?:and|also|then)\s+(?:say|tell (?:her|him|them)|mention|add)\s+(?:that\s+)?/gi, "and ").replace(/^(?:say|tell (?:her|him|them)|mention)\s+(?:that\s+)?/i, "");
   body = body.replace(/^about\s+/i, "following up about ").replace(/^(?:thank(?:ing|s|ed)?|appreciat\w+)\s+(?:her|him|them|you)\s*(?=\S)/i, "thank you ").replace(/^thank you\s+(?!for\b)/i, "thank you for ");
   if (!body) body = "just checking in — do you have a few minutes to talk?";
   body = body.replace(/(?<!\b(?:send|give|show|get|bring|tell|email|text|owe|offer|ask)\s)\b(?:her|his|their)\s+(?=[a-z])/gi, "your ").replace(/\b(?:her|him|them)\b/gi, "you").replace(/\bhis\b|\bher\b|\btheir\b/gi, "your").replace(/^i'?ll\b/i, "I'll").replace(/^(\w)/, (m) => m.toLowerCase() === "i" ? "I" : m);

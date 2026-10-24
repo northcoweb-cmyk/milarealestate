@@ -4,7 +4,7 @@ import { addDays, fmtDayTime, fmtTime, partsIn, startOfDay, zonedToUtc } from ".
 import type { Block, Contact, ContactType, DocumentTemplate, WorkflowRun } from "../../types";
 import { type Ctx, firstName, fullMoney, label, money, pickColor, plural } from "../context";
 import { persistState } from "../conversation";
-import { firstNameOf } from "../../names";
+import { firstNameOf, firstTokenOf } from "../../names";
 import { buildDebrief, coverageNote, greetingFor } from "../debrief";
 import { contactFacts, listMemories, saveMemory } from "../memory";
 import { resolveAddress } from "../property-lookup";
@@ -288,11 +288,11 @@ export async function mentionedContacts(ctx: Ctx, text: string): Promise<Contact
   const words = new Set(t.replace(/['’]s\b/g, "").split(/[^a-z0-9'’-]+/).filter((w) => w.length >= 3)); // "Priya's number" names Priya
   const stop = new Set(["who", "the", "and", "for", "all", "tell", "about", "what", "contact", "contacts", "buyer", "seller", "lead", "client", "test"]);
   const shortNames = new Set([...text.matchAll(/(?<![\p{L}])(\p{Lu}\p{Ll})(?![\p{L}])/gu)].map((m) => m[1].toLowerCase())); // "Li", "Mc": only when written as a name
-  const byFirst = all.filter((c) => { const f = firstNameOf(c.name).toLowerCase(); return (f.length >= 3 ? words.has(f) : shortNames.has(f)) && !stop.has(f); });
+  const byFirst = all.filter((c) => { const f = firstTokenOf(c.name).toLowerCase(); return (f.length >= 3 ? words.has(f) : shortNames.has(f)) && !stop.has(f); });
   // a full name was typed ("QA TEST Dana Lee") and nobody has it: a different person who shares the first name is NOT that person
   const typedFull = capitalisedNames(text).map((n) => n.split(/\s+/).map((w) => w.replace(/['’]s$/i, "")).filter((w) => !/^[A-Z]{2,5}$/.test(w))).filter((w) => w.length >= 2);
   if (!typedFull.length) return byFirst;
-  return byFirst.filter((c) => !typedFull.some((w) => w[0].toLowerCase() === firstNameOf(c.name).toLowerCase() && w[w.length - 1].toLowerCase() !== c.name.toLowerCase().split(/\s+/).pop()));
+  return byFirst.filter((c) => !typedFull.some((w) => w[0].toLowerCase() === firstTokenOf(c.name).toLowerCase() && w[w.length - 1].toLowerCase() !== c.name.toLowerCase().split(/\s+/).pop()));
 }
 
 export async function recallHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
@@ -524,11 +524,18 @@ export async function newClientMeetingHandler(ctx: Ctx, text: string): Promise<H
   const pair = /(?<![\p{L}])(\p{Lu}[\p{L}'’-]{1,})\s+(?:and|&)\s+(\p{Lu}[\p{L}'’-]{1,})(?:\s+(\p{Lu}[\p{L}'’-]{2,}))?(?![\p{L}])/u.exec(text);
   const pairName = pair && !isStopName(pair[1]) && !isStopName(pair[2]) && !/^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/.test(pair[1]) ? (pair[3] && !isStopName(pair[3]) ? `${pair[1]} & ${pair[2]} ${pair[3]}` : `${pair[1]} & ${pair[2]}`) : "";
   const tagged = capitalisedNames(text).find((n) => n.includes(" ") && !isStopName(n) && plausibleName(n));
-  const name = named || tagged || pairName || (surname ? `${surname} Family` : "");
+  const second = tagged ? capitalisedNames(text).find((n) => n !== tagged && n.includes(" ") && !isStopName(n) && plausibleName(n)) : undefined;
+  const sameSurname = tagged && second && tagged.split(" ").pop() === second.split(" ").pop();
+  // "Sofia Brenner and Jonah Brenner" is one household, "Sofia & Jonah Brenner", greeted as both
+  const coupleName = sameSurname ? `${tagged!.split(" ").slice(0, -1).join(" ")} & ${second!.split(" ").slice(-2, -1)[0]} ${tagged!.split(" ").pop()}` : "";
+  const name = named || coupleName || tagged || pairName || (surname ? `${surname} Family` : "");
   if (!name) return reply("What's their name? Tell me and I'll save them and put the meeting on your calendar.", [], "smalltalk");
   const budget = /\b(?:budget|around|up to|under|max(?:imum)?|pre-?approved (?:for|up to))\b/i.test(text) ? parseMoney(text).max : null;
   const loc0 = parseLocation(text.replace(/\bclose to\b/gi, "near")) ?? /\b(?:looking|searching|shopping|focused|interested|targeting|homes?|wants?|prefers?|hoping|eyeing|zeroed|set)\s+(?:at|in|around|near|on|for)?\s*(?:homes?\s+)?(?:in\s+)?(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)(?=[\s,.;!?]|$)/u.exec(text)?.[1] ?? /\b(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)\s+(?:area|county|neighborhood|suburbs)\b/u.exec(text)?.[1] ?? null;
-  const loc = loc0 && !isStopName(loc0) ? loc0.replace(/[.,;]+$/, "") : null;
+  const loc1 = loc0 && !isStopName(loc0) ? loc0.replace(/[.,;]+$/, "") : null;
+  // "in Gaithersburg or Germantown": every place named is kept
+  const alt = loc1 ? new RegExp(`${loc1.split(",")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*(?:,\\s*[A-Z]{2})?\\s*(?:,|or|and|&)\\s*(\\p{Lu}[\\p{L}'’-]+(?:\\s+\\p{Lu}[\\p{L}'’-]+)?)`, "u").exec(text)?.[1] : undefined;
+  const loc = loc1 && alt && !isStopName(alt) && !/^(?:I|They|He|She|We)$/.test(alt) ? `${loc1}; ${alt.replace(/[.,;]+$/, "")}` : loc1;
   const near = /\b(?:close to|near|by)\s+((?:the\s+)?[A-Za-z0-9][\w\- ]{1,30}?)(?=\s*(?:[,.;!?]|$|\band\b|\bwith\b|\bfor\b))/i.exec(text)?.[1]?.trim();
   const out = await TOOLS.create_contact.run(ctx, { name, type, status: "new", budget_max: budget ?? null, location: loc ?? null, source: "Meeting", notes: null }) as any;
   const contact = out?.ok ? out.data.contact : null;
@@ -536,7 +543,7 @@ export async function newClientMeetingHandler(ctx: Ctx, text: string): Promise<H
   if (near && !out.data.existing) await saveMemory(ctx, { scope: "contact", subject_id: contact.id, key: "Wants to be near", value: near.replace(/^the\s+/i, ""), source: "user_stated" });
   if (budget && !out.data.existing) await saveMemory(ctx, { scope: "contact", subject_id: contact.id, key: "Budget", value: `around ${fullMoney(budget)}`, source: "user_stated" });
   const taggedAll = capitalisedNames(text).filter((n) => n.includes(" ") && !isStopName(n) && plausibleName(n));
-  const partner = tagged && name === tagged ? (taggedAll.find((n) => n !== tagged && n.split(" ").pop() !== "Family") ?? new RegExp(`${tagged.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+(?:and|&)\\s+(\\p{Lu}[\\p{L}'’-]+)`, "u").exec(text)?.[1]) : undefined;
+  const partner = tagged && (name === tagged || name === coupleName) && !coupleName ? (taggedAll.find((n) => n !== tagged && n.split(" ").pop() !== "Family") ?? new RegExp(`${tagged.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+(?:and|&)\\s+(\\p{Lu}[\\p{L}'’-]+)`, "u").exec(text)?.[1]) : undefined;
   if (partner && !isStopName(partner) && !out.data.existing) await saveMemory(ctx, { scope: "contact", subject_id: contact.id, key: "Also in the household", value: partner, source: "user_stated" });
   ctx.state.last_contact_ids = [contact.id]; await persistState(ctx);
   const when = /\b(?:today|tomorrow|tonight|(?:this |next |on )?(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)[a-z]*)\b(?:\s+(?:at|around)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?)?/i.exec(text)?.[0] ?? "";

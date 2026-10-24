@@ -431,10 +431,8 @@ test("round 9: 'make it …' edits stay with the chat, a couple with tagged name
   assert.doesNotMatch(r, /What day and time/);
   assert.equal((await store.list("calendar_events", a.id)).length, before, "'add coffee' is part of the edit, not a new event");
   await a.say("I'm meeting a new buyer couple Monday at 3pm, QA TEST Zed Vega and QA TEST Mara Vega. Budget is around $520k, looking at Germantown, they want a big backyard.");
-  const c = ((await store.list("contacts", a.id)) as any[]).find((x) => /Zed Vega/.test(x.name));
+  const c = ((await store.list("contacts", a.id)) as any[]).find((x) => /Zed & Mara Vega/.test(x.name)); // two people with one surname are one household, greeted as both
   assert.ok(c && c.location === "Germantown");
-  const mem = (await store.list("memories", a.id)) as any[];
-  assert.ok(mem.some((m) => m.key === "Also in the household" && /Mara Vega/.test(m.value)));
   const net = (await a.say("net sheet 650k sale 380k payoff 6% commission")).milaMessage.content;
   assert.match(net, /\$231,000/);
 });
@@ -448,4 +446,18 @@ test("round 10: assistant wording is recognised (bio to send, commission split w
   const a = await fresh();
   const d = (await a.say("Write an MLS listing description for 14 Elm Street: 4 bed, 3 bath, 2,400 sqft, renovated kitchen, fenced backyard, 10-minute walk to the Metro. Under 1000 characters.")).milaMessage.content;
   assert.match(d, /walk to the Metro/); assert.doesNotMatch(d, /1000 characters/);
+});
+
+test("round 11: a couple is one household greeted as both, 'X or Y' areas are both kept, a small fee is not a price, times in a chat summary don't become headings", async () => {
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "test-key-not-used";
+  const a = await fresh();
+  await a.say("Good morning. I'm meeting a new buyer couple Monday at 11am, QA TEST Sofia Brenner and QA TEST Jonah Brenner. They want a 3 bed in Gaithersburg or Germantown under $520k, close to I-270.");
+  const c = ((await store.list("contacts", a.id)) as any[])[0];
+  assert.equal(c.name, "QA TEST Sofia & Jonah Brenner"); assert.equal(c.location, "Gaithersburg; Germantown");
+  assert.match((await a.say("Text them to confirm Monday and say I'll bring coffee")).milaMessage.content, /Hi Sofia and Jonah! Just confirming Monday, Oct 26, and I'll bring coffee!/);
+  assert.match((await a.say("What's their budget again?")).milaMessage.content, /Sofia and Jonah's budget is around \$520,000/);
+  const { adviceCard } = await import("../src/lib/agent/engine");
+  const card = adviceCard("summarize", "Here is the recap.\n\nMonday at 11:00 AM was noted for the buyer meeting with the Brenners, and the budget is $520k near I-270 for a long listing of things.\n\nA reminder was set for 10:00 AM Monday, an hour before they arrive at the office.\n\nTwo payments were worked out at 7% and 6.25% and the lower rate saves about $232 a month overall, which is useful for planning.\n\nNothing was sent to anyone, and everything stays as a draft until you say so, which keeps the whole morning safe and simple for you to review.", undefined);
+  const steps = card && card.block.type === "advice" ? card.block.steps : [];
+  assert.ok(!steps.some((s: any) => s.heading === "Monday at 11"));
 });

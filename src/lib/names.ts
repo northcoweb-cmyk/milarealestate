@@ -2,7 +2,8 @@
 const TITLE = /^(?:dr|mr|mrs|ms|mx|miss|prof|rev|hon|sr|jr)\.?$/i;
 const TAG = /^[A-Z]{2,}$/;
 
-export function firstNameOf(full: string): string {
+/** The first word of the first person's name, for matching a name typed in a message (a household "Sofia & Jonah Brenner" is matched by Sofia). */
+export function firstTokenOf(full: string): string {
   const toks = (full ?? "").trim().split(/\s+/).filter(Boolean);
   if (!toks.length) return full ?? "";
   let i = 0;
@@ -11,6 +12,15 @@ export function firstNameOf(full: string): string {
   let j = i; while (j < toks.length - 1 && TAG.test(toks[j])) j++;
   if (j - i >= 2 && j < toks.length) i = j;
   return toks[i] ?? toks[0];
+}
+
+/** Who a message is addressed to: one person's first name, or both of a couple ("Sofia & Jonah Brenner" → "Sofia and Jonah"). */
+export function firstNameOf(full: string): string {
+  const toks = (full ?? "").trim().split(/\s+/).filter(Boolean);
+  const first = firstTokenOf(full);
+  const i = toks.indexOf(first);
+  if (i >= 0 && toks[i + 2] && /^(?:&|and)$/i.test(toks[i + 1] ?? "") && /^\p{Lu}/u.test(toks[i + 2]) && !TITLE.test(first) && !TITLE.test(toks[i + 2])) return `${first} and ${toks[i + 2]}`;
+  return first;
 }
 
 /** Names, titles and notes are plain text: any markup typed or pasted into them is removed ("Lee <b>bold</b>" becomes "Lee bold"). */

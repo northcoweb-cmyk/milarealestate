@@ -582,7 +582,8 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
       if (!calcKind(text) && aiConfigured()) return generalHandler(ctx, text);
       const r = await calcHandler(ctx, text);
       // a number question with no number in it ("what's the HOA like?") that only got a "give me the price" prompt is an assistant question
-      if (aiConfigured() && !/\d/.test(text) && /^(?:What's the (?:sale )?price\?|Re-run what\?|What's the purchase price\?|I don't have that figure on file)/.test(r.text)) return generalHandler(ctx, text);
+      const bigNumber = /\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|m)\b|\$\s?\d{1,3}(?:,\d{3})+|\$\s?\d{5,}|\b\d{3,}k\b/i.test(text); // a price or loan in the message; a small fee like "$450 HOA" is not one
+      if (aiConfigured() && !bigNumber && /^(?:What's the (?:sale )?price\?|Re-run what\?|What's the purchase price\?|I don't have that figure on file)/.test(r.text)) return generalHandler(ctx, text);
       return r;
     }
     case "inbox_query": return inboxHandler();
@@ -718,7 +719,7 @@ export function adviceCard(ask: string, answer: string, who?: { name: string; ph
   const rest = lead === paras[0] ? paras.slice(1) : paras;
   const clean = (t: string) => t.replace(/\*\*/g, "").replace(BULLET, "").replace(/^[-•*]\s+/gm, "• ").trim();
   const steps = rest.slice(0, 8).map((x) => {
-    const m = /^(?:\*\*([^*]{2,60})\*\*[:\s-]*|(#{1,4}\s*)?([A-Z][^.\n]{2,50}):\s*)([\s\S]*)$/.exec(x.replace(BULLET, ""));
+    const m = /^(?:\*\*([^*]{2,60})\*\*[:\s-]*|(#{1,4}\s*)?([A-Z][^.\n]{2,50}?):(?!\d)\s*)([\s\S]*)$/.exec(x.replace(BULLET, ""));
     return m && (m[1] || m[3]) && m[4].trim() ? { heading: (m[1] ?? m[3]).trim(), body: clean(m[4]) } : { body: clean(x) };
   });
   const first = who ? firstNameOf(who.name) : undefined;
@@ -748,9 +749,10 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
     const { contactFacts } = await import("./memory");
     extra = (await Promise.all(known.slice(0, 3).map(async (c) => `${c.name} (${c.type}, ${c.status}${c.location ? ", " + c.location : ""}): ${(await contactFacts(ctx, c)).join("; ") || "no saved details"}`))).join("\n");
   }
-  const ai = await llmChat(ctx, text, await recentHistory(ctx, /\b(?:summari[sz]e|recap|sum up|go over)\b.{0,30}\b(?:chat|conversation|thread|everything|all of this|this morning|today)\b/i.test(text) ? 40 : 8), extra); // a summary of the chat needs the whole chat
+  const recapAsk = /\b(?:summari[sz]e|recap|sum up|go over)\b.{0,30}\b(?:chat|conversation|thread|everything|all of this|this morning|today)\b/i.test(text);
+  const ai = await llmChat(ctx, recapAsk ? `${text}\n\n(Summarize ONLY the messages in this chat so far, in order: what was asked and what was done or decided, including every contact saved, meeting, reminder, draft and number worked out. Use nothing from outside this chat. Write plain sentences with the full times, no headings.)` : text, await recentHistory(ctx, /\b(?:summari[sz]e|recap|sum up|go over)\b.{0,30}\b(?:chat|conversation|thread|everything|all of this|this morning|today)\b/i.test(text) ? 40 : 8), extra); // a summary of the chat needs the whole chat
   if (ai) {
-    const card = adviceCard(text, ai.text, known[0]);
+    const card = recapAsk ? null : adviceCard(text, ai.text, known[0]); // a chat summary is read as written, never cut into step cards
     if (card) return reply(card.lead, [card.block, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   }
   if (ai) return reply(ai.text, ai.suggestions.length ? [{ type: "choice", title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");

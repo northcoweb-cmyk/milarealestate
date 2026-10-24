@@ -3,7 +3,7 @@ import type { Ctx } from "../context";
 import { persistState } from "../conversation";
 import { parseAddress } from "../nlu";
 import { type HandlerOut, reply } from "./types";
-import { firstNameOf } from "../../names";
+import { firstNameOf, firstTokenOf } from "../../names";
 
 /**
  * Which home is this request about? Never "whatever was used last anywhere".
@@ -26,8 +26,8 @@ export async function pickProperty(ctx: Ctx, text: string, again: (address: stri
 /** Two clients with the same first name and the message only says the first name: never choose for the agent. */
 export function ambiguousFirstName(text: string, found: Contact[]): Contact[] | null {
   if (found.length < 2) return null;
-  const first = firstNameOf(found[0].name).toLowerCase();
-  if (!found.every((c) => firstNameOf(c.name).toLowerCase() === first)) return null;
+  const first = firstTokenOf(found[0].name).toLowerCase();
+  if (!found.every((c) => firstTokenOf(c.name).toLowerCase() === first)) return null;
   if (found.some((c) => text.toLowerCase().includes(c.name.toLowerCase()))) return null; // a full name was given
   return found;
 }
