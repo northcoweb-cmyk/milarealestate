@@ -502,3 +502,25 @@ test("round 12b: a rewritten text crosses out the earlier text card in the same 
   assert.equal(marked.length, 1);
   assert.ok(marked[0].blocks.some((b: any) => b.type === "choice" && /^Text /.test(b.title)));
 });
+
+test("round 13: a holiday post asks where, then makes a themed post; advice cards join a title with its text; a small HOA is explained, not priced", async () => {
+  const a = await fresh();
+  const ask = (await a.say("Write a short, funny Halloween post")).milaMessage;
+  assert.ok(ask.blocks.some((b: any) => b.type === "choice" && /Halloween/.test(b.title) && b.buttons.length === 3));
+  assert.equal(((await store.list("social_posts", a.id)) as any[]).length, 0, "nothing is made before the platform is known");
+  const done = (await a.say("Write a short, funny Halloween post for an Instagram story")).milaMessage;
+  assert.match(done.content, /Halloween Instagram story/);
+  const post = ((await store.list("social_posts", a.id)) as any[])[0];
+  assert.equal(post.platform, "instagram_story"); assert.equal(post.slides[0].theme, "halloween"); assert.ok(post.hashtags.includes("#Halloween"));
+  assert.doesNotMatch(post.caption, /\$\d|Open House|Just Listed/i);
+  const { adviceCard } = await import("../src/lib/agent/engine");
+  const answer = "🤝 A common starting point is a 25% referral fee, calculated on the commission you actually receive, not the sale price. It is negotiable.\n\nExample\n\n🔸 If your side receives $15,000 in commission, a 25% referral is $3,750; $11,250 remains before your brokerage split.\n\nAgree in writing before taking the referral\n\nPercentage or flat fee, calculation basis, payment trigger, and whether it applies if the client buys or sells more than once, all in one short agreement.\n\nConfirm with your broker\n\nUse your brokerage's approved referral agreement and confirm the process with your broker; rules can vary by state and by brokerage.";
+  const card = adviceCard("What's a fair way to split a commission with a referral agent?", answer, undefined);
+  const steps = card && card.block.type === "advice" ? card.block.steps : [];
+  assert.equal(steps.length, 3, "each title is joined with its own text");
+  assert.deepEqual(steps.map((s: any) => s.heading), ["Example", "Agree in writing before taking the referral", "Confirm with your broker"]);
+  assert.ok(!steps.some((s: any) => /^\p{Extended_Pictographic}/u.test(s.body)));
+  const { calcKind } = await import("../src/lib/agent/handlers/calc");
+  assert.equal(calcKind("A condo has a $450 monthly HOA. How does that affect what a buyer can afford?"), null);
+  assert.equal(calcKind("Can a buyer with a $90k income afford a $500k home?"), "affordable");
+});

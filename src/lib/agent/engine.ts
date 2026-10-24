@@ -1,6 +1,7 @@
 import { createPosts } from "../content/service";
 import { buildClientBrief } from "./client-brief";
 import { basicsHandler, basicsKind } from "./handlers/basics";
+import { themedPostHandler } from "./handlers/themed-post";
 import { calcKind } from "./handlers/calc";
 import { aiConfigured } from "../ai/configured";
 import { adviceHandler } from "./handlers/advice";
@@ -604,6 +605,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "past_client_note": return pastClientNoteHandler(ctx, text);
     case "refuse_injection": return refuseInjectionHandler(text);
     case "move_day": return moveDayHandler(ctx, text);
+    case "themed_post": return themedPostHandler(ctx, text);
     case "contact_question": return contactQuestionHandler(ctx, text);
     case "client_meeting": return newClientMeetingHandler(ctx, text);
     case "event_outcome": return eventOutcomeHandler(ctx, text);
@@ -737,8 +739,15 @@ export function adviceCard(ask: string, answer: string, who?: { name: string; ph
   const script = /\b(script|what (?:do|should|can) i say|negotiat|talking points)\b/i.test(ask);
   const lead = paras[0].length <= 220 && paras[0] === rawParas[0] && !/^\s*(?:[-•*]|\d{1,2}[.)])\s/.test(paras[0]) ? paras[0] : script ? "Here's a script you can use." : "Here's the short version.";
   const rest = lead === paras[0] ? paras.slice(1) : paras;
-  const clean = (t: string) => t.replace(/\*\*/g, "").replace(BULLET, "").replace(/^[-•*]\s+/gm, "• ").trim();
-  const steps = rest.slice(0, 8).map((x) => {
+  const clean = (t: string) => t.replace(/\*\*/g, "").replace(BULLET, "").replace(/^[-•*]\s+/gm, "• ").replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, "").trim();
+  // a short title line followed by its own paragraph ("Example" / "What to watch") is ONE step, never two numbered boxes
+  const merged: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const t = rest[i].replace(BULLET, "").replace(/\*\*/g, "").trim();
+    if (t.length <= 70 && !/[.!?:]$/.test(t) && rest[i + 1] && rest[i + 1].replace(BULLET, "").length > t.length && !/^[-•*]|^\d{1,2}[.)]/.test(rest[i + 1].trim())) { merged.push(`\u0002${t}\u0003${rest[i + 1].replace(BULLET, "")}`); i++; } else merged.push(rest[i]);
+  }
+  const steps = merged.slice(0, 8).map((x) => {
+    if (x.startsWith("\u0002")) { const [h, b] = x.slice(1).split("\u0003"); return { heading: h.trim(), body: clean(b) }; }
     const m = /^(?:\*\*([^*]{2,60})\*\*[:\s-]*|(#{1,4}\s*)?([A-Z][^.\n]{2,50}?):(?!\d)\s*)([\s\S]*)$/.exec(x.replace(BULLET, ""));
     return m && (m[1] || m[3]) && m[4].trim() ? { heading: (m[1] ?? m[3]).trim(), body: clean(m[4]) } : { body: clean(x) };
   });
@@ -781,9 +790,10 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       }
     }
     const card = recapAsk ? null : adviceCard(text, ai.text, known[0]); // a chat summary is read as written, never cut into step cards
-    if (card) return reply(card.lead, [card.block, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+    const figs: Block[] = ai.figures ? [{ type: "figures", ...ai.figures }] : [];
+    if (card) return reply(card.lead, [card.block, ...figs, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   }
-  if (ai) return reply(ai.text, ai.suggestions.length ? [{ type: "choice", title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+  if (ai) return reply(ai.text, [...(ai.figures ? [{ type: "figures" as const, ...ai.figures }] : []), ...(ai.suggestions.length ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   await logError({ source: "unhandled", level: "info", message: text.slice(0, 300), userId: ctx.userId, email: ctx.profile.email });
   return reply("I'm not sure how to do that yet. Nothing was changed and you weren't charged. Here are things I can do right now:", [{
     type: "choice", title: "Try one of these", buttons: fallbackChips(text),

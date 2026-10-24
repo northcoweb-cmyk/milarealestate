@@ -78,6 +78,20 @@ export function BlockView(p: Props) {
           {b.note && <p className="faint px-5 pb-4 pt-1 text-[13px]">{b.note}</p>}
         </div>
       );
+    case "figures":
+      return (
+        <div className="glass p-4 sm:p-5" style={{ borderRadius: 26 }}>
+          <p className="kicker mb-3">{b.title}</p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {b.items.map((it, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.28 }} className="rounded-2xl p-3.5" style={{ background: "color-mix(in srgb, var(--accent) 9%, transparent)" }}>
+                <p className="display text-[26px] leading-none tabular-nums">{it.value}</p>
+                <p className="muted mt-1.5 text-[13px] leading-snug">{it.label}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      );
     case "recap":
       return (
         <div className="glass p-4 sm:p-5" style={{ borderRadius: 26 }}>

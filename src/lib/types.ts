@@ -501,6 +501,8 @@ export type Block =
   | { type: "event"; eventId: ID; title: string; when: string; where?: string; status?: string }
   /** a worked-out number: the answer counts up, the lines under it show how it was reached */
   | { type: "calc"; kicker?: string; title: string; headline: { label: string; value: number; prefix?: string; suffix?: string }; rows: { label: string; value: string; tone?: "minus" | "plus" | "total" }[]; note?: string }
+  /** the numbers in an answer, shown as tiles */
+  | { type: "figures"; title: string; items: { label: string; value: string }[] }
   /** a chat or day summary as cards */
   | { type: "recap"; title: string; items: { emoji: string; title: string; detail: string }[] }
   /** this message was replaced by a newer version below it: it is shown crossed out */

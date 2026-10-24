@@ -7,6 +7,12 @@ export const PALETTES: Palette[] = [
   { key: "sand", label: "Sand", bg: "#e8d9c3", bg2: "#d9c4a5", ink: "#2b1d12", soft: "#7a6550", accent: "#2b1d12", onAccent: "#f4e9d8", serif: false },
   { key: "forest", label: "Forest", bg: "#13302a", bg2: "#1d4a40", ink: "#f3ead7", soft: "#a9bdb2", accent: "#e9c98a", onAccent: "#13302a", serif: true },
   { key: "clay", label: "Clay", bg: "#b9482f", bg2: "#d1634a", ink: "#fff6ea", soft: "#f2c9b8", accent: "#fff6ea", onAccent: "#7d2b19", serif: false },
+  { key: "halloween", label: "Halloween", bg: "#160a24", bg2: "#2e1348", ink: "#fff4e0", soft: "#c9b3e6", accent: "#ff8a1f", onAccent: "#160a24", serif: true },
+  { key: "autumn", label: "Autumn", bg: "#7a3412", bg2: "#b45a1c", ink: "#fff3e0", soft: "#f3c99a", accent: "#ffd27a", onAccent: "#4a1f08", serif: true },
+  { key: "festive", label: "Festive", bg: "#0f3d2e", bg2: "#1b5a43", ink: "#fff7ea", soft: "#bfd9cb", accent: "#e5484d", onAccent: "#fff7ea", serif: true },
+  { key: "winter", label: "Winter", bg: "#0e2a47", bg2: "#1d4a78", ink: "#f2f8ff", soft: "#b7d0ea", accent: "#9fd3ff", onAccent: "#0e2a47", serif: false },
+  { key: "bloom", label: "Bloom", bg: "#fbe3ea", bg2: "#f6c7d4", ink: "#4a1224", soft: "#9a5b6e", accent: "#d6336c", onAccent: "#ffffff", serif: true },
+  { key: "sunny", label: "Sunny", bg: "#fff1c2", bg2: "#ffd966", ink: "#3a2a00", soft: "#7a6420", accent: "#ff7a00", onAccent: "#ffffff", serif: false },
   { key: "sky", label: "Sky", bg: "#dce6ef", bg2: "#c2d3e3", ink: "#10233a", soft: "#546a82", accent: "#10233a", onAccent: "#eef4fa", serif: false },
 ];
 export const paletteOf = (key: string | undefined | null) => PALETTES.find((p) => p.key === key) ?? PALETTES[0];
