@@ -8,7 +8,7 @@ import { firstNameOf } from "../../names";
 import { buildDebrief, coverageNote, greetingFor } from "../debrief";
 import { contactFacts, listMemories, saveMemory } from "../memory";
 import { resolveAddress } from "../property-lookup";
-import { capitalisedNames, parseAddress, parseBaths, parseBeds, parseContactType, parseEmail, parseLocation, parseMoney, parsePersonName, parsePhone, parseTimeline } from "../nlu";
+import { isStopName, capitalisedNames, parseAddress, parseBaths, parseBeds, parseContactType, parseEmail, parseLocation, parseMoney, parsePersonName, parsePhone, parseTimeline } from "../nlu";
 import { computePriorities } from "../prioritize";
 import { TOOLS, invoke } from "../tools";
 import { type HandlerOut, reply } from "./types";
@@ -282,7 +282,7 @@ export async function findContactsHandler(ctx: Ctx, text: string): Promise<Handl
 /** Contacts named in free text (case-insensitive). Full-name matches win; otherwise unique first-name matches. */
 export async function mentionedContacts(ctx: Ctx, text: string): Promise<Contact[]> {
   const t = text.toLowerCase();
-  const all = await ctx.store.list("contacts", ctx.userId);
+  const all = (await ctx.store.list("contacts", ctx.userId)).filter((c) => !isStopName(c.name)); // an old junk contact ("Add", "Turn") can never be mistaken for someone mentioned
   const full = all.filter((c) => t.includes(c.name.toLowerCase()));
   if (full.length) return full;
   const words = new Set(t.replace(/['’]s\b/g, "").split(/[^a-z0-9'’-]+/).filter((w) => w.length >= 3)); // "Priya's number" names Priya

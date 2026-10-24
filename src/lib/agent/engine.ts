@@ -1,6 +1,7 @@
 import { createPosts } from "../content/service";
 import { buildClientBrief } from "./client-brief";
-import { basicsHandler } from "./handlers/basics";
+import { basicsHandler, basicsKind } from "./handlers/basics";
+import { calcKind } from "./handlers/calc";
 import { aiConfigured } from "../ai/configured";
 import { adviceHandler } from "./handlers/advice";
 import { calcHandler } from "./handlers/calc";
@@ -576,7 +577,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "cancel_reminder": return cancelReminderHandler(ctx, text);
     case "property_status": return propertyStatusHandler(ctx, text);
     case "list_date": return listDateHandler(ctx, text);
-    case "calc": return calcHandler(ctx, text);
+    case "calc": return calcKind(text) || !aiConfigured() ? calcHandler(ctx, text) : generalHandler(ctx, text);
     case "inbox_query": return inboxHandler();
     case "describe_home": return describeHomeHandler(ctx, text);
     case "advice": {
@@ -585,7 +586,7 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
       if (aiConfigured() && /^Real estate licences are state by state/.test(r.text) && !/\b(?:licen[cs]e|licensed|another state|other state|out[- ]of[- ]state|referral)\b/i.test(text)) return generalHandler(ctx, text);
       return r;
     }
-    case "basics": return basicsHandler(ctx, text);
+    case "basics": return basicsKind(text) || !aiConfigured() ? basicsHandler(ctx, text) : generalHandler(ctx, text); // a classifier guess without a real lookup behind it is just a question
     case "past_client_note": return pastClientNoteHandler(ctx, text);
     case "refuse_injection": return refuseInjectionHandler(text);
     case "move_day": return moveDayHandler(ctx, text);

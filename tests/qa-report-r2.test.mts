@@ -389,3 +389,15 @@ test("round 6: a whole morning in one chat keeps its context (couple saved with 
   const drafts = (await store.list("email_drafts", a.id)) as any[];
   assert.ok(drafts.every((d) => !/^ID\b|^Turn\b|^Add\b/.test(String(d.to_name ?? d.to ?? ""))));
 });
+
+test("round 7: old junk contacts (Add, Turn, Rewrite, ID) never hijack later messages, and no new one can be created", async () => {
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "test-key-not-used";
+  const a = await fresh();
+  for (const n of ["Add", "Turn", "Rewrite", "ID", "What's"]) await C(a, n);
+  const r = await a.say("Rewrite this to sound more professional: hey u still wanna see the house");
+  assert.doesNotMatch(r.milaMessage.content, /Rewrite — Buyer|Here's the text to/);
+  const before = (await store.list("contacts", a.id)).length;
+  await a.say("Add them as a buyer contact");
+  assert.equal((await store.list("contacts", a.id)).length, before, "no 'Add' contact is created");
+  assert.doesNotMatch((await a.say("What's their budget again?")).milaMessage.content, /named What/);
+});

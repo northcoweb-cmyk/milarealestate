@@ -13,7 +13,7 @@ import { type Ctx, type ToolResult, fail, ok, pickColor, firstName, plural, labe
 import { type Gate, mustAsk } from "./policy";
 import { bucket, scoreTask } from "./prioritize";
 import { listMemories, saveMemory } from "./memory";
-import { addrKey } from "./nlu";
+import { addrKey, isStopName } from "./nlu";
 
 /**
  * Tool registry. Tools are the ONLY way Mila changes anything. Each returns a
@@ -90,6 +90,7 @@ export const TOOLS: Record<string, ToolDef> = {
     gate: async (ctx, a) => ({ key: "contacts", risk: "normal", action: "other", title: `Add ${a.name}`, summary: `Add ${a.name} as a ${label(a.type ?? "lead").toLowerCase()}.` }),
     run: async (ctx, a) => {
       if (!a.name || !String(a.name).trim()) return fail("invalid", "A contact needs a name.");
+      if (isStopName(String(a.name))) return fail("invalid", "That doesn't look like a person's name, so I didn't save it.");
       const dup = a.force ? null : await findDuplicateContact(ctx, a); // "add anyway" skips the duplicate check
       if (dup) return ok({ contact: dup, existing: true });
       const c = await ctx.store.insert("contacts", ctx.userId, {

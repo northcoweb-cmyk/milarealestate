@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Brain, Building2, ChevronRight, ClipboardCheck, CreditCard, FileText, FolderOpen, Home as HomeIcon, ListChecks, LogOut, Palette, Plug, Shield, Bell, SlidersHorizontal, User, Workflow, Lock, Gauge, Smartphone, Plane } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Confirm, PageHeader, jfetch } from "@/components/ui";
 import { Page } from "@/components/page";
 import { useApp } from "@/components/app-context";
@@ -76,8 +76,16 @@ export default function MorePage() {
       <Confirm open={clearing} danger title="Remove all sample data?" body="Deletes the fictional contacts, properties, appointments and tasks that came with the demo, plus anything attached to them. Your own records stay." confirmLabel="Remove sample data" onClose={() => setClearing(false)}
         onConfirm={async () => { setClearing(false); try { const r = await jfetch<{ removed: number }>("/api/me/remove-sample-data", { method: "POST" }); toast(r.removed ? "Sample data removed." : "There was no sample data to remove.", "success"); router.refresh(); } catch (e) { toast(e instanceof Error ? e.message : "Couldn't remove it.", "error"); } }} />
       <button className="btn w-full" onClick={async () => { await jfetch("/api/auth/logout", { method: "POST" }); window.location.replace("/welcome"); }}><LogOut size={18} />Sign out</button>
+      <Version />
       {profile.is_demo && <p className="faint mt-4 text-center text-[12.5px]">You're using fictional demo data.</p>}
       </div>
     </Page>
   );
+}
+
+/** The build this screen is running, so "is the new version live?" has a one-glance answer. */
+function Version() {
+  const [v, setV] = useState("");
+  useEffect(() => { fetch("/api/version", { cache: "no-store" }).then((r) => r.json()).then((j) => setV(String(j.commit ?? ""))).catch(() => {}); }, []);
+  return v ? <p className="faint mt-4 text-center text-[12.5px]">Version {v}</p> : null;
 }
