@@ -438,3 +438,14 @@ test("round 9: 'make it …' edits stay with the chat, a couple with tagged name
   const net = (await a.say("net sheet 650k sale 380k payoff 6% commission")).milaMessage.content;
   assert.match(net, /\$231,000/);
 });
+
+test("round 10: assistant wording is recognised (bio to send, commission split with a referral agent), 'Actually make it…' is one edit, a listing description keeps the Metro walk", async () => {
+  const { looksGeneral } = await import("../src/lib/agent/general-gate");
+  const { detectIntent } = await import("../src/lib/agent/intents");
+  assert.ok(looksGeneral("Write me a short bio I can send to new clients"));
+  assert.ok(looksGeneral("What's a fair way to split a commission with a referral agent?"));
+  assert.equal(detectIntent("Actually make it sound warmer and add that I'll bring coffee").intent, "revise_draft");
+  const a = await fresh();
+  const d = (await a.say("Write an MLS listing description for 14 Elm Street: 4 bed, 3 bath, 2,400 sqft, renovated kitchen, fenced backyard, 10-minute walk to the Metro. Under 1000 characters.")).milaMessage.content;
+  assert.match(d, /walk to the Metro/); assert.doesNotMatch(d, /1000 characters/);
+});

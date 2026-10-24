@@ -578,13 +578,19 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "cancel_reminder": return cancelReminderHandler(ctx, text);
     case "property_status": return propertyStatusHandler(ctx, text);
     case "list_date": return listDateHandler(ctx, text);
-    case "calc": return calcKind(text) || !aiConfigured() ? calcHandler(ctx, text) : generalHandler(ctx, text);
+    case "calc": {
+      if (!calcKind(text) && aiConfigured()) return generalHandler(ctx, text);
+      const r = await calcHandler(ctx, text);
+      // a number question with no number in it ("what's the HOA like?") that only got a "give me the price" prompt is an assistant question
+      if (aiConfigured() && !/\d/.test(text) && /^(?:What's the (?:sale )?price\?|Re-run what\?|What's the purchase price\?|I don't have that figure on file)/.test(r.text)) return generalHandler(ctx, text);
+      return r;
+    }
     case "inbox_query": return inboxHandler();
     case "describe_home": return describeHomeHandler(ctx, text);
     case "advice": {
       const r = await adviceHandler(ctx, text);
       // the licensing note is only for licensing questions; any other advice question goes to the assistant instead of getting it
-      if (aiConfigured() && /^Real estate licences are state by state/.test(r.text) && !/\b(?:licen[cs]e|licensed|another state|other state|out[- ]of[- ]state|referral)\b/i.test(text)) return generalHandler(ctx, text);
+      if (aiConfigured() && /^Real estate licences are state by state/.test(r.text) && !/\b(?:licen[cs]e|licensed|another state|other state|out[- ]of[- ]state)\b/i.test(text)) return generalHandler(ctx, text);
       return r;
     }
     case "basics": return basicsKind(text) || !aiConfigured() ? basicsHandler(ctx, text) : generalHandler(ctx, text); // a classifier guess without a real lookup behind it is just a question

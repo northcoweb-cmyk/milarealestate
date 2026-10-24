@@ -527,7 +527,7 @@ export async function newClientMeetingHandler(ctx: Ctx, text: string): Promise<H
   const name = named || tagged || pairName || (surname ? `${surname} Family` : "");
   if (!name) return reply("What's their name? Tell me and I'll save them and put the meeting on your calendar.", [], "smalltalk");
   const budget = /\b(?:budget|around|up to|under|max(?:imum)?|pre-?approved (?:for|up to))\b/i.test(text) ? parseMoney(text).max : null;
-  const loc0 = parseLocation(text.replace(/\bclose to\b/gi, "near")) ?? /\b(?:looking|searching|shopping|focused|interested|targeting|homes?)\s+(?:at|in|around|near|on|for)?\s*(?:homes?\s+)?(?:in\s+)?(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)(?=[\s,.;!?]|$)/u.exec(text)?.[1] ?? /\b(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)\s+(?:area|county|neighborhood|suburbs)\b/u.exec(text)?.[1] ?? null;
+  const loc0 = parseLocation(text.replace(/\bclose to\b/gi, "near")) ?? /\b(?:looking|searching|shopping|focused|interested|targeting|homes?|wants?|prefers?|hoping|eyeing|zeroed|set)\s+(?:at|in|around|near|on|for)?\s*(?:homes?\s+)?(?:in\s+)?(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)(?=[\s,.;!?]|$)/u.exec(text)?.[1] ?? /\b(\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+)?)\s+(?:area|county|neighborhood|suburbs)\b/u.exec(text)?.[1] ?? null;
   const loc = loc0 && !isStopName(loc0) ? loc0.replace(/[.,;]+$/, "") : null;
   const near = /\b(?:close to|near|by)\s+((?:the\s+)?[A-Za-z0-9][\w\- ]{1,30}?)(?=\s*(?:[,.;!?]|$|\band\b|\bwith\b|\bfor\b))/i.exec(text)?.[1]?.trim();
   const out = await TOOLS.create_contact.run(ctx, { name, type, status: "new", budget_max: budget ?? null, location: loc ?? null, source: "Meeting", notes: null }) as any;
