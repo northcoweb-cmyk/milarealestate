@@ -401,3 +401,22 @@ test("round 7: old junk contacts (Add, Turn, Rewrite, ID) never hijack later mes
   assert.equal((await store.list("contacts", a.id)).length, before, "no 'Add' contact is created");
   assert.doesNotMatch((await a.say("What's their budget again?")).milaMessage.content, /named What/);
 });
+
+test("round 8: net sheet amounts read exactly (no trailing comma or 'm' of 'mortgage' as millions), the classifier cannot turn plain assistant work into a post, a named couple is saved with budget, area and wishes, payment follow-ups use their budget not a saved home", async () => {
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "test-key-not-used";
+  const a = await fresh();
+  const n1 = (await a.say("Seller net sheet: sale price $650,000, payoff $380,000, 5.5% commission, 1% taxes, $2,000 other costs")).milaMessage.content;
+  assert.match(n1, /Loan payoff: −\$380,000/); assert.match(n1, /\$225,750/);
+  const n2 = (await a.say("Seller net sheet: $650,000 sale, $380,000 mortgage payoff, 5.5% commission")).milaMessage.content;
+  assert.match(n2, /Gross sale price: \$650,000/); assert.match(n2, /Loan payoff: −\$380,000/);
+  await a.say("Add a listing at 9 Pine Court Gaithersburg MD 20877 for 875000");
+  await a.say("I'm meeting a new buyer couple on Monday at 3pm, QA TEST Dev Okafor and Priya. Budget is around $520k in Rockville, they want to be close to I-270.");
+  const c = ((await store.list("contacts", a.id)) as any[]).find((x) => /Okafor/.test(x.name));
+  assert.ok(c && c.budget_max === 520000 && /Rockville$/.test(c.location));
+  assert.match((await a.say("If they put 10% down on that, what's the monthly payment at 7%?")).milaMessage.content, /\$3,114\/month/);
+  assert.match((await a.say("What's their budget again?")).milaMessage.content, /\$520,000/);
+  const before = ((await store.list("social_posts", a.id)) as any[]).length;
+  await a.say("Write a short, funny Halloween post");
+  await a.say("Make it shorter");
+  assert.equal(((await store.list("social_posts", a.id)) as any[]).length, before, "no listing post is made from a writing request");
+});

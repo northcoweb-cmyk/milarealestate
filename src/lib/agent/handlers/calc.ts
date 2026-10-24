@@ -25,9 +25,9 @@ export type CalcKind = "recap" | "payment" | "net_sheet" | "net_price" | "reduct
 
 /** The amount written right before or after a label ("$380,000 payoff", "payoff of $380k", "payoff: 380000"). */
 function labelled(text: string, labels: string): number | null {
-  const money = String.raw`\$?\s?(\d[\d,]*(?:\.\d+)?\s?[km]?)`;
-  const before = new RegExp(String.raw`\$\s?(\d[\d,]*(?:\.\d+)?\s?[km]?)\s*(?:in |for |of )?(?:${labels})\b`, "i").exec(text);
-  const after = new RegExp(String.raw`\b(?:${labels})\b(?:\s*(?:of|at|is|are|was|=|:|-))?\s*${money}(?!\s?%)`, "i").exec(text);
+  const NUM = String.raw`(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?(?:\s?[km]\b)?)`; // no trailing comma, and a k/m only when it stands alone ("380,000 mortgage" is not 380,000 million)
+  const before = new RegExp(String.raw`(?<![\w.,])\$?\s?${NUM}(?:\s?[km]\b)?\s*(?:in |for |of )?(?:${labels})\b`, "i").exec(text);
+  const after = new RegExp(String.raw`\b(?:${labels})\b(?:\s*(?:of|at|is|are|was|=|:|-))?\s*\$?\s?${NUM}(?:\s?[km]\b)?(?!\s?%)`, "i").exec(text);
   const raw = before?.[1] ?? after?.[1];
   return raw ? parseMoney(`$${raw.replace(/\s/g, "")}`).max ?? null : null;
 }
@@ -40,7 +40,7 @@ function labelledPct(text: string, labels: string): number | null {
 export function calcKind(text: string): CalcKind | null {
   const t = text.toLowerCase();
   if (/^\s*(?:add|new|create|schedule|book|remind|draft|write|email|text)\b/.test(t)) return null;
-  if (/\b(?:summari[sz]e|recap|sum up|go over|list)\b.{0,25}\b(?:everything|all|what)\b.{0,20}\b(?:we|i|you)\b.{0,20}\b(?:did|done|covered|got done|worked on)\b/.test(t)) return "recap";
+  if (/\b(?:summari[sz]e|recap|sum up|go over|list)\b.{0,25}\b(?:everything|all|what)\b.{0,20}\b(?:we|i|you)\b.{0,20}\b(?:did|done|covered|got done|worked on)\b/.test(t) && !/\b(?:chat|conversation|thread)\b/.test(t)) return "recap";
   if (/^\s*(?:and\s+|ok(?:ay)?[,\s]+)?(?:what if|how about|what about|and if|try)\b.{0,50}\b(?:rates?|interest|\d+(?:\.\d+)?\s?%|\d{2}[- ]?(?:year|yr)s?|years?)\b/.test(t)) return "recalc";
   if (/\b(?:monthly )?payment\b/.test(t) && percents(text).length && !amounts(text).length && /\b(?:what|how much|what's|whats)\b/.test(t)) return "payment";
   if (/^\s*(?:(?:ok|so|and|hey)[,\s]+)*(?:what|which)\b.{0,25}\b(?:did i|have i|did we|have we)\b.{0,30}\b(?:get done|do|done|finish|finished|accomplish\w*|complete\w*|add\w*)\b.{0,25}\b(?:today|this week|so far|yesterday)\b|^\s*(?:daily |weekly )?recap\b/.test(t) && !/\bwhat did i (?:say|tell|promise)\b/.test(t)) return "recap";
@@ -172,6 +172,9 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       let price = nums[0];
       const isLoan = /\$\s?\d[\d,.]*\s?[km]?\s+(?:loan|mortgage)\b|\b(?:loan|mortgage) (?:amount )?(?:of|for|is) \$/i.test(text) && !/\b\d+(?:\.\d+)?\s?%\s*down\b/i.test(text); // "payment on a $480,000 loan": that IS the loan, nothing to subtract
       let label = "";
+      const aboutThem = /\b(?:they|their|them|the couple|my buyers?)\b/i.test(text) && !/\b(?:home|house|property|listing)\b/i.test(text);
+      const c1 = !price && aboutThem && ctx.state.last_contact_ids?.[0] ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]) : null;
+      if (c1?.budget_max) { price = c1.budget_max; label = ` (${c1.name}'s budget)`; }
       const p = price ? null : await resolveProperty(ctx, text, true).catch(() => null);
       if (p?.list_price) { price = p.list_price; label = ` for ${p.address}`; }
       const contacts = await mentionedContacts(ctx, text).catch(() => []);

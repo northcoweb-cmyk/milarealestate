@@ -444,8 +444,9 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
     let d = ci === 0 && forced ? { intent: forced, declared: false } : detectIntent(clause);
     // plain assistant work (explain, rewrite, translate, scripts, bios, plans, quizzes) goes to the general assistant instead of being forced into a calendar, contact or listing-post flow
     if (!forced && GENERAL_STEALS.has(d.intent) && (d.intent !== "advice" || aiConfigured()) && (d.intent !== "revise_draft" || isEditText(clause)) && looksGeneral(clause) && (isEditText(clause) || (!parseAddress(clause) && !(await mentionedContacts(ctx, clause)).length))) d = { intent: "general", declared: false };
-    if (d.intent === "general") {
-      const c = await llmClassify(ctx, clause);
+    if (d.intent === "general" && !(looksGeneral(clause) && !parseAddress(clause))) { // plain assistant work is already decided: the classifier must not turn it back into a post or a contact
+      const c0 = await llmClassify(ctx, clause);
+      const c = c0 && c0.intent === "social_post" && !/\b(?:posts?|captions?|instagram|facebook|tiktok|carousel|stor(?:y|ies)|flyer|reel)\b/i.test(clause) ? null : c0; // "make it shorter" is never a new listing post
       // a question never writes: if the AI guesses a data-changing intent for a question, treat it as plain chat
       const WRITES = new Set<Intent>(["property_status", "update_listing", "list_date", "delete_data", "cancel_event", "move_event", "replace_event", "contact_field_update", "deactivate_contact", "client_lost", "closed_deal", "transaction", "offer_received", "property_note", "property_fact", "time_off", "create_event", "reminder", "add_task", "new_contact", "add_listing"]);
       const isQ = /^\s*(?:how many|how much|what|which|who|when|where|why|is|are|do|does|did|can|could|should|will|would)\b/i.test(clause) || /\?\s*$/.test(clause);
