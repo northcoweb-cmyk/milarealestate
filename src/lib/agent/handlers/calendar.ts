@@ -1,4 +1,5 @@
 import { resolveAddress } from "../property-lookup";
+import { googleConfigured } from "../../integrations/google";
 import { landmarkAsk } from "./location";
 import { addDays, fmtDay, fmtDayTime, fmtRange, fmtShortDate, fmtTime, partsIn, startOfDay, zonedToUtc } from "../../time";
 import type { Block, CalendarEvent, Contact, EmailDraft, Property, SocialPost } from "../../types";
@@ -412,6 +413,16 @@ export async function scheduleWithConflictCheck(ctx: Ctx, args: Record<string, a
   const rule = (await ctx.store.list("memories", ctx.userId)).find((m) => new RegExp(`\\b(never|don't|do not|no)\\b.*\\b${dayName}s?\\b`, "i").test(`${m.key} ${m.value}`) && /\b(show|open house|work|meet|book)/i.test(`${m.key} ${m.value}`));
   if (rule) ahead.note += `\n\n⚠️ Heads up: you told me “${rule.value.slice(0, 80)}”. It's booked, say the word if you want it moved.`;
   const unsynced: Block[] = syncPending ? [{ type: "notice", tone: "warn", title: "Saved in Mila, not on Google Calendar yet", body: `${syncNote ?? "Google Calendar didn't answer."} Nothing is lost, and asking again won't create a second copy.`, buttons: [{ label: "Retry sync", style: "primary", action: { type: "sync_event", eventId: ev.id } }] }] : [];
+  // the event is on Mila's calendar; if it isn't on the agent's own phone calendar yet, offer the one-tap way (once a day, never nagging)
+  const gcal = (await ctx.store.list("integrations", ctx.userId)).find((i) => i.provider === "google" && i.scopes.some((x) => x.includes("calendar")));
+  const lastPrompt = ctx.state.cal_prompt_at ?? 0;
+  if (!gcal && !syncPending && Date.now() - lastPrompt > 20 * 3_600_000) {
+    ctx.state.cal_prompt_at = Date.now(); await persistState(ctx);
+    unsynced.push({ type: "notice", tone: "info", title: "Get this on your phone's calendar", body: "Right now it's only in Mila. Connect Google Calendar once and Mila adds every event for you, or add this one to Apple or any calendar app.", buttons: [
+      ...(googleConfigured() ? [{ label: "Connect Google Calendar", style: "primary" as const, href: "/api/integrations/google/start?services=calendar" }] : []),
+      { label: "Add this one to my calendar", style: googleConfigured() ? "secondary" as const : "primary" as const, href: `/api/calendar/event/${ev.id}/ics` },
+    ] });
+  }
   // a showing or open house in another state than the one the agent is licensed in: say so before it becomes a problem
   if (["showing", "open_house", "meeting"].includes(ev.kind) || /showing|open house/i.test(ev.title)) {
     const home = (ctx.profile.primary_market || ctx.profile.location || "") as string;

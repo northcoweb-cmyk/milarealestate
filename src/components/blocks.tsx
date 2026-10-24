@@ -4,7 +4,7 @@ import { FollowUp } from "@/components/ui/follow-up";
 import { wordingFlags } from "@/lib/content/guardrails";
 import { ListingRail } from "./listing-cards";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { AlertTriangle, Check, ChevronDown, Circle, Clock, MapPin, X, Info, CheckCircle2 } from "lucide-react";
 import type { ActionButton, Block } from "@/lib/types";
@@ -38,10 +38,60 @@ const STATE_ICON = {
   failed: <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full" style={{ background: "color-mix(in srgb, var(--danger) 16%, transparent)", color: "var(--danger)" }}><X size={13} strokeWidth={3} /></span>,
 } as const;
 
+/** A number that counts up to its value (skipped for people who asked for less motion). */
+function CountUp({ value, prefix = "", suffix = "" }: { value: number; prefix?: string; suffix?: string }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setN(value); return; }
+    const t0 = performance.now(), dur = 1100; let raf = 0;
+    const tick = (t: number) => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); setN(Math.round(value * e)); if (k < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{prefix}{n.toLocaleString("en-US")}{suffix}</>;
+}
+
 export function BlockView(p: Props) {
   const { block: b } = p;
   const btns = { onAction: p.onAction, onApprove: p.onApprove, onNavigate: p.onNavigate, busy: p.busy };
   switch (b.type) {
+    case "replaced":
+      return <p className="faint text-[13px] font-semibold">↓ {b.note ?? "Replaced by the newer version below"}</p>;
+    case "calc":
+      return (
+        <div className="glass-strong overflow-hidden" style={{ borderRadius: 26 }}>
+          <div className="px-5 pb-4 pt-5" style={{ background: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent-2) 10%, transparent))" }}>
+            {b.kicker && <p className="kicker mb-1">{b.kicker}</p>}
+            <p className="muted text-[14px] font-semibold">{b.title}</p>
+            <p className="display mt-1 text-[44px] leading-none tracking-tight"><CountUp value={b.headline.value} prefix={b.headline.prefix} suffix={b.headline.suffix} /></p>
+            <p className="faint mt-1 text-[13px]">{b.headline.label}</p>
+          </div>
+          <ul className="divide-y px-5 py-1" style={{ borderColor: "var(--line)" }}>
+            {b.rows.map((r, i) => (
+              <motion.li key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.07, duration: 0.3 }} className="flex items-baseline justify-between gap-4 py-2.5 text-[15px]" style={{ borderColor: "var(--line)" }}>
+                <span className={r.tone === "total" ? "font-semibold" : "muted"}>{r.label}</span>
+                <span className={clsx("shrink-0 tabular-nums", r.tone === "total" ? "text-[17px] font-bold" : "font-semibold")} style={r.tone === "minus" ? { color: "var(--danger)" } : r.tone === "plus" ? { color: "var(--ok)" } : undefined}>{r.value}</span>
+              </motion.li>
+            ))}
+          </ul>
+          {b.note && <p className="faint px-5 pb-4 pt-1 text-[13px]">{b.note}</p>}
+        </div>
+      );
+    case "recap":
+      return (
+        <div className="glass p-4 sm:p-5" style={{ borderRadius: 26 }}>
+          <p className="kicker mb-3">{b.title}</p>
+          <ul className="space-y-2.5">
+            {b.items.map((it, i) => (
+              <motion.li key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.28 }} className="flex gap-3 rounded-2xl p-3" style={{ background: "color-mix(in srgb, var(--ink) 4%, transparent)" }}>
+                <span className="text-[22px] leading-none" aria-hidden>{it.emoji}</span>
+                <div className="min-w-0"><p className="font-semibold leading-snug">{it.title}</p><p className="muted text-[14.5px] leading-snug">{it.detail}</p></div>
+              </motion.li>
+            ))}
+          </ul>
+        </div>
+      );
     case "workflow":
       return (
         <LiquidGlassCard className="p-5 sm:p-6" borderRadius="28px" glowIntensity="md" shadowIntensity="sm">

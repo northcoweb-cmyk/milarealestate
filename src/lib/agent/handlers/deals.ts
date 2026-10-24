@@ -251,15 +251,22 @@ export async function draftTextHandler(ctx: Ctx, text: string): Promise<HandlerO
   }
   const me = firstNameOf(ctx.profile.full_name);
   const msg = warmText(first, body, me);
+  return textDraftReply(ctx, c, name, first, msg, text);
+}
+
+/** The text message and its "Open in Messages" card: one place builds it, so a rewritten text looks exactly like the first one. */
+export async function textDraftReply(ctx: Ctx, c: Contact | null, name: string, first: string, msg: string, userText: string): Promise<HandlerOut> {
   const phone = c?.phone?.replace(/[^\d+]/g, "") ?? "";
   const href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
   if (c) await logContactEvent(ctx, c.id, "text", "Text drafted", msg);
   ctx.state.last_contact_ids = c ? [c.id] : ctx.state.last_contact_ids;
-  if (c) { ctx.state.pending_text = { contact_id: c.id, name: c.name, at: Date.now() }; await persistState(ctx); }
+  ctx.state.last_text = { to: c?.id ?? null, name: c?.name ?? name, text: msg, at: Date.now() }; // "make it warmer" edits THIS text
+  if (c) ctx.state.pending_text = { contact_id: c.id, name: c.name, at: Date.now() };
+  await persistState(ctx);
   return reply(`Here's the text to ${first}:\n\n“${msg}”\n\n${phone ? "Tap below and it opens in your Messages, ready to send." : `I don't have a number for ${first} yet — tap below to pick them in Messages.`} I don't send texts myself, so nothing goes out until you tap Send.`, [{
     type: "choice", title: `Text ${first}`,
     buttons: [{ label: `Open in Messages`, style: "primary", href }, ...(c ? [{ label: "Open profile", style: "quiet" as const, href: `/contacts/${c.id}` }] : [])],
-  }, ...(wantsPhotos(text) ? await sharePhotosBlock(ctx, text, msg) : [])], "chat_simple");
+  }, ...(wantsPhotos(userText) ? await sharePhotosBlock(ctx, userText, msg) : [])], "chat_simple");
 }
 
 // ------------------------------------------------------------------ week overview + pipeline

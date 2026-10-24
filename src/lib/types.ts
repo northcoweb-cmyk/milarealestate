@@ -408,6 +408,8 @@ export interface ConversationState {
   last_draft_at?: number;
   last_text?: { to: ID | null; name: string; text: string; at: number } | null;
   last_event_id?: ID | null;
+  /** when the "put this on your phone's calendar" offer was last shown, so it is made once a day */
+  cal_prompt_at?: number;
   /** the last payment worked out, so "what if rates drop to 6.25%?" reruns it with one number changed */
   last_calc?: { price: number; down: number; rate: number; term: number; label: string; at: number } | null;
   last_property_id?: ID | null;
@@ -496,7 +498,13 @@ export type Block =
   | { type: "listings"; title: string; subtitle?: string; cards: ListingCardData[]; buttons?: ActionButton[] }
   | { type: "listing_brief"; kicker?: string; title: string; subtitle?: string; done: number; total: number; sections: BriefSection[]; buttons?: ActionButton[] }
   | { type: "market"; title: string; location: string; asOf: string; dataPeriod: string; bullets: string[]; sources: { title: string; url: string }[] }
-  | { type: "event"; eventId: ID; title: string; when: string; where?: string; status?: string };
+  | { type: "event"; eventId: ID; title: string; when: string; where?: string; status?: string }
+  /** a worked-out number: the answer counts up, the lines under it show how it was reached */
+  | { type: "calc"; kicker?: string; title: string; headline: { label: string; value: number; prefix?: string; suffix?: string }; rows: { label: string; value: string; tone?: "minus" | "plus" | "total" }[]; note?: string }
+  /** a chat or day summary as cards */
+  | { type: "recap"; title: string; items: { emoji: string; title: string; detail: string }[] }
+  /** this message was replaced by a newer version below it: it is shown crossed out */
+  | { type: "replaced"; note?: string };
 
 // ---------- Credits / billing ----------
 

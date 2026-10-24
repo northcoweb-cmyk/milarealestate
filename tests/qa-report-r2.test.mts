@@ -461,3 +461,44 @@ test("round 11: a couple is one household greeted as both, 'X or Y' areas are bo
   const steps = card && card.block.type === "advice" ? card.block.steps : [];
   assert.ok(!steps.some((s: any) => s.heading === "Monday at 11"));
 });
+
+test("round 12: worked-out numbers come as a card with the headline and the lines under it; a reminder says it will email; due reminders email once; a first event offers the phone calendar", async () => {
+  const a = await fresh();
+  const pay = (await a.say("payment on 615k, 20% down at 6.75%")).milaMessage;
+  const card = pay.blocks.find((b: any) => b.type === "calc") as any;
+  assert.ok(card && card.headline.value === 3191 && card.rows.some((r: any) => r.label === "Loan"));
+  const net = (await a.say("Seller net sheet: $650,000 sale, $380,000 payoff, 5.5% commission, 1% taxes, $2,000 other costs")).milaMessage;
+  assert.equal((net.blocks.find((b: any) => b.type === "calc") as any).headline.value, 225750);
+  const rem = (await a.say("Remind me tomorrow at 9am to call Dana")).milaMessage.content;
+  assert.match(rem, /by email and in the app/);
+  const ev = (await a.say("Schedule a showing at 12 Oak Lane Saturday at 2pm")).milaMessage;
+  assert.ok(ev.blocks.some((b: any) => b.type === "notice" && /phone's calendar/.test(b.title)), "the calendar connect offer is shown");
+  const again = (await a.say("Schedule a call with Dana Sunday at 4pm")).milaMessage;
+  assert.ok(!again.blocks.some((b: any) => b.type === "notice" && /phone's calendar/.test(b.title)), "the offer is made once a day, not on every event");
+  // a due reminder is emailed exactly once
+  const { deliverReminder } = await import("../src/lib/reminders");
+  const sent: string[] = [];
+  const realFetch = globalThis.fetch; process.env.RESEND_API_KEY = "test"; globalThis.fetch = (async (_u: any, init: any) => { sent.push(JSON.parse(init.body).subject); return new Response("{}", { status: 200 }); }) as any;
+  try {
+    const r = ((await store.list("reminders", a.id)) as any[])[0];
+    await store.update("reminders", a.id, r.id, { channels: ["pwa", "email"] } as never);
+    const due = (await store.get("reminders", a.id, r.id)) as any;
+    const first = await deliverReminder(due), second = await deliverReminder(due);
+    assert.equal(first.emailed, true); assert.equal(second.emailed, false);
+    assert.deepEqual(sent, ["Reminder: Call Dana"]);
+  } finally { globalThis.fetch = realFetch; delete process.env.RESEND_API_KEY; }
+});
+
+test("round 12b: a rewritten text crosses out the earlier text card in the same chat", async () => {
+  const a = await fresh();
+  await a.say("Add a new buyer Nia Torres, phone 240-555-0100");
+  await a.say("Text Nia to confirm our meeting");
+  const { buildCtx, markTextReplaced } = await import("../src/lib/agent/engine");
+  const profile = (await store.get("profiles", a.id, a.id)) as any;
+  const msgs0 = ((await store.list("messages", a.id)) as any[]).filter((m) => m.role === "mila");
+  const convId = msgs0[0].conversation_id;
+  await markTextReplaced(await buildCtx(profile, convId));
+  const marked = ((await store.list("messages", a.id)) as any[]).filter((m) => m.blocks.some((b: any) => b.type === "replaced"));
+  assert.equal(marked.length, 1);
+  assert.ok(marked[0].blocks.some((b: any) => b.type === "choice" && /^Text /.test(b.title)));
+});

@@ -337,8 +337,12 @@ function MessageView({ m, last, onAction, onApprove, onNavigate, busy }: { m: Me
   }
   return (
     <div className="rise space-y-3" {...(last ? { "data-last-mila": "" } : {})}>
-      {m.content && <p className="whitespace-pre-line text-[17px] leading-snug">{m.content}</p>}
-      {m.blocks.map((b: Block, i: number) => <BlockView key={i} block={b} onAction={onAction as never} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
+      {m.content && <p className={"whitespace-pre-line text-[17px] leading-snug" + (m.blocks.some((b: Block) => b.type === "replaced") ? " line-through opacity-60" : "")}>{m.blocks.some((b: Block) => b.type === "calc") ? m.content.split(/\n•/)[0].split(/\n(?=•)/)[0] : m.content}</p>}
+      {m.blocks.some((b: Block) => b.type === "replaced")
+        ? <div className="opacity-50" style={{ pointerEvents: "none" }}>{m.blocks.filter((b: Block) => b.type !== "replaced").map((b: Block, i: number) => <BlockView key={i} block={b} onAction={onAction as never} onApprove={onApprove} onNavigate={onNavigate} busy />)}</div>
+        : null}
+      {m.blocks.filter((b: Block) => b.type === "replaced").map((b: Block, i: number) => <BlockView key={"r" + i} block={b} onAction={onAction as never} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
+      {!m.blocks.some((b: Block) => b.type === "replaced") && m.blocks.map((b: Block, i: number) => <BlockView key={i} block={b} onAction={onAction as never} onApprove={onApprove} onNavigate={onNavigate} busy={busy} />)}
       {!busy && (m.content || m.blocks.length > 0) && <FeedbackRow target="chat" targetId={m.id} snippet={m.content?.slice(0, 400)} />}
     </div>
   );

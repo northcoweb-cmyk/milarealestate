@@ -26,7 +26,7 @@ import { aiLimitedReason, runInAiScope } from "../ai/budget";
 import { listingReadyHandler, whatMissingHandler } from "./handlers/readiness";
 import { meetingPrepHandler, showingFollowupsHandler } from "./handlers/briefs";
 import { newListingsHandler, prepPropertyHandler, saveListingCard, saveRentalCard, saveRentalsForClient } from "./handlers/marketdata";
-import { closedDealHandler, draftTextHandler, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
+import { closedDealHandler, draftTextHandler, textDraftReply, logInteractionHandler, pipelineHandler, transactionHandler, weekOverviewHandler } from "./handlers/deals";
 import { addListingHandler, resolveProperty, listingChecklist, propertyFactHandler, showingSheetHandler, updateListingHandler } from "./handlers/listing";
 import { splitClauses } from "./nlu";
 import { isEditText, looksGeneral } from "./general-gate";
@@ -220,6 +220,12 @@ async function feedbackHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
 }
 
 const ASK_BY_MISSING: Record<string, string> = { address: "Which property is it for?", date: "Which day?", time: "What time?", name: "Who is it for?", location: "Which city and state?", details: "What should I change?" };
+
+/** The earlier "Text …" card in this chat is crossed out once a newer version of that text exists. */
+export async function markTextReplaced(ctx: Ctx) {
+  const mine = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId && m.role === "mila" && m.blocks.some((b) => b.type === "choice" && /^Text /.test(b.title)) && !m.blocks.some((b) => b.type === "replaced")).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (mine[0]) await ctx.store.update("messages", ctx.userId, mine[0].id, { blocks: [...mine[0].blocks, { type: "replaced", note: "Replaced by the newer version below" }] } as never);
+}
 
 async function recentHistory(ctx: Ctx, n = 8) {
   const msgs = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId).sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(-n);
@@ -630,6 +636,20 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "revise_draft": {
       // with the assistant on, a text, bio or script is reworked from the chat itself; only a saved email draft keeps its own editor
       const emailDraftLive = !!ctx.state.last_draft_id && Date.now() - (ctx.state.last_draft_at ?? 0) < 60 * 60_000 && (ctx.state.last_draft_at ?? 0) >= (ctx.state.last_text?.at ?? 0);
+      const lt = ctx.state.last_text && Date.now() - ctx.state.last_text.at < 60 * 60_000 ? ctx.state.last_text : null;
+      if (aiConfigured() && !emailDraftLive && lt) {
+        // a text message is rewritten into the same send card, and the older one is crossed out
+        const ai = await llmChat(ctx, `Rewrite this text message as asked: ${text}.\nCurrent message: ${lt.text}\nReturn ONLY the new text message, as the agent writing to the client. No quotes, no explanation.`, await recentHistory(ctx), "");
+        if (ai?.text) {
+          const me = firstNameOf(ctx.profile.full_name);
+          let msg = ai.text.replace(/^["“”\s]+|["“”\s]+$/g, "").trim();
+          if (!/[–-]\s*\p{L}+\s*$/u.test(msg)) msg = `${msg} – ${me}`;
+          const c = lt.to ? await ctx.store.get("contacts", ctx.userId, lt.to) : null;
+          const out = await textDraftReply(ctx, c, lt.name, firstNameOf(lt.name), msg, "");
+          await markTextReplaced(ctx);
+          return out;
+        }
+      }
       if (aiConfigured() && !emailDraftLive) return generalHandler(ctx, `Take your previous reply in this chat and change it as asked: ${text}. Give only the new version.`);
       const r = await reviseDraftHandler(ctx, text);
       // no saved draft: the text to change is Mila's own last answer in this chat (a bio, a script, a list), so the assistant reworks that
@@ -750,8 +770,16 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
     extra = (await Promise.all(known.slice(0, 3).map(async (c) => `${c.name} (${c.type}, ${c.status}${c.location ? ", " + c.location : ""}): ${(await contactFacts(ctx, c)).join("; ") || "no saved details"}`))).join("\n");
   }
   const recapAsk = /\b(?:summari[sz]e|recap|sum up|go over)\b.{0,30}\b(?:chat|conversation|thread|everything|all of this|this morning|today)\b/i.test(text);
-  const ai = await llmChat(ctx, recapAsk ? `${text}\n\n(Summarize ONLY the messages in this chat so far, in order: what was asked and what was done or decided, including every contact saved, meeting, reminder, draft and number worked out. Use nothing from outside this chat. Write plain sentences with the full times, no headings.)` : text, await recentHistory(ctx, /\b(?:summari[sz]e|recap|sum up|go over)\b.{0,30}\b(?:chat|conversation|thread|everything|all of this|this morning|today)\b/i.test(text) ? 40 : 8), extra); // a summary of the chat needs the whole chat
+  const ai = await llmChat(ctx, recapAsk ? `${text}\n\n(Summarize ONLY the messages in this chat so far, in order. Use nothing from outside this chat. Reply with one short lead sentence on the first line, then one line per thing, each written exactly as: emoji | short title | one-line detail with the full times and numbers. Cover every contact saved, meeting, reminder, draft and number worked out. No other text.)` : text, await recentHistory(ctx, /\b(?:summari[sz]e|recap|sum up|go over)\b.{0,30}\b(?:chat|conversation|thread|everything|all of this|this morning|today)\b/i.test(text) ? 40 : 8), extra); // a summary of the chat needs the whole chat
   if (ai) {
+    if (recapAsk) {
+      const lines = ai.text.split("\n").map((l) => l.trim()).filter(Boolean);
+      const items = lines.map((l) => l.split("|").map((x) => x.trim())).filter((x) => x.length >= 3 && x[1]).map((x) => ({ emoji: x[0].slice(0, 4) || "•", title: x[1].slice(0, 80), detail: x.slice(2).join(" | ").slice(0, 220) }));
+      if (items.length >= 2) {
+        const lead = lines.find((l) => !l.includes("|")) ?? "Here's your chat so far.";
+        return reply(lead, [{ type: "recap", title: "This chat", items }, ...(ai.suggestions.length ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], "chat_simple");
+      }
+    }
     const card = recapAsk ? null : adviceCard(text, ai.text, known[0]); // a chat summary is read as written, never cut into step cards
     if (card) return reply(card.lead, [card.block, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   }

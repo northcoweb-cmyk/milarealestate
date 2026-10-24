@@ -4,6 +4,7 @@
  * budgets already saved on contacts ("which buyers are under $600k", "compare Desmond's budget to Corinne's").
  * Every answer says which assumptions it used. Nothing is saved.
  */
+import type { Block } from "../../types";
 import { persistState } from "../conversation";
 import { type Ctx, fullMoney } from "../context";
 import { aiConfigured as aiAvailable } from "../../ai/configured";
@@ -22,6 +23,18 @@ const percents = (text: string): number[] => [...text.matchAll(/(\d+(?:\.\d+)?)\
 
 export type CalcKind = "recap" | "payment" | "net_sheet" | "net_price" | "reduction" | "commission" | "affordable" | "budget_filter" | "budget_compare" | "unknown_fact" | "cash_to_close" | "recalc";
 
+
+const usd = (n: number) => `${n < 0 ? "−" : ""}${fullMoney(Math.abs(n))}`;
+type CalcCard = Extract<Block, { type: "calc" }>;
+const calcCard = (c: Omit<CalcCard, "type">): CalcCard => ({ type: "calc", ...c });
+
+const payCard = (o: { label?: string; price: number; down: number; rate: number; term: number; loan: number; pi: number; withTaxes?: number; diff?: number; loanOnly?: boolean }) => calcCard({
+  kicker: "Monthly payment", title: `${o.label ? o.label.replace(/^ /, "") + " · " : ""}${o.loanOnly ? `${fullMoney(o.price)} loan` : `${fullMoney(o.price)} home`} at ${o.rate}% for ${o.term} years`,
+  headline: { label: "principal and interest, per month", value: Math.round(o.pi), prefix: "$" },
+  rows: [...(o.loanOnly ? [] : [{ label: "Home price", value: usd(o.price) }, { label: `Down payment (${o.down}%)`, value: usd(Math.round(o.price * o.down / 100)), tone: "minus" as const }]), { label: "Loan", value: usd(Math.round(o.loan)) }, { label: "Principal and interest", value: `${usd(Math.round(o.pi))}/mo`, tone: "total" as const },
+    ...(o.withTaxes ? [{ label: "With est. taxes and insurance", value: `${usd(Math.round(o.withTaxes))}/mo` }] : []), ...(o.diff ? [{ label: "Compared with before", value: `${o.diff < 0 ? "−" : "+"}${fullMoney(Math.abs(o.diff))}/mo`, tone: o.diff < 0 ? "plus" as const : "minus" as const }] : [])],
+  note: o.loanOnly ? "Add property tax, insurance, any HOA and mortgage insurance for the full monthly cost." : "Taxes, insurance and any HOA come on top (the estimate uses about 0.94% tax and 0.35% insurance).",
+});
 
 /** The amount written right before or after a label ("$380,000 payoff", "payoff of $380k", "payoff: 380000"). */
 function labelled(text: string, labels: string): number | null {
@@ -109,7 +122,7 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
         if (cash && home && cpct !== null) {
           const closingAmt = Math.round(home * cpct / 100), downAmt = cash - closingAmt;
           if (downAmt <= 0) return reply(`${fullMoney(cash)} doesn't cover ${cpct}% closing costs (${fullMoney(closingAmt)}) on a ${fullMoney(home)} home, so there is nothing left for a down payment yet.`, [], "chat_simple");
-          return reply(`With ${fullMoney(cash)} in cash on a ${fullMoney(home)} home:\n• Closing costs (${cpct}%): ${fullMoney(closingAmt)}\n• Left for the down payment: ${fullMoney(downAmt)}, which is ${(downAmt / home * 100).toFixed(1)}% down.\nA lender may also want reserves, so confirm with the Loan Estimate.`, [], "chat_simple");
+          return reply(`With ${fullMoney(cash)} in cash on a ${fullMoney(home)} home:\n• Closing costs (${cpct}%): ${fullMoney(closingAmt)}\n• Left for the down payment: ${fullMoney(downAmt)}, which is ${(downAmt / home * 100).toFixed(1)}% down.\nA lender may also want reserves, so confirm with the Loan Estimate.`, [calcCard({ kicker: "Down payment", title: `${fullMoney(cash)} in cash on a ${fullMoney(home)} home`, headline: { label: `left for the down payment (${(downAmt / home * 100).toFixed(1)}% down)`, value: downAmt, prefix: "$" }, rows: [{ label: "Cash on hand", value: usd(cash) }, { label: `Closing costs (${cpct}%)`, value: usd(-closingAmt), tone: "minus" }, { label: "Down payment", value: usd(downAmt), tone: "total" }], note: "A lender may also want reserves, so confirm with the Loan Estimate." })], "chat_simple");
         }
       }
       const price = nums[0]; const down = pcts[0] ?? 20;
@@ -149,7 +162,13 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       if (otherAmt !== null) lines.push(`• Other costs: −${fullMoney(otherAmt)}`);
       if (assumedClosing) lines.push(`• Closing costs and transfer taxes (about 1.5%, estimated): −${fullMoney(assumedClosing)}`);
       if (payoff !== null) lines.push(`• Loan payoff: −${fullMoney(payoff)}`);
-      return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n${lines.join("\n")}\n• ${payoff !== null ? "Estimated net to the seller" : "Estimated net before mortgage payoff"}: ${fullMoney(net)}${payoff === null ? "\nSubtract the loan payoff and any credits for the real number. Tell me the payoff and I'll rerun it." : "\nThe title company's settlement statement has the final number."}${taxes === null && otherAmt === null && payoff !== null ? " Closing costs and taxes aren't included. Give me those and I'll add them." : ""}`, [], "chat_simple");
+      const noteNet = payoff === null ? "Subtract the loan payoff and any credits for the real number." : taxes === null && otherAmt === null ? "Closing costs and taxes aren't included. Give me those and I'll add them." : "The title company's settlement statement has the final number.";
+      const netCard = calcCard({ kicker: "Seller net sheet", title: `Sale at ${fullMoney(price)}${label}`, headline: { label: payoff !== null ? "Estimated net to the seller" : "Estimated net before mortgage payoff", value: Math.max(0, net), prefix: "$" }, rows: [
+        { label: "Sale price", value: usd(price) }, { label: `Commission (${pct}%${commPct === null ? ", assumed" : ""})`, value: usd(-comm), tone: "minus" },
+        ...(taxes !== null ? [{ label: `Taxes and transfer costs (${taxPct}%)`, value: usd(-taxes), tone: "minus" as const }] : []), ...(otherAmt !== null ? [{ label: "Other costs", value: usd(-otherAmt), tone: "minus" as const }] : []),
+        ...(assumedClosing ? [{ label: "Closing costs and transfer taxes (about 1.5%, estimated)", value: usd(-assumedClosing), tone: "minus" as const }] : []), ...(payoff !== null ? [{ label: "Loan payoff", value: usd(-payoff), tone: "minus" as const }] : []),
+        { label: payoff !== null ? "Net to the seller" : "Net before payoff", value: usd(net), tone: "total" }], note: noteNet });
+            return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n${lines.join("\n")}\n• ${payoff !== null ? "Estimated net to the seller" : "Estimated net before mortgage payoff"}: ${fullMoney(net)}${payoff === null ? "\nSubtract the loan payoff and any credits for the real number. Tell me the payoff and I'll rerun it." : "\nThe title company's settlement statement has the final number."}${taxes === null && otherAmt === null && payoff !== null ? " Closing costs and taxes aren't included. Give me those and I'll add them." : ""}`, [netCard], "chat_simple");
     }
     case "recalc": {
       const lc = ctx.state.last_calc;
@@ -165,7 +184,7 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       ctx.state.last_calc = { ...lc, price: price0, down, rate, term, at: Date.now() }; await persistState(ctx);
       const before = monthlyPI(lc.price * (1 - lc.down / 100), lc.rate, lc.term);
       const diff = Math.round(pi - before);
-      return reply(`Payment${lc.label} on ${fullMoney(price0)}, ${down}% down at ${rate}% for ${term} years:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month${diff ? ` (${diff < 0 ? "down" : "up"} ${fullMoney(Math.abs(diff))} from before)` : ""}\nTaxes, insurance and any HOA come on top.`, [], "chat_simple");
+      return reply(`Payment${lc.label} on ${fullMoney(price0)}, ${down}% down at ${rate}% for ${term} years:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month${diff ? ` (${diff < 0 ? "down" : "up"} ${fullMoney(Math.abs(diff))} from before)` : ""}\nTaxes, insurance and any HOA come on top.`, [payCard({ label: lc.label, price: price0, down, rate, term, loan, pi, diff })], "chat_simple");
     }
     case "payment":
     case "affordable": {
@@ -213,9 +232,9 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       const pi = monthlyPI(loan, rateUsed, term);
       const tax = (price * 0.0094) / 12, ins = (price * 0.0035) / 12;
       ctx.state.last_calc = { price, down: dp, rate: rateUsed, term, label, at: Date.now() }; await persistState(ctx);
-      if (isLoan) return reply(`Payment on a ${fullMoney(price)} loan at ${rateUsed}%${rate === undefined ? " (assumed)" : ""} for ${term} years:\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• Add property tax, insurance, any HOA and mortgage insurance for the full monthly cost. Give me the home price and I'll estimate those too.`, [], "chat_simple");
+      if (isLoan) return reply(`Payment on a ${fullMoney(price)} loan at ${rateUsed}%${rate === undefined ? " (assumed)" : ""} for ${term} years:\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• Add property tax, insurance, any HOA and mortgage insurance for the full monthly cost. Give me the home price and I'll estimate those too.`, [payCard({ price, down: 0, rate: rateUsed, term, loan: price, pi, loanOnly: true })], "chat_simple");
       const assumed = [down === undefined && rate === undefined ? "20% down and 6.75% assumed" : down === undefined ? "20% down assumed" : rate === undefined ? "6.75% rate assumed" : ""].filter(Boolean)[0];
-      return reply(`Payment${label} on ${fullMoney(price)}, ${dp}% down at ${rateUsed}% for ${term} years${assumed ? ` (${assumed})` : ""}:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• With estimated taxes (~0.94%) and insurance (~0.35%): about ${fullMoney(Math.round(pi + tax + ins))}/month, before any HOA or mortgage insurance.`, [], "chat_simple");
+      return reply(`Payment${label} on ${fullMoney(price)}, ${dp}% down at ${rateUsed}% for ${term} years${assumed ? ` (${assumed})` : ""}:\n• Loan: ${fullMoney(Math.round(loan))}\n• Principal and interest: ${fullMoney(Math.round(pi))}/month\n• With estimated taxes (~0.94%) and insurance (~0.35%): about ${fullMoney(Math.round(pi + tax + ins))}/month, before any HOA or mortgage insurance.`, [payCard({ label, price, down: dp, rate: rateUsed, term, loan, pi, withTaxes: pi + tax + ins })], "chat_simple");
     }
     case "budget_filter": {
       const t = text.toLowerCase();
