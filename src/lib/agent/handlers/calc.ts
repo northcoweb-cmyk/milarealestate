@@ -142,14 +142,14 @@ export async function calcHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       const comm = Math.round(price * pct / 100);
       const taxes = taxPct !== null ? Math.round(price * taxPct / 100) : null;
       const otherAmt = other && other !== payoff ? other : null;
-      const assumedClosing = taxes === null && otherAmt === null ? Math.round(price * 0.015) : 0; // nothing given: a rough 1.5% for seller-side costs and transfer taxes
+      const assumedClosing = taxes === null && otherAmt === null && payoff === null ? Math.round(price * 0.015) : 0; // nothing given: a rough 1.5% for seller-side costs and transfer taxes
       const net = price - comm - (taxes ?? 0) - (otherAmt ?? 0) - assumedClosing - (payoff ?? 0);
       const lines = [`• Gross sale price: ${fullMoney(price)}`, `• Commission (${pct}%${commPct === null ? ", assumed" : ""}): −${fullMoney(comm)}`];
       if (taxes !== null) lines.push(`• Taxes and transfer costs (${taxPct}%): −${fullMoney(taxes)}`);
       if (otherAmt !== null) lines.push(`• Other costs: −${fullMoney(otherAmt)}`);
       if (assumedClosing) lines.push(`• Closing costs and transfer taxes (about 1.5%, estimated): −${fullMoney(assumedClosing)}`);
       if (payoff !== null) lines.push(`• Loan payoff: −${fullMoney(payoff)}`);
-      return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n${lines.join("\n")}\n• ${payoff !== null ? "Estimated net to the seller" : "Estimated net before mortgage payoff"}: ${fullMoney(net)}${payoff === null ? "\nSubtract the loan payoff and any credits for the real number. Tell me the payoff and I'll rerun it." : "\nThe title company's settlement statement has the final number."}`, [], "chat_simple");
+      return reply(`Seller net sheet${label} at ${fullMoney(price)}:\n${lines.join("\n")}\n• ${payoff !== null ? "Estimated net to the seller" : "Estimated net before mortgage payoff"}: ${fullMoney(net)}${payoff === null ? "\nSubtract the loan payoff and any credits for the real number. Tell me the payoff and I'll rerun it." : "\nThe title company's settlement statement has the final number."}${taxes === null && otherAmt === null && payoff !== null ? " Closing costs and taxes aren't included. Give me those and I'll add them." : ""}`, [], "chat_simple");
     }
     case "recalc": {
       const lc = ctx.state.last_calc;

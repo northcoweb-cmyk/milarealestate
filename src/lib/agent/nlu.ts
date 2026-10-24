@@ -478,6 +478,8 @@ export function splitClauses(text: string): string[] {
   text = text.slice(0, 6000); // bounded first: the patterns below are not linear on huge input
   // a single question ("What's Victor's phone, email and budget?") is one request, even though its list contains words like "email"
   if (/^\s*(?:what|who|which|when|where|how|is|are|do|does|did|can|could)\b/i.test(text) && /\?\s*$/.test(text) && !/[;]|\?.+\?/.test(text)) return [text];
+  // "make it warmer, add coffee" is one edit of the text above, not two requests
+  if (/^\s*(?:(?:ok(?:ay)?|now|and|please|pls|can you|could you)[,\s]+)*(?:make|rewrite|redo|tweak|change|reword|shorten|soften)\s+(?:it|this|that)\b/i.test(text) && !/[;\n]/.test(text)) return [text];
   // "Update Rhea's phone to X and email to Y" / "budget to 550k and add Brookeville": several fields of one person are one request
   if (/^\s*(?:please\s+|can you\s+)?(?:update|change|set|edit|fix|correct)\b/i.test(text) && /\b(?:phone|number|cell|mobile|e-?mail|budget|area|location)\b/i.test(text) && !/[;]/.test(text) && !/\b(?:remind|schedule|draft|text her|text him)\b/i.test(text)) return [text];
   // a long paste of notes (several sentences) is separate requests, one per sentence, never one merged reminder

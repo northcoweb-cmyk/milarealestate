@@ -221,8 +221,8 @@ async function feedbackHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
 
 const ASK_BY_MISSING: Record<string, string> = { address: "Which property is it for?", date: "Which day?", time: "What time?", name: "Who is it for?", location: "Which city and state?", details: "What should I change?" };
 
-async function recentHistory(ctx: Ctx) {
-  const msgs = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId).sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(-8);
+async function recentHistory(ctx: Ctx, n = 8) {
+  const msgs = (await ctx.store.list("messages", ctx.userId)).filter((m) => m.conversation_id === ctx.conversationId).sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(-n);
   return msgs.map((m) => ({ role: m.role === "user" ? ("user" as const) : ("assistant" as const), content: m.content })).filter((m) => m.content);
 }
 
@@ -476,7 +476,7 @@ async function runText(ctx: Ctx, textIn: string, docs: DocumentRow[]): Promise<{
   const pressable = outs.some((o) => o.blocks.some((b) => b.type === "questions" || (("buttons" in b) && Array.isArray((b as { buttons?: unknown[] }).buttons) && ((b as { buttons?: unknown[] }).buttons?.length ?? 0) > 0)));
   // a question left open for hours is stale: it stops reappearing above unrelated answers
   if (ctx.state.parked?.length) ctx.state.parked = ctx.state.parked.filter((x) => Date.now() - x.at < 20 * 60_000);
-  if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable && lastIntent !== "general" && lastIntent !== "smalltalk" && lastIntent !== "calc" && lastIntent !== "basics" && lastIntent !== "advice") { // an unrelated chat answer or a thank-you never carries an old question along
+  if (ctx.state.parked?.length && !ctx.state.pending && !answering && !pressable && lastIntent !== "general" && lastIntent !== "smalltalk" && lastIntent !== "calc" && lastIntent !== "basics" && lastIntent !== "advice" && lastIntent !== "revise_draft" && lastIntent !== "contact_question" && lastIntent !== "client_meeting") { // an unrelated chat answer or a thank-you never carries an old question along
     const p0 = ctx.state.parked[0];
     const seen = ((p0 as { shown?: number }).shown ?? 0) + 1; (p0 as { shown?: number }).shown = seen; // an old question is offered at most twice, then it is let go
     if (seen > 2) ctx.state.parked = ctx.state.parked.slice(1);
@@ -621,6 +621,9 @@ async function dispatchInner(ctx: Ctx, intent: Intent, text: string, declared: b
     case "list_reminders": return listRemindersHandler(ctx, text);
     case "reminder_done": return reminderDoneHandler(ctx, text);
     case "revise_draft": {
+      // with the assistant on, a text, bio or script is reworked from the chat itself; only a saved email draft keeps its own editor
+      const emailDraftLive = !!ctx.state.last_draft_id && Date.now() - (ctx.state.last_draft_at ?? 0) < 60 * 60_000 && (ctx.state.last_draft_at ?? 0) >= (ctx.state.last_text?.at ?? 0);
+      if (aiConfigured() && !emailDraftLive) return generalHandler(ctx, `Take your previous reply in this chat and change it as asked: ${text}. Give only the new version.`);
       const r = await reviseDraftHandler(ctx, text);
       // no saved draft: the text to change is Mila's own last answer in this chat (a bio, a script, a list), so the assistant reworks that
       if (aiConfigured() && /^I don't have a draft from this chat/.test(r.text)) return generalHandler(ctx, `Take your previous reply in this chat and change it as asked: ${text}. Give only the new version.`);
@@ -733,13 +736,13 @@ export function adviceCard(ask: string, answer: string, who?: { name: string; ph
 async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
   // Questions that mention someone in the user's own data are answered from that data first.
   const known = await mentionedContacts(ctx, text);
-  if (known.length && !aiAvailable()) return recallHandler(ctx, text);
+  if (known.length && !aiAvailable() && !isEditText(text)) return recallHandler(ctx, text);
   let extra = "";
   if (known.length) {
     const { contactFacts } = await import("./memory");
     extra = (await Promise.all(known.slice(0, 3).map(async (c) => `${c.name} (${c.type}, ${c.status}${c.location ? ", " + c.location : ""}): ${(await contactFacts(ctx, c)).join("; ") || "no saved details"}`))).join("\n");
   }
-  const ai = await llmChat(ctx, text, await recentHistory(ctx), extra);
+  const ai = await llmChat(ctx, text, await recentHistory(ctx, /\b(?:summari[sz]e|recap|sum up|go over)\b.{0,30}\b(?:chat|conversation|thread|everything|all of this|this morning|today)\b/i.test(text) ? 40 : 8), extra); // a summary of the chat needs the whole chat
   if (ai) {
     const card = adviceCard(text, ai.text, known[0]);
     if (card) return reply(card.lead, [card.block, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");

@@ -420,3 +420,21 @@ test("round 8: net sheet amounts read exactly (no trailing comma or 'm' of 'mort
   await a.say("Make it shorter");
   assert.equal(((await store.list("social_posts", a.id)) as any[]).length, before, "no listing post is made from a writing request");
 });
+
+test("round 9: 'make it …' edits stay with the chat, a couple with tagged names keeps both people and the area, net sheet adds no costs that were not given", async () => {
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "test-key-not-used";
+  const a = await fresh();
+  await a.say("Add a new buyer Nia Torres, phone 240-555-0100");
+  await a.say("Text Nia to confirm our meeting");
+  const before = (await store.list("calendar_events", a.id)).length;
+  const r = (await a.say("make it warmer, add coffee")).milaMessage.content;
+  assert.doesNotMatch(r, /What day and time/);
+  assert.equal((await store.list("calendar_events", a.id)).length, before, "'add coffee' is part of the edit, not a new event");
+  await a.say("I'm meeting a new buyer couple Monday at 3pm, QA TEST Zed Vega and QA TEST Mara Vega. Budget is around $520k, looking at Germantown, they want a big backyard.");
+  const c = ((await store.list("contacts", a.id)) as any[]).find((x) => /Zed Vega/.test(x.name));
+  assert.ok(c && c.location === "Germantown");
+  const mem = (await store.list("memories", a.id)) as any[];
+  assert.ok(mem.some((m) => m.key === "Also in the household" && /Mara Vega/.test(m.value)));
+  const net = (await a.say("net sheet 650k sale 380k payoff 6% commission")).milaMessage.content;
+  assert.match(net, /\$231,000/);
+});

@@ -9,7 +9,7 @@ const CONTENT = /\b(?:\d+ (?:ways|ideas|strategies) to\b|what (?:documents|forms
 const CRM_ACT = /\b(?:remind me|set a reminder|schedule|book|reschedule|cancel|add (?:a |an |the )?(?:buyer|seller|renter|lead|contact|listing|property|task|note|client)|save (?:a |the )?(?:contact|listing)|mark .* as|put .* on my calendar|log (?:a )?call|open house (?:at|on|for|this|next|tomorrow|today|saturday|sunday)|showings? (?:at|on|with|this|next|tomorrow|today)|just listed|just sold|coming soon|price (?:reduction|drop|improvement)|offer accepted|under contract|out of (?:town|office)|time off|vacation|block off|approve|delete|remove)\b/i;
 
 /** "Translate to Spanish: …" / "Rewrite this: …": the words after the colon are the text to work on, whatever they mention. */
-export const isEditText = (t: string) => /^\s*(?:(?:please|can you|could you)\s+)?(?:translate|rewrite|rephrase|reword|proofread|paraphrase|shorten|summari[sz]e)\b[^:]{0,60}:\s*.{10,}/i.test(t);
+export const isEditText = (t: string) => /^\s*(?:(?:please|can you|could you)\s+)?(?:translate|rewrite|rephrase|reword|proofread|paraphrase|shorten|summari[sz]e|make (?:it|this|that)|change (?:it|this|that)|improve (?:it|this)|fix (?:it|this))\b[^:]{0,60}:\s*.{10,}/i.test(t);
 
 export function looksGeneral(text: string): boolean {
   const t = text.trim();
