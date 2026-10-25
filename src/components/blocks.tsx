@@ -161,7 +161,7 @@ export function BlockView(p: Props) {
         </div>
       );
     case "followups": {
-      return <FollowUp title={b.title ?? "Next"} items={b.items.map((x, i) => ({ id: String(i), label: x.label }))} onSelect={(it) => { const x = b.items[Number(it.id)]; if (x) p.onAction({ type: "prompt", text: x.text }); }} />;
+      return <FollowUp title={b.title ?? "Next"} items={b.items.map((x, i) => ({ id: String(i), label: x.label }))} onSelect={(it) => { const x = b.items[Number(it.id)]; if (x) p.onAction({ type: "prefill", text: x.text }); }} />;
     }
     case "choice":
       return (

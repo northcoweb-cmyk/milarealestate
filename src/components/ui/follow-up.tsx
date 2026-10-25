@@ -16,7 +16,7 @@ interface FollowUpProps {
 
 const ease = [0.23, 1, 0.32, 1] as const;
 
-/** Suggested next things to ask, shown under one of Mila's answers. Tapping one sends it. */
+/** Suggested next things to ask, shown under one of Mila's answers. Tapping one fills the message box (the person finishes it or sends it). */
 export function FollowUp({ items, loading = false, onSelect, selectedId, title = "Next", className }: FollowUpProps) {
   const titleId = useId();
   if (items.length === 0 && !loading) return null;

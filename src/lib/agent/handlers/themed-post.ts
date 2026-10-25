@@ -51,5 +51,5 @@ export async function themedPostHandler(ctx: Ctx, text: string): Promise<Handler
   if (pub.status === "needs_approval") await ctx.store.update("social_posts", ctx.userId, post.id, { status: "pending_approval" });
   const label = PLATFORMS.find((p) => p.key === platform)?.label ?? platform;
   const block: Block = { type: "draft_social", postId: post.id, category: "local", platform, caption: post.caption, slides: post.slides.length ? post.slides : [], status: "Draft", buttons: pub.status === "needs_approval" ? [{ label: "Review", style: "secondary", href: `/tasks?approval=${pub.approval.id}` }, { label: "Approve post", style: "primary", approvalId: pub.approval.id }] : undefined };
-  return reply(`${theme.emoji} Here's your ${theme.label} ${label}. Nothing posts until you approve it.`, [block, { type: "choice", title: "Want me to…", buttons: [{ label: "Make it funnier", style: "secondary", action: { type: "prompt", text: `Write a funnier ${theme.label} post for ${label}` } }, { label: "Another idea", style: "secondary", action: { type: "prompt", text: `Another ${theme.label} post for ${label}` } }] }], "social_generation");
+  return reply(`${theme.emoji} Here's your ${theme.label} ${label}. Nothing posts until you approve it.`, [block], "social_generation");
 }

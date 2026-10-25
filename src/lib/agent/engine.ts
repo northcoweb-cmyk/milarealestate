@@ -139,7 +139,12 @@ async function handleTurnInner(profile: Profile, input: TurnInput): Promise<Turn
   const limited = aiLimitedReason();
   if (limited && limited !== "too_big") out = { ...out, blocks: [...out.blocks, { type: "notice", tone: "info", title: limited === "disabled" || limited === "global_day" ? "Smart answers are paused for a moment" : "You've used this period's smart-answer allowance", body: limited === "disabled" || limited === "global_day" ? "Calendar, contacts, tasks and drafts still work. Try the open-ended questions again a little later." : (limited === "trial_pool" ? "Calendar, contacts, tasks, listings and drafts all still work. Start a plan to keep the open-ended answers going." : "Calendar, contacts, tasks, listings and drafts all still work. Open-ended questions come back at your next renewal, or sooner on a bigger plan."), buttons: limited === "disabled" || limited === "global_day" ? undefined : [{ label: "See plans", style: "secondary", href: "/settings/credits" }] }] };
 
-  { const fu = followUpBlock(intent, out.blocks, out.text); if (fu) out = { ...out, blocks: [...out.blocks, fu] }; } // a few sensible next questions, only where they follow from the answer
+  { // a few sensible next steps, only where they follow from the answer (the person and home just talked about fill in the blanks)
+    const lastC = ctx.state.last_contact_ids?.[0] ? await ctx.store.get("contacts", ctx.userId, ctx.state.last_contact_ids[0]).catch(() => null) : null;
+    const lastP = ctx.state.last_property_id ? await ctx.store.get("properties", ctx.userId, ctx.state.last_property_id).catch(() => null) : null;
+    const fu = followUpBlock(intent, out.blocks, out.text, { name: lastC ? firstNameOf(lastC.name) : undefined, addr: lastP?.address });
+    if (fu) out = { ...out, blocks: [...out.blocks, fu] };
+  }
 
   // Charge once per turn, based on what actually happened.
   const key = out.creditKey ?? (intent === "smalltalk" ? "smalltalk" : "chat_simple");
@@ -786,14 +791,14 @@ async function generalHandler(ctx: Ctx, text: string): Promise<HandlerOut> {
       const items = lines.map((l) => l.split("|").map((x) => x.trim())).filter((x) => x.length >= 3 && x[1]).map((x) => ({ emoji: x[0].slice(0, 4) || "•", title: x[1].slice(0, 80), detail: x.slice(2).join(" | ").slice(0, 220) }));
       if (items.length >= 2) {
         const lead = lines.find((l) => !l.includes("|")) ?? "Here's your chat so far.";
-        return reply(lead, [{ type: "recap", title: "This chat", items }, ...(ai.suggestions.length ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], "chat_simple");
+        return reply(lead, [{ type: "recap", title: "This chat", items }, ...(ai.suggestions.length ? [{ type: "followups" as const, title: "Next", items: ai.suggestions.map((s) => ({ label: s.label, text: s.prompt })) }] : [])], "chat_simple");
       }
     }
     const card = recapAsk ? null : adviceCard(text, ai.text, known[0]); // a chat summary is read as written, never cut into step cards
     const figs: Block[] = ai.figures ? [{ type: "figures", ...ai.figures }] : [];
-    if (card) return reply(card.lead, [card.block, ...figs, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt" as const, text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+    if (card) return reply(card.lead, [card.block, ...figs, ...(ai.suggestions.length && !(card.block.type === "advice" && card.block.buttons?.length) ? [{ type: "followups" as const, title: "Next", items: ai.suggestions.map((s) => ({ label: s.label, text: s.prompt })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   }
-  if (ai) return reply(ai.text, [...(ai.figures ? [{ type: "figures" as const, ...ai.figures }] : []), ...(ai.suggestions.length ? [{ type: "choice" as const, title: "Want me to…", buttons: ai.suggestions.map((s, i) => ({ label: s.label, style: i === 0 ? ("primary" as const) : ("secondary" as const), action: { type: "prompt", text: s.prompt } })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
+  if (ai) return reply(ai.text, [...(ai.figures ? [{ type: "figures" as const, ...ai.figures }] : []), ...(ai.suggestions.length ? [{ type: "followups" as const, title: "Next", items: ai.suggestions.map((s) => ({ label: s.label, text: s.prompt })) }] : [])], /\b(plan|strategy|analy|compare|negotiat)/i.test(text) ? "chat_complex" : "chat_simple");
   await logError({ source: "unhandled", level: "info", message: text.slice(0, 300), userId: ctx.userId, email: ctx.profile.email });
   return reply("I'm not sure how to do that yet. Nothing was changed and you weren't charged. Here are things I can do right now:", [{
     type: "choice", title: "Try one of these", buttons: fallbackChips(text),

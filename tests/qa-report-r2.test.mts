@@ -524,3 +524,18 @@ test("round 13: a holiday post asks where, then makes a themed post; advice card
   assert.equal(calcKind("A condo has a $450 monthly HOA. How does that affect what a buyer can afford?"), null);
   assert.equal(calcKind("Can a buyer with a $90k income afford a $500k home?"), "affordable");
 });
+
+test("round 14: answers end with ready-to-fill next steps (filled with who and what was just discussed), and simple answers get none", async () => {
+  const { followUpBlock } = await import("../src/lib/agent/followups");
+  const ev = followUpBlock("create_event", [], "Added: Meeting with Sofia, Monday 11:00 AM.", { name: "Sofia" }) as any;
+  assert.deepEqual(ev.items.map((i: any) => i.label), ["Remind me an hour before", "Text Sofia to confirm", "Prep notes for this meeting"]);
+  const txt = followUpBlock("draft_text", [], "Here's the text to Sofia: “Hi!”", { name: "Sofia" }) as any;
+  assert.ok(txt.items.some((i: any) => i.text === "Make it warmer"));
+  const pay = followUpBlock("calc", [], "Payment on $520,000 ...", {}) as any;
+  assert.equal(pay.items[0].text, "What if rates drop to ", "an open blank at the end is left for the person to finish");
+  assert.equal(followUpBlock("smalltalk", [], "Sure thing, happy to help with that.", {}), null);
+  assert.equal(followUpBlock("create_event", [], "What time on Friday?", {}), null, "a question waits for its answer");
+  const a = await fresh();
+  const r = (await a.say("Schedule a showing at 12 Oak Lane Saturday at 2pm")).milaMessage;
+  assert.ok(r.blocks.some((b: any) => b.type === "followups"), "a scheduled event ends with next steps");
+});

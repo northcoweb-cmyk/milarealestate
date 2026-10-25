@@ -33,9 +33,10 @@ await store.insert("properties", prof.id, { address: "8814 Brookside Drive", cit
 test("open questions get an expert reply grounded in the agent's own business, with action buttons", async () => {
   const r = await handleTurn(profile, { message: "A buyer's agent just lowballed me on Brookside, how do I handle it?" });
   assert.match(r.milaMessage.content, /Anchor to the comps/);
-  const choice = r.milaMessage.blocks.find((b: any) => b.type === "choice") as any;
-  assert.equal(choice.buttons.length, 1, "blank suggestions are dropped");
-  assert.equal(choice.buttons[0].action.text, "Draft a counter email for the Hendersons");
+  // next steps are now "Next" chips that fill the message box (the person finishes or sends them), not send-on-tap buttons
+  const next = r.milaMessage.blocks.find((b: any) => b.type === "followups") as any;
+  assert.equal(next.items.length, 1, "blank suggestions are dropped");
+  assert.equal(next.items[0].text, "Draft a counter email for the Hendersons");
   const chat = calls.find((c) => (c.tool_choice?.function?.name ?? c.tool_choice?.name) === "reply");
   const system = (chat.instructions ?? chat.messages[0].content) as string;
   assert.match(system, /8814 Brookside Drive/, "knows the agent's listings");

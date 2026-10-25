@@ -168,6 +168,7 @@ export function MilaProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const onAction = async (a: NonNullable<ActionButton["action"]>) => {
+    if (a.type === "prefill") { setDraft(String(a.text)); setTimeout(() => document.querySelector<HTMLTextAreaElement>("textarea")?.focus(), 30); return; } // a suggestion fills the box: finish the sentence or just send it
     if (a.type === "prompt") return run({ message: String(a.text) }, String(a.text));
     if (a.type === "approve_run") {
       try {
