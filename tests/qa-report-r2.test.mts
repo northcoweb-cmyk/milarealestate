@@ -485,7 +485,7 @@ test("round 12: worked-out numbers come as a card with the headline and the line
     const due = (await store.get("reminders", a.id, r.id)) as any;
     const first = await deliverReminder(due), second = await deliverReminder(due);
     assert.equal(first.emailed, true); assert.equal(second.emailed, false);
-    assert.deepEqual(sent, ["Reminder: Call Dana"]);
+    assert.equal(sent.length, 1); assert.match(sent[0], /Call Dana/);
   } finally { globalThis.fetch = realFetch; delete process.env.RESEND_API_KEY; }
 });
 

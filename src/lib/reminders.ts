@@ -1,8 +1,9 @@
 import type { Reminder } from "./types";
 import { getStore } from "./db/store";
 import { sendEmailNotification } from "./notify";
-import { brandedEmail } from "./email-template";
-import { fmtTime } from "./time";
+import { reminderEmail } from "./email-template";
+import { fmtDay, fmtTime } from "./time";
+import { firstNameOf } from "./names";
 
 /**
  * Delivers one due reminder everywhere the person asked for: it is marked delivered, an in-app notification is saved,
@@ -22,10 +23,16 @@ export async function deliverReminder(r: Reminder): Promise<{ emailed: boolean }
     const p = await store.get("profiles", r.user_id, r.user_id).catch(() => null);
     const n = p?.settings?.notifications;
     if (p?.email && n?.channels?.email !== false && n?.topics?.task_reminders !== false) {
-      const when = fmtTime(r.remind_at, p.timezone || "America/New_York");
+      const tz = p.timezone || "America/New_York";
+      const when = fmtTime(r.remind_at, tz);
       const base = (process.env.NEXT_PUBLIC_APP_URL || "https://app.milarealestate.app").replace(/\/$/, "");
-      const html = brandedEmail({ preheader: r.title, heading: "Your reminder", chip: when, quote: { label: "Reminder", text: r.title }, body: "This is the reminder you asked Mila to send.", button: { label: "Open Mila", href: `${base}/` }, note: "This is an automatic message, so please don't reply. Manage reminders in Mila." });
-      emailed = await sendEmailNotification(p.email, `Reminder: ${r.title}`, `Reminder (${when}): ${r.title}\n\nOpen Mila: ${base}/`, html).catch(() => false);
+      const ev = r.event_id ? await store.get("calendar_events", r.user_id, r.event_id).catch(() => null) : null;
+      const cid = r.contact_id ?? ev?.contact_id ?? null;
+      const person = cid ? await store.get("contacts", r.user_id, cid).catch(() => null) : null;
+      const dayStart = new Date(new Date(r.remind_at).getTime()), dayEnd = new Date(dayStart.getTime() + 18 * 3_600_000);
+      const later = (await store.list("calendar_events", r.user_id).catch(() => [])).filter((e) => e.status === "confirmed" && e.id !== ev?.id && new Date(e.start_at) > dayStart && new Date(e.start_at) < dayEnd && fmtDay(e.start_at, tz) === fmtDay(r.remind_at, tz)).sort((a, b) => a.start_at.localeCompare(b.start_at)).map((e) => ({ time: fmtTime(e.start_at, tz), title: e.title.split(" — ")[0] }));
+      const m = reminderEmail({ title: r.title, whenTime: when, whenDay: fmtDay(r.remind_at, tz), firstName: firstNameOf(p.full_name || "") || "there", appUrl: base, event: ev ? { title: ev.title, when: `${fmtDay(ev.start_at, tz)} ${fmtTime(ev.start_at, tz)}`, where: ev.location ?? null } : null, person: person ? { name: person.name, phone: person.phone } : null, later });
+      emailed = await sendEmailNotification(p.email, m.subject, m.text, m.html).catch(() => false);
       if (emailed) await store.insert("notifications", r.user_id, { channel: "email", title: r.title, body: "Reminder email", status: "sent", related_task_id: null });
     }
   }
