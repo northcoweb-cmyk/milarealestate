@@ -62,6 +62,7 @@ function Profile() {
       <PublicIdentity />
       <Card>
         <div className="space-y-4">
+          <div><label className="lbl" htmlFor="acct-email">Account email</label><input id="acct-email" className="field" value={profile.email} readOnly aria-readonly onFocus={(e) => e.currentTarget.select()} /><p className="faint mt-1 text-[13px]">This is the email you sign in with. Reminders and your daily summary are sent here.</p></div>
           <div><label className="lbl">Name</label><input className="field" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} required /></div>
           <div className="grid gap-4 sm:grid-cols-2"><div><label className="lbl">Role</label><select className="field" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{["Agent", "Broker", "Team lead", "Assistant"].map((r) => <option key={r}>{r}</option>)}</select></div><div><label className="lbl">Brokerage</label><input className="field" value={f.brokerage} onChange={(e) => setF({ ...f, brokerage: e.target.value })} /></div></div>
           <div className="grid gap-4 sm:grid-cols-2"><div><label className="lbl">City & state</label><PlaceInput mode="city" value={f.location} onChange={(v) => setF({ ...f, location: v })} onPick={(pl) => { setPick(pl); setPickText(pl.cityState ?? ""); }} verified={!!pick && f.location === pickText} placeholder="Start typing your city…" /></div><div><label className="lbl">Primary market</label><PlaceInput mode="city" value={f.primary_market} onChange={(v) => setF({ ...f, primary_market: v })} onPick={(pl) => setF((x) => ({ ...x, primary_market: pl.cityState ?? pl.address ?? x.primary_market }))} placeholder="Start typing a city or county…" /></div></div>
@@ -69,7 +70,7 @@ function Profile() {
         </div>
         <button className="btn btn-primary mt-5">Save</button>
       </Card>
-      <p className="faint px-2 text-[13px]">Email: {profile.email} · Time zone: {profile.timezone}</p>
+      <p className="faint px-2 text-[13px]">Time zone: {profile.timezone}</p>
     </form>
   );
 }
