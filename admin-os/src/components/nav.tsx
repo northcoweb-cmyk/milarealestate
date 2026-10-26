@@ -8,7 +8,7 @@ export const GROUPS: { key: string; label: string; items: readonly Item[] }[] = 
   { key: "inbox", label: "Inbox", items: [["/support", "Support"], ["/feedback", "Feedback"], ["/errors", "Errors"]] },
   { key: "customers", label: "Customers", items: [["/users", "Users"], ["/funnel", "Funnel"]] },
   { key: "money", label: "Money", items: [["/spend", "AI spend"], ["/launch", "Billing & launch"]] },
-  { key: "growth", label: "Growth", items: [["/waitlist", "Waitlist"], ["/invites", "Invites"], ["/social", "Social"]] },
+  { key: "growth", label: "Growth", items: [["/waitlist", "Waitlist"], ["/invites", "Invites"], ["/creators", "Creators"], ["/social", "Social"]] },
 ];
 export const NAV = GROUPS.flatMap((g) => g.items);
 

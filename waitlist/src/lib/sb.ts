@@ -51,3 +51,27 @@ export async function bumpSiteChat(day: string): Promise<number | null> {
   const n = await r.json();
   return typeof n === "number" ? n : null;
 }
+
+// ---- creator partner program (the private page a creator uses to send their video links)
+export interface CreatorRow { id: string; name: string; status: "invited" | "active" | "rewarded" | "expired" | "declined"; deadline_at: string | null; reward_ends_at: string | null }
+export interface CreatorVideoRow { id: string; url: string; status: "submitted" | "verified" | "changes" | "rejected"; note: string | null; views: number | null }
+const sbGet = async <T,>(path: string): Promise<T | null> => {
+  try { const r = await fetch(`${base()}/rest/v1/${path}`, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(10000) }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
+};
+export async function creatorByToken(token: string): Promise<CreatorRow | null> {
+  if (!/^[a-f0-9]{48}$/.test(token) || !dbConfigured()) return null;
+  return (await sbGet<CreatorRow[]>(`creators?token=eq.${token}&select=id,name,status,deadline_at,reward_ends_at&limit=1`))?.[0] ?? null;
+}
+export async function creatorVideos(creatorId: string): Promise<CreatorVideoRow[]> {
+  return (await sbGet<CreatorVideoRow[]>(`creator_videos?creator_id=eq.${encodeURIComponent(creatorId)}&select=id,url,status,note,views&order=created_at.asc`)) ?? [];
+}
+/** A new link, or a fixed link for a video that was sent back for changes (it goes back to "needs your check"). */
+export async function addCreatorVideo(creatorId: string, url: string, platform: string, replaceId?: string) {
+  if (replaceId) {
+    const r = await fetch(`${base()}/rest/v1/creator_videos?id=eq.${encodeURIComponent(replaceId)}&creator_id=eq.${encodeURIComponent(creatorId)}&status=eq.changes`, { method: "PATCH", headers: headers({ Prefer: "return=representation" }), body: JSON.stringify({ url, platform, status: "submitted", note: null, checks: {} }), signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(`update ${r.status}`);
+    return;
+  }
+  const r = await fetch(`${base()}/rest/v1/creator_videos`, { method: "POST", headers: headers(), body: JSON.stringify({ creator_id: creatorId, url, platform }), signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`insert ${r.status}`);
+}

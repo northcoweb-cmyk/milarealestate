@@ -100,3 +100,15 @@ tbody tr { transition: background .15s ease; } tbody tr:hover { background: rgba
 .area { padding: 12px 16px; min-height: 96px; resize: vertical; line-height: 1.5; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .ok-t { color: var(--ok); font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* small screens: the five sections wrap instead of hiding behind a sideways scroll; tables stay readable and say they scroll */
+@media (max-width: 640px) {
+  .groups { display: flex; flex-wrap: wrap; border-radius: 22px; width: 100%; }
+  .groups a { padding: 8px 14px; flex: 1 1 auto; text-align: center; }
+  table { min-width: 520px; }
+  th, td { padding: 10px 10px; }
+  .tw { position: relative; }
+  .tw::after { content: "swipe →"; position: sticky; left: calc(100% - 64px); display: block; width: max-content; margin: 0 8px 6px auto; font-size: 11px; color: var(--faint); }
+}
+.card a, a.card { color: inherit; }
+a.card { transition: border-color .2s ease, transform .15s ease; } a.card:hover { border-color: color-mix(in srgb, var(--iris) 60%, var(--line)); transform: translateY(-1px); }

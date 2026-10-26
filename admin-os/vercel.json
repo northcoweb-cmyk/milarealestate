@@ -2,6 +2,7 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ] || git diff --quiet HEAD^ HEAD -- .",
+  "crons": [{ "path": "/api/cron/creators", "schedule": "0 14 * * *" }],
   "git": {
     "deploymentEnabled": {
       "claude/compassionate-einstein-3qc5c8": false

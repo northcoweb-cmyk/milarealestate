@@ -20,7 +20,7 @@ export async function Shell({ title, lead, right, children }: { title: string; l
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div><h1>{title}</h1>{lead && <p className="lead">{lead}</p>}</div>{right}
       </div>
-      {children}
+      <div style={{ marginTop: 18 }}>{children}</div>
     </div>
   );
 }

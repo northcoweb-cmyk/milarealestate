@@ -42,6 +42,16 @@ async function ensureTestEntry(email: string) {
   return ((await ins.json()) as Entry[])[0];
 }
 
+/** A waitlist row for someone added by hand (a creator partner): found by email, or created. They are invited right away, so they never wait in the queue. */
+export async function ensureEntry(email: string, name: string | null, source: string): Promise<Entry> {
+  const g = await rest(`waitlist?select=id,email,name,invite_token,invited_at,claimed_at&email=eq.${encodeURIComponent(email)}&limit=1`);
+  const hit = g.ok ? ((await g.json()) as Entry[])[0] : null;
+  if (hit) return hit;
+  const ins = await rest("waitlist", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ email, name, source, status: "waiting" }) });
+  if (!ins.ok) throw new Error(`insert ${ins.status}`);
+  return ((await ins.json()) as Entry[])[0];
+}
+
 export async function sendInvite(e: Entry): Promise<void> {
   const token = e.invite_token && /^[a-f0-9]{48}$/.test(e.invite_token) ? e.invite_token : randomBytes(24).toString("hex");
   if (token !== e.invite_token) {
