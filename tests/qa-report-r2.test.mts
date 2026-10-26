@@ -539,3 +539,19 @@ test("round 14: answers end with ready-to-fill next steps (filled with who and w
   const r = (await a.say("Schedule a showing at 12 Oak Lane Saturday at 2pm")).milaMessage;
   assert.ok(r.blocks.some((b: any) => b.type === "followups"), "a scheduled event ends with next steps");
 });
+
+test("round 15: a creator partner's code is remembered at sign-up and each payment is written down once, before tax", async () => {
+  const { onSignup } = await import("../src/lib/referral");
+  const { recordPartnerPayment } = await import("../src/lib/partner");
+  const a = await fresh();
+  const prof = (await store.get("profiles", a.id, a.id)) as any;
+  // no partner database in tests: the code simply isn't recognised, and sign-up is unharmed
+  assert.equal(await onSignup(prof, "ZZZZZZ99", "1.2.3.4").catch(() => "threw"), false);
+  await store.update("profiles", a.id, a.id, { settings: { ...prof.settings, referral: { partner: { id: "creator-1", code: "MAYA1234" } } } } as never);
+  await recordPartnerPayment(a.id, 3900, "mila", "cs:test1");
+  await recordPartnerPayment(a.id, 3900, "mila", "cs:test1"); // the same payment twice
+  await recordPartnerPayment(a.id, 3900, "mila", "evt_test2");
+  await recordPartnerPayment(a.id, 0, "mila", "evt_free");   // a free checkout pays nothing
+  const p2 = (await store.get("profiles", a.id, a.id)) as any;
+  assert.deepEqual(p2.settings.referral.partner.payments.map((x: any) => [x.ref, x.cents]), [["cs:test1", 3900], ["evt_test2", 3900]]);
+});

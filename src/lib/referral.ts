@@ -3,6 +3,7 @@ import { getStore } from "./db/store";
 import { grantCredits } from "./credits";
 import type { Profile } from "./types";
 import { firstNameOf } from "./names";
+import { partnerByCode } from "./partner";
 
 /**
  * Referral rewards, one time per friend, credits that never expire:
@@ -56,19 +57,23 @@ export async function onSignup(newProfile: Profile, code: string | null | undefi
   const store = getStore();
   const base = { ...(newProfile.settings.referral ?? {}), ...(ip ? { signup_net: netHash(ip) } : {}) };
   let referredBy: string | undefined;
+  let partner: { id: string; code: string } | undefined;
   const c = String(code ?? "").trim().toUpperCase();
   if (c) {
     const ref = await findReferrer(c);
     if (ref && ref.id !== newProfile.id && norm(ref.email) !== norm(newProfile.email)) referredBy = ref.id;
+    else if (!ref) { const p = await partnerByCode(c); if (p && !(p.email && norm(p.email) === norm(newProfile.email))) partner = { id: p.id, code: c }; } // a partner signing up under their own code earns nothing // a creator partner's code: remembered so their commission can be worked out
   }
-  await store.update("profiles", newProfile.id, newProfile.id, { settings: { ...newProfile.settings, referral: { ...base, ...(referredBy ? { referred_by: referredBy } : {}) } } } as never);
-  return !!referredBy;
+  await store.update("profiles", newProfile.id, newProfile.id, { settings: { ...newProfile.settings, referral: { ...base, ...(referredBy ? { referred_by: referredBy } : {}), ...(partner ? { partner } : {}) } } } as never);
+  return !!referredBy || !!partner;
 }
 
 /** First name of the person who owns a code (for the invite page). Nothing else is exposed. */
 export async function referrerFirstName(code: string): Promise<string | null> {
   const r = await findReferrer(code);
-  return r ? firstNameOf(r.full_name) || null : null;
+  if (r) return firstNameOf(r.full_name) || null;
+  const p = await partnerByCode(code); // a creator partner's invite reads the same way
+  return p ? firstNameOf(p.name) || null : null;
 }
 
 /**

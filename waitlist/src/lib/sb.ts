@@ -53,25 +53,35 @@ export async function bumpSiteChat(day: string): Promise<number | null> {
 }
 
 // ---- creator partner program (the private page a creator uses to send their video links)
-export interface CreatorRow { id: string; name: string; status: "invited" | "active" | "rewarded" | "expired" | "declined"; deadline_at: string | null; reward_ends_at: string | null }
-export interface CreatorVideoRow { id: string; url: string; status: "submitted" | "verified" | "changes" | "rejected"; note: string | null; views: number | null }
+export interface CreatorRow { id: string; name: string; handle: string | null; platform: string | null; status: "prospect" | "invited" | "active" | "rewarded" | "partner" | "paused" | "expired" | "declined"; deadline_at: string | null; reward_ends_at: string | null; ref_code: string | null; commission_pct: number; commission_months: number; videos_per_month: number; partner_since: string | null }
+export interface CreatorVideoRow { id: string; url: string; status: "submitted" | "verified" | "changes" | "rejected"; note: string | null; views: number | null; kind: "trial" | "partner"; verified_at: string | null; created_at: string }
 const sbGet = async <T,>(path: string): Promise<T | null> => {
   try { const r = await fetch(`${base()}/rest/v1/${path}`, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(10000) }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
 };
 export async function creatorByToken(token: string): Promise<CreatorRow | null> {
   if (!/^[a-f0-9]{48}$/.test(token) || !dbConfigured()) return null;
-  return (await sbGet<CreatorRow[]>(`creators?token=eq.${token}&select=id,name,status,deadline_at,reward_ends_at&limit=1`))?.[0] ?? null;
+  return (await sbGet<CreatorRow[]>(`creators?token=eq.${token}&select=id,name,handle,platform,status,deadline_at,reward_ends_at,ref_code,commission_pct,commission_months,videos_per_month,partner_since&limit=1`))?.[0] ?? null;
 }
 export async function creatorVideos(creatorId: string): Promise<CreatorVideoRow[]> {
-  return (await sbGet<CreatorVideoRow[]>(`creator_videos?creator_id=eq.${encodeURIComponent(creatorId)}&select=id,url,status,note,views&order=created_at.asc`)) ?? [];
+  return (await sbGet<CreatorVideoRow[]>(`creator_videos?creator_id=eq.${encodeURIComponent(creatorId)}&select=id,url,status,note,views,kind,verified_at,created_at&order=created_at.asc`)) ?? [];
 }
 /** A new link, or a fixed link for a video that was sent back for changes (it goes back to "needs your check"). */
-export async function addCreatorVideo(creatorId: string, url: string, platform: string, replaceId?: string) {
+export async function videosWithUrl(url: string): Promise<{ creator_id: string }[]> {
+  return (await sbGet<{ creator_id: string }[]>(`creator_videos?url=eq.${encodeURIComponent(url)}&select=creator_id`)) ?? [];
+}
+/** What a partner can see about their own referrals: how many signed up, how many pay, what they have earned so far (estimate). */
+export async function partnerNumbers(c: { id: string; commission_pct: number }): Promise<{ signups: number; paying: number; earnedCents: number }> {
+  const profs = (await sbGet<{ id: string; settings: { referral?: { partner?: { payments?: { cents: number }[] } } } }[]>(`profiles?select=id,settings&settings->referral->partner->>id=eq.${encodeURIComponent(c.id)}`)) ?? [];
+  const subs = profs.length ? ((await sbGet<{ user_id: string; status: string; stripe_subscription_id: string | null }[]>(`subscriptions?select=user_id,status,stripe_subscription_id&user_id=in.(${profs.map((p) => p.id).join(",")})`)) ?? []) : [];
+  const cents = profs.reduce((n, p) => n + (p.settings?.referral?.partner?.payments ?? []).reduce((m, x) => m + x.cents, 0), 0);
+  return { signups: profs.length, paying: subs.filter((x) => x.status === "active" && x.stripe_subscription_id).length, earnedCents: Math.round(cents * c.commission_pct / 100) };
+}
+export async function addCreatorVideo(creatorId: string, url: string, platform: string, replaceId?: string, extra: { kind?: string; flags?: string[] } = {}) {
   if (replaceId) {
-    const r = await fetch(`${base()}/rest/v1/creator_videos?id=eq.${encodeURIComponent(replaceId)}&creator_id=eq.${encodeURIComponent(creatorId)}&status=eq.changes`, { method: "PATCH", headers: headers({ Prefer: "return=representation" }), body: JSON.stringify({ url, platform, status: "submitted", note: null, checks: {} }), signal: AbortSignal.timeout(10000) });
+    const r = await fetch(`${base()}/rest/v1/creator_videos?id=eq.${encodeURIComponent(replaceId)}&creator_id=eq.${encodeURIComponent(creatorId)}&status=eq.changes`, { method: "PATCH", headers: headers({ Prefer: "return=representation" }), body: JSON.stringify({ url, platform, status: "submitted", note: null, checks: {}, flags: extra.flags ?? [] }), signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error(`update ${r.status}`);
     return;
   }
-  const r = await fetch(`${base()}/rest/v1/creator_videos`, { method: "POST", headers: headers(), body: JSON.stringify({ creator_id: creatorId, url, platform }), signal: AbortSignal.timeout(10000) });
+  const r = await fetch(`${base()}/rest/v1/creator_videos`, { method: "POST", headers: headers(), body: JSON.stringify({ creator_id: creatorId, url, platform, kind: extra.kind ?? "trial", flags: extra.flags ?? [] }), signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error(`insert ${r.status}`);
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db/store";
 import { grantCredits, planRefillAmount } from "@/lib/credits";
 import { applyCheckoutSession } from "@/lib/billing/apply-checkout";
+import { recordPartnerPayment } from "@/lib/partner";
 
 function verify(payload: string, header: string, secret: string) {
   const parts = Object.fromEntries(header.split(",").map((p) => p.split("=") as [string, string]));
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
   }
   if (event.type === "invoice.paid" && o.billing_reason === "subscription_cycle") {
     const sub = (await store.list("subscriptions", uid))[0];
+    await recordPartnerPayment(uid, o.total_excluding_tax ?? o.amount_paid, sub?.plan_key, event.id); // each renewal counts toward the partner's commission
     if (sub) {
       const refill = await planRefillAmount(uid, sub); // computed from the period that is ending
       const start = new Date();

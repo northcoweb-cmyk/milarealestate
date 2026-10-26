@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { parseWho, WHO } from "@/lib/auth";
 
 // Sarah shares the owner's login. After sign-in she picks "Sarah" and can only reach the social workspace; everything else sends her back there.
-const SARAH_OK = [/^\/social(\/|$)/, /^\/api\/items(\/|$)/, /^\/who$/, /^\/api\/who$/, /^\/api\/logout$/, /^\/login$/];
+const SARAH_OK = [/^\/social(\/|$)/, /^\/creators(\/|$)/, /^\/api\/creators(\/|$)/, /^\/api\/items(\/|$)/, /^\/who$/, /^\/api\/who$/, /^\/api\/logout$/, /^\/login$/];
 const OPEN = [/^\/login$/, /^\/api\/login$/, /^\/who$/, /^\/api\/who$/, /^\/api\/logout$/];
 
 export function proxy(req: NextRequest) {

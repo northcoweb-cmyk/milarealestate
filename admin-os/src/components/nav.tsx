@@ -14,7 +14,7 @@ export const NAV = GROUPS.flatMap((g) => g.items);
 
 export function Nav({ who }: { who?: "ryan" | "sarah" | null }) {
   const path = usePathname();
-  if (who === "sarah") return <nav className="groups" aria-label="Sections"><Link href="/social" className="on">Social</Link></nav>;
+  if (who === "sarah") return <nav className="groups" aria-label="Sections">{[["/social", "Social"], ["/creators", "Creators"]].map(([h, l]) => <Link key={h} href={h} className={path === h || path.startsWith(h + "/") ? "on" : ""}>{l}</Link>)}</nav>;
   const active = GROUPS.find((g) => g.items.some(([h]) => (h === "/" ? path === "/" : path === h || path.startsWith(h + "/")))) ?? GROUPS[0];
   return (
     <div className="navwrap">
