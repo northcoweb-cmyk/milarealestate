@@ -12,13 +12,13 @@ export function cleanFrom(v?: string): string | null {
   return name ? `${name} <${email}>` : email;
 }
 
-export async function sendMail(to: string, subject: string, text: string, html?: string, replyTo?: string, asSupport = false): Promise<{ ok: boolean; error?: string }> {
+export async function sendMail(to: string, subject: string, text: string, html?: string, replyTo?: string, asSupport = false, headers?: Record<string, string>): Promise<{ ok: boolean; error?: string }> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { ok: false, error: "RESEND_API_KEY isn't set in the Mila OS project." };
   const sup = asSupport && supportRepliesOn() ? SUPPORT_EMAIL() : null;
   const from = sup ? `Mila Support <${sup}>` : cleanFrom(process.env.NOREPLY_FROM) ?? "Mila <noreply@milarealestate.app>"; // automated mail is no-reply; support replies come from support@ once it exists
   try {
-    const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ from, reply_to: sup ?? (replyTo || "noreply@milarealestate.app"), to, subject, text, html }) });
+    const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ from, reply_to: sup ?? (replyTo || "noreply@milarealestate.app"), to, subject, text, html, ...(headers ? { headers } : {}) }) });
     if (!r.ok) { const j = (await r.json().catch(() => ({}))) as { message?: string; name?: string }; return { ok: false, error: `Email service said ${r.status}${j.message ? `: ${j.message}` : ""}` }; }
     return { ok: true };
   } catch { return { ok: false, error: "Couldn't reach the email service." }; }

@@ -6,7 +6,7 @@ type Item = readonly [href: string, label: string];
 export const GROUPS: { key: string; label: string; items: readonly Item[] }[] = [
   { key: "overview", label: "Overview", items: [["/", "Overview"], ["/live", "Launch live"]] },
   { key: "inbox", label: "Inbox", items: [["/support", "Support"], ["/feedback", "Feedback"], ["/errors", "Errors"]] },
-  { key: "customers", label: "Customers", items: [["/users", "Users"], ["/funnel", "Funnel"]] },
+  { key: "customers", label: "Customers", items: [["/users", "Users"], ["/lapsed", "Lapsed"], ["/funnel", "Funnel"]] },
   { key: "money", label: "Money", items: [["/spend", "AI spend"], ["/launch", "Billing & launch"]] },
   { key: "growth", label: "Growth", items: [["/waitlist", "Waitlist"], ["/invites", "Invites"], ["/creators", "Creators"], ["/social", "Social"]] },
 ];
